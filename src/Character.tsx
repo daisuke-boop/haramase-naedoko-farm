@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
-
-type PlayerDirection = 'up' | 'down' | 'left' | 'right';
+import type { PlayerDirection } from './types';
 
 function useTransparentSprite(imageUrl: string | null) {
   const [spriteImg, setSpriteImg] = useState<HTMLImageElement | null>(null);

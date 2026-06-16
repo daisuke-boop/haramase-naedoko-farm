@@ -1,8 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-
-type TimeOfDay = 'morning' | 'day' | 'evening' | 'night';
-type AnimZoneType = 'smoke' | 'bird' | 'water' | 'waterfall' | 'kamo' | 'sagi' | 'iwana' | 'fireplace' | 'kurumi';
-type AnimZone = { id: string, x: number, y: number, w: number, h: number, spriteW?: number, spriteH?: number, type: AnimZoneType, map?: string, timeOfDay?: TimeOfDay };
+import type { AnimZone, TimeOfDay } from './types';
 
 function useTransparentSprite(imageUrl: string | null) {
   const [spriteImg, setSpriteImg] = useState<HTMLImageElement | null>(null);

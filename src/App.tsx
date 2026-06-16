@@ -5,6 +5,27 @@ import Character from './Character';
 import DialogBox from './DialogBox';
 import ShopOverlay from './ShopOverlay';
 import AnimationLayer from './AnimationLayer';
+import type {
+  AnimZone,
+  AnimZoneTime,
+  AudioCategory,
+  CollisionDrawMode,
+  FieldCornerKey,
+  FieldCornerMap,
+  FieldCorners,
+  FieldGridSize,
+  FieldGridSizeMap,
+  FieldId,
+  FootstepSound,
+  GameMap,
+  HideAreaDrawMode,
+  MonoAudioGraph,
+  PlayerDirection,
+  RectZone,
+  TimeOfDay,
+  WallBumpSound,
+  WarpDoor,
+} from './types';
 
 const mapBgUrls = {
   morning: '/img/bokujo-asa.jpg',
@@ -27,7 +48,6 @@ const kawaBgUrls = {
   night: '/img/kawa-yoru.jpg'
 };
 
-type TimeOfDay = 'morning' | 'day' | 'evening' | 'night';
 const TIME_OF_DAY_LABELS: Record<TimeOfDay, string> = {
   morning: '朝 🌅',
   day: '昼 ☀️',
@@ -49,14 +69,6 @@ const RIGHT_FIELD_CORNERS = {
   bottomRight: { x: 1640, y: 855 },
   bottomLeft: { x: 893, y: 855 }
 };
-
-type FieldCornerKey = 'topLeft' | 'topRight' | 'bottomRight' | 'bottomLeft';
-type FieldId = 'left' | 'right';
-type FieldCorners = Record<FieldCornerKey, Point>;
-type FieldCornerMap = Record<FieldId, FieldCorners>;
-type FieldGridSize = { cols: number; rows: number };
-type FieldGridSizeMap = Record<FieldId, FieldGridSize>;
-type GameMap = 'farm' | 'house' | 'shed' | 'waterfall' | 'kawa' | 'doukutsu' | 'takiura';
 
 const mapBackgrounds: Record<GameMap, string | Record<TimeOfDay, string>> = {
   farm: mapBgUrls,
@@ -101,8 +113,6 @@ const getMapLabel = (map: GameMap) => {
   }
 };
 
-
-type PlayerDirection = 'up' | 'down' | 'left' | 'right';
 
 const playerSpriteUrls: Record<PlayerDirection, string> = {
   down: new URL('./assets/images/player_down.png', import.meta.url).href,
@@ -193,13 +203,6 @@ const furoWalkSprites: Record<PlayerDirection, [string, string, string, string]>
 
 // === BACKGROUND ANIMATION LOGIC ===
 
-type AnimZoneType = 'smoke' | 'bird' | 'water' | 'waterfall' | 'kamo' | 'sagi' | 'iwana' | 'fireplace' | 'kurumi';
-type AnimZoneTime = TimeOfDay | 'all';
-type AnimZone = { id: string, x: number, y: number, w: number, h: number, spriteW?: number, spriteH?: number, type: AnimZoneType, map?: string, timeOfDay?: TimeOfDay };
-type FootstepSound = 'soil' | 'grass' | 'foot' | 'rainw' | 'rock' | 'jutan';
-type WallBumpSound = FootstepSound | 'door' | 'off';
-type CollisionDrawMode = 'paint' | 'erase';
-type HideAreaDrawMode = 'paint' | 'erase';
 type InspectSpot = {
   id: string;
   map: GameMap;
@@ -215,16 +218,6 @@ type InspectSpot = {
   seSrc?: string;
   voiceSrc?: string;
 };
-type RectZone = { x: number; y: number; w: number; h: number };
-type MonoAudioGraph = {
-  context: AudioContext;
-  source: MediaElementAudioSourceNode;
-  splitter: ChannelSplitterNode;
-  leftGain: GainNode;
-  rightGain: GainNode;
-  merger: ChannelMergerNode;
-};
-
 const monoAudioGraphs = new WeakMap<HTMLAudioElement, MonoAudioGraph>();
 
 const forceMonoPlayback = (audio: HTMLAudioElement) => {
@@ -278,19 +271,6 @@ const WALL_BUMP_SOUNDS: Record<WallBumpSound, { label: string; src: string | nul
   jutan: { label: '絨毯', src: '/se/jutan.mp3' },
   door: { label: 'ドン', src: '/se/don.mp3' },
   off: { label: 'なし', src: null },
-};
-
-// Warp Door Definition
-type WarpDoor = {
-  id: string;
-  map: GameMap;
-  targetMap: GameMap;
-  x: number;
-  y: number;
-  w: number;
-  h: number;
-  spawnX: number;
-  spawnY: number;
 };
 
 const defaultDoors: WarpDoor[] = [
@@ -409,8 +389,6 @@ const FARM_RIVER_POINTS = [
   { x: 1540, y: 850 },
   { x: 1480, y: 1040 },
 ];
-
-type AudioCategory = 'bgm' | 'se' | 'voice';
 
 const AUDIO_FILE_ENTRIES: { src: string; label: string; category: AudioCategory }[] = [
   { src: '/bgm/farmbgm.wav', label: 'BGM: 牧場', category: 'bgm' },
