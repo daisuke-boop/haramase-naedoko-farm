@@ -1,8 +1,8 @@
 import React from 'react';
-import type { AnimZone, AnimZoneTime, AnimZoneType, CollisionDrawMode, FootstepSound, GameMap, WallBumpSound } from './types';
+import type { AnimZone, AnimZoneTime, AnimZoneType, CollisionDrawMode, FootstepSound, GameMap, HideAreaDrawMode, WallBumpSound } from './types';
 
 type MapEditorPanelProps = {
-  setupMode?: 'animation' | 'collision' | 'footstep';
+  setupMode?: 'animation' | 'collision' | 'footstep' | 'hideArea';
   selectedZoneId: string | null;
   zones: AnimZone[];
   setZones: React.Dispatch<React.SetStateAction<AnimZone[]>>;
@@ -26,6 +26,11 @@ type MapEditorPanelProps = {
   saveFootstepTiles?: (next: Record<string, FootstepSound>) => void;
   FOOTSTEP_SOUNDS?: Record<FootstepSound, { label: string; src: string; color: string; playbackRate: number }>;
   WALL_BUMP_SOUNDS?: Record<WallBumpSound, { label: string; src: string | null }>;
+  selectedHideAreaDrawMode?: HideAreaDrawMode;
+  setSelectedHideAreaDrawMode?: React.Dispatch<React.SetStateAction<HideAreaDrawMode>>;
+  hideAreaBrushSize?: 1 | 3 | 5;
+  setHideAreaBrushSize?: React.Dispatch<React.SetStateAction<1 | 3 | 5>>;
+  setHideAreaTiles?: React.Dispatch<React.SetStateAction<Record<string, boolean>>>;
 };
 
 const MapEditorPanel = ({
@@ -53,6 +58,11 @@ const MapEditorPanel = ({
   saveFootstepTiles,
   FOOTSTEP_SOUNDS,
   WALL_BUMP_SOUNDS,
+  selectedHideAreaDrawMode,
+  setSelectedHideAreaDrawMode,
+  hideAreaBrushSize,
+  setHideAreaBrushSize,
+  setHideAreaTiles,
 }: MapEditorPanelProps) => {
   if (setupMode === 'collision') {
     return (
@@ -179,6 +189,64 @@ const MapEditorPanel = ({
                                     return next;
                                  });
                               } }} 
+                              className="bg-red-600 hover:bg-red-500 text-white text-xs px-3 py-2 rounded cursor-pointer font-bold transition-colors self-end"
+                           >
+                              マップをクリア
+                           </button>
+                        </div>
+                     </div>
+                   </>
+    );
+  }
+
+  if (setupMode === 'hideArea') {
+    return (
+                   <>
+                     <div className="absolute top-1 left-4 bg-emerald-700 border-[2px] border-[#fdf6e3] rounded-md px-3 py-[2px] text-xs font-bold text-white shadow-sm">隠れエリア設定中</div>
+                     <div className="flex gap-6 h-full items-center w-full">
+                        <div className="flex-grow select-none">
+                           <p className="text-[17px] font-bold">木や茂みの裏にしたい場所をなぞって塗ります。</p>
+                           <p className="text-[#a3b18a] text-[13px] mt-1">緑色のマスにプレイヤーが入ると半透明になります。Shiftを押しながらなぞると一時的に消せます。</p>
+                        </div>
+                        <div className="flex items-center gap-3 bg-[#1a100d]/95 border-[2px] border-[#bc6c25] rounded-lg p-2 text-xs text-[#fdf6e3] z-50">
+                           <div className="flex flex-col gap-1">
+                              <span className="text-[#dda15e] font-bold">モード</span>
+                              <div className="flex gap-2">
+                                 {(['paint', 'erase'] as HideAreaDrawMode[]).map(mode => (
+                                    <button
+                                       key={mode}
+                                       onClick={() => setSelectedHideAreaDrawMode?.(mode)}
+                                       className={`px-3 py-2 rounded border font-bold cursor-pointer transition-colors ${selectedHideAreaDrawMode === mode ? 'bg-[#bc6c25] border-white text-white' : 'bg-black border-[#bc6c25] text-[#dda15e] hover:bg-[#3a2418]'}`}
+                                    >
+                                       {mode === 'paint' ? '塗る' : '消す'}
+                                    </button>
+                                 ))}
+                              </div>
+                           </div>
+                           <div className="flex flex-col gap-1">
+                              <span className="text-[#dda15e] font-bold">ブラシ</span>
+                              <div className="flex gap-2">
+                                 {([1, 3, 5] as const).map(size => (
+                                    <button
+                                       key={size}
+                                       onClick={() => setHideAreaBrushSize?.(size)}
+                                       className={`px-3 py-2 rounded border font-bold cursor-pointer transition-colors ${hideAreaBrushSize === size ? 'bg-[#bc6c25] border-white text-white' : 'bg-black border-[#bc6c25] text-[#dda15e] hover:bg-[#3a2418]'}`}
+                                    >
+                                       {size}
+                                    </button>
+                                 ))}
+                              </div>
+                           </div>
+                           <button
+                              onClick={() => { if(window.confirm('現在のマップの隠れエリアをクリアしますか？')) {
+                                 setHideAreaTiles?.(prev => {
+                                    const next = { ...prev };
+                                    Object.keys(next).forEach(key => {
+                                       if (key.startsWith(`${currentMap}_`)) delete next[key];
+                                    });
+                                    return next;
+                                 });
+                              } }}
                               className="bg-red-600 hover:bg-red-500 text-white text-xs px-3 py-2 rounded cursor-pointer font-bold transition-colors self-end"
                            >
                               マップをクリア
