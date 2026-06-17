@@ -34,8 +34,10 @@ import {
   IWANA_SPLASH_SOUND_SRC,
   KURUMI_DEFAULT_SPRITE_H,
   KURUMI_DEFAULT_SPRITE_W,
+  KURUMI_SHOP_SOUND_SRC,
   RIVER_HEAR_DISTANCE,
   RIVER_SOUND_SRC,
+  SHOP_BGM_SRC,
   SPEED,
   TAKIURA_WATERFALL_POINT,
   TIME_OF_DAY_LABELS,
@@ -217,6 +219,7 @@ const ensureRequiredZones = (zones: AnimZone[]) => {
 };
 
 const isAnimZoneVisibleAtTime = (zone: AnimZone, timeOfDay: TimeOfDay) => {
+  if (zone.timeOfDays && zone.timeOfDays.length > 0) return zone.timeOfDays.includes(timeOfDay);
   return !zone.timeOfDay || zone.timeOfDay === timeOfDay;
 };
 
@@ -275,6 +278,97 @@ const getWaterfallSoundPoint = (currentMap: GameMap) => {
 
 const hasWaterfallSoundMap = (currentMap: GameMap) => {
   return currentMap === 'waterfall' || currentMap === 'takiura' || currentMap === 'doukutsu';
+};
+
+type FishingFanConfig = {
+  width: number;
+  height: number;
+  opacity: number;
+};
+
+const DEFAULT_FISHING_FAN_CONFIG: FishingFanConfig = {
+  width: 420,
+  height: 155,
+  opacity: 0.28,
+};
+
+const DEFAULT_FISHING_FAN_CONFIGS: Record<string, FishingFanConfig> = {
+  '竹の釣竿': DEFAULT_FISHING_FAN_CONFIG,
+  '丈夫な釣竿': {
+    width: 520,
+    height: 190,
+    opacity: 0.24,
+  },
+  '高級釣竿': {
+    width: 600,
+    height: 220,
+    opacity: 0.22,
+  },
+};
+
+const FISHING_KEEP_GREEN_MIN = 42;
+const FISHING_KEEP_GREEN_MAX = 58;
+const FISHING_FISH_MAX_HP = 100;
+const FISHING_TENSION_MAX = 100;
+const FISHING_SCENE_CAST_SRC = '/img/fishing1.jpg';
+const FISHING_SCENE_UKI_SRC = '/img/uki.jpg';
+const FISHING_SCENE_HIT_SRC = '/img/hit.jpg';
+const FISHING_SCENE_HIT_OVERLAY_SRC = '/img/hit.png';
+const FISHING_SCENE_RESULT_SRC = '/img/1ugui.jpg';
+const FISHING_SCENE_ESCAPE_SRC = '/img/fishing4.jpg';
+const FISHING_CAST_SOUND_SRC = '/se/fishing.wav';
+const FISHING_REEL_SOUND_SRC = '/se/reel.mp3';
+const FISHING_BGM_SRC = '/bgm/fishking.mp3';
+
+type KurumiTradeReward = {
+  threshold: number;
+  imageSrc: string;
+  message: string;
+  voiceSrc: string;
+};
+
+type FishZukanEntry = {
+  id: string;
+  no: number;
+  name: string;
+  imageSrc: string;
+};
+
+const KURUMI_TRADE_REWARDS: KurumiTradeReward[] = [
+  { threshold: 1000, imageSrc: '/img/kurumi-pantsu.png', message: 'いつもありがとう！お礼だよっ！', voiceSrc: '/voice/kurumi1.wav' },
+  { threshold: 1500, imageSrc: '/img/kurumi-pai.png', message: '嬉しいなーっ♪サービスだよっ！', voiceSrc: '/voice/kurumi2.wav' },
+  { threshold: 2000, imageSrc: '/img/kurumi-hadaka.png', message: 'もう！お兄さんったら！', voiceSrc: '/voice/kurumi3.wav' },
+];
+
+const FISH_ZUKAN_ENTRIES: FishZukanEntry[] = [
+  { id: 'ugui', no: 1, name: 'ウグイ', imageSrc: '/img/1ugui.jpg' },
+  { id: 'nijimasu', no: 2, name: 'ニジマス', imageSrc: '/img/2nijimasu.jpg' },
+  { id: 'ayu', no: 3, name: 'アユ', imageSrc: '/img/3ayu.jpg' },
+  { id: 'iwana', no: 4, name: 'イワナ', imageSrc: '/img/4iwana.jpg' },
+  { id: 'shakuiwana', no: 5, name: '尺イワナ', imageSrc: '/img/5shakuiwana.jpg' },
+  { id: 'sakuramasu', no: 6, name: 'サクラマス', imageSrc: '/img/6sakuramasu.jpg' },
+  { id: 'sake', no: 7, name: 'サケ', imageSrc: '/img/7sake.jpg' },
+  { id: 'raigyo', no: 8, name: 'ライギョ', imageSrc: '/img/8raigyo.jpg' },
+  { id: 'mozukugani', no: 9, name: 'モクズガニ', imageSrc: '/img/9mozukugani.jpg' },
+  { id: 'oonamazu', no: 10, name: '大ナマズ', imageSrc: '/img/10oonamazu.jpg' },
+];
+
+const loadFishingFanConfigs = (): Record<string, FishingFanConfig> => {
+  try {
+    const saved = localStorage.getItem('farm_fishing_fan_configs');
+    if (!saved) return DEFAULT_FISHING_FAN_CONFIGS;
+    const parsed = JSON.parse(saved) as Record<string, Partial<FishingFanConfig>>;
+    return Object.entries(parsed).reduce<Record<string, FishingFanConfig>>((configs, [rodName, config]) => {
+      configs[rodName] = {
+        width: typeof config.width === 'number' ? config.width : DEFAULT_FISHING_FAN_CONFIG.width,
+        height: typeof config.height === 'number' ? config.height : DEFAULT_FISHING_FAN_CONFIG.height,
+        opacity: typeof config.opacity === 'number' ? config.opacity : DEFAULT_FISHING_FAN_CONFIG.opacity,
+      };
+      return configs;
+    }, { ...DEFAULT_FISHING_FAN_CONFIGS });
+  } catch {
+    return DEFAULT_FISHING_FAN_CONFIGS;
+  }
 };
 
 export default function App() {
@@ -351,7 +445,7 @@ export default function App() {
   const menuGirls = Array.from({ length: 15 }).map((_, index) => ({
     name: ['ちびいち', 'ルビー', 'メル'][index] ?? `娘${String(index + 1).padStart(2, '0')}`,
     trait: ['素直', '内気', '勝気', '甘えん坊', '好奇心旺盛'][index % 5],
-    stage: ['未受粉', '受粉準備', '受粉初期'][index % 3],
+    stage: ['未受精', '受精準備', '受精初期'][index % 3],
     level: 1,
     affinity: 1,
     cardImg: ['/img/chibiichi-card.png', '/img/ruby-card.png', '/img/mel-card.png'][index] ?? '/img/card.png',
@@ -362,6 +456,17 @@ export default function App() {
   const selectedItemNameRef = useRef('薬草');
   const [selectedEquipmentSlot, setSelectedEquipmentSlot] = useState('主人公-slot1');
   const selectedEquipmentSlotRef = useRef('主人公-slot1');
+  const [equipmentActionOpen, setEquipmentActionOpen] = useState(false);
+  const [selectedEquipmentOptionIndex, setSelectedEquipmentOptionIndex] = useState(0);
+  const selectedEquipmentOptionIndexRef = useRef(0);
+  const [equippedItems, setEquippedItems] = useState<Record<string, string>>({
+    '主人公-slot1': '竹の釣竿',
+    '主人公-slot2': 'のこぎり',
+    '主人公-slot3': 'つるはし',
+    '主人公-slot4': '農神の指輪',
+    'ちびいち-slot1': '小さな鈴',
+    'ちびいち-slot2': '',
+  });
   const [selectedSkillName, setSelectedSkillName] = useState('農具の扱い');
   const selectedSkillNameRef = useRef('農具の扱い');
   const [selectedStatusGirlIndex, setSelectedStatusGirlIndex] = useState(0);
@@ -374,19 +479,57 @@ export default function App() {
   const zukanFilterRef = useRef('通常');
   const [selectedZukanIndex, setSelectedZukanIndex] = useState(0);
   const selectedZukanIndexRef = useRef(0);
+  const [caughtFishIds, setCaughtFishIds] = useState<string[]>([]);
+  const [fishBestSizes, setFishBestSizes] = useState<Record<string, number>>({});
+  const [fishSizeUpdatedIds, setFishSizeUpdatedIds] = useState<string[]>([]);
   const [systemNotice, setSystemNotice] = useState('システム項目を選択してください。');
   const systemNoticeRef = useRef('システム項目を選択してください。');
   const [selectedSystemActionIndex, setSelectedSystemActionIndex] = useState(0);
   const selectedSystemActionIndexRef = useRef(0);
-  const shopItems = [
+  const [gold, setGold] = useState(5000);
+  const [kurumiTradeTotal, setKurumiTradeTotal] = useState(0);
+  const [inventoryCounts, setInventoryCounts] = useState<Record<string, number>>({
+    '薬草': 0,
+    '携帯おにぎり': 0,
+    '気付け水': 0,
+    '小さな釣り餌': 0,
+    '川魚': 0,
+    '木材': 20,
+    '石材': 2,
+    '薬草の葉': 3,
+    '川魚の鱗': 3,
+    '小さな宝石': 1,
+    '古びた硬貨': 2,
+    '乾いたハーブ': 3,
+    '余った作物': 4,
+    '古い鍵': 1,
+    '農場契約書': 1,
+    '母屋の地図': 1,
+    '娘管理台帳': 1,
+    '竹の釣竿': 1,
+    '丈夫な釣竿': 1,
+    '高級釣竿': 1,
+    'のこぎり': 1,
+    '丈夫なのこぎり': 1,
+    '高級のこぎり': 1,
+    'つるはし': 1,
+    '丈夫なつるはし': 1,
+    '高級つるはし': 1,
+    '農神の指輪': 1,
+  });
+  const heroLevel = 1;
+  const actionCountMax = 5 + Math.max(0, heroLevel - 1);
+  const actionCountCurrent = actionCountMax;
+  const actionCountLabel = `${actionCountCurrent}/${actionCountMax}`;
+  const [shopItems, setShopItems] = useState([
     { name: '薬草', price: 120, stock: 8, type: '買う', desc: '体力を少し回復する定番の薬草です。' },
     { name: '携帯おにぎり', price: 260, stock: 5, type: '買う', desc: '探索前の腹ごしらえに便利です。' },
     { name: '小さな釣り餌', price: 80, stock: 12, type: '買う', desc: '川釣りで使える小さな餌です。' },
     { name: '木材', price: 40, stock: 20, type: '売る', desc: '農場設備の修理にも使える素材です。' },
     { name: '川魚の鱗', price: 180, stock: 3, type: '売る', desc: '光沢のある素材。くるみが買い取ってくれます。' },
-  ];
+  ]);
   const renderMenuDetail = (id: MenuItemId) => {
-    const tabs = ['消耗品', '素材', '売却品', 'だいじなもの'];
+    const tabs = ['消耗品', '素材', '装備品', '売却品', 'だいじなもの'];
     const stats = [
       ['攻撃力', 12],
       ['防御力', 8],
@@ -414,7 +557,8 @@ export default function App() {
     const zukanCards = Array.from({ length: 15 }).map((_, index) => ['通常', '妊娠', 'レア', '未入手'][index % 4]);
     const itemByTab: Record<string, string[]> = {
       '消耗品': ['薬草', '携帯おにぎり', '気付け水', '小さな釣り餌'],
-      '素材': ['木材', '石材', '薬草の葉', '川魚の鱗'],
+      '素材': ['川魚', '木材', '石材', '薬草の葉', '川魚の鱗'],
+      '装備品': ['竹の釣竿', '丈夫な釣竿', '高級釣竿', 'のこぎり', '丈夫なのこぎり', '高級のこぎり', 'つるはし', '丈夫なつるはし', '高級つるはし', '農神の指輪'],
       '売却品': ['小さな宝石', '古びた硬貨', '乾いたハーブ', '余った作物'],
       'だいじなもの': ['古い鍵', '農場契約書', '母屋の地図', '娘管理台帳'],
     };
@@ -452,7 +596,7 @@ export default function App() {
                   className={`flex justify-between items-center px-4 py-3 border rounded cursor-pointer text-left ${activeItem === name ? 'bg-[#bc6c25]/45 border-white' : 'bg-black/35 border-[#5a3010] hover:bg-[#3a2418]'}`}
                 >
                   <span className="text-[#fdf6e3] font-bold">{name}</span>
-                  <span className="text-[#dda15e] text-sm">x{index + 1}</span>
+                  <span className="text-[#dda15e] text-sm">x{inventoryCounts[name] ?? 0}</span>
                 </button>
               ))}
             </div>
@@ -477,7 +621,13 @@ export default function App() {
           level: 1,
           role: '農具・探索',
           affinity: 1,
-          slots: ['木の護符', '布の上着'],
+          slotLabels: ['釣具系', '採取道具系', '採取道具系', 'アクセサリー'],
+          slots: [
+            equippedItems['主人公-slot1'] || '未装備',
+            equippedItems['主人公-slot2'] || '未装備',
+            equippedItems['主人公-slot3'] || '未装備',
+            equippedItems['主人公-slot4'] || '未装備',
+          ],
           stats: [12, 8, 10, 14],
           description: '農具と探索を担当します。装備で移動や作業効率を伸ばせます。',
         },
@@ -487,12 +637,33 @@ export default function App() {
           level: 1,
           role: '農場サポート',
           affinity: 2,
-          slots: ['小さな鈴', '未装備'],
+          slotLabels: ['slot1', 'slot2'],
+          slots: [
+            equippedItems['ちびいち-slot1'] || '未装備',
+            equippedItems['ちびいち-slot2'] || '未装備',
+          ],
           stats: [6, 5, 16, 18],
           description: 'サポート役として農場を手伝います。素早さと魅力が高めです。',
         },
       ];
       const selectedEquipmentCharacter = equipmentCharacters.find(char => selectedEquipmentSlot.startsWith(char.label)) ?? equipmentCharacters[0];
+      const selectedEquipmentSlotMatch = /slot(\d+)$/.exec(selectedEquipmentSlot);
+      const selectedEquipmentSlotIndex = selectedEquipmentSlotMatch ? Math.max(0, Number(selectedEquipmentSlotMatch[1]) - 1) : 0;
+      const selectedEquipmentSlotLabel = selectedEquipmentCharacter.slotLabels[selectedEquipmentSlotIndex] ?? `slot${selectedEquipmentSlotIndex + 1}`;
+      const selectedEquippedItem = equippedItems[selectedEquipmentSlot] || '';
+      const equipmentOptionsBySlot: Record<string, string[]> = {
+        '釣具系': ['竹の釣竿', '丈夫な釣竿', '高級釣竿'],
+        '採取道具系': ['のこぎり', '丈夫なのこぎり', '高級のこぎり', 'つるはし', '丈夫なつるはし', '高級つるはし'],
+        'アクセサリー': ['農神の指輪'],
+        'slot1': ['小さな鈴'],
+        'slot2': [],
+      };
+      const equippedItemNames = Object.entries(equippedItems)
+        .filter(([slotId, name]) => slotId !== selectedEquipmentSlot && Boolean(name))
+        .map(([, name]) => name);
+      const equipableItems = (equipmentOptionsBySlot[selectedEquipmentSlotLabel] ?? []).filter(name => (
+        (inventoryCounts[name] ?? 0) > 0 && !equippedItemNames.includes(name)
+      ));
       return (
         <div className="grid grid-cols-[58%_1fr] gap-5 h-full">
           <div style={menuPanelBaseStyle} className="grid grid-cols-2 gap-4 h-full">
@@ -502,8 +673,8 @@ export default function App() {
                 type="button"
                 onPointerDown={() => { setMenuFocusArea('content'); setMenuContentFocus('primary'); setSelectedEquipmentSlot(`${char.label}-slot1`); }}
                 onMouseEnter={() => { if (!selectedEquipmentSlot.startsWith(char.label)) playCursorSound(); }}
-                onClick={() => { playFixSound(); setMenuFocusArea('content'); setMenuContentFocus('primary'); setSelectedEquipmentSlot(`${char.label}-slot1`); }}
-                className={`farm-menu-character-stage relative overflow-hidden border cursor-pointer flex flex-col items-center justify-end p-4 ${selectedEquipmentSlot.startsWith(char.label) ? 'is-selected border-white' : 'border-[#5a3010]'}`}
+                onClick={() => { playFixSound(); setMenuFocusArea('content'); setMenuContentFocus('primary'); setEquipmentActionOpen(false); setSelectedEquipmentSlot(`${char.label}-slot1`); }}
+                className={`farm-menu-character-stage relative overflow-hidden border cursor-pointer flex flex-col items-center justify-end p-4 ${selectedEquipmentSlot.startsWith(char.label) ? 'is-selected border-white ring-4 ring-[#ffd166]/50' : 'border-[#5a3010]'}`}
               >
                 <div className="absolute inset-x-8 bottom-8 h-28 rounded-full bg-black/30 blur-xl" />
                 <img src={char.img} className="relative z-10 max-h-[630px] w-full object-contain drop-shadow-[0_18px_26px_rgba(0,0,0,0.45)]" alt={char.label} />
@@ -527,23 +698,85 @@ export default function App() {
                   </div>
                 </div>
               <div className="grid grid-cols-2 gap-2">
-                {['slot1', 'slot2'].map(slot => {
-                  const slotIndex = slot === 'slot1' ? 0 : 1;
+                {selectedEquipmentCharacter.slots.map((item, slotIndex) => {
+                  const slot = `slot${slotIndex + 1}`;
                   const slotId = `${selectedEquipmentCharacter.label}-${slot}`;
                   return (
                   <button
                     key={slot}
                     type="button"
-                    onPointerDown={() => { setMenuFocusArea('content'); setMenuContentFocus('secondary'); setSelectedEquipmentSlot(slotId); }}
+                    onPointerDown={() => { setMenuFocusArea('content'); setMenuContentFocus('secondary'); setSelectedEquipmentSlot(slotId); setEquipmentActionOpen(true); }}
                     onMouseEnter={() => { if (selectedEquipmentSlot !== slotId) playCursorSound(); }}
-                    onClick={() => { playFixSound(); setMenuFocusArea('content'); setMenuContentFocus('secondary'); setSelectedEquipmentSlot(slotId); }}
-                    className={`text-left rounded px-3 py-2 cursor-pointer ${selectedEquipmentSlot === slotId ? 'bg-[#bc6c25]/45 border border-white' : 'bg-black/35 border border-[#5a3010] hover:bg-[#3a2418]'}`}
+                    onClick={() => { playFixSound(); setMenuFocusArea('content'); setMenuContentFocus('secondary'); setSelectedEquipmentSlot(slotId); setEquipmentActionOpen(true); }}
+                    className={`text-left rounded px-3 py-2 cursor-pointer ${selectedEquipmentSlot === slotId ? 'bg-[#bc6c25]/45 border-2 border-white ring-2 ring-[#ffd166]/55' : 'bg-black/35 border border-[#5a3010] hover:bg-[#3a2418]'}`}
                   >
-                    <div style={menuTinyLabelStyle}>{slot}</div>
-                    <div style={menuValueStyle}>{selectedEquipmentCharacter.slots[slotIndex]}</div>
+                    <div style={menuTinyLabelStyle}>{selectedEquipmentCharacter.slotLabels[slotIndex] ?? slot}</div>
+                    <div style={menuValueStyle}>{item}</div>
+                    {selectedEquipmentSlot === slotId && (
+                      <div className="mt-1 text-[10px] text-[#ffd166] font-bold">
+                        {equipmentActionOpen ? '操作中' : 'Enter / クリックで操作'}
+                      </div>
+                    )}
                   </button>
                 )})}
               </div>
+              {equipmentActionOpen && menuContentFocus === 'secondary' && (
+                <div className="mt-4 rounded-lg border-2 border-[#dda15e] bg-black/35 p-4 shadow-inner">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <div style={menuTinyLabelStyle}>装備操作</div>
+                      <div className="text-[#fdf6e3] text-lg font-bold">{selectedEquipmentSlotLabel}</div>
+                    </div>
+                    <div className="text-right text-[11px] text-[#c8a87a] leading-snug">Esc / ← で戻る<br />Enterで決定</div>
+                  </div>
+                  {selectedEquippedItem ? (
+                    <div className="mt-3 rounded border border-[#5a3010] bg-[#2d1b15]/72 p-3">
+                      <div className="text-[#c8a87a] text-sm">現在装備中</div>
+                      <div className="mt-1 text-[#ffd166] text-xl font-bold">{selectedEquippedItem}</div>
+                      <button
+                        type="button"
+                        onPointerDown={(e) => e.stopPropagation()}
+                        onClick={() => {
+                          playFixSound();
+                          setEquippedItems(prev => ({ ...prev, [selectedEquipmentSlot]: '' }));
+                          setDialogMessage(`${selectedEquippedItem}を外しました。`);
+                        }}
+                        className="mt-3 w-full rounded border-2 border-white bg-[#7a4317] px-4 py-2 text-[#fdf6e3] font-bold cursor-pointer shadow-[0_0_16px_rgba(255,209,102,0.35)] hover:bg-[#8d4f1b]"
+                      >
+                        外す
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="mt-3">
+                      <div className="mb-2 text-[#c8a87a] text-sm">装備欄</div>
+                      <div className="grid grid-cols-1 gap-2">
+                        {equipableItems.length > 0 ? equipableItems.map((name, optionIndex) => (
+                          <button
+                            key={name}
+                            type="button"
+                            onPointerDown={(e) => { e.stopPropagation(); setSelectedEquipmentOptionIndex(optionIndex); }}
+                            onClick={() => {
+                              playFixSound();
+                              setEquippedItems(prev => ({ ...prev, [selectedEquipmentSlot]: name }));
+                              setDialogMessage(`${name}を装備しました。`);
+                            }}
+                            className={`flex items-center justify-between rounded border px-4 py-3 text-left cursor-pointer hover:bg-[#3a2418] ${
+                              selectedEquipmentOptionIndex === optionIndex ? 'border-white bg-[#bc6c25]/45' : 'border-[#5a3010] bg-[#2d1b15]/72'
+                            }`}
+                          >
+                            <span className="text-[#fdf6e3] font-bold">{name}</span>
+                            <span className="text-[#dda15e] text-sm">x{inventoryCounts[name] ?? 0}</span>
+                          </button>
+                        )) : (
+                          <div className="rounded border border-[#5a3010] bg-black/30 px-4 py-3 text-[#c8a87a]">
+                            装備できるアイテムがありません。
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
               <div className="grid grid-cols-2 gap-2 mt-4">
                 {stats.map(([label], index) => (
                   <div key={label} className="flex justify-between bg-black/25 border border-[#5a3010]/70 rounded px-4 py-3">
@@ -646,6 +879,7 @@ export default function App() {
         ['借入金', '100,000,000 G'],
         ['金利', '3.2%'],
         ['経過日数', `${currentDay} 日`],
+        ['行動回数', actionCountLabel],
       ];
       const farmFacilityItems = ['柵 Lv1', '電気柵 未設置', '箱罠 x2'];
       const farmInfoItems = [...farmOverviewItems, ...farmFacilityItems.map(item => ['設備', item])];
@@ -747,10 +981,18 @@ export default function App() {
     }
 
     if (id === 'zukan') {
+      const isFishZukan = zukanFilter === '魚';
+      const zukanFilters = ['通常', '魚', '妊娠', 'レアリティ', '未入手'];
+      const selectedFish = FISH_ZUKAN_ENTRIES[Math.min(selectedZukanIndex, FISH_ZUKAN_ENTRIES.length - 1)];
+      const selectedFishCaught = !!selectedFish && caughtFishIds.includes(selectedFish.id);
+      const selectedFishBestSize = selectedFish ? fishBestSizes[selectedFish.id] : undefined;
+      const selectedFishHasUpdate = !!selectedFish && fishSizeUpdatedIds.includes(selectedFish.id);
+      const fishProgress = Math.round((caughtFishIds.length / FISH_ZUKAN_ENTRIES.length) * 100);
+
       return (
         <div className="flex flex-col gap-3 h-full">
           <div className="flex gap-2">
-            {['通常', '妊娠', 'レアリティ', '未入手'].map((filter) => (
+            {zukanFilters.map((filter) => (
               <button
                 key={filter}
                 type="button"
@@ -763,27 +1005,84 @@ export default function App() {
               </button>
             ))}
           </div>
-          <div style={menuPanelBaseStyle} className="grid grid-cols-5 gap-2 flex-1">
-            {zukanCards.map((kind, index) => (
-              <button
-                key={`${kind}-${index}`}
-                type="button"
-                onPointerDown={() => { setMenuFocusArea('content'); setMenuContentFocus('secondary'); setSelectedZukanIndex(index); }}
-                onMouseEnter={() => { if (selectedZukanIndex !== index) playCursorSound(); }}
-                onClick={() => { playFixSound(); setMenuFocusArea('content'); setMenuContentFocus('secondary'); setSelectedZukanIndex(index); }}
-                className={`text-left rounded p-2 flex flex-col justify-between cursor-pointer ${selectedZukanIndex === index ? 'bg-[#bc6c25]/45 border border-white' : 'bg-black/35 border border-[#5a3010] hover:bg-[#3a2418]'}`}
-              >
-                <div className="text-[#fdf6e3] font-bold">No.{index + 1}</div>
-                <div className="text-[#dda15e] text-xs">{kind}</div>
-                <div className="text-[10px] text-[#a3b18a]">プロフィール / 回想</div>
-              </button>
-            ))}
+          <div style={menuPanelBaseStyle} className={`grid grid-cols-5 gap-2 flex-1 ${isFishZukan ? 'auto-rows-fr' : ''}`}>
+            {isFishZukan ? FISH_ZUKAN_ENTRIES.map((fish, index) => {
+              const caught = caughtFishIds.includes(fish.id);
+              const hasSizeUpdate = fishSizeUpdatedIds.includes(fish.id);
+              return (
+                <button
+                  key={fish.id}
+                  type="button"
+                  onPointerDown={() => { setMenuFocusArea('content'); setMenuContentFocus('secondary'); setSelectedZukanIndex(index); }}
+                  onMouseEnter={() => { if (selectedZukanIndex !== index) playCursorSound(); }}
+                  onClick={() => { playFixSound(); setMenuFocusArea('content'); setMenuContentFocus('secondary'); setSelectedZukanIndex(index); }}
+                  className={`relative overflow-hidden rounded-lg border p-2 text-left cursor-pointer transition-colors ${selectedZukanIndex === index ? 'bg-[#bc6c25]/45 border-white' : 'bg-black/35 border-[#5a3010] hover:bg-[#3a2418]'}`}
+                >
+                  <div className="relative z-10 flex h-full flex-col justify-between gap-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[#fdf6e3] font-bold">No.{fish.no}</span>
+                      <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${caught ? 'bg-[#4a5823] text-[#d9f99d]' : 'bg-[#2d1b15] text-[#dda15e]'}`}>
+                        {caught ? '釣果済' : '未発見'}
+                      </span>
+                    </div>
+                    <div className="relative aspect-[4/3] overflow-hidden rounded border border-[#5a3010]/80 bg-[#140c09]">
+                      {caught ? (
+                        <img src={fish.imageSrc} alt={fish.name} className="h-full w-full object-cover" />
+                      ) : (
+                        <img src="/img/fishcard.png" alt="魚カード裏面" className="h-full w-full object-cover" />
+                      )}
+                    </div>
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-sm font-bold text-[#fdf6e3]">{caught ? fish.name : '？？？？'}</span>
+                      {hasSizeUpdate && (
+                        <span className="rounded-full border border-[#67e8f9]/70 bg-[linear-gradient(135deg,rgba(103,232,249,0.95),rgba(255,209,102,0.9))] px-2 py-0.5 text-[9px] font-black text-[#21110b] shadow-[0_0_14px_rgba(103,232,249,0.55)]">
+                          更新
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </button>
+              );
+            }) : zukanCards.map((kind, index) => (
+                <button
+                  key={`${kind}-${index}`}
+                  type="button"
+                  onPointerDown={() => { setMenuFocusArea('content'); setMenuContentFocus('secondary'); setSelectedZukanIndex(index); }}
+                  onMouseEnter={() => { if (selectedZukanIndex !== index) playCursorSound(); }}
+                  onClick={() => { playFixSound(); setMenuFocusArea('content'); setMenuContentFocus('secondary'); setSelectedZukanIndex(index); }}
+                  className={`text-left rounded p-2 flex flex-col justify-between cursor-pointer ${selectedZukanIndex === index ? 'bg-[#bc6c25]/45 border border-white' : 'bg-black/35 border border-[#5a3010] hover:bg-[#3a2418]'}`}
+                >
+                  <div className="text-[#fdf6e3] font-bold">No.{index + 1}</div>
+                  <div className="text-[#dda15e] text-xs">{kind}</div>
+                  <div className="text-[10px] text-[#a3b18a]">プロフィール / 回想</div>
+                </button>
+              ))}
           </div>
           <div className="bg-black/30 rounded p-3 border border-[#5a3010]">
-            <div className="text-[#fdf6e3] font-bold">No.{selectedZukanIndex + 1} 詳細</div>
-            <div className="text-[#dda15e] text-sm">フィルタ: {zukanFilter} / シーン回想を選択できます。</div>
+            {isFishZukan ? (
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="text-[#fdf6e3] font-bold">No.{selectedFish?.no ?? 1} {selectedFishCaught ? selectedFish?.name : '？？？？'}</div>
+                <div className="rounded-full border border-[#ffd166]/60 bg-[#2d1b15]/80 px-3 py-1 text-sm font-bold text-[#ffd166] shadow-[inset_0_1px_0_rgba(255,255,255,0.12)]">
+                  最大の釣果: {selectedFishCaught && selectedFishBestSize ? `${selectedFishBestSize.toFixed(1)}cm` : '--.-cm'}
+                </div>
+                {selectedFishHasUpdate && (
+                  <div className="rounded-full border border-[#67e8f9]/80 bg-[linear-gradient(135deg,#67e8f9,#ffd166)] px-4 py-1 text-sm font-black text-[#21110b] shadow-[0_0_18px_rgba(103,232,249,0.62),inset_0_1px_0_rgba(255,255,255,0.45)]">
+                    NEW RECORD
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="text-[#fdf6e3] font-bold">No.{selectedZukanIndex + 1} 詳細</div>
+            )}
+            <div className="text-[#dda15e] text-sm">
+              {isFishZukan
+                ? (selectedFishCaught ? '釣りで発見済み。画像が図鑑に登録されました。' : 'まだ釣っていません。釣り上げると魚の画像が表示されます。')
+                : `フィルタ: ${zukanFilter} / シーン回想を選択できます。`}
+            </div>
           </div>
-          <div className="h-5 bg-black/50 border border-[#5a3010] rounded overflow-hidden"><div className="h-full bg-[#bc6c25]" style={{ width: '32%' }} /></div>
+          <div className="h-5 bg-black/50 border border-[#5a3010] rounded overflow-hidden">
+            <div className="h-full bg-[#bc6c25]" style={{ width: isFishZukan ? `${fishProgress}%` : '32%' }} />
+          </div>
         </div>
       );
     }
@@ -819,7 +1118,7 @@ export default function App() {
             )}
           </button>
         ))}
-        <div style={menuPanelBaseStyle} className="col-span-3 grid grid-cols-3 gap-4">
+        <div style={menuPanelBaseStyle} className="col-span-3 grid grid-cols-4 gap-4">
           {[
             { label: 'BGM', value: bgmVolume, setValue: (value: number) => setBgmVolume(value), color: '#facc15', percentClass: 'text-yellow-200' },
             { label: 'SE', value: seVolume, setValue: (value: number) => setSeVolume(value), color: '#22c55e', percentClass: 'text-green-200' },
@@ -846,6 +1145,23 @@ export default function App() {
               </div>
             );
           })}
+          <div className="rounded border border-[#5a3010]/70 bg-black/25 px-3 py-3">
+            <div className="flex items-center justify-between gap-2">
+              <div style={menuTinyLabelStyle}>テキスト表示スピード</div>
+              <span className="farm-volume-percent text-orange-200">{textDisplaySpeedLevel >= 5 ? '一瞬' : `${textDisplaySpeedLevel}/5`}</span>
+            </div>
+            <input
+              type="range"
+              min="1"
+              max="5"
+              value={textDisplaySpeedLevel}
+              onChange={(e) => setTextDisplaySpeedLevel(Number(e.target.value))}
+              className="farm-volume-slider mt-3 w-full cursor-pointer"
+              style={{ background: `linear-gradient(90deg, #fb923c 0%, #fb923c ${(textDisplaySpeedLevel - 1) * 25}%, #374151 ${(textDisplaySpeedLevel - 1) * 25}%, #374151 100%)` }}
+              aria-label="テキスト表示スピード"
+            />
+            <div className="mt-2 text-[11px] text-[#c8a87a]">表示速度: {textDisplaySpeedLevel >= 5 ? '一瞬' : `${textDisplaySpeedLevel}/5`}</div>
+          </div>
         </div>
         <div style={menuPanelBaseStyle} className="col-span-3 text-[#fdf6e3] font-bold">{systemNotice}</div>
       </div>
@@ -862,6 +1178,8 @@ export default function App() {
     if (menuOpen) {
       clickTargetRef.current = null;
       setClickTargetMarker(null);
+    } else {
+      setFishSizeUpdatedIds([]);
     }
   }, [menuOpen]);
   useEffect(() => { menuSelectedIndexRef.current = menuSelectedIndex; }, [menuSelectedIndex]);
@@ -870,6 +1188,8 @@ export default function App() {
   useEffect(() => { itemMenuTabRef.current = itemMenuTab; }, [itemMenuTab]);
   useEffect(() => { selectedItemNameRef.current = selectedItemName; }, [selectedItemName]);
   useEffect(() => { selectedEquipmentSlotRef.current = selectedEquipmentSlot; }, [selectedEquipmentSlot]);
+  useEffect(() => { selectedEquipmentOptionIndexRef.current = selectedEquipmentOptionIndex; }, [selectedEquipmentOptionIndex]);
+  useEffect(() => { setSelectedEquipmentOptionIndex(0); }, [selectedEquipmentSlot, equipmentActionOpen]);
   useEffect(() => { selectedSkillNameRef.current = selectedSkillName; }, [selectedSkillName]);
   useEffect(() => { selectedStatusGirlIndexRef.current = selectedStatusGirlIndex; }, [selectedStatusGirlIndex]);
   useEffect(() => { selectedFarmGirlIndexRef.current = selectedFarmGirlIndex; }, [selectedFarmGirlIndex]);
@@ -882,14 +1202,70 @@ export default function App() {
   const [sleepPromptVisible, setSleepPromptVisible] = useState(false);
   const [craftPromptVisible, setCraftPromptVisible] = useState(false);
   const [fishingPromptVisible, setFishingPromptVisible] = useState(false);
+  const [fishingMiniGameOpen, setFishingMiniGameOpen] = useState(false);
+  const [fishingMiniGameStage, setFishingMiniGameStage] = useState<'direction' | 'power' | 'bite' | 'hit' | 'keep' | 'result'>('direction');
+  const [fishingGauge, setFishingGauge] = useState(0);
+  const [fishingCastAngle, setFishingCastAngle] = useState(0);
+  const [fishingCastPower, setFishingCastPower] = useState(0);
+  const [fishingFanConfigs, setFishingFanConfigs] = useState<Record<string, FishingFanConfig>>(loadFishingFanConfigs);
+  const equippedFishingRod = equippedItems['主人公-slot1'] || '竹の釣竿';
+  const fishingFanConfig = fishingFanConfigs[equippedFishingRod] ?? DEFAULT_FISHING_FAN_CONFIG;
+  const setFishingFanWidth = (width: number) => {
+    setFishingFanConfigs(prev => ({
+      ...prev,
+      [equippedFishingRod]: { ...(prev[equippedFishingRod] ?? DEFAULT_FISHING_FAN_CONFIG), width },
+    }));
+  };
+  const setFishingFanHeight = (height: number) => {
+    setFishingFanConfigs(prev => ({
+      ...prev,
+      [equippedFishingRod]: { ...(prev[equippedFishingRod] ?? DEFAULT_FISHING_FAN_CONFIG), height },
+    }));
+  };
+  const setFishingFanOpacity = (opacity: number) => {
+    setFishingFanConfigs(prev => ({
+      ...prev,
+      [equippedFishingRod]: { ...(prev[equippedFishingRod] ?? DEFAULT_FISHING_FAN_CONFIG), opacity },
+    }));
+  };
+  useEffect(() => {
+    localStorage.setItem('farm_fishing_fan_configs', JSON.stringify(fishingFanConfigs));
+  }, [fishingFanConfigs]);
+  const [fishingBiteCountdown, setFishingBiteCountdown] = useState(3);
+  const [fishingKeepSeconds, setFishingKeepSeconds] = useState(3);
+  const [fishingKeepMissSeconds, setFishingKeepMissSeconds] = useState(0);
+  const [fishingFishHp, setFishingFishHp] = useState(FISHING_FISH_MAX_HP);
+  const [fishingTension, setFishingTension] = useState(0);
+  const [fishingResultText, setFishingResultText] = useState('');
+  const [fishingResultSizeCm, setFishingResultSizeCm] = useState('');
+  const [fishingResultImageSrc, setFishingResultImageSrc] = useState(FISHING_SCENE_RESULT_SRC);
+  const [isFishingHitSplashActive, setIsFishingHitSplashActive] = useState(false);
+  const [isFishingHitIntroActive, setIsFishingHitIntroActive] = useState(false);
+  const [fishingHitCountdown, setFishingHitCountdown] = useState(3);
+  const [fishingHitLimitSeconds, setFishingHitLimitSeconds] = useState(10);
+  const [isFishingKeepPressed, setIsFishingKeepPressed] = useState(false);
   const [kurumiShopOpen, setKurumiShopOpen] = useState(false);
   const [selectedShopItemIndex, setSelectedShopItemIndex] = useState(0);
+  const [selectedShopControl, setSelectedShopControl] = useState<'items' | 'action' | 'close'>('items');
+  const [isShopTradePose, setIsShopTradePose] = useState(false);
+  const [activeKurumiTradeReward, setActiveKurumiTradeReward] = useState<KurumiTradeReward | null>(null);
+  const [shownKurumiTradeRewardThresholds, setShownKurumiTradeRewardThresholds] = useState<number[]>([]);
+  const shopTradePoseTimerRef = useRef<number | null>(null);
+  const kurumiTradeRewardTimerRef = useRef<number | null>(null);
   const [confirmPromptChoice, setConfirmPromptChoice] = useState<'yes' | 'no'>('yes');
   const [sleepFadeOpacity, setSleepFadeOpacity] = useState(0);
   const [isSleepSequenceActive, setIsSleepSequenceActive] = useState(false);
   const sleepPromptBlockedRef = useRef(false);
   const craftPromptBlockedRef = useRef(false);
   const fishingPromptBlockedRef = useRef(false);
+  const fishingGaugeDirectionRef = useRef(1);
+  const fishingBiteTimerRef = useRef<number | null>(null);
+  const fishingHitSplashTimerRef = useRef<number | null>(null);
+  const fishingHitIntroTimerRef = useRef<number | null>(null);
+  const fishingHitCountdownTimerRef = useRef<number | null>(null);
+  const fishingRiverAudioRef = useRef<HTMLAudioElement | null>(null);
+  const fishingReelAudioRef = useRef<HTMLAudioElement | null>(null);
+  const isFishingKeepPressedRef = useRef(false);
   const movementLockedRef = useRef(false);
   
   const [isLoading, setIsLoading] = useState(true);
@@ -950,10 +1326,12 @@ export default function App() {
   const [bgmVolume, setBgmVolume] = useState<number>(0.2);
   const [seVolume, setSeVolume] = useState<number>(0.2);
   const [voiceVolume, setVoiceVolume] = useState<number>(0.8);
+  const [textDisplaySpeedLevel, setTextDisplaySpeedLevel] = useState<number>(3);
   const [audioGains, setAudioGains] = useState<Record<string, number>>(DEFAULT_AUDIO_GAINS);
   const [mapBgmSources, setMapBgmSources] = useState<Record<GameMap, string>>(DEFAULT_MAP_BGM_SOURCES);
   const [activeAutoEventSpot, setActiveAutoEventSpot] = useState<InspectSpot | null>(null);
   const [activeAutoEventMessage, setActiveAutoEventMessage] = useState('');
+  const [displayedAutoEventMessage, setDisplayedAutoEventMessage] = useState('');
 
   const [selectedAudioFile, setSelectedAudioFile] = useState('/bgm/farmbgm.wav');
   const bgmRef = useRef<HTMLAudioElement | null>(null);
@@ -961,6 +1339,7 @@ export default function App() {
   const bgmSourceRef = useRef('/bgm/farmbgm.wav');
   const bgmFadeRafRef = useRef<number | null>(null);
   const bgmFadingRef = useRef(false);
+  const wasFishingBgmActiveRef = useRef(false);
   const walkSoundRef = useRef<HTMLAudioElement | null>(null);
   const wasPlayerInBathRef = useRef(false);
   const wasPlayerInBathTubRef = useRef(false);
@@ -968,6 +1347,8 @@ export default function App() {
   const riverSoundRef = useRef<HTMLAudioElement | null>(null);
   const fireplaceSoundRef = useRef<HTMLAudioElement | null>(null);
   const cicadaSoundRef = useRef<HTMLAudioElement | null>(null);
+  const autoEventTypeTimerRef = useRef<number | null>(null);
+  const typeSoundRef = useRef<HTMLAudioElement | null>(null);
   const walkSoundTypeRef = useRef<FootstepSound>('soil');
   const wallBumpLastPlayedRef = useRef(0);
 
@@ -988,6 +1369,12 @@ export default function App() {
      audioGainsRef.current = audioGains;
   }, [audioGains]);
 
+  useEffect(() => {
+     if (typeSoundRef.current) {
+        typeSoundRef.current.volume = getEffectiveVolume('/se/type.mp3', seVolume, audioGainsRef.current);
+     }
+  }, [seVolume, audioGains]);
+
   const selectedAudioGain = getFileGain(selectedAudioFile, audioGains);
   const currentMapBgmSource = mapBgmSources[currentMap] ?? DEFAULT_MAP_BGM_SOURCES[currentMap];
   const currentMapBgmLabel = BGM_FILE_ENTRIES.find(entry => entry.src === currentMapBgmSource)?.label ?? currentMapBgmSource;
@@ -1000,14 +1387,199 @@ export default function App() {
   };
 
   useEffect(() => {
-     movementLockedRef.current = sleepPromptVisible || craftPromptVisible || fishingPromptVisible || kurumiShopOpen || isSleepSequenceActive;
-  }, [sleepPromptVisible, craftPromptVisible, fishingPromptVisible, kurumiShopOpen, isSleepSequenceActive]);
+     movementLockedRef.current = sleepPromptVisible || craftPromptVisible || fishingPromptVisible || fishingMiniGameOpen || kurumiShopOpen || isSleepSequenceActive;
+  }, [sleepPromptVisible, craftPromptVisible, fishingPromptVisible, fishingMiniGameOpen, kurumiShopOpen, isSleepSequenceActive]);
 
   useEffect(() => {
      if (sleepPromptVisible || craftPromptVisible || fishingPromptVisible) {
         setConfirmPromptChoice('yes');
      }
   }, [sleepPromptVisible, craftPromptVisible, fishingPromptVisible]);
+
+  useEffect(() => {
+     if (!fishingMiniGameOpen) {
+        if (fishingRiverAudioRef.current) {
+           fishingRiverAudioRef.current.pause();
+           fishingRiverAudioRef.current = null;
+        }
+        return;
+     }
+     const audio = new Audio(RIVER_SOUND_SRC);
+     audio.loop = true;
+     audio.volume = Math.min(1, getEffectiveVolume(RIVER_SOUND_SRC, seVolumeRef.current, audioGainsRef.current));
+     fishingRiverAudioRef.current = audio;
+     audio.play().catch((err) => {
+        console.log("Fishing river sound autoplay blocked", err);
+     });
+     return () => {
+        audio.pause();
+        if (fishingRiverAudioRef.current === audio) fishingRiverAudioRef.current = null;
+     };
+  }, [fishingMiniGameOpen]);
+
+  useEffect(() => {
+     if (fishingRiverAudioRef.current) {
+        fishingRiverAudioRef.current.volume = Math.min(1, getEffectiveVolume(RIVER_SOUND_SRC, seVolume, audioGainsRef.current));
+     }
+  }, [seVolume, audioGains]);
+
+  useEffect(() => {
+     if (!fishingMiniGameOpen || fishingMiniGameStage !== 'keep') {
+        if (fishingReelAudioRef.current) {
+           fishingReelAudioRef.current.pause();
+           fishingReelAudioRef.current = null;
+        }
+        return;
+     }
+     const audio = new Audio(FISHING_REEL_SOUND_SRC);
+     audio.loop = true;
+     audio.volume = Math.min(1, getEffectiveVolume(FISHING_REEL_SOUND_SRC, seVolumeRef.current, audioGainsRef.current));
+     fishingReelAudioRef.current = audio;
+     audio.play().catch((err) => {
+        console.log("Fishing reel sound autoplay blocked", err);
+     });
+     return () => {
+        audio.pause();
+        if (fishingReelAudioRef.current === audio) fishingReelAudioRef.current = null;
+     };
+  }, [fishingMiniGameOpen, fishingMiniGameStage]);
+
+  useEffect(() => {
+     if (fishingReelAudioRef.current) {
+        fishingReelAudioRef.current.volume = Math.min(1, getEffectiveVolume(FISHING_REEL_SOUND_SRC, seVolume, audioGainsRef.current));
+     }
+  }, [seVolume, audioGains]);
+
+  useEffect(() => {
+     if (!fishingMiniGameOpen || fishingMiniGameStage === 'bite' || fishingMiniGameStage === 'result' || isFishingHitSplashActive) return;
+     const timerId = window.setInterval(() => {
+        if (fishingMiniGameStage === 'direction' || fishingMiniGameStage === 'hit') {
+           setFishingGauge(prev => {
+              let next = prev + fishingGaugeDirectionRef.current * (fishingMiniGameStage === 'direction' ? 2 : 3);
+              if (next >= 100) {
+                 next = 100;
+                 fishingGaugeDirectionRef.current = -1;
+              }
+              if (next <= 0) {
+                 next = 0;
+                 fishingGaugeDirectionRef.current = 1;
+              }
+              return next;
+           });
+           return;
+        }
+
+        if (fishingMiniGameStage === 'power') {
+           setFishingGauge(prev => {
+              let next = prev + fishingGaugeDirectionRef.current * 3.5;
+              if (next >= 105) {
+                 next = 105;
+                 fishingGaugeDirectionRef.current = -1;
+              }
+              if (next <= 0) {
+                 next = 0;
+                 fishingGaugeDirectionRef.current = 1;
+              }
+              return next;
+           });
+           return;
+        }
+
+        if (fishingMiniGameStage === 'keep') {
+           const nextGauge = Math.max(0, Math.min(100, fishingGauge + (isFishingKeepPressedRef.current ? -2.6 : 1.8)));
+           const isInGreenZone = nextGauge >= FISHING_KEEP_GREEN_MIN && nextGauge <= FISHING_KEEP_GREEN_MAX;
+           setFishingGauge(nextGauge);
+           setFishingFishHp(prev => isInGreenZone ? Math.max(0, prev - 1.15) : prev);
+           setFishingTension(prev => (
+              isInGreenZone
+                 ? Math.max(0, prev - 0.8)
+                 : Math.min(FISHING_TENSION_MAX, prev + 2.4)
+           ));
+        }
+     }, 50);
+     return () => window.clearInterval(timerId);
+  }, [fishingMiniGameOpen, fishingMiniGameStage, fishingGauge, isFishingHitSplashActive]);
+
+  useEffect(() => {
+     isFishingKeepPressedRef.current = isFishingKeepPressed;
+  }, [isFishingKeepPressed]);
+
+  useEffect(() => {
+     if (fishingMiniGameStage !== 'keep') {
+        setIsFishingKeepPressed(false);
+     }
+  }, [fishingMiniGameStage]);
+
+  useEffect(() => {
+     if (!fishingMiniGameOpen || fishingMiniGameStage !== 'bite') return;
+     if (fishingBiteTimerRef.current !== null) {
+        window.clearTimeout(fishingBiteTimerRef.current);
+     }
+     const waitMs = 10000 + Math.random() * 20000;
+     fishingBiteTimerRef.current = window.setTimeout(() => {
+        setFishingMiniGameStage('hit');
+        setFishingGauge(0);
+        fishingGaugeDirectionRef.current = 1;
+        fishingBiteTimerRef.current = null;
+     }, waitMs);
+     return () => {
+        if (fishingBiteTimerRef.current !== null) {
+           window.clearTimeout(fishingBiteTimerRef.current);
+           fishingBiteTimerRef.current = null;
+        }
+     };
+  }, [fishingMiniGameOpen, fishingMiniGameStage]);
+
+  useEffect(() => {
+     if (!fishingMiniGameOpen || fishingMiniGameStage !== 'hit' || isFishingHitSplashActive) return;
+     setFishingHitLimitSeconds(10);
+     const timerId = window.setInterval(() => {
+        setFishingHitLimitSeconds(prev => {
+           const next = Math.max(0, Number((prev - 0.1).toFixed(1)));
+           if (next <= 0) {
+              window.clearInterval(timerId);
+              setFishingResultImageSrc(FISHING_SCENE_ESCAPE_SRC);
+              setFishingResultSizeCm('');
+              setFishingResultText('魚に逃げられた...');
+              setDialogMessage('魚に逃げられた...');
+              setFishingMiniGameStage('result');
+           }
+           return next;
+        });
+     }, 100);
+     return () => window.clearInterval(timerId);
+  }, [fishingMiniGameOpen, fishingMiniGameStage, isFishingHitSplashActive]);
+
+  useEffect(() => {
+     if (!fishingMiniGameOpen || fishingMiniGameStage !== 'keep') return;
+     if (fishingFishHp <= 0) {
+        const ugui = FISH_ZUKAN_ENTRIES[0];
+        if (ugui && !caughtFishIds.includes(ugui.id)) {
+          setCaughtFishIds(prev => [...prev, ugui.id]);
+        }
+        const sizeValue = Number((10 + Math.random() * 10).toFixed(1));
+        const sizeCm = sizeValue.toFixed(1);
+        if (ugui && sizeValue > (fishBestSizes[ugui.id] ?? 0)) {
+          setFishBestSizes(prev => ({ ...prev, [ugui.id]: sizeValue }));
+          setFishSizeUpdatedIds(prev => prev.includes(ugui.id) ? prev : [...prev, ugui.id]);
+        }
+        setInventoryCounts(prev => ({ ...prev, '川魚': (prev['川魚'] ?? 0) + 1 }));
+        setFishingResultSizeCm(sizeCm);
+        setFishingResultImageSrc(FISHING_SCENE_RESULT_SRC);
+        setFishingResultText('お見事！ウグイを釣り上げた。');
+        setDialogMessage(`お見事！ウグイを釣り上げた。`);
+        playUiSound(IWANA_SPLASH_SOUND_SRC);
+        setFishingMiniGameStage('result');
+        return;
+     }
+     if (fishingTension >= FISHING_TENSION_MAX) {
+        setFishingResultImageSrc(FISHING_SCENE_ESCAPE_SRC);
+        setFishingResultSizeCm('');
+        setFishingResultText('糸が切れて魚に逃げられた...');
+        setDialogMessage('糸が切れて魚に逃げられた...');
+        setFishingMiniGameStage('result');
+     }
+  }, [caughtFishIds, fishBestSizes, fishingFishHp, fishingTension, fishingMiniGameOpen, fishingMiniGameStage]);
 
   const TILE_SIZE = 15;
   const GRID_COLS = 128; // 1920 / 15
@@ -1192,6 +1764,21 @@ export default function App() {
           if (data.plantedCrops) setPlantedCrops(data.plantedCrops);
           if (data.fieldCorners) setFieldCorners(data.fieldCorners);
           if (data.fieldGridSizes) setFieldGridSizes(data.fieldGridSizes);
+          if (Array.isArray(data.caughtFishIds)) {
+            setCaughtFishIds(data.caughtFishIds.filter((id: unknown): id is string => (
+              typeof id === 'string' && FISH_ZUKAN_ENTRIES.some(fish => fish.id === id)
+            )));
+          }
+          if (data.fishBestSizes && typeof data.fishBestSizes === 'object') {
+            const parsedBestSizes = data.fishBestSizes as Record<string, unknown>;
+            setFishBestSizes(Object.fromEntries(
+              Object.entries(parsedBestSizes).filter(([id, size]) => (
+                FISH_ZUKAN_ENTRIES.some(fish => fish.id === id) &&
+                typeof size === 'number' &&
+                Number.isFinite(size)
+              ))
+            ) as Record<string, number>);
+          }
           if (
             data.bathTubMaskZone &&
             typeof data.bathTubMaskZone.x === 'number' &&
@@ -1238,6 +1825,8 @@ export default function App() {
         plantedCrops,
         fieldCorners,
         fieldGridSizes,
+        caughtFishIds,
+        fishBestSizes,
         bathTubMaskZone
       };
 
@@ -1271,6 +1860,8 @@ export default function App() {
     plantedCrops,
     fieldCorners,
     fieldGridSizes,
+    caughtFishIds,
+    fishBestSizes,
     bathTubMaskZone
   ]);
 
@@ -1358,8 +1949,107 @@ export default function App() {
     }
   };
 
+  const playVoiceSound = (src: string) => {
+    try {
+      const audio = new Audio(src);
+      audio.volume = getEffectiveVolume(src, voiceVolumeRef.current, audioGainsRef.current);
+      audio.currentTime = 0;
+      void audio.play();
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
   const playCursorSound = () => playUiSound(UI_CURSOR_SOUND_SRC);
   const playFixSound = () => playUiSound(UI_FIX_SOUND_SRC);
+
+  useEffect(() => {
+     if (autoEventTypeTimerRef.current !== null) {
+        window.clearInterval(autoEventTypeTimerRef.current);
+        autoEventTypeTimerRef.current = null;
+     }
+     if (typeSoundRef.current) {
+        typeSoundRef.current.pause();
+        typeSoundRef.current.currentTime = 0;
+        typeSoundRef.current = null;
+     }
+
+     if (!activeAutoEventSpot || !activeAutoEventMessage) {
+        setDisplayedAutoEventMessage('');
+        return;
+     }
+
+     const typeIntervals = [90, 65, 45, 25, 0];
+     const typeIntervalMs = typeIntervals[Math.min(4, Math.max(0, textDisplaySpeedLevel - 1))];
+     if (typeIntervalMs === 0) {
+        setDisplayedAutoEventMessage(activeAutoEventMessage);
+        return;
+     }
+
+     let nextIndex = 0;
+     setDisplayedAutoEventMessage('');
+     const typeAudio = new Audio('/se/type.mp3');
+     typeAudio.loop = true;
+     typeAudio.playbackRate = 1;
+     typeAudio.volume = getEffectiveVolume('/se/type.mp3', seVolumeRef.current, audioGainsRef.current);
+     typeSoundRef.current = typeAudio;
+     void typeAudio.play().catch((error) => {
+        console.error('タイプ音の再生に失敗しました:', error);
+     });
+     autoEventTypeTimerRef.current = window.setInterval(() => {
+        nextIndex += 1;
+        setDisplayedAutoEventMessage(activeAutoEventMessage.slice(0, nextIndex));
+        if (nextIndex >= activeAutoEventMessage.length && autoEventTypeTimerRef.current !== null) {
+           window.clearInterval(autoEventTypeTimerRef.current);
+           autoEventTypeTimerRef.current = null;
+           if (typeSoundRef.current) {
+              typeSoundRef.current.pause();
+              typeSoundRef.current.currentTime = 0;
+              typeSoundRef.current = null;
+           }
+        }
+     }, typeIntervalMs);
+
+     return () => {
+        if (autoEventTypeTimerRef.current !== null) {
+           window.clearInterval(autoEventTypeTimerRef.current);
+           autoEventTypeTimerRef.current = null;
+        }
+        if (typeSoundRef.current) {
+           typeSoundRef.current.pause();
+           typeSoundRef.current.currentTime = 0;
+           typeSoundRef.current = null;
+        }
+     };
+  }, [activeAutoEventSpot, activeAutoEventMessage, textDisplaySpeedLevel]);
+
+  useEffect(() => {
+     return () => {
+        if (shopTradePoseTimerRef.current !== null) {
+           window.clearTimeout(shopTradePoseTimerRef.current);
+        }
+        if (kurumiTradeRewardTimerRef.current !== null) {
+           window.clearTimeout(kurumiTradeRewardTimerRef.current);
+        }
+        if (fishingBiteTimerRef.current !== null) {
+           window.clearTimeout(fishingBiteTimerRef.current);
+        }
+        if (fishingHitSplashTimerRef.current !== null) {
+           window.clearTimeout(fishingHitSplashTimerRef.current);
+        }
+        if (fishingHitCountdownTimerRef.current !== null) {
+           window.clearInterval(fishingHitCountdownTimerRef.current);
+        }
+        if (fishingRiverAudioRef.current) {
+           fishingRiverAudioRef.current.pause();
+           fishingRiverAudioRef.current = null;
+        }
+        if (fishingReelAudioRef.current) {
+           fishingReelAudioRef.current.pause();
+           fishingReelAudioRef.current = null;
+        }
+     };
+  }, []);
 
   const handleShopBackdropPointerDown = () => {
      playFixSound();
@@ -1372,30 +2062,88 @@ export default function App() {
   };
 
   const handleShopItemClick = (index: number) => {
-     const item = shopItems[index];
      playFixSound();
      setSelectedShopItemIndex(index);
-     setDialogMessage(`${item.name}を${item.type === '買う' ? '購入' : '売却'}しました。`);
+     setSelectedShopControl('items');
   };
 
   const handleShopActionClick = () => {
      const item = shopItems[selectedShopItemIndex] ?? shopItems[0];
-     playFixSound();
+     if (item.stock <= 0) {
+        playFixSound();
+        setDialogMessage(item.type === '買う' ? '売り切れです。' : '売却できる在庫がありません。');
+        return;
+     }
+     if (item.type === '買う' && gold < item.price) {
+        playFixSound();
+        setDialogMessage('ゴールドが足りません。');
+        return;
+     }
+     playUiSound('/se/coin.mp3');
+     const nextTradeTotal = kurumiTradeTotal + item.price;
+     const availableRewards = KURUMI_TRADE_REWARDS.filter(reward => (
+        nextTradeTotal >= reward.threshold && !shownKurumiTradeRewardThresholds.includes(reward.threshold)
+     ));
+     const nextReward = availableRewards[availableRewards.length - 1] ?? null;
+     setKurumiTradeTotal(nextTradeTotal);
+     setGold(prev => item.type === '買う' ? prev - item.price : prev + item.price);
+     setShopItems(prev => prev.map((shopItem, index) => (
+        index === selectedShopItemIndex ? { ...shopItem, stock: Math.max(0, shopItem.stock - 1) } : shopItem
+     )));
+     setInventoryCounts(prev => ({
+        ...prev,
+        [item.name]: Math.max(0, (prev[item.name] ?? 0) + (item.type === '買う' ? 1 : -1)),
+     }));
      setDialogMessage(`${item.name}を${item.type === '買う' ? '購入' : '売却'}しました。`);
+     setIsShopTradePose(true);
+     if (shopTradePoseTimerRef.current !== null) {
+        window.clearTimeout(shopTradePoseTimerRef.current);
+     }
+     shopTradePoseTimerRef.current = window.setTimeout(() => {
+        setIsShopTradePose(false);
+        shopTradePoseTimerRef.current = null;
+     }, 2000);
+     if (nextReward) {
+        setShownKurumiTradeRewardThresholds(prev => [...prev, nextReward.threshold]);
+        setActiveKurumiTradeReward(nextReward);
+        setIsShopTradePose(false);
+        setDialogMessage(nextReward.message);
+        playVoiceSound(nextReward.voiceSrc);
+        if (kurumiTradeRewardTimerRef.current !== null) {
+           window.clearTimeout(kurumiTradeRewardTimerRef.current);
+        }
+        kurumiTradeRewardTimerRef.current = window.setTimeout(() => {
+           setActiveKurumiTradeReward(null);
+           kurumiTradeRewardTimerRef.current = null;
+        }, 5000);
+     }
   };
 
-  const resolveEventAudioSrc = (src: string, category: 'se' | 'voice') => {
+  const isResolvedEventAssetSrc = (src: string) => (
+    src.startsWith('/') ||
+    src.startsWith('http://') ||
+    src.startsWith('https://') ||
+    src.startsWith('data:')
+  );
+
+  const resolveEventAssetSrc = (src: string, folder: 'img' | 'video' | 'se' | 'voice') => {
     const trimmed = src.trim();
     if (!trimmed) return '';
-    if (trimmed.startsWith('/') || trimmed.startsWith('http://') || trimmed.startsWith('https://') || trimmed.startsWith('data:')) {
-      return trimmed;
-    }
-    return `/${category}/${trimmed}`;
+    if (isResolvedEventAssetSrc(trimmed)) return trimmed;
+    if (trimmed.startsWith(`${folder}/`)) return `/${trimmed}`;
+    return `/${folder}/${trimmed}`;
+  };
+
+  const resolveEventMediaSrc = (src: string, folder: 'img' | 'video') => resolveEventAssetSrc(src, folder);
+
+  const resolveEventAudioSrc = (src: string, category: 'se' | 'voice') => {
+    return resolveEventAssetSrc(src, category);
   };
 
   const getEventAudioFallbackSrc = (src: string, category: 'se' | 'voice') => {
     if (category !== 'voice') return '';
     if (src.startsWith('/voice/')) return src.replace(/^\/voice\//, '/se/');
+    if (src.startsWith('voice/')) return `/se/${src.replace(/^voice\//, '')}`;
     if (!src.startsWith('/') && !src.startsWith('http://') && !src.startsWith('https://') && !src.startsWith('data:')) {
       return `/se/${src}`;
     }
@@ -1440,6 +2188,26 @@ export default function App() {
     }
   };
 
+  const fadeOutEventAudio = (fadeMs = 500) => {
+    const audios = [...eventAudioRefs.current];
+    eventAudioRefs.current = [];
+    audios.forEach(audio => {
+      const startVolume = audio.volume;
+      const startTime = performance.now();
+      const fade = (now: number) => {
+        const progress = Math.min((now - startTime) / fadeMs, 1);
+        audio.volume = startVolume * (1 - progress);
+        if (progress < 1) {
+          requestAnimationFrame(fade);
+          return;
+        }
+        audio.pause();
+        audio.currentTime = 0;
+      };
+      requestAnimationFrame(fade);
+    });
+  };
+
   const triggerAutoEventSpot = (spot: InspectSpot) => {
     triggeredAutoEventIdsRef.current.add(spot.id);
     clickTargetRef.current = null;
@@ -1453,8 +2221,10 @@ export default function App() {
   const closeAutoEventOverlay = () => {
     clickTargetRef.current = null;
     setClickTargetMarker(null);
+    fadeOutEventAudio();
     setActiveAutoEventSpot(null);
     setActiveAutoEventMessage('');
+    setDisplayedAutoEventMessage('');
   };
 
   const playSleepFadeOutSound = (src: string, fadeMs: number) => {
@@ -1518,7 +2288,7 @@ export default function App() {
     const audio = bgmRef.current;
     if (!audio) return;
 
-    const currentSource = mapBgmSources[currentMap] ?? DEFAULT_MAP_BGM_SOURCES[currentMap];
+    const currentSource = kurumiShopOpen ? SHOP_BGM_SRC : mapBgmSources[currentMap] ?? DEFAULT_MAP_BGM_SOURCES[currentMap];
     if (bgmSourceRef.current !== currentSource) {
       bgmSourceRef.current = currentSource;
       audio.pause();
@@ -1535,6 +2305,59 @@ export default function App() {
       });
     }
   };
+
+  const switchToCurrentBgm = (volume: number) => {
+    const audio = bgmRef.current;
+    if (!audio) return;
+
+    const currentSource = kurumiShopOpen ? SHOP_BGM_SRC : mapBgmSources[currentMap] ?? DEFAULT_MAP_BGM_SOURCES[currentMap];
+    bgmSourceRef.current = currentSource;
+    audio.pause();
+    audio.src = currentSource;
+    audio.loop = true;
+    audio.currentTime = 0;
+    audio.volume = volume;
+    audio.play().then(() => {
+      bgmStartedRef.current = true;
+    }).catch((err) => {
+      console.log("BGM resume after fishing blocked", err);
+    });
+  };
+
+  useEffect(() => {
+    const audio = bgmRef.current;
+    if (!audio) return;
+
+    if (fishingMiniGameOpen) {
+      wasFishingBgmActiveRef.current = true;
+      cancelBgmFade();
+      if (bgmSourceRef.current !== FISHING_BGM_SRC) {
+        bgmSourceRef.current = FISHING_BGM_SRC;
+        audio.pause();
+        audio.src = FISHING_BGM_SRC;
+        audio.loop = true;
+        audio.currentTime = 0;
+      }
+      audio.volume = getEffectiveVolume(FISHING_BGM_SRC, bgmVolume, audioGainsRef.current);
+      audio.play().then(() => {
+        bgmStartedRef.current = true;
+      }).catch((err) => {
+        console.log("Fishing BGM autoplay blocked", err);
+      });
+      return;
+    }
+
+    if (wasFishingBgmActiveRef.current) {
+      fadeBgmTo(0, 1400, () => {
+        switchToCurrentBgm(0);
+        const currentSource = bgmSourceRef.current;
+        const targetVolume = getEffectiveVolume(currentSource, bgmVolume, audioGainsRef.current);
+        fadeBgmTo(targetVolume, 1200, () => {
+          wasFishingBgmActiveRef.current = false;
+        });
+      });
+    }
+  }, [fishingMiniGameOpen, bgmVolume, audioGains]);
 
   const startSleepSequence = () => {
     setSleepPromptVisible(false);
@@ -1584,12 +2407,153 @@ export default function App() {
   const startFishingPrompt = () => {
     setFishingPromptVisible(false);
     fishingPromptBlockedRef.current = true;
+    setFishingMiniGameOpen(true);
+    setFishingMiniGameStage('direction');
+    setFishingGauge(50);
+    setFishingCastAngle(0);
+    setFishingCastPower(0);
+    setFishingBiteCountdown(3);
+    setFishingKeepSeconds(3);
+    setFishingKeepMissSeconds(0);
+    setFishingFishHp(FISHING_FISH_MAX_HP);
+    setFishingTension(0);
+    setFishingResultSizeCm('');
+    setFishingResultImageSrc(FISHING_SCENE_RESULT_SRC);
+    setIsFishingHitSplashActive(false);
+    setFishingHitCountdown(3);
+    setFishingHitLimitSeconds(10);
+    setIsFishingKeepPressed(false);
+    setFishingResultText('');
+    fishingGaugeDirectionRef.current = 1;
     setDialogMessage('釣りを開始しました。');
   };
 
   const cancelFishingPrompt = () => {
     setFishingPromptVisible(false);
     fishingPromptBlockedRef.current = true;
+  };
+
+  const finishFishingMiniGame = () => {
+    if (fishingBiteTimerRef.current !== null) {
+      window.clearTimeout(fishingBiteTimerRef.current);
+      fishingBiteTimerRef.current = null;
+    }
+    if (fishingHitSplashTimerRef.current !== null) {
+      window.clearTimeout(fishingHitSplashTimerRef.current);
+      fishingHitSplashTimerRef.current = null;
+    }
+    if (fishingHitIntroTimerRef.current !== null) {
+      window.clearTimeout(fishingHitIntroTimerRef.current);
+      fishingHitIntroTimerRef.current = null;
+    }
+    if (fishingHitCountdownTimerRef.current !== null) {
+      window.clearInterval(fishingHitCountdownTimerRef.current);
+      fishingHitCountdownTimerRef.current = null;
+    }
+    setFishingMiniGameOpen(false);
+    setFishingMiniGameStage('direction');
+    setIsFishingHitSplashActive(false);
+    setIsFishingHitIntroActive(false);
+    setFishingHitCountdown(3);
+    setFishingHitLimitSeconds(10);
+    setIsFishingKeepPressed(false);
+    setFishingResultText('');
+    setFishingResultSizeCm('');
+    setFishingResultImageSrc(FISHING_SCENE_RESULT_SRC);
+    fishingPromptBlockedRef.current = true;
+  };
+
+  const handleFishingMiniGameAction = () => {
+    playFixSound();
+    if (fishingMiniGameStage === 'result') {
+      finishFishingMiniGame();
+      return;
+    }
+    if (isFishingHitSplashActive) {
+      return;
+    }
+    if (fishingMiniGameStage === 'direction') {
+      setFishingCastAngle(Math.round((fishingGauge - 50) * 1.2));
+      setFishingMiniGameStage('power');
+      setFishingGauge(0);
+      fishingGaugeDirectionRef.current = 1;
+      return;
+    }
+    if (fishingMiniGameStage === 'power') {
+      setFishingCastPower(Math.round(fishingGauge));
+      playUiSound(FISHING_CAST_SOUND_SRC);
+      setFishingMiniGameStage('bite');
+      setFishingGauge(50);
+      setFishingHitLimitSeconds(10);
+      setDialogMessage('魚の反応を待っています...');
+      return;
+    }
+    if (fishingMiniGameStage === 'bite') {
+      return;
+    }
+    if (fishingMiniGameStage === 'hit') {
+      const success = fishingGauge >= 42 && fishingGauge <= 58;
+      if (success) {
+        setIsFishingHitSplashActive(true);
+        setIsFishingHitIntroActive(true);
+        setFishingHitCountdown(3);
+        setDialogMessage('HIT！');
+        playUiSound(IWANA_SPLASH_SOUND_SRC);
+        if (fishingHitSplashTimerRef.current !== null) {
+          window.clearTimeout(fishingHitSplashTimerRef.current);
+        }
+        if (fishingHitIntroTimerRef.current !== null) {
+          window.clearTimeout(fishingHitIntroTimerRef.current);
+        }
+        if (fishingHitCountdownTimerRef.current !== null) {
+          window.clearInterval(fishingHitCountdownTimerRef.current);
+        }
+        fishingHitIntroTimerRef.current = window.setTimeout(() => {
+          setIsFishingHitIntroActive(false);
+          fishingHitIntroTimerRef.current = null;
+        }, 700);
+        fishingHitCountdownTimerRef.current = window.setInterval(() => {
+          setFishingHitCountdown(prev => Math.max(1, prev - 1));
+        }, 1000);
+        fishingHitSplashTimerRef.current = window.setTimeout(() => {
+          setIsFishingHitSplashActive(false);
+          setIsFishingHitIntroActive(false);
+          if (fishingHitIntroTimerRef.current !== null) {
+            window.clearTimeout(fishingHitIntroTimerRef.current);
+            fishingHitIntroTimerRef.current = null;
+          }
+          if (fishingHitCountdownTimerRef.current !== null) {
+            window.clearInterval(fishingHitCountdownTimerRef.current);
+            fishingHitCountdownTimerRef.current = null;
+          }
+          setFishingMiniGameStage('keep');
+          setFishingGauge(0);
+          setFishingKeepSeconds(3);
+          setFishingKeepMissSeconds(0);
+          setFishingFishHp(FISHING_FISH_MAX_HP);
+          setFishingTension(0);
+          setDialogMessage('HIT！長押しで緑ゾーンをキープ！');
+          fishingHitSplashTimerRef.current = null;
+        }, 3000);
+        return;
+      }
+      setFishingResultImageSrc(FISHING_SCENE_ESCAPE_SRC);
+      setFishingResultSizeCm('');
+      setFishingResultText('HITを逃した...');
+      setDialogMessage('HITを逃した...');
+      setFishingMiniGameStage('result');
+      return;
+    }
+    if (fishingMiniGameStage === 'keep') {
+      setIsFishingKeepPressed(true);
+      return;
+    }
+    finishFishingMiniGame();
+  };
+
+  const releaseFishingKeepPress = () => {
+    if (fishingMiniGameStage !== 'keep') return;
+    setIsFishingKeepPressed(false);
   };
 
   const paintCollisionBrush = (
@@ -1885,8 +2849,9 @@ export default function App() {
   useEffect(() => {
     const audio = bgmRef.current;
     if (!audio) return;
+    if (fishingMiniGameOpen || wasFishingBgmActiveRef.current) return;
 
-    const nextSource = mapBgmSources[currentMap] ?? DEFAULT_MAP_BGM_SOURCES[currentMap];
+    const nextSource = kurumiShopOpen ? SHOP_BGM_SRC : mapBgmSources[currentMap] ?? DEFAULT_MAP_BGM_SOURCES[currentMap];
     if (bgmSourceRef.current === nextSource) return;
 
     const shouldResume = bgmStartedRef.current && !audio.paused;
@@ -1904,14 +2869,15 @@ export default function App() {
         console.log("BGM switch autoplay blocked", err);
       });
     }
-  }, [currentMap, bgmVolume, audioGains, mapBgmSources]);
+  }, [currentMap, bgmVolume, audioGains, mapBgmSources, kurumiShopOpen, fishingMiniGameOpen]);
 
   // BGM音量変更時の反映
   useEffect(() => {
+    if (fishingMiniGameOpen || wasFishingBgmActiveRef.current) return;
     if (bgmRef.current && !bgmFadingRef.current) {
       bgmRef.current.volume = getEffectiveVolume(bgmSourceRef.current, bgmVolume, audioGainsRef.current);
     }
-  }, [bgmVolume, audioGains]);
+  }, [bgmVolume, audioGains, fishingMiniGameOpen]);
 
   // マップ専用の環境音
   useEffect(() => {
@@ -2130,17 +3096,78 @@ export default function App() {
         if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
           e.preventDefault();
           playCursorSound();
-          setSelectedShopItemIndex(prev => {
-            const delta = e.key === 'ArrowDown' ? 1 : -1;
-            return (prev + delta + shopItems.length) % shopItems.length;
-          });
+          if (selectedShopControl === 'close') {
+            setSelectedShopControl('action');
+          } else if (selectedShopControl === 'action') {
+            setSelectedShopControl(e.key === 'ArrowUp' ? 'close' : 'items');
+          } else {
+            setSelectedShopItemIndex(prev => {
+              const currentType = shopItems[prev]?.type ?? '買う';
+              const sameTypeItems = shopItems
+                .map((item, index) => ({ item, index }))
+                .filter(({ item }) => item.type === currentType);
+              const currentColumnIndex = Math.max(0, sameTypeItems.findIndex(({ index }) => index === prev));
+              const delta = e.key === 'ArrowDown' ? 1 : -1;
+              return sameTypeItems[(currentColumnIndex + delta + sameTypeItems.length) % sameTypeItems.length]?.index ?? prev;
+            });
+          }
+          return;
+        }
+        if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+          e.preventDefault();
+          playCursorSound();
+          if (selectedShopControl === 'close') {
+            setSelectedShopControl('action');
+          } else if (selectedShopControl === 'action') {
+            if (e.key === 'ArrowRight') {
+              setSelectedShopControl('close');
+            } else {
+              const sellIndex = shopItems.findIndex(item => item.type === '売る');
+              if (sellIndex >= 0) setSelectedShopItemIndex(sellIndex);
+              setSelectedShopControl('items');
+            }
+          } else {
+            const currentType = shopItems[selectedShopItemIndex]?.type ?? '買う';
+            if (e.key === 'ArrowRight' && currentType === '買う') {
+              const sellIndex = shopItems.findIndex(item => item.type === '売る');
+              if (sellIndex >= 0) setSelectedShopItemIndex(sellIndex);
+            } else if (e.key === 'ArrowRight') {
+              setSelectedShopControl('action');
+            } else if (e.key === 'ArrowLeft' && currentType === '売る') {
+              const buyIndex = shopItems.findIndex(item => item.type === '買う');
+              if (buyIndex >= 0) setSelectedShopItemIndex(buyIndex);
+            } else {
+              setSelectedShopControl('action');
+            }
+          }
           return;
         }
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault();
+          if (selectedShopControl === 'close') {
+            handleShopCloseClick();
+          } else if (selectedShopControl === 'action') {
+            handleShopActionClick();
+          } else {
+            playFixSound();
+            setSelectedShopControl('action');
+          }
+          return;
+        }
+        return;
+      }
+
+      if (fishingMiniGameOpen) {
+        if (e.repeat) return;
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          handleFishingMiniGameAction();
+          return;
+        }
+        if (e.key === 'Escape') {
+          e.preventDefault();
           playFixSound();
-          const item = shopItems[selectedShopItemIndex] ?? shopItems[0];
-          setDialogMessage(`${item.name}を${item.type === '買う' ? '購入' : '売却'}しました。`);
+          finishFishingMiniGame();
           return;
         }
         return;
@@ -2208,10 +3235,12 @@ export default function App() {
           if (Math.sqrt(dx * dx + dy * dy) < 180) {
             e.preventDefault();
             playFixSound();
+            playVoiceSound(KURUMI_SHOP_SOUND_SRC);
             clickTargetRef.current = null;
             setClickTargetMarker(null);
             setKurumiShopOpen(true);
             setSelectedShopItemIndex(0);
+            setSelectedShopControl('items');
             return;
           }
         }
@@ -2246,7 +3275,8 @@ export default function App() {
         const moveBy = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0;
         const itemByTab: Record<string, string[]> = {
           '消耗品': ['薬草', '携帯おにぎり', '気付け水', '小さな釣り餌'],
-          '素材': ['木材', '石材', '薬草の葉', '川魚の鱗'],
+          '素材': ['川魚', '木材', '石材', '薬草の葉', '川魚の鱗'],
+          '装備品': ['竹の釣竿', '丈夫な釣竿', '高級釣竿', 'のこぎり', '丈夫なのこぎり', '高級のこぎり', 'つるはし', '丈夫なつるはし', '高級つるはし', '農神の指輪'],
           '売却品': ['小さな宝石', '古びた硬貨', '乾いたハーブ', '余った作物'],
           'だいじなもの': ['古い鍵', '農場契約書', '母屋の地図', '娘管理台帳'],
         };
@@ -2319,7 +3349,7 @@ export default function App() {
           }
 
           if (currentMenuItem.id === 'zukan') {
-            const filters = ['通常', '妊娠', 'レアリティ', '未入手'];
+            const filters = ['通常', '魚', '妊娠', 'レアリティ', '未入手'];
             const filterIndex = Math.max(0, filters.indexOf(zukanFilterRef.current));
             if (menuContentFocusRef.current === 'primary') {
               if (e.key === 'ArrowLeft' && filterIndex === 0) {
@@ -2335,6 +3365,7 @@ export default function App() {
             }
 
             const currentIndex = selectedZukanIndexRef.current;
+            const zukanLength = zukanFilterRef.current === '魚' ? FISH_ZUKAN_ENTRIES.length : 15;
             if (e.key === 'ArrowUp' && currentIndex < 5) {
               setMenuContentFocus('primary');
               return;
@@ -2343,7 +3374,7 @@ export default function App() {
               setMenuContentFocus('primary');
               return;
             }
-            setSelectedZukanIndex(moveGridIndex(currentIndex, e.key, 5, 15));
+            setSelectedZukanIndex(moveGridIndex(currentIndex, e.key, 5, zukanLength));
             return;
           }
 
@@ -2376,7 +3407,40 @@ export default function App() {
           if (currentMenuItem.id === 'equipment') {
             const equipmentLabels = ['主人公', 'ちびいち'];
             const currentIndex = Math.max(0, equipmentLabels.findIndex(label => selectedEquipmentSlotRef.current.startsWith(label)));
-            const currentSlot = selectedEquipmentSlotRef.current.endsWith('slot2') ? 'slot2' : 'slot1';
+            const slotCounts: Record<string, number> = { '主人公': 4, 'ちびいち': 2 };
+            const currentLabel = equipmentLabels[currentIndex];
+            const currentSlotMatch = /slot(\d+)$/.exec(selectedEquipmentSlotRef.current);
+            const currentSlotIndex = Math.max(0, Math.min((slotCounts[currentLabel] ?? 2) - 1, currentSlotMatch ? Number(currentSlotMatch[1]) - 1 : 0));
+            const currentSlot = `slot${currentSlotIndex + 1}`;
+            const slotLabelsByCharacter: Record<string, string[]> = {
+              '主人公': ['釣具系', '採取道具系', '採取道具系', 'アクセサリー'],
+              'ちびいち': ['slot1', 'slot2'],
+            };
+            const optionsBySlot: Record<string, string[]> = {
+              '釣具系': ['竹の釣竿', '丈夫な釣竿', '高級釣竿'],
+              '採取道具系': ['のこぎり', '丈夫なのこぎり', '高級のこぎり', 'つるはし', '丈夫なつるはし', '高級つるはし'],
+              'アクセサリー': ['農神の指輪'],
+              'slot1': ['小さな鈴'],
+              'slot2': [],
+            };
+            const currentSlotLabel = slotLabelsByCharacter[currentLabel]?.[currentSlotIndex] ?? currentSlot;
+            const currentEquippedItem = equippedItems[selectedEquipmentSlotRef.current] || '';
+            const equippedItemNames = Object.entries(equippedItems)
+              .filter(([slotId, name]) => slotId !== selectedEquipmentSlotRef.current && Boolean(name))
+              .map(([, name]) => name);
+            const currentEquipableItems = (optionsBySlot[currentSlotLabel] ?? []).filter(name => (
+              (inventoryCounts[name] ?? 0) > 0 && !equippedItemNames.includes(name)
+            ));
+            if (equipmentActionOpen && menuContentFocusRef.current === 'secondary') {
+              if (e.key === 'ArrowLeft') {
+                setEquipmentActionOpen(false);
+              } else if (!currentEquippedItem && currentEquipableItems.length > 0 && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
+                setSelectedEquipmentOptionIndex(prev => (
+                  prev + (e.key === 'ArrowDown' ? 1 : -1) + currentEquipableItems.length
+                ) % currentEquipableItems.length);
+              }
+              return;
+            }
             if (menuContentFocusRef.current === 'primary') {
               if (e.key === 'ArrowLeft' && currentIndex === 0) {
                 setMenuFocusArea('nav');
@@ -2396,11 +3460,19 @@ export default function App() {
               setMenuContentFocus('primary');
               return;
             }
-            if (e.key === 'ArrowLeft' && currentSlot === 'slot1') {
+            if (e.key === 'ArrowLeft' && currentSlotIndex === 0) {
               setMenuContentFocus('primary');
               return;
             }
-            const nextSlot = e.key === 'ArrowRight' ? 'slot2' : e.key === 'ArrowLeft' ? 'slot1' : currentSlot;
+            const slotCount = slotCounts[currentLabel] ?? 2;
+            const nextSlotIndex = e.key === 'ArrowRight'
+              ? Math.min(slotCount - 1, currentSlotIndex + 1)
+              : e.key === 'ArrowLeft'
+                ? Math.max(0, currentSlotIndex - 1)
+                : e.key === 'ArrowDown'
+                  ? Math.min(slotCount - 1, currentSlotIndex + 2)
+                  : currentSlotIndex;
+            const nextSlot = `slot${nextSlotIndex + 1}`;
             setSelectedEquipmentSlot(`${equipmentLabels[currentIndex]}-${nextSlot}`);
             return;
           }
@@ -2440,11 +3512,12 @@ export default function App() {
 
           if (currentMenuItem.id === 'zukan') {
             const currentIndex = selectedZukanIndexRef.current;
+            const zukanLength = zukanFilterRef.current === '魚' ? FISH_ZUKAN_ENTRIES.length : 15;
             if (e.key === 'ArrowLeft' && currentIndex % 5 === 0) {
               setMenuFocusArea('nav');
               return;
             }
-            setSelectedZukanIndex(moveGridIndex(currentIndex, e.key, 5, 15));
+            setSelectedZukanIndex(moveGridIndex(currentIndex, e.key, 5, zukanLength));
             return;
           }
 
@@ -2464,7 +3537,8 @@ export default function App() {
           if (currentMenuItem.id === 'item') {
             const itemByTab: Record<string, string[]> = {
               '消耗品': ['薬草', '携帯おにぎり', '気付け水', '小さな釣り餌'],
-              '素材': ['木材', '石材', '薬草の葉', '川魚の鱗'],
+              '素材': ['川魚', '木材', '石材', '薬草の葉', '川魚の鱗'],
+              '装備品': ['竹の釣竿', '丈夫な釣竿', '高級釣竿', 'のこぎり', '丈夫なのこぎり', '高級のこぎり', 'つるはし', '丈夫なつるはし', '高級つるはし', '農神の指輪'],
               '売却品': ['小さな宝石', '古びた硬貨', '乾いたハーブ', '余った作物'],
               'だいじなもの': ['古い鍵', '農場契約書', '母屋の地図', '娘管理台帳'],
             };
@@ -2483,7 +3557,8 @@ export default function App() {
           } else if (currentMenuItem.id === 'farm') {
             setSelectedFarmGirlIndex(prev => (prev + moveBy + 15) % 15);
           } else if (currentMenuItem.id === 'zukan') {
-            setSelectedZukanIndex(prev => (prev + moveBy + 6) % 6);
+            const zukanLength = zukanFilterRef.current === '魚' ? FISH_ZUKAN_ENTRIES.length : 15;
+            setSelectedZukanIndex(prev => (prev + moveBy + zukanLength) % zukanLength);
           } else if (currentMenuItem.id === 'system') {
             const actions = ['セーブ', 'ロード', 'タイトルへ戻る'];
             const currentIndex = actions.findIndex(action => systemNoticeRef.current.includes(action));
@@ -2517,11 +3592,57 @@ export default function App() {
           } else if (currentMenuItem.id === 'item') {
             setDialogMessage(`${selectedItemNameRef.current}を確認しました。`);
           } else if (currentMenuItem.id === 'equipment') {
-            setDialogMessage(`${selectedEquipmentSlotRef.current}を選択しました。`);
+            if (!equipmentActionOpen) {
+              setMenuContentFocus('secondary');
+              setEquipmentActionOpen(true);
+              return;
+            }
+            const equipmentLabels = ['主人公', 'ちびいち'];
+            const currentIndex = Math.max(0, equipmentLabels.findIndex(label => selectedEquipmentSlotRef.current.startsWith(label)));
+            const currentLabel = equipmentLabels[currentIndex];
+            const currentSlotMatch = /slot(\d+)$/.exec(selectedEquipmentSlotRef.current);
+            const currentSlotIndex = Math.max(0, currentSlotMatch ? Number(currentSlotMatch[1]) - 1 : 0);
+            const slotLabelsByCharacter: Record<string, string[]> = {
+              '主人公': ['釣具系', '採取道具系', '採取道具系', 'アクセサリー'],
+              'ちびいち': ['slot1', 'slot2'],
+            };
+            const optionsBySlot: Record<string, string[]> = {
+              '釣具系': ['竹の釣竿', '丈夫な釣竿', '高級釣竿'],
+              '採取道具系': ['のこぎり', '丈夫なのこぎり', '高級のこぎり', 'つるはし', '丈夫なつるはし', '高級つるはし'],
+              'アクセサリー': ['農神の指輪'],
+              'slot1': ['小さな鈴'],
+              'slot2': [],
+            };
+            const currentSlotLabel = slotLabelsByCharacter[currentLabel]?.[currentSlotIndex] ?? `slot${currentSlotIndex + 1}`;
+            const currentEquippedItem = equippedItems[selectedEquipmentSlotRef.current] || '';
+            if (currentEquippedItem) {
+              setEquippedItems(prev => ({ ...prev, [selectedEquipmentSlotRef.current]: '' }));
+              setDialogMessage(`${currentEquippedItem}を外しました。`);
+              return;
+            }
+            const equippedItemNames = Object.entries(equippedItems)
+              .filter(([slotId, name]) => slotId !== selectedEquipmentSlotRef.current && Boolean(name))
+              .map(([, name]) => name);
+            const equipableItems = (optionsBySlot[currentSlotLabel] ?? []).filter(name => (
+              (inventoryCounts[name] ?? 0) > 0 && !equippedItemNames.includes(name)
+            ));
+            const nextItem = equipableItems[Math.max(0, Math.min(equipableItems.length - 1, selectedEquipmentOptionIndexRef.current))];
+            if (nextItem) {
+              setEquippedItems(prev => ({ ...prev, [selectedEquipmentSlotRef.current]: nextItem }));
+              setDialogMessage(`${nextItem}を装備しました。`);
+            } else {
+              setDialogMessage('装備できるアイテムがありません。');
+            }
           } else if (currentMenuItem.id === 'status') {
             setDialogMessage(`${selectedSkillNameRef.current}を確認しました。`);
           } else if (currentMenuItem.id === 'zukan') {
-            setDialogMessage(`No.${selectedZukanIndexRef.current + 1}を確認しました。`);
+            if (zukanFilterRef.current === '魚') {
+              const fish = FISH_ZUKAN_ENTRIES[selectedZukanIndexRef.current];
+              const caught = fish ? caughtFishIds.includes(fish.id) : false;
+              setDialogMessage(caught && fish ? `${fish.name}を確認しました。` : 'まだ釣っていない魚です。');
+            } else {
+              setDialogMessage(`No.${selectedZukanIndexRef.current + 1}を確認しました。`);
+            }
           } else if (currentMenuItem.id === 'system') {
             const actions = ['セーブ', 'ロード', 'タイトルへ戻る'];
             const action = actions[selectedSystemActionIndexRef.current] ?? actions[0];
@@ -2531,6 +3652,18 @@ export default function App() {
         } else if (e.key === 'Escape') {
           e.preventDefault();
           playFixSound();
+          if (currentMenuItem.id === 'equipment' && equipmentActionOpen) {
+            setEquipmentActionOpen(false);
+            return;
+          }
+          if (menuFocusAreaRef.current === 'content') {
+            if (menuContentFocusRef.current === 'secondary') {
+              setMenuContentFocus('primary');
+              return;
+            }
+            setMenuFocusArea('nav');
+            return;
+          }
           clickTargetRef.current = null;
           setClickTargetMarker(null);
           setMenuOpen(false);
@@ -2540,6 +3673,11 @@ export default function App() {
     const handleKeyUp = (e: KeyboardEvent) => { 
       keys.current[e.key] = false; 
       if (e.key.length === 1) keys.current[e.key.toLowerCase()] = false; 
+      if (fishingMiniGameOpen && fishingMiniGameStage === 'keep' && (e.key === 'Enter' || e.key === ' ')) {
+        e.preventDefault();
+        releaseFishingKeepPress();
+        return;
+      }
       
       const gameKeys = ['arrowup', 'arrowdown', 'arrowleft', 'arrowright', 'w', 's', 'a', 'd', 'q', 'e', ' '];
       if (gameKeys.includes(e.key.toLowerCase())) {
@@ -2890,9 +4028,10 @@ export default function App() {
       }
 
       const isInFishingPoint = isTouchingFishingPoint(currentX, currentY);
+      const hasEquippedFishingRod = Boolean(equippedItems['主人公-slot1'] && equippedItems['主人公-slot1'].includes('釣竿'));
       if (!isInFishingPoint) {
         fishingPromptBlockedRef.current = false;
-      } else if (!fishingPromptBlockedRef.current && !isInBed && !isInWorkbench) {
+      } else if (!fishingPromptBlockedRef.current && !isInBed && !isInWorkbench && hasEquippedFishingRod) {
         moved = false;
         clickTargetRef.current = null;
         setClickTargetMarker(null);
@@ -2932,7 +4071,7 @@ export default function App() {
       window.removeEventListener('keydown', handleKeyDown); window.removeEventListener('keyup', handleKeyUp);
       cancelAnimationFrame(animationFrameId);
     };
-  }, [setupMode, bedTiles, workbenchTiles, fishingTiles, sleepPromptVisible, craftPromptVisible, fishingPromptVisible, confirmPromptChoice, activeAutoEventSpot]);
+  }, [setupMode, bedTiles, workbenchTiles, fishingTiles, sleepPromptVisible, craftPromptVisible, fishingPromptVisible, confirmPromptChoice, activeAutoEventSpot, kurumiShopOpen, selectedShopControl, selectedShopItemIndex, shopItems, gold, equipmentActionOpen, equippedItems, inventoryCounts, caughtFishIds, fishingMiniGameOpen, fishingMiniGameStage]);
 
   // Zone creation states
   const [dragStart, setDragStart] = useState<{ x: number, y: number } | null>(null);
@@ -3711,7 +4850,7 @@ export default function App() {
            // window.prompt fails in iframes without certain permissions.
            // Default to 'smoke', users can cycle it by clicking locally later.
            const newId = Date.now().toString();
-           setZones(prev => [...prev, { id: newId, x, y, w, h, spriteW: w, spriteH: h, type: 'smoke', map: currentMap, timeOfDay }]);
+           setZones(prev => [...prev, { id: newId, x, y, w, h, spriteW: w, spriteH: h, type: 'smoke', map: currentMap, timeOfDays: [timeOfDay] }]);
            setSelectedZoneId(newId);
         }
         setDragStart(null); setDragCurrent(null);
@@ -3755,9 +4894,11 @@ export default function App() {
      if (Math.sqrt(dx * dx + dy * dy) >= 180) return;
 
      playFixSound();
+     playVoiceSound(KURUMI_SHOP_SOUND_SRC);
      clickTargetRef.current = null;
      setClickTargetMarker(null);
      setSelectedShopItemIndex(0);
+     setSelectedShopControl('items');
      setKurumiShopOpen(true);
   };
 
@@ -3778,7 +4919,10 @@ export default function App() {
               {timeLabels[timeOfDay]}
             </span>
             <span className="flex items-center gap-2 text-[#dda15e]">
-              <span className="text-[#fdf6e3] text-sm mt-1">GOLD</span> 500 G
+              <span className="text-[#fdf6e3] text-sm mt-1">GOLD</span> {gold.toLocaleString()} G
+            </span>
+            <span className="flex items-center gap-2 text-[#a3b18a]">
+              <span className="text-[#fdf6e3] text-sm mt-1">行動回数</span> {actionCountLabel}
             </span>
           </div>
           <div className="flex gap-3">
@@ -4253,6 +5397,103 @@ export default function App() {
              </div>
           )}
 
+          {setupMode === 'none' && fishingMiniGameOpen && fishingMiniGameStage === 'direction' && (
+             <div
+                className="absolute inset-0 z-[79] flex cursor-pointer items-center justify-center bg-black/28 pointer-events-auto"
+                onPointerDown={(e) => {
+                   e.preventDefault();
+                   e.stopPropagation();
+                   handleFishingMiniGameAction();
+                }}
+             >
+                <div className="w-[820px] max-w-[calc(100%-32px)] rounded-2xl border-[4px] border-[#67e8f9] bg-[linear-gradient(180deg,rgba(39,22,16,0.98),rgba(14,9,8,0.98))] p-5 text-center text-[#fdf6e3] shadow-[0_18px_48px_rgba(0,0,0,0.72),inset_0_0_24px_rgba(103,232,249,0.08)]">
+                   <div className="mb-2 text-sm font-bold tracking-[0.22em] text-[#67e8f9] drop-shadow-[0_0_10px_rgba(103,232,249,0.7)]">FISHING</div>
+                   <div className="mb-3 text-2xl font-bold drop-shadow-[0_2px_0_rgba(0,0,0,0.8)]">投げる方向を決めよう</div>
+                   <div className="relative mb-4 aspect-[16/9] overflow-hidden rounded-xl border-2 border-[#fdf6e3]/70 bg-black shadow-[inset_0_0_24px_rgba(0,0,0,0.72),0_10px_28px_rgba(0,0,0,0.55)]">
+                      <img
+                         src={FISHING_SCENE_CAST_SRC}
+                         alt="釣り場"
+                         className="h-full w-full object-cover opacity-100 transition-opacity duration-700"
+                      />
+                      <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_45%,rgba(0,0,0,0.35)_100%)]" />
+                   </div>
+                   <div className="inline-flex rounded-full border border-[#67e8f9]/25 bg-black/25 px-4 py-1.5 text-xs font-bold text-[#dda15e] shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
+                      {equippedFishingRod} / クリック・Enter・Space
+                   </div>
+                </div>
+             </div>
+          )}
+
+          {setupMode === 'none' && fishingMiniGameOpen && fishingMiniGameStage === 'direction' && (() => {
+             const equippedRod = equippedFishingRod;
+             const isSturdyRod = equippedRod === '丈夫な釣竿' || equippedRod === '高級釣竿';
+             const radiusX = fishingFanConfig.width / 2;
+             const radiusY = fishingFanConfig.height;
+             const width = radiusX * 2 + 108;
+             const height = radiusY + 76;
+             const centerX = width / 2;
+             const baseY = height - 24;
+             const angleDeg = (fishingGauge - 50) * 1.2;
+             const angleRad = angleDeg * Math.PI / 180;
+             const needleLength = radiusY - 18;
+             const needleX = centerX + Math.sin(angleRad) * needleLength;
+             const needleY = baseY - Math.cos(angleRad) * needleLength;
+             const leftX = centerX - radiusX;
+             const rightX = centerX + radiusX;
+             const topY = baseY - radiusY;
+             const sweetSpotRadiusX = radiusX * (isSturdyRod ? 0.34 : 0.28);
+             const sweetSpotRadiusY = radiusY * (isSturdyRod ? 0.44 : 0.36);
+
+             return (
+             <div
+                className="absolute z-[82] pointer-events-auto -translate-x-1/2 -translate-y-full"
+                style={{ left: pos.x, top: Math.max(height + 62, pos.y - 34), width, height }}
+                onPointerDown={(e) => {
+                   e.preventDefault();
+                   e.stopPropagation();
+                   handleFishingMiniGameAction();
+                }}
+             >
+                <svg
+                   viewBox={`0 0 ${width} ${height}`}
+                   className="absolute left-0 top-0 h-full w-full drop-shadow-[0_10px_18px_rgba(0,0,0,0.65)]"
+                   aria-hidden="true"
+                >
+                   <path
+                      d={`M${centerX} ${baseY} L${leftX} ${topY} A${radiusX} ${radiusY} 0 0 1 ${rightX} ${topY} Z`}
+                      fill={`rgba(253, 246, 227, ${fishingFanConfig.opacity})`}
+                   />
+                   <path
+                      d={`M${centerX} ${baseY} L${centerX - sweetSpotRadiusX} ${baseY - sweetSpotRadiusY} A${sweetSpotRadiusX} ${sweetSpotRadiusY} 0 0 1 ${centerX + sweetSpotRadiusX} ${baseY - sweetSpotRadiusY} Z`}
+                      fill="rgba(255, 209, 102, 0.16)"
+                   />
+                   <line
+                      x1={centerX}
+                      y1={baseY}
+                      x2={needleX}
+                      y2={needleY}
+                      stroke="#ffd166"
+                      strokeWidth="8"
+                      strokeLinecap="round"
+                   />
+                   <line
+                      x1={centerX}
+                      y1={baseY}
+                      x2={needleX}
+                      y2={needleY}
+                      stroke="rgba(255,255,255,0.45)"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                   />
+                </svg>
+                <div
+                   className="absolute h-5 w-5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-[#fdf6e3] bg-[#1a100d] shadow-[0_0_10px_rgba(253,246,227,0.7)]"
+                   style={{ left: centerX, top: baseY }}
+                />
+             </div>
+             );
+          })()}
+
           {/* Player */}
           {setupMode !== 'animation' && (
              <Character
@@ -4331,7 +5572,9 @@ export default function App() {
                     }}
                   >
                       <span style={{ color: '#fdf6e3', fontWeight: 'bold', fontSize: 20 }}>📋 メニュー</span>
-                    <span style={{ color: '#d8c7a5', fontSize: 13 }}>{selectedMenuItem.icon} {selectedMenuItem.label} / [M][Esc]で閉じる</span>
+                    <span style={{ color: '#d8c7a5', fontSize: 13 }}>
+                      {selectedMenuItem.icon} {selectedMenuItem.label} / カーソル: {menuFocusArea === 'nav' ? '左メニュー' : menuContentFocus === 'primary' ? '項目選択' : '詳細選択'} / [Esc]戻る・閉じる
+                    </span>
                   </div>
 
                   <div className="grid grid-cols-[260px_1fr]" style={{ height: 800 }}>
@@ -4471,7 +5714,7 @@ export default function App() {
         {fishingPromptVisible && (
            <div className="absolute inset-0 z-[70] flex items-center justify-center bg-black/20">
               <div className="bg-[#1a100d]/95 border-[4px] border-[#67e8f9] rounded-xl p-6 text-[#fdf6e3] shadow-2xl w-[380px] h-[180px] text-center flex flex-col items-center justify-center">
-                 <div className="text-2xl font-bold mb-4">釣りをする？</div>
+                 <div className="text-2xl font-bold mb-4">釣りをしますか？</div>
                  <div className="flex justify-center gap-4">
                     <button
                        onClick={() => { playFixSound(); startFishingPrompt(); }}
@@ -4497,6 +5740,180 @@ export default function App() {
               </div>
            </div>
         )}
+
+        {fishingMiniGameOpen && fishingMiniGameStage !== 'direction' && (() => {
+           const fishingSceneImage = fishingMiniGameStage === 'result'
+              ? fishingResultImageSrc
+              : fishingMiniGameStage === 'power'
+                 ? FISHING_SCENE_CAST_SRC
+                 : (fishingMiniGameStage === 'hit' || fishingMiniGameStage === 'keep')
+                 ? FISHING_SCENE_HIT_SRC
+                 : FISHING_SCENE_UKI_SRC;
+           const stageTitle = fishingMiniGameStage === 'power'
+              ? '投げる位置を決めよう'
+              : fishingMiniGameStage === 'bite'
+                 ? '魚の反応を待っています...'
+                 : fishingMiniGameStage === 'hit'
+                    ? 'HIT！'
+                    : fishingMiniGameStage === 'keep'
+                       ? '魚との駆け引き！'
+                       : '釣果';
+           const gaugeLeft = fishingMiniGameStage === 'power' ? (fishingGauge / 105) * 100 : fishingGauge;
+
+           return (
+           <div
+              className="absolute inset-0 z-[80] flex items-center justify-center bg-black/45 pointer-events-auto"
+              onPointerDown={(e) => {
+                 e.preventDefault();
+                 handleFishingMiniGameAction();
+              }}
+              onPointerUp={(e) => {
+                 e.preventDefault();
+                 releaseFishingKeepPress();
+              }}
+              onPointerLeave={releaseFishingKeepPress}
+              onPointerCancel={releaseFishingKeepPress}
+           >
+              <div className="w-[820px] max-w-[calc(100%-32px)] rounded-2xl border-[4px] border-[#67e8f9] bg-[linear-gradient(180deg,rgba(39,22,16,0.98),rgba(14,9,8,0.98))] p-5 text-center text-[#fdf6e3] shadow-[0_18px_48px_rgba(0,0,0,0.72),inset_0_0_24px_rgba(103,232,249,0.08)]">
+                 <div className="mb-2 text-sm font-bold tracking-[0.22em] text-[#67e8f9] drop-shadow-[0_0_10px_rgba(103,232,249,0.7)]">FISHING</div>
+                 <div className="mb-3 text-2xl font-bold drop-shadow-[0_2px_0_rgba(0,0,0,0.8)]">
+                    {stageTitle}
+                 </div>
+                 <div className="relative mb-4 aspect-[16/9] overflow-hidden rounded-xl border-2 border-[#fdf6e3]/70 bg-black shadow-[inset_0_0_24px_rgba(0,0,0,0.72),0_10px_28px_rgba(0,0,0,0.55)]">
+                    <img
+                       key={fishingSceneImage}
+                       src={fishingSceneImage}
+                       alt="釣り"
+                       className="h-full w-full object-cover opacity-100 transition-opacity duration-700"
+                    />
+                    <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_48%,rgba(0,0,0,0.28)_100%)]" />
+                    {(fishingMiniGameStage === 'hit' || isFishingHitSplashActive) && (
+                       <>
+                          {(!isFishingHitSplashActive || isFishingHitIntroActive) && (
+                             <img
+                                key={isFishingHitIntroActive ? 'hit-intro' : 'hit-gauge'}
+                                src={FISHING_SCENE_HIT_OVERLAY_SRC}
+                                alt="HIT"
+                                className="absolute inset-0 z-20 h-full w-full object-cover animate-[farmHitFrameBurst_0.62s_cubic-bezier(0.16,1.18,0.28,1)_both] drop-shadow-[0_0_26px_rgba(255,209,102,0.95)]"
+                             />
+                          )}
+                          {isFishingHitSplashActive && (
+                             <div className="absolute inset-0 bg-black/10">
+                                <img
+                                   key={fishingHitCountdown}
+                                   src={`/img/${fishingHitCountdown}.png`}
+                                   alt={`${fishingHitCountdown}`}
+                                   className={`absolute left-1/2 top-1/2 h-[76%] max-h-[360px] w-[76%] max-w-[360px] -translate-x-1/2 -translate-y-1/2 object-contain animate-[farmHitZoom_0.28s_cubic-bezier(0.2,1.35,0.28,1)_both] drop-shadow-[0_0_26px_rgba(255,209,102,0.95)] ${isFishingHitIntroActive ? 'opacity-0' : 'opacity-100'}`}
+                                />
+                                <div className="absolute bottom-6 left-1/2 -translate-x-1/2 rounded-full border-2 border-[#ffd166]/80 bg-black/70 px-6 py-2 text-lg font-black text-[#ffd166] shadow-[0_0_18px_rgba(255,209,102,0.45)]">
+                                   テンション開始まで
+                                </div>
+                             </div>
+                          )}
+                       </>
+                    )}
+                 </div>
+                 {fishingMiniGameStage !== 'result' ? (
+                    <>
+                       {fishingMiniGameStage !== 'bite' && (
+                          <div className="relative h-10 overflow-hidden rounded-full border-2 border-[#fdf6e3]/90 bg-[linear-gradient(180deg,rgba(0,0,0,0.72),rgba(45,27,21,0.72))] shadow-[inset_0_3px_8px_rgba(0,0,0,0.75),0_6px_18px_rgba(0,0,0,0.35)]">
+                             {fishingMiniGameStage === 'power' && (
+                                <>
+                                   <div className="absolute left-[66.666%] top-0 h-full w-[19.048%] bg-[#eab308]/80" />
+                                   <div className="absolute left-[85.714%] top-0 h-full w-[9.524%] bg-[#22c55e]/85" />
+                                   <div className="absolute left-[95.238%] top-0 h-full w-[4.762%] bg-[#ef4444]/85" />
+                                </>
+                             )}
+                             {(fishingMiniGameStage === 'hit' || fishingMiniGameStage === 'keep') && (
+                                <div
+                                   className="absolute top-0 h-full bg-[linear-gradient(180deg,rgba(134,239,172,0.92),rgba(34,197,94,0.72))] shadow-[0_0_18px_rgba(34,197,94,0.55)]"
+                                   style={{
+                                      left: `${FISHING_KEEP_GREEN_MIN}%`,
+                                      width: `${FISHING_KEEP_GREEN_MAX - FISHING_KEEP_GREEN_MIN}%`,
+                                   }}
+                                />
+                             )}
+                             <div
+                                className="absolute top-1/2 h-[130%] w-3 -translate-x-1/2 -translate-y-1/2 rounded-full bg-[#ffd166] shadow-[0_0_16px_rgba(255,209,102,0.95),0_0_0_2px_rgba(255,255,255,0.4)]"
+                                style={{ left: `${gaugeLeft}%` }}
+                             />
+                          </div>
+                       )}
+                       <div className="mt-4 text-sm text-[#c8a87a]">
+                          {fishingMiniGameStage === 'power'
+                             ? `クリック / Enter / Space で強さ決定  ${Math.round(fishingGauge)}%`
+                             : fishingMiniGameStage === 'bite'
+                                ? '水面を見つめて、魚が食いつく瞬間を待とう'
+                                : fishingMiniGameStage === 'hit'
+                                   ? '真ん中の緑ゾーンで止めろ！'
+                                   : `緑ゾーン内で魚の体力を削る / 外れるとテンション上昇`}
+                       </div>
+                       {fishingMiniGameStage === 'hit' && (
+                          <div className="mt-2 inline-flex items-center gap-2 rounded-full border border-[#ffd166]/60 bg-black/35 px-4 py-1.5 text-sm font-black text-[#ffd166] shadow-[0_0_14px_rgba(255,209,102,0.25)]">
+                             残り {fishingHitLimitSeconds.toFixed(1)} 秒
+                          </div>
+                       )}
+                       {fishingMiniGameStage === 'power' && (
+                          <div className="mt-2 grid grid-cols-3 gap-2 text-[11px] font-bold">
+                             <div className="rounded bg-[#eab308]/25 px-2 py-1 text-[#fde68a]">70-90% GOOD</div>
+                             <div className="rounded bg-[#22c55e]/25 px-2 py-1 text-[#bbf7d0]">90-100% BEST</div>
+                             <div className="rounded bg-[#ef4444]/25 px-2 py-1 text-[#fecaca]">100-105% OVER</div>
+                          </div>
+                       )}
+                       {fishingMiniGameStage === 'keep' && (
+                          <div className="mt-2 rounded-full border border-[#67e8f9]/25 bg-black/25 px-4 py-1.5 text-xs font-bold text-[#dda15e]">
+                             長押しで左へ戻す / 離すと右へ進む / テンションMAXで糸切れ
+                          </div>
+                       )}
+                       {fishingMiniGameStage === 'keep' && (
+                          <div className="mt-5 grid gap-4 text-left">
+                             <div className="rounded-2xl border border-[#86efac]/35 bg-[#0f1f16]/72 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
+                                <div className="mb-2 flex items-center justify-between text-[14px] font-black text-[#bbf7d0]">
+                                   <span>魚の体力</span>
+                                   <span className="rounded-full bg-black/35 px-3 py-0.5 text-[#fdf6e3]">{Math.ceil(Math.max(0, fishingFishHp))}%</span>
+                                </div>
+                                <div className="relative h-7 overflow-hidden rounded-full border-2 border-[#bbf7d0]/70 bg-black/60 shadow-[inset_0_3px_8px_rgba(0,0,0,0.75)]">
+                                   <div
+                                      className="h-full rounded-full bg-[linear-gradient(90deg,#16a34a,#4ade80,#bbf7d0)] shadow-[0_0_18px_rgba(74,222,128,0.55)] transition-[width]"
+                                      style={{ width: `${Math.max(0, Math.min(100, fishingFishHp))}%` }}
+                                   />
+                                   <div className="pointer-events-none absolute inset-x-2 top-1 h-2 rounded-full bg-white/20" />
+                                </div>
+                             </div>
+                             <div className="rounded-2xl border border-[#fca5a5]/35 bg-[#251111]/72 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
+                                <div className="mb-2 flex items-center justify-between text-[14px] font-black text-[#fecaca]">
+                                   <span>テンション</span>
+                                   <span className="rounded-full bg-black/35 px-3 py-0.5 text-[#fdf6e3]">{Math.floor(Math.max(0, fishingTension))}%</span>
+                                </div>
+                                <div className="relative h-7 overflow-hidden rounded-full border-2 border-[#fca5a5]/70 bg-black/60 shadow-[inset_0_3px_8px_rgba(0,0,0,0.75)]">
+                                   <div
+                                      className="h-full rounded-full bg-[linear-gradient(90deg,#38bdf8,#facc15_70%,#ef4444_90%)] shadow-[0_0_18px_rgba(56,189,248,0.45)] transition-[width]"
+                                      style={{ width: `${Math.max(0, Math.min(100, fishingTension))}%` }}
+                                   />
+                                   <div className="absolute left-[70%] top-0 h-full w-[20%] bg-[#eab308]/35" />
+                                   <div className="absolute left-[90%] top-0 h-full w-[10%] bg-[#ef4444]/45" />
+                                   <div className="pointer-events-none absolute inset-x-2 top-1 h-2 rounded-full bg-white/18" />
+                                </div>
+                                <div className="mt-2 grid grid-cols-3 gap-2 text-center text-[10px] font-black">
+                                   <div className="rounded-full border border-[#38bdf8]/35 bg-[#38bdf8]/18 px-2 py-1 text-[#bae6fd]">0-70% 安定</div>
+                                   <div className="rounded-full border border-[#eab308]/40 bg-[#eab308]/25 px-2 py-1 text-[#fde68a]">70-90% 注意</div>
+                                   <div className="rounded-full border border-[#ef4444]/45 bg-[#ef4444]/25 px-2 py-1 text-[#fecaca]">90-100% 危険</div>
+                                </div>
+                             </div>
+                          </div>
+                       )}
+                    </>
+                 ) : (
+                    <div className="rounded-2xl border border-[#ffd166]/55 bg-black/35 p-4">
+                       <div className="text-2xl font-black text-[#ffd166]">{fishingResultText}</div>
+                       {fishingResultSizeCm && <div className="mt-2 text-[#dda15e]">サイズ: {fishingResultSizeCm}cm</div>}
+                       <div className="mt-3 text-sm text-[#c8a87a]">クリック / Enter / Space で閉じる</div>
+                    </div>
+                 )}
+              </div>
+           </div>
+           );
+        })()}
 
         {isSleepSequenceActive && (
            <div
@@ -4528,14 +5945,14 @@ export default function App() {
                  <div className="relative max-h-full max-w-[82%] rounded-xl border-4 border-[#f1c27d] bg-[#1a100d]/95 shadow-2xl overflow-hidden">
                     {activeAutoEventSpot.videoSrc ? (
                        <video
-                          src={activeAutoEventSpot.videoSrc}
+                          src={resolveEventMediaSrc(activeAutoEventSpot.videoSrc, 'video')}
                           className="block max-w-full max-h-[780px] object-contain"
                           autoPlay
                           controls
                        />
                     ) : activeAutoEventSpot.imageSrc ? (
                        <img
-                          src={activeAutoEventSpot.imageSrc}
+                          src={resolveEventMediaSrc(activeAutoEventSpot.imageSrc, 'img')}
                           alt={activeAutoEventSpot.label}
                           className="block max-w-full max-h-[780px] object-contain"
                        />
@@ -4551,7 +5968,7 @@ export default function App() {
                           {activeAutoEventSpot.label || 'イベント'}
                        </div>
                        <p className="min-h-[64px] text-[22px] leading-relaxed">
-                          {activeAutoEventMessage}
+                          {displayedAutoEventMessage}
                        </p>
                     </div>
                  </div>
@@ -4562,8 +5979,15 @@ export default function App() {
         <ShopOverlay
            kurumiShopOpen={kurumiShopOpen}
            selectedShopItemIndex={selectedShopItemIndex}
+           selectedShopControl={selectedShopControl}
+           setSelectedShopControl={setSelectedShopControl}
            setSelectedShopItemIndex={setSelectedShopItemIndex}
            shopItems={shopItems}
+           gold={gold}
+           kurumiTradeTotal={kurumiTradeTotal}
+           isShopTradePose={isShopTradePose}
+           kurumiRewardImageSrc={activeKurumiTradeReward?.imageSrc}
+           kurumiRewardMessage={activeKurumiTradeReward?.message}
            menuTinyLabelStyle={menuTinyLabelStyle}
            handleShopBackdropPointerDown={handleShopBackdropPointerDown}
            handleShopCloseClick={handleShopCloseClick}
@@ -4868,10 +6292,10 @@ export default function App() {
                                  {isAutoEventSpot && (
                                     <div className="grid grid-cols-2 gap-x-2 gap-y-1 w-[360px]">
                                        {[
-                                          ['画像', 'imageSrc', '/img/event.png'],
-                                          ['動画', 'videoSrc', '/video/event.mp4'],
-                                          ['SE', 'seSrc', '/se/event.mp3'],
-                                          ['VOICE', 'voiceSrc', '/voice/voice.mp3'],
+                                          ['画像', 'imageSrc', 'event.png'],
+                                          ['動画', 'videoSrc', 'event.mp4'],
+                                          ['SE', 'seSrc', 'event.mp3'],
+                                          ['VOICE', 'voiceSrc', 'voice.mp3'],
                                        ].map(([label, key, placeholder]) => (
                                           <label key={key} className="flex flex-col gap-1">
                                              <span className="text-[#dda15e] font-bold">{label}</span>
@@ -5110,6 +6534,13 @@ export default function App() {
            setOpacityLevel={setOpacityLevel}
            showDialog={showDialog}
            setShowDialog={setShowDialog}
+           fishingFanRodLabel={equippedFishingRod}
+           fishingFanWidth={fishingFanConfig.width}
+           setFishingFanWidth={setFishingFanWidth}
+           fishingFanHeight={fishingFanConfig.height}
+           setFishingFanHeight={setFishingFanHeight}
+           fishingFanOpacity={fishingFanConfig.opacity}
+           setFishingFanOpacity={setFishingFanOpacity}
         />
       </div>
      </div>

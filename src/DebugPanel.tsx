@@ -37,6 +37,13 @@ type DebugPanelProps = {
   setOpacityLevel: React.Dispatch<React.SetStateAction<number>>;
   showDialog: boolean;
   setShowDialog: React.Dispatch<React.SetStateAction<boolean>>;
+  fishingFanRodLabel: string;
+  fishingFanWidth: number;
+  setFishingFanWidth: React.Dispatch<React.SetStateAction<number>>;
+  fishingFanHeight: number;
+  setFishingFanHeight: React.Dispatch<React.SetStateAction<number>>;
+  fishingFanOpacity: number;
+  setFishingFanOpacity: React.Dispatch<React.SetStateAction<number>>;
 };
 
 const DebugPanel = ({
@@ -67,6 +74,13 @@ const DebugPanel = ({
   setOpacityLevel,
   showDialog,
   setShowDialog,
+  fishingFanRodLabel,
+  fishingFanWidth,
+  setFishingFanWidth,
+  fishingFanHeight,
+  setFishingFanHeight,
+  fishingFanOpacity,
+  setFishingFanOpacity,
 }: DebugPanelProps) => {
   return (
         <div 
@@ -255,6 +269,57 @@ const DebugPanel = ({
               <div className="text-[8px] text-gray-500 text-center border-t border-gray-700 pt-1">
                  💾 自動保存（リロード後も維持）
               </div>
+           </div>
+
+           {/* Fishing Direction Fan */}
+           <div className="flex flex-col gap-1 border-t border-red-600/30 pt-1.5 mt-0.5">
+              <div className="text-[9px] text-cyan-200 font-bold text-center">🎣 投げ方向の扇</div>
+              <div className="text-[8px] text-cyan-100/80 text-center truncate">{fishingFanRodLabel}</div>
+              <label className="flex flex-col gap-0.5 text-[8px] text-gray-300">
+                 <span className="flex justify-between">
+                    <span>横幅</span>
+                    <span>{fishingFanWidth}px</span>
+                 </span>
+                 <input
+                    type="range"
+                    min="80"
+                    max="620"
+                    step="10"
+                    value={fishingFanWidth}
+                    onChange={(e) => setFishingFanWidth(Number(e.target.value))}
+                    className="w-full cursor-pointer accent-cyan-500 h-1 bg-gray-700 rounded-lg appearance-none"
+                 />
+              </label>
+              <label className="flex flex-col gap-0.5 text-[8px] text-gray-300">
+                 <span className="flex justify-between">
+                    <span>高さ</span>
+                    <span>{fishingFanHeight}px</span>
+                 </span>
+                 <input
+                    type="range"
+                    min="35"
+                    max="260"
+                    step="5"
+                    value={fishingFanHeight}
+                    onChange={(e) => setFishingFanHeight(Number(e.target.value))}
+                    className="w-full cursor-pointer accent-cyan-500 h-1 bg-gray-700 rounded-lg appearance-none"
+                 />
+              </label>
+              <label className="flex flex-col gap-0.5 text-[8px] text-gray-300">
+                 <span className="flex justify-between">
+                    <span>濃さ</span>
+                    <span>{Math.round(fishingFanOpacity * 100)}%</span>
+                 </span>
+                 <input
+                    type="range"
+                    min="8"
+                    max="45"
+                    step="1"
+                    value={Math.round(fishingFanOpacity * 100)}
+                    onChange={(e) => setFishingFanOpacity(Number(e.target.value) / 100)}
+                    className="w-full cursor-pointer accent-cyan-500 h-1 bg-gray-700 rounded-lg appearance-none"
+                 />
+              </label>
            </div>
 
            {/* Opacity Control Slider */}

@@ -205,6 +205,8 @@ export const UI_CURSOR_SOUND_SRC = '/se/cursor.mp3';
 export const UI_FIX_SOUND_SRC = '/se/fix.mp3';
 export const BATH_CHANGE_SOUND_SRC = '/se/cloak.mp3';
 export const BATH_SPLASH_SOUND_SRC = '/se/chapon.mp3';
+export const SHOP_BGM_SRC = '/bgm/shop.mp3';
+export const KURUMI_SHOP_SOUND_SRC = '/voice/kurumi.wav';
 export const RIVER_HEAR_DISTANCE = 360;
 export const FIREPLACE_HEAR_DISTANCE = 520;
 export const FARM_RIVER_POINTS = [
@@ -220,6 +222,7 @@ export const AUDIO_FILE_ENTRIES: { src: string; label: string; category: AudioCa
   { src: '/bgm/farmbgm.wav', label: 'BGM: 牧場', category: 'bgm' },
   { src: '/bgm/ie.mp3', label: 'BGM: 家・小屋', category: 'bgm' },
   { src: '/bgm/yado.mp3', label: 'BGM: 宿（就寝）', category: 'bgm' },
+  { src: SHOP_BGM_SRC, label: 'BGM: くるみ商店', category: 'bgm' },
   { src: '/se/zoon2.wav', label: 'BGM: 滝ゾーン', category: 'bgm' },
   { src: WATERFALL_SOUND_SRC, label: 'SE: 滝の音', category: 'se' },
   { src: FIREPLACE_SOUND_SRC, label: 'SE: 暖炉 Fireplace', category: 'se' },
@@ -240,6 +243,7 @@ export const AUDIO_FILE_ENTRIES: { src: string; label: string; category: AudioCa
   { src: UI_FIX_SOUND_SRC, label: 'SE: 決定', category: 'se' },
   { src: BATH_CHANGE_SOUND_SRC, label: 'SE: 風呂着替え', category: 'se' },
   { src: BATH_SPLASH_SOUND_SRC, label: 'SE: 風呂ちゃぽん', category: 'se' },
+  { src: KURUMI_SHOP_SOUND_SRC, label: 'VOICE: くるみ商店あいさつ', category: 'voice' },
 ];
 
 export const BGM_FILE_ENTRIES = AUDIO_FILE_ENTRIES.filter(entry => entry.category === 'bgm');
@@ -257,4 +261,5 @@ export const DEFAULT_MAP_BGM_SOURCES: Record<GameMap, string> = {
 export const DEFAULT_AUDIO_GAINS: Record<string, number> = {
   '/bgm/ie.mp3': 1.8,
   [FIREPLACE_SOUND_SRC]: 1,
+  [KURUMI_SHOP_SOUND_SRC]: 1,
 };

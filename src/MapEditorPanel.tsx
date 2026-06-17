@@ -1,5 +1,5 @@
 import React from 'react';
-import type { AnimZone, AnimZoneTime, AnimZoneType, CollisionDrawMode, FootstepSound, GameMap, HideAreaDrawMode, WallBumpSound } from './types';
+import type { AnimZone, AnimZoneTime, AnimZoneType, CollisionDrawMode, FootstepSound, GameMap, HideAreaDrawMode, TimeOfDay, WallBumpSound } from './types';
 
 type MapEditorPanelProps = {
   setupMode?: 'animation' | 'collision' | 'footstep' | 'hideArea';
@@ -64,6 +64,8 @@ const MapEditorPanel = ({
   setHideAreaBrushSize,
   setHideAreaTiles,
 }: MapEditorPanelProps) => {
+  const animZoneTimes: TimeOfDay[] = ['morning', 'day', 'evening', 'night'];
+
   if (setupMode === 'collision') {
     return (
                    <>
@@ -297,21 +299,47 @@ const MapEditorPanel = ({
                                        <option value="fireplace">暖炉の炎 (fireplace)</option>
                                        <option value="kurumi">くるみ (shop)</option>
                                     </select>
-                                    <select
-                                       value={zone.timeOfDay ?? 'all'}
-                                       onChange={(e) => {
-                                          const val = e.target.value as AnimZoneTime;
-                                          setZones(prev => prev.map(z => z.id === selectedZoneId ? { ...z, timeOfDay: val === 'all' ? undefined : val } : z));
-                                       }}
-                                       className="bg-black text-[#fdf6e3] border border-[#bc6c25] rounded px-1 cursor-pointer"
+                                    <div
+                                       className="grid grid-cols-3 gap-1 bg-black text-[#fdf6e3] border border-[#bc6c25] rounded px-1 py-1"
                                        title="このアニメを表示する時間帯"
                                     >
-                                       <option value="all">{getAnimZoneTimeLabel('all')}</option>
-                                       <option value="morning">{getAnimZoneTimeLabel('morning')}</option>
-                                       <option value="day">{getAnimZoneTimeLabel('day')}</option>
-                                       <option value="evening">{getAnimZoneTimeLabel('evening')}</option>
-                                       <option value="night">{getAnimZoneTimeLabel('night')}</option>
-                                    </select>
+                                       <label className="flex items-center gap-1 cursor-pointer">
+                                          <input
+                                             type="checkbox"
+                                             checked={!(zone.timeOfDays && zone.timeOfDays.length > 0) && !zone.timeOfDay}
+                                             onChange={() => {
+                                                setZones(prev => prev.map(z => z.id === selectedZoneId ? { ...z, timeOfDay: undefined, timeOfDays: undefined } : z));
+                                             }}
+                                          />
+                                          {getAnimZoneTimeLabel('all')}
+                                       </label>
+                                       {animZoneTimes.map(time => {
+                                          const selectedTimes = zone.timeOfDays ?? (zone.timeOfDay ? [zone.timeOfDay] : []);
+                                          return (
+                                             <label key={time} className="flex items-center gap-1 cursor-pointer">
+                                                <input
+                                                   type="checkbox"
+                                                   checked={selectedTimes.includes(time)}
+                                                   onChange={(e) => {
+                                                      setZones(prev => prev.map(z => {
+                                                         if (z.id !== selectedZoneId) return z;
+                                                         const currentTimes = z.timeOfDays ?? (z.timeOfDay ? [z.timeOfDay] : []);
+                                                         const nextTimes = e.target.checked
+                                                            ? Array.from(new Set([...currentTimes, time]))
+                                                            : currentTimes.filter(item => item !== time);
+                                                         return {
+                                                            ...z,
+                                                            timeOfDay: undefined,
+                                                            timeOfDays: nextTimes.length > 0 ? nextTimes : undefined,
+                                                         };
+                                                      }));
+                                                   }}
+                                                />
+                                                {getAnimZoneTimeLabel(time)}
+                                             </label>
+                                          );
+                                       })}
+                                    </div>
                                  </div>
                                  <div className="grid grid-cols-2 gap-x-2 gap-y-1">
                                     <label className="flex items-center gap-1">X:

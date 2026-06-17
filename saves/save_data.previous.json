@@ -185,8 +185,8 @@
       "id": "1781617949159",
       "x": 1305.42578125,
       "y": 818.57421875,
-      "w": 158.83203125,
-      "h": 35.05859375,
+      "w": 167,
+      "h": 214,
       "spriteW": 27,
       "spriteH": 35.05859375,
       "type": "iwana",
@@ -204,6 +204,20 @@
       "type": "kurumi",
       "map": "farm",
       "timeOfDay": "morning"
+    },
+    {
+      "id": "1781660883793",
+      "x": 1477.6069106650086,
+      "y": 407.8535121640579,
+      "w": 105.59805079740113,
+      "h": 167.7731836975783,
+      "spriteW": 30,
+      "spriteH": 30,
+      "type": "iwana",
+      "map": "kawa",
+      "timeOfDays": [
+        "evening"
+      ]
     }
   ],
   "doors": [
@@ -346,6 +360,8 @@
   "audioGains": {
     "/bgm/ie.mp3": 0.2,
     "/se/Fireplace.mp3": 1,
+    "/voice/kurumi.wav": 1,
+    "/se/kurumi.wav": 0.5,
     "/bgm/farmbgm.wav": 0.09,
     "/se/soil.mp3": 0.33,
     "/se/grass.mp3": 0.3,
@@ -360,7 +376,9 @@
     "/semi.mp3": 0.4,
     "/taki.mp3": 0.48,
     "/se/taki.mp3": 0.48,
-    "/se/semi.mp3": 0.4
+    "/se/semi.mp3": 0.4,
+    "/se/Water-splash.mp3": 0.2,
+    "/se/bird.wav": 0.23
   },
   "mapBgmSources": {
     "farm": "/bgm/farmbgm.wav",
@@ -27362,7 +27380,10 @@
     "doukutsu_108,50": true,
     "doukutsu_107,52": true,
     "doukutsu_108,52": true,
-    "doukutsu_110,51": true
+    "doukutsu_110,51": true,
+    "doukutsu_107,53": true,
+    "doukutsu_107,54": true,
+    "doukutsu_107,55": true
   },
   "hideAreaTiles": {
     "farm_1,27": true,
@@ -44247,7 +44268,10 @@
     "farm_90,28": true,
     "farm_90,29": true,
     "farm_91,29": true,
-    "farm_91,28": true
+    "farm_91,28": true,
+    "farm_98,43": true,
+    "farm_99,43": true,
+    "farm_99,44": true
   },
   "inspectSpots": [
     {
@@ -44283,6 +44307,32 @@
       "imageSrc": "/img/barricade.png",
       "seSrc": "/se/unmei.mp3",
       "voiceSrc": "/voice/yakuza.wav"
+    },
+    {
+      "id": "auto_event_1781661547640",
+      "map": "doukutsu",
+      "x": 1630,
+      "y": 760,
+      "w": 100,
+      "h": 100,
+      "label": "洞窟の奥には何が？",
+      "text": "暗すぎて何も見えない...。これ以上は進めなさそうだ。",
+      "autoTrigger": true,
+      "imageSrc": "/img/cave.png",
+      "seSrc": "/se/cave.mp3"
+    },
+    {
+      "id": "auto_event_1781678487595",
+      "map": "doukutsu",
+      "x": 1380,
+      "y": 220,
+      "w": 100,
+      "h": 70,
+      "label": "洞窟の奥には何が？",
+      "text": "暗すぎて何も見えない...。これ以上は進めなさそうだ。",
+      "autoTrigger": true,
+      "imageSrc": "/img/cave.png",
+      "seSrc": "/se/cave.mp3"
     }
   ],
   "plantedCrops": {},
@@ -44333,6 +44383,12 @@
       "cols": 6,
       "rows": 6
     }
+  },
+  "caughtFishIds": [
+    "ugui"
+  ],
+  "fishBestSizes": {
+    "ugui": 11.9
   },
   "bathTubMaskZone": {
     "x": 1260,

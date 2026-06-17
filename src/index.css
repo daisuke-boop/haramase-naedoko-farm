@@ -270,3 +270,43 @@ canvas {
   line-height: 1;
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.7);
 }
+
+@keyframes farmHitZoom {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.35) rotate(-8deg);
+    filter: brightness(1.5) blur(2px);
+  }
+  58% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1.18) rotate(2deg);
+    filter: brightness(1.25) blur(0);
+  }
+  100% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1) rotate(0deg);
+    filter: brightness(1) blur(0);
+  }
+}
+
+@keyframes farmHitFrameBurst {
+  0% {
+    opacity: 0;
+    transform: scale(1.24) rotate(-2deg);
+    filter: brightness(1.75) saturate(1.45) blur(5px);
+  }
+  42% {
+    opacity: 1;
+    transform: scale(0.98) rotate(1deg);
+    filter: brightness(1.45) saturate(1.25) blur(0);
+  }
+  68% {
+    transform: scale(1.04) rotate(0deg);
+    filter: brightness(1.22) saturate(1.18);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+    filter: brightness(1) saturate(1);
+  }
+}

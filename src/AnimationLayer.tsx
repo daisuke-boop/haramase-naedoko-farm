@@ -66,6 +66,7 @@ const iwanaShadowFrames = ['/img/iwana6.png', '/img/iwana7.png'];
 const iwanaJumpFrames = ['/img/iwana1.png', '/img/iwana2.png', '/img/iwana3.png'];
 const fireplaceFrames = ['/img/Fireplace1.png', '/img/Fireplace2.png', '/img/Fireplace3.png'];
 const kurumiWalkFrames = ['/img/kurumi1.png', '/img/kurumi2.png', '/img/kurumi3.png'];
+const kurumiTentUrl = '/img/tent.png';
 const ANIMAL_REPEAT_DELAY_MIN_MS = 30000;
 const ANIMAL_REPEAT_DELAY_MAX_MS = 240000;
 const ANIMAL_ROAM_DELAY_MIN_MS = 2000;
@@ -112,6 +113,7 @@ const SpriteItem = ({ z, isSetupMode, onZoneDelete, onZoneClick, isSelected, onS
   const [kurumiDirection, setKurumiDirection] = useState(1);
   const [isKurumiMoving, setIsKurumiMoving] = useState(false);
   const sagiFlightAudioRef = useRef<HTMLAudioElement | null>(null);
+  const isKurumiTent = z.type === 'kurumi' && timeOfDay === 'night';
   const isBirdType = z.type === 'bird' || z.type === 'kamo' || z.type === 'sagi';
   const zoneSpriteW = Math.max(8, z.spriteW ?? z.w);
   const zoneSpriteH = Math.max(8, z.spriteH ?? z.h);
@@ -121,7 +123,7 @@ const SpriteItem = ({ z, isSetupMode, onZoneDelete, onZoneClick, isSelected, onS
   const spriteH = z.type === 'kurumi' && zoneSpriteH >= z.h
      ? Math.min(kurumiDefaultSpriteH, Math.max(8, z.h))
      : zoneSpriteH;
-  const canRoamInZone = z.type === 'bird' || z.type === 'kamo' || z.type === 'iwana' || z.type === 'sagi' || z.type === 'kurumi';
+  const canRoamInZone = z.type === 'bird' || z.type === 'kamo' || z.type === 'iwana' || z.type === 'sagi' || (z.type === 'kurumi' && !isKurumiTent);
   const roamMaxX = canRoamInZone ? Math.max(0, (z.w - spriteW) / 2) : 0;
   const roamMaxY = canRoamInZone ? Math.max(0, (z.h - spriteH) / 2) : 0;
 
@@ -397,7 +399,7 @@ const SpriteItem = ({ z, isSetupMode, onZoneDelete, onZoneClick, isSelected, onS
   }, [z.type]);
 
   useEffect(() => {
-     if (z.type !== 'kurumi') {
+     if (z.type !== 'kurumi' || isKurumiTent) {
         setKurumiOffset({ x: 0, y: 0 });
         setKurumiFrame(0);
         setIsKurumiMoving(false);
@@ -440,10 +442,10 @@ const SpriteItem = ({ z, isSetupMode, onZoneDelete, onZoneClick, isSelected, onS
         window.clearTimeout(timeoutId);
         if (stopTimeoutId !== null) window.clearTimeout(stopTimeoutId);
      };
-  }, [z.type, roamMaxX, roamMaxY]);
+  }, [z.type, isKurumiTent, roamMaxX, roamMaxY]);
 
   useEffect(() => {
-     if (z.type !== 'kurumi' || !isKurumiMoving) {
+     if (z.type !== 'kurumi' || isKurumiTent || !isKurumiMoving) {
         setKurumiFrame(0);
         return;
      }
@@ -453,7 +455,7 @@ const SpriteItem = ({ z, isSetupMode, onZoneDelete, onZoneClick, isSelected, onS
      }, 160);
 
      return () => window.clearInterval(intervalId);
-  }, [z.type, isKurumiMoving]);
+  }, [z.type, isKurumiTent, isKurumiMoving]);
 
   const isLegacy = z.type === 'smoke' || z.type === 'bird';
   const url = z.type === 'smoke' ? smokeBgUrl : z.type === 'bird' ? birdBgUrl : null;
@@ -525,11 +527,11 @@ const SpriteItem = ({ z, isSetupMode, onZoneDelete, onZoneClick, isSelected, onS
   const waterfallMaskImage = `${waterfallVerticalMask}, ${waterfallHorizontalMask}`;
 
   return (
-    <div className={`absolute ${isSetupMode ? `pointer-events-auto border-2 cursor-move ${isSelected ? 'border-yellow-400 bg-yellow-400/40 z-30' : 'border-red-500 bg-red-500/20'}` : z.type === 'kurumi' ? 'pointer-events-auto cursor-pointer' : 'pointer-events-none'}`} 
+    <div className={`absolute ${isSetupMode ? `pointer-events-auto border-2 cursor-move ${isSelected ? 'border-yellow-400 bg-yellow-400/40 z-30' : 'border-red-500 bg-red-500/20'}` : z.type === 'kurumi' && !isKurumiTent ? 'pointer-events-auto cursor-pointer' : 'pointer-events-none'}`} 
          onPointerDown={(e) => {
             if (isSetupMode) {
                onDragStart(e, z.id);
-            } else if (z.type === 'kurumi') {
+            } else if (z.type === 'kurumi' && !isKurumiTent) {
                e.stopPropagation();
             }
          }}
@@ -537,7 +539,7 @@ const SpriteItem = ({ z, isSetupMode, onZoneDelete, onZoneClick, isSelected, onS
             if (isSetupMode) {
                e.stopPropagation();
                onSelect(z.id);
-            } else if (z.type === 'kurumi') {
+            } else if (z.type === 'kurumi' && !isKurumiTent) {
                e.stopPropagation();
                onZoneClick?.(z.id);
             }
@@ -738,11 +740,11 @@ const SpriteItem = ({ z, isSetupMode, onZoneDelete, onZoneClick, isSelected, onS
             }}
          >
             <img
-               src={kurumiWalkFrames[kurumiFrame] ?? kurumiWalkFrames[0]}
-               alt="kurumi"
+               src={isKurumiTent ? kurumiTentUrl : kurumiWalkFrames[kurumiFrame] ?? kurumiWalkFrames[0]}
+               alt={isKurumiTent ? 'tent' : 'kurumi'}
                className="w-full h-full object-contain"
                style={{
-                  transform: `translate(${kurumiOffset.x}px, ${kurumiOffset.y}px) scaleX(${kurumiDirection})`,
+                  transform: isKurumiTent ? 'none' : `translate(${kurumiOffset.x}px, ${kurumiOffset.y}px) scaleX(${kurumiDirection})`,
                   transition: 'transform 900ms ease-in-out',
                   imageRendering: 'auto',
                   filter: 'drop-shadow(0 8px 8px rgba(0,0,0,0.38))',
@@ -752,7 +754,7 @@ const SpriteItem = ({ z, isSetupMode, onZoneDelete, onZoneClick, isSelected, onS
                <div
                   className="absolute left-1/2 top-full mt-1 -translate-x-1/2 rounded bg-black/70 px-2 py-0.5 text-[10px] text-white whitespace-nowrap"
                >
-                  くるみ
+                  {isKurumiTent ? 'テント' : 'くるみ'}
                </div>
             )}
          </div>
