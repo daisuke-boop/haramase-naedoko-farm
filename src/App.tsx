@@ -4620,78 +4620,27 @@ export default function App() {
                      setObstacles={setObstacles}
                    />
                 ) : setupMode === 'footstep' ? (
-                   <>
-                     <div className="absolute top-1 left-4 bg-amber-600 border-[2px] border-[#fdf6e3] rounded-md px-3 py-[2px] text-xs font-bold text-white shadow-sm">足音設定中</div>
-                     <div className="flex gap-6 h-full items-center w-full">
-                        <div className="flex-grow select-none">
-                           <p className="text-[17px] font-bold">足音を選んで、マップ上のマスをドラッグまたはクリックで塗ります。</p>
-                           <p className="text-[#a3b18a] text-[13px] mt-1">未指定マスは土の足音です。設定はブラウザに自動保存されます。</p>
-                        </div>
-                        <div className="flex items-center gap-3 bg-[#1a100d]/95 border-[2px] border-[#bc6c25] rounded-lg p-2 text-xs text-[#fdf6e3] z-50">
-                           <div className="flex flex-col gap-1">
-                              <span className="text-[#dda15e] font-bold">マス足音</span>
-                              <div className="flex items-center gap-2">
-                                 {(['soil', 'grass', 'foot', 'rainw', 'rock', 'jutan'] as FootstepSound[]).map(soundType => (
-                                    <button
-                                       key={soundType}
-                                       onClick={() => setSelectedFootstepSound(soundType)}
-                                       className={`px-3 py-2 rounded border font-bold cursor-pointer transition-colors ${selectedFootstepSound === soundType ? 'bg-[#bc6c25] border-white text-white' : 'bg-black border-[#bc6c25] text-[#dda15e] hover:bg-[#3a2418]'}`}
-                                    >
-                                       {FOOTSTEP_SOUNDS[soundType].label}
-                                    </button>
-                                 ))}
-                                 <button
-                                    onClick={() => setSelectedFootstepSound('erase')}
-                                    className={`px-3 py-2 rounded border font-bold cursor-pointer transition-colors ${selectedFootstepSound === 'erase' ? 'bg-[#bc6c25] border-white text-white' : 'bg-black border-[#bc6c25] text-[#dda15e] hover:bg-[#3a2418]'}`}
-                                 >
-                                    消す
-                                 </button>
-                              </div>
-                           </div>
-                           <label className="flex flex-col gap-1">
-                              <span className="text-[#dda15e] font-bold">壁SE</span>
-                              <select
-                                 value={wallBumpSound}
-                                 onChange={(e) => setWallBumpSound(e.target.value as WallBumpSound)}
-                                 className="bg-black text-[#fdf6e3] border border-[#bc6c25] rounded px-2 py-2 cursor-pointer font-bold"
-                              >
-                                 {(['door', 'soil', 'grass', 'foot', 'rainw', 'rock', 'jutan', 'off'] as WallBumpSound[]).map(soundType => (
-                                    <option key={soundType} value={soundType}>{WALL_BUMP_SOUNDS[soundType].label}</option>
-                                 ))}
-                              </select>
-                           </label>
-                           <div className="flex flex-col gap-1">
-                              <span className="text-[#dda15e] font-bold">ブラシ</span>
-                              <div className="flex gap-2">
-                                 {([1, 3, 5] as const).map(size => (
-                                    <button
-                                       key={size}
-                                       onClick={() => setFootstepBrushSize(size)}
-                                       className={`px-3 py-2 rounded border font-bold cursor-pointer transition-colors ${footstepBrushSize === size ? 'bg-[#bc6c25] border-white text-white' : 'bg-black border-[#bc6c25] text-[#dda15e] hover:bg-[#3a2418]'}`}
-                                    >
-                                       {size}
-                                    </button>
-                                 ))}
-                              </div>
-                           </div>
-                           <button 
-                              onClick={() => { if(window.confirm('現在のマップの足音設定をクリアしますか？')) {
-                                 setFootstepTiles(prev => {
-                                    const next = { ...prev };
-                                    Object.keys(next).forEach(key => {
-                                       if (key.startsWith(`${currentMap}_`)) delete next[key];
-                                    });
-                                    saveFootstepTiles(next);
-                                    return next;
-                                 });
-                              } }} 
-                              className="bg-red-600 hover:bg-red-500 text-white text-xs px-3 py-2 rounded cursor-pointer font-bold transition-colors self-end"
-                           >
-                              マップをクリア
-                           </button>
-                        </div>
-                     </div>
-                   </>
+                   <MapEditorPanel
+                     setupMode="footstep"
+                     selectedZoneId={selectedZoneId}
+                     zones={zones}
+                     setZones={setZones}
+                     setSelectedZoneId={setSelectedZoneId}
+                     getAnimZoneTimeLabel={getAnimZoneTimeLabel}
+                     kurumiDefaultSpriteW={KURUMI_DEFAULT_SPRITE_W}
+                     kurumiDefaultSpriteH={KURUMI_DEFAULT_SPRITE_H}
+                     currentMap={currentMap}
+                     selectedFootstepSound={selectedFootstepSound}
+                     setSelectedFootstepSound={setSelectedFootstepSound}
+                     wallBumpSound={wallBumpSound}
+                     setWallBumpSound={setWallBumpSound}
+                     footstepBrushSize={footstepBrushSize}
+                     setFootstepBrushSize={setFootstepBrushSize}
+                     setFootstepTiles={setFootstepTiles}
+                     saveFootstepTiles={saveFootstepTiles}
+                     FOOTSTEP_SOUNDS={FOOTSTEP_SOUNDS}
+                     WALL_BUMP_SOUNDS={WALL_BUMP_SOUNDS}
+                   />
                 ) : setupMode === 'hideArea' ? (
                    <>
                      <div className="absolute top-1 left-4 bg-emerald-700 border-[2px] border-[#fdf6e3] rounded-md px-3 py-[2px] text-xs font-bold text-white shadow-sm">隠れエリア設定中</div>
