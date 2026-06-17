@@ -25,6 +25,8 @@ import {
   DIALOG_BOX_MIN_WIDTH,
   DOUKUTSU_WATERFALL_POINT,
   FARM_RIVER_POINTS,
+  FISH_LOSE_SOUND_SRC,
+  FISH_RESULT_SOUND_SRC,
   FIREPLACE_HEAR_DISTANCE,
   FIREPLACE_SOUND_SRC,
   FOOTSTEP_SOUNDS,
@@ -43,6 +45,7 @@ import {
   TIME_OF_DAY_LABELS,
   UI_CURSOR_SOUND_SRC,
   UI_FIX_SOUND_SRC,
+  UI_SUCCESS_SOUND_SRC,
   WALL_BUMP_SOUNDS,
   WATERFALL_BASIN_POINT,
   WATERFALL_HEAR_DISTANCE,
@@ -308,14 +311,25 @@ const DEFAULT_FISHING_FAN_CONFIGS: Record<string, FishingFanConfig> = {
 
 const FISHING_KEEP_GREEN_MIN = 42;
 const FISHING_KEEP_GREEN_MAX = 58;
+const FISHING_KEEP_GREEN_CENTER = 50;
+const FISHING_KEEP_GREEN_SUCCESS_WIDTH = FISHING_KEEP_GREEN_MAX - FISHING_KEEP_GREEN_MIN;
+const FISHING_KEEP_GREEN_FAIL_WIDTH = FISHING_KEEP_GREEN_SUCCESS_WIDTH / 2;
+const FISHING_FAN_SWEET_MIN = FISHING_KEEP_GREEN_MIN;
+const FISHING_FAN_SWEET_MAX = FISHING_KEEP_GREEN_MAX;
 const FISHING_FISH_MAX_HP = 100;
 const FISHING_TENSION_MAX = 100;
+const FISHING_BITE_ROUNDS = 5;
+const FISHING_BITE_TARGET_SIZE = 72;
+const FISHING_BITE_START_SIZE = 172;
+const FISHING_BITE_END_SIZE = 42;
+const FISHING_BITE_ROUND_MS_LIST = [2500, 2000, 1500, 1000, 600];
 const FISHING_SCENE_CAST_SRC = '/img/fishing1.jpg';
 const FISHING_SCENE_UKI_SRC = '/img/uki.jpg';
 const FISHING_SCENE_HIT_SRC = '/img/hit.jpg';
 const FISHING_SCENE_HIT_OVERLAY_SRC = '/img/hit.png';
 const FISHING_SCENE_RESULT_SRC = '/img/1ugui.jpg';
 const FISHING_SCENE_ESCAPE_SRC = '/img/fishing4.jpg';
+const FISHING_BITE_SPARKLE_WEBM_SRC = '/video/sparkle.webm';
 const FISHING_CAST_SOUND_SRC = '/se/fishing.wav';
 const FISHING_REEL_SOUND_SRC = '/se/reel.mp3';
 const FISHING_BGM_SRC = '/bgm/fishking.mp3';
@@ -332,6 +346,18 @@ type FishZukanEntry = {
   no: number;
   name: string;
   imageSrc: string;
+};
+
+type FishingBiteCircle = {
+  x: number;
+  y: number;
+  outerSize: number;
+};
+
+type FishingBiteSparkle = {
+  x: number;
+  y: number;
+  id: number;
 };
 
 const KURUMI_TRADE_REWARDS: KurumiTradeReward[] = [
@@ -1205,11 +1231,17 @@ export default function App() {
   const [fishingMiniGameOpen, setFishingMiniGameOpen] = useState(false);
   const [fishingMiniGameStage, setFishingMiniGameStage] = useState<'direction' | 'power' | 'bite' | 'hit' | 'keep' | 'result'>('direction');
   const [fishingGauge, setFishingGauge] = useState(0);
+  const fishingGaugeRef = useRef(0);
   const [fishingCastAngle, setFishingCastAngle] = useState(0);
   const [fishingCastPower, setFishingCastPower] = useState(0);
   const [fishingFanConfigs, setFishingFanConfigs] = useState<Record<string, FishingFanConfig>>(loadFishingFanConfigs);
   const equippedFishingRod = equippedItems['主人公-slot1'] || '竹の釣竿';
   const fishingFanConfig = fishingFanConfigs[equippedFishingRod] ?? DEFAULT_FISHING_FAN_CONFIG;
+  const fishingHitGreenMin = FISHING_KEEP_GREEN_CENTER - fishingHitGreenWidth / 2;
+  const fishingHitGreenMax = FISHING_KEEP_GREEN_CENTER + fishingHitGreenWidth / 2;
+  useEffect(() => {
+    fishingGaugeRef.current = fishingGauge;
+  }, [fishingGauge]);
   const setFishingFanWidth = (width: number) => {
     setFishingFanConfigs(prev => ({
       ...prev,
@@ -1231,18 +1263,29 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('farm_fishing_fan_configs', JSON.stringify(fishingFanConfigs));
   }, [fishingFanConfigs]);
-  const [fishingBiteCountdown, setFishingBiteCountdown] = useState(3);
+  const [fishingBiteRound, setFishingBiteRound] = useState(1);
+  const [fishingBiteScore, setFishingBiteScore] = useState(0);
+  const [fishingBiteCombo, setFishingBiteCombo] = useState(0);
+  const [fishingBiteCircle, setFishingBiteCircle] = useState<FishingBiteCircle>({
+    x: 50,
+    y: 50,
+    outerSize: FISHING_BITE_START_SIZE,
+  });
+  const [fishingBiteSparkle, setFishingBiteSparkle] = useState<FishingBiteSparkle | null>(null);
   const [fishingKeepSeconds, setFishingKeepSeconds] = useState(3);
   const [fishingKeepMissSeconds, setFishingKeepMissSeconds] = useState(0);
   const [fishingFishHp, setFishingFishHp] = useState(FISHING_FISH_MAX_HP);
   const [fishingTension, setFishingTension] = useState(0);
+  const [fishingHitGreenWidth, setFishingHitGreenWidth] = useState(FISHING_KEEP_GREEN_SUCCESS_WIDTH);
   const [fishingResultText, setFishingResultText] = useState('');
   const [fishingResultSizeCm, setFishingResultSizeCm] = useState('');
   const [fishingResultImageSrc, setFishingResultImageSrc] = useState(FISHING_SCENE_RESULT_SRC);
+  const [fishingResultIsNewRecord, setFishingResultIsNewRecord] = useState(false);
   const [isFishingHitSplashActive, setIsFishingHitSplashActive] = useState(false);
   const [isFishingHitIntroActive, setIsFishingHitIntroActive] = useState(false);
   const [fishingHitCountdown, setFishingHitCountdown] = useState(3);
   const [fishingHitLimitSeconds, setFishingHitLimitSeconds] = useState(10);
+  const [isFishingResultInputLocked, setIsFishingResultInputLocked] = useState(false);
   const [isFishingKeepPressed, setIsFishingKeepPressed] = useState(false);
   const [kurumiShopOpen, setKurumiShopOpen] = useState(false);
   const [selectedShopItemIndex, setSelectedShopItemIndex] = useState(0);
@@ -1263,6 +1306,8 @@ export default function App() {
   const fishingHitSplashTimerRef = useRef<number | null>(null);
   const fishingHitIntroTimerRef = useRef<number | null>(null);
   const fishingHitCountdownTimerRef = useRef<number | null>(null);
+  const fishingResultLockTimerRef = useRef<number | null>(null);
+  const fishingBiteSparkleTimerRef = useRef<number | null>(null);
   const fishingRiverAudioRef = useRef<HTMLAudioElement | null>(null);
   const fishingReelAudioRef = useRef<HTMLAudioElement | null>(null);
   const isFishingKeepPressedRef = useRef(false);
@@ -1487,7 +1532,7 @@ export default function App() {
 
         if (fishingMiniGameStage === 'keep') {
            const nextGauge = Math.max(0, Math.min(100, fishingGauge + (isFishingKeepPressedRef.current ? -2.6 : 1.8)));
-           const isInGreenZone = nextGauge >= FISHING_KEEP_GREEN_MIN && nextGauge <= FISHING_KEEP_GREEN_MAX;
+           const isInGreenZone = nextGauge >= fishingHitGreenMin && nextGauge <= fishingHitGreenMax;
            setFishingGauge(nextGauge);
            setFishingFishHp(prev => isInGreenZone ? Math.max(0, prev - 1.15) : prev);
            setFishingTension(prev => (
@@ -1498,7 +1543,7 @@ export default function App() {
         }
      }, 50);
      return () => window.clearInterval(timerId);
-  }, [fishingMiniGameOpen, fishingMiniGameStage, fishingGauge, isFishingHitSplashActive]);
+  }, [fishingHitGreenMax, fishingHitGreenMin, fishingMiniGameOpen, fishingMiniGameStage, fishingGauge, isFishingHitSplashActive]);
 
   useEffect(() => {
      isFishingKeepPressedRef.current = isFishingKeepPressed;
@@ -1513,22 +1558,42 @@ export default function App() {
   useEffect(() => {
      if (!fishingMiniGameOpen || fishingMiniGameStage !== 'bite') return;
      if (fishingBiteTimerRef.current !== null) {
-        window.clearTimeout(fishingBiteTimerRef.current);
+        window.clearInterval(fishingBiteTimerRef.current);
      }
-     const waitMs = 10000 + Math.random() * 20000;
-     fishingBiteTimerRef.current = window.setTimeout(() => {
-        setFishingMiniGameStage('hit');
-        setFishingGauge(0);
-        fishingGaugeDirectionRef.current = 1;
-        fishingBiteTimerRef.current = null;
-     }, waitMs);
+     const roundStartedAt = Date.now();
+     const roundMs = FISHING_BITE_ROUND_MS_LIST[fishingBiteRound - 1] ?? FISHING_BITE_ROUND_MS_LIST[FISHING_BITE_ROUND_MS_LIST.length - 1];
+     fishingBiteTimerRef.current = window.setInterval(() => {
+        const progress = Math.min(1, (Date.now() - roundStartedAt) / roundMs);
+        const nextSize = FISHING_BITE_START_SIZE - (FISHING_BITE_START_SIZE - FISHING_BITE_END_SIZE) * progress;
+        setFishingBiteCircle(prev => ({ ...prev, outerSize: nextSize }));
+        if (progress < 1) return;
+        if (fishingBiteTimerRef.current !== null) {
+           window.clearInterval(fishingBiteTimerRef.current);
+           fishingBiteTimerRef.current = null;
+        }
+        setFishingBiteRound(prev => {
+           if (prev >= FISHING_BITE_ROUNDS) {
+              setFishingMiniGameStage('hit');
+              setFishingGauge(0);
+              setFishingHitLimitSeconds(10);
+              fishingGaugeDirectionRef.current = 1;
+              return prev;
+           }
+           setFishingBiteCircle({
+              x: 18 + Math.random() * 64,
+              y: 20 + Math.random() * 56,
+              outerSize: FISHING_BITE_START_SIZE,
+           });
+           return prev + 1;
+        });
+     }, 33);
      return () => {
         if (fishingBiteTimerRef.current !== null) {
-           window.clearTimeout(fishingBiteTimerRef.current);
+           window.clearInterval(fishingBiteTimerRef.current);
            fishingBiteTimerRef.current = null;
         }
      };
-  }, [fishingMiniGameOpen, fishingMiniGameStage]);
+  }, [fishingMiniGameOpen, fishingMiniGameStage, fishingBiteRound]);
 
   useEffect(() => {
      if (!fishingMiniGameOpen || fishingMiniGameStage !== 'hit' || isFishingHitSplashActive) return;
@@ -1540,8 +1605,10 @@ export default function App() {
               window.clearInterval(timerId);
               setFishingResultImageSrc(FISHING_SCENE_ESCAPE_SRC);
               setFishingResultSizeCm('');
+              setFishingResultIsNewRecord(false);
               setFishingResultText('魚に逃げられた...');
               setDialogMessage('魚に逃げられた...');
+              playUiSound(FISH_LOSE_SOUND_SRC);
               setFishingMiniGameStage('result');
            }
            return next;
@@ -1557,29 +1624,44 @@ export default function App() {
         if (ugui && !caughtFishIds.includes(ugui.id)) {
           setCaughtFishIds(prev => [...prev, ugui.id]);
         }
-        const sizeValue = Number((10 + Math.random() * 10).toFixed(1));
+        const comboMultiplier = 1 + Math.min(1, fishingBiteCombo / FISHING_BITE_ROUNDS);
+        const bigSizeChance = Math.min(0.9, (0.16 + fishingBiteScore * 0.12) * comboMultiplier);
+        const sizeValue = Number((Math.random() < bigSizeChance ? 18 + Math.random() * 8 : 10 + Math.random() * 10).toFixed(1));
         const sizeCm = sizeValue.toFixed(1);
-        if (ugui && sizeValue > (fishBestSizes[ugui.id] ?? 0)) {
+        const isNewRecord = !!ugui && sizeValue > (fishBestSizes[ugui.id] ?? 0);
+        if (isNewRecord && ugui) {
           setFishBestSizes(prev => ({ ...prev, [ugui.id]: sizeValue }));
           setFishSizeUpdatedIds(prev => prev.includes(ugui.id) ? prev : [...prev, ugui.id]);
         }
         setInventoryCounts(prev => ({ ...prev, '川魚': (prev['川魚'] ?? 0) + 1 }));
         setFishingResultSizeCm(sizeCm);
         setFishingResultImageSrc(FISHING_SCENE_RESULT_SRC);
+        setFishingResultIsNewRecord(isNewRecord);
         setFishingResultText('お見事！ウグイを釣り上げた。');
         setDialogMessage(`お見事！ウグイを釣り上げた。`);
         playUiSound(IWANA_SPLASH_SOUND_SRC);
+        playUiSound(FISH_RESULT_SOUND_SRC);
+        setIsFishingResultInputLocked(true);
+        if (fishingResultLockTimerRef.current !== null) {
+          window.clearTimeout(fishingResultLockTimerRef.current);
+        }
+        fishingResultLockTimerRef.current = window.setTimeout(() => {
+          setIsFishingResultInputLocked(false);
+          fishingResultLockTimerRef.current = null;
+        }, 3000);
         setFishingMiniGameStage('result');
         return;
      }
      if (fishingTension >= FISHING_TENSION_MAX) {
         setFishingResultImageSrc(FISHING_SCENE_ESCAPE_SRC);
         setFishingResultSizeCm('');
+        setFishingResultIsNewRecord(false);
         setFishingResultText('糸が切れて魚に逃げられた...');
         setDialogMessage('糸が切れて魚に逃げられた...');
+        playUiSound(FISH_LOSE_SOUND_SRC);
         setFishingMiniGameStage('result');
      }
-  }, [caughtFishIds, fishBestSizes, fishingFishHp, fishingTension, fishingMiniGameOpen, fishingMiniGameStage]);
+  }, [caughtFishIds, fishBestSizes, fishingBiteCombo, fishingBiteScore, fishingFishHp, fishingTension, fishingMiniGameOpen, fishingMiniGameStage]);
 
   const TILE_SIZE = 15;
   const GRID_COLS = 128; // 1920 / 15
@@ -2032,13 +2114,19 @@ export default function App() {
            window.clearTimeout(kurumiTradeRewardTimerRef.current);
         }
         if (fishingBiteTimerRef.current !== null) {
-           window.clearTimeout(fishingBiteTimerRef.current);
+           window.clearInterval(fishingBiteTimerRef.current);
         }
         if (fishingHitSplashTimerRef.current !== null) {
            window.clearTimeout(fishingHitSplashTimerRef.current);
         }
         if (fishingHitCountdownTimerRef.current !== null) {
            window.clearInterval(fishingHitCountdownTimerRef.current);
+        }
+        if (fishingBiteSparkleTimerRef.current !== null) {
+           window.clearTimeout(fishingBiteSparkleTimerRef.current);
+        }
+        if (fishingResultLockTimerRef.current !== null) {
+           window.clearTimeout(fishingResultLockTimerRef.current);
         }
         if (fishingRiverAudioRef.current) {
            fishingRiverAudioRef.current.pause();
@@ -2412,12 +2500,21 @@ export default function App() {
     setFishingGauge(50);
     setFishingCastAngle(0);
     setFishingCastPower(0);
-    setFishingBiteCountdown(3);
+    setFishingBiteRound(1);
+    setFishingBiteScore(0);
+    setFishingBiteCombo(0);
+    setFishingBiteCircle({
+      x: 50,
+      y: 50,
+      outerSize: FISHING_BITE_START_SIZE,
+    });
     setFishingKeepSeconds(3);
     setFishingKeepMissSeconds(0);
     setFishingFishHp(FISHING_FISH_MAX_HP);
     setFishingTension(0);
+    setFishingHitGreenWidth(FISHING_KEEP_GREEN_SUCCESS_WIDTH);
     setFishingResultSizeCm('');
+    setFishingResultIsNewRecord(false);
     setFishingResultImageSrc(FISHING_SCENE_RESULT_SRC);
     setIsFishingHitSplashActive(false);
     setFishingHitCountdown(3);
@@ -2435,7 +2532,7 @@ export default function App() {
 
   const finishFishingMiniGame = () => {
     if (fishingBiteTimerRef.current !== null) {
-      window.clearTimeout(fishingBiteTimerRef.current);
+      window.clearInterval(fishingBiteTimerRef.current);
       fishingBiteTimerRef.current = null;
     }
     if (fishingHitSplashTimerRef.current !== null) {
@@ -2450,29 +2547,53 @@ export default function App() {
       window.clearInterval(fishingHitCountdownTimerRef.current);
       fishingHitCountdownTimerRef.current = null;
     }
+    if (fishingBiteSparkleTimerRef.current !== null) {
+      window.clearTimeout(fishingBiteSparkleTimerRef.current);
+      fishingBiteSparkleTimerRef.current = null;
+    }
+    if (fishingResultLockTimerRef.current !== null) {
+      window.clearTimeout(fishingResultLockTimerRef.current);
+      fishingResultLockTimerRef.current = null;
+    }
     setFishingMiniGameOpen(false);
     setFishingMiniGameStage('direction');
     setIsFishingHitSplashActive(false);
     setIsFishingHitIntroActive(false);
+    setIsFishingResultInputLocked(false);
     setFishingHitCountdown(3);
     setFishingHitLimitSeconds(10);
+    setFishingBiteRound(1);
+    setFishingBiteScore(0);
+    setFishingBiteCombo(0);
+    setFishingBiteCircle({
+      x: 50,
+      y: 50,
+      outerSize: FISHING_BITE_START_SIZE,
+    });
+    setFishingBiteSparkle(null);
     setIsFishingKeepPressed(false);
+    setFishingHitGreenWidth(FISHING_KEEP_GREEN_SUCCESS_WIDTH);
     setFishingResultText('');
     setFishingResultSizeCm('');
+    setFishingResultIsNewRecord(false);
     setFishingResultImageSrc(FISHING_SCENE_RESULT_SRC);
     fishingPromptBlockedRef.current = true;
   };
 
   const handleFishingMiniGameAction = () => {
-    playFixSound();
     if (fishingMiniGameStage === 'result') {
+      if (isFishingResultInputLocked) return;
+      playFixSound();
       finishFishingMiniGame();
       return;
     }
+    playFixSound();
     if (isFishingHitSplashActive) {
       return;
     }
     if (fishingMiniGameStage === 'direction') {
+      const fanSuccess = fishingGauge >= FISHING_FAN_SWEET_MIN && fishingGauge <= FISHING_FAN_SWEET_MAX;
+      setFishingHitGreenWidth(fanSuccess ? FISHING_KEEP_GREEN_SUCCESS_WIDTH : FISHING_KEEP_GREEN_FAIL_WIDTH);
       setFishingCastAngle(Math.round((fishingGauge - 50) * 1.2));
       setFishingMiniGameStage('power');
       setFishingGauge(0);
@@ -2484,15 +2605,63 @@ export default function App() {
       playUiSound(FISHING_CAST_SOUND_SRC);
       setFishingMiniGameStage('bite');
       setFishingGauge(50);
+      setFishingBiteRound(1);
+      setFishingBiteScore(0);
+      setFishingBiteCombo(0);
+      setFishingBiteCircle({
+        x: 18 + Math.random() * 64,
+        y: 20 + Math.random() * 56,
+        outerSize: FISHING_BITE_START_SIZE,
+      });
       setFishingHitLimitSeconds(10);
-      setDialogMessage('魚の反応を待っています...');
+      setDialogMessage('魚の反応を狙っています...');
       return;
     }
     if (fishingMiniGameStage === 'bite') {
+      const timingDiff = Math.abs(fishingBiteCircle.outerSize - FISHING_BITE_TARGET_SIZE);
+      if (timingDiff <= 16) {
+        setFishingBiteScore(prev => Math.min(FISHING_BITE_ROUNDS, prev + 1));
+        setFishingBiteCombo(prev => Math.min(FISHING_BITE_ROUNDS, prev + 1));
+        setFishingBiteSparkle({
+          x: fishingBiteCircle.x,
+          y: fishingBiteCircle.y,
+          id: Date.now(),
+        });
+        if (fishingBiteSparkleTimerRef.current !== null) {
+          window.clearTimeout(fishingBiteSparkleTimerRef.current);
+        }
+        fishingBiteSparkleTimerRef.current = window.setTimeout(() => {
+          setFishingBiteSparkle(null);
+          fishingBiteSparkleTimerRef.current = null;
+        }, 2000);
+        playUiSound(UI_SUCCESS_SOUND_SRC);
+      } else {
+        setFishingBiteCombo(0);
+      }
+      if (fishingBiteTimerRef.current !== null) {
+        window.clearInterval(fishingBiteTimerRef.current);
+        fishingBiteTimerRef.current = null;
+      }
+      setFishingBiteRound(prev => {
+        if (prev >= FISHING_BITE_ROUNDS) {
+          setFishingMiniGameStage('hit');
+          setFishingGauge(0);
+          setFishingHitLimitSeconds(10);
+          fishingGaugeDirectionRef.current = 1;
+          return prev;
+        }
+        setFishingBiteCircle({
+          x: 18 + Math.random() * 64,
+          y: 20 + Math.random() * 56,
+          outerSize: FISHING_BITE_START_SIZE,
+        });
+        return prev + 1;
+      });
       return;
     }
     if (fishingMiniGameStage === 'hit') {
-      const success = fishingGauge >= 42 && fishingGauge <= 58;
+      const hitGauge = fishingGaugeRef.current;
+      const success = hitGauge >= fishingHitGreenMin && hitGauge <= fishingHitGreenMax;
       if (success) {
         setIsFishingHitSplashActive(true);
         setIsFishingHitIntroActive(true);
@@ -2539,8 +2708,10 @@ export default function App() {
       }
       setFishingResultImageSrc(FISHING_SCENE_ESCAPE_SRC);
       setFishingResultSizeCm('');
-      setFishingResultText('HITを逃した...');
-      setDialogMessage('HITを逃した...');
+      setFishingResultIsNewRecord(false);
+      setFishingResultText('魚を逃してしまった...');
+      setDialogMessage('魚を逃してしまった...');
+      playUiSound(FISH_LOSE_SOUND_SRC);
       setFishingMiniGameStage('result');
       return;
     }
@@ -5425,8 +5596,6 @@ export default function App() {
           )}
 
           {setupMode === 'none' && fishingMiniGameOpen && fishingMiniGameStage === 'direction' && (() => {
-             const equippedRod = equippedFishingRod;
-             const isSturdyRod = equippedRod === '丈夫な釣竿' || equippedRod === '高級釣竿';
              const radiusX = fishingFanConfig.width / 2;
              const radiusY = fishingFanConfig.height;
              const width = radiusX * 2 + 108;
@@ -5441,8 +5610,13 @@ export default function App() {
              const leftX = centerX - radiusX;
              const rightX = centerX + radiusX;
              const topY = baseY - radiusY;
-             const sweetSpotRadiusX = radiusX * (isSturdyRod ? 0.34 : 0.28);
-             const sweetSpotRadiusY = radiusY * (isSturdyRod ? 0.44 : 0.36);
+             const sweetSpotLeftAngle = (FISHING_FAN_SWEET_MIN - 50) * 1.2 * Math.PI / 180;
+             const sweetSpotRightAngle = (FISHING_FAN_SWEET_MAX - 50) * 1.2 * Math.PI / 180;
+             const sweetSpotLength = radiusY - 12;
+             const sweetLeftX = centerX + Math.sin(sweetSpotLeftAngle) * sweetSpotLength;
+             const sweetLeftY = baseY - Math.cos(sweetSpotLeftAngle) * sweetSpotLength;
+             const sweetRightX = centerX + Math.sin(sweetSpotRightAngle) * sweetSpotLength;
+             const sweetRightY = baseY - Math.cos(sweetSpotRightAngle) * sweetSpotLength;
 
              return (
              <div
@@ -5464,8 +5638,10 @@ export default function App() {
                       fill={`rgba(253, 246, 227, ${fishingFanConfig.opacity})`}
                    />
                    <path
-                      d={`M${centerX} ${baseY} L${centerX - sweetSpotRadiusX} ${baseY - sweetSpotRadiusY} A${sweetSpotRadiusX} ${sweetSpotRadiusY} 0 0 1 ${centerX + sweetSpotRadiusX} ${baseY - sweetSpotRadiusY} Z`}
-                      fill="rgba(255, 209, 102, 0.16)"
+                      d={`M${centerX} ${baseY} L${sweetLeftX} ${sweetLeftY} A${radiusX} ${radiusY} 0 0 1 ${sweetRightX} ${sweetRightY} Z`}
+                      fill="rgba(255, 209, 102, 0.34)"
+                      stroke="rgba(255, 247, 173, 0.72)"
+                      strokeWidth="2"
                    />
                    <line
                       x1={centerX}
@@ -5787,9 +5963,54 @@ export default function App() {
                        className="h-full w-full object-cover opacity-100 transition-opacity duration-700"
                     />
                     <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_48%,rgba(0,0,0,0.28)_100%)]" />
+                    {fishingMiniGameStage === 'bite' && (
+                       <div className="absolute inset-0 z-20">
+                          <div
+                             className="absolute -translate-x-1/2 -translate-y-1/2 rounded-full border-[5px] border-[#fdf6e3] bg-[#22c55e]/24 shadow-[0_0_18px_rgba(34,197,94,0.9),inset_0_0_14px_rgba(255,255,255,0.42)]"
+                             style={{
+                                left: `${fishingBiteCircle.x}%`,
+                                top: `${fishingBiteCircle.y}%`,
+                                width: FISHING_BITE_TARGET_SIZE,
+                                height: FISHING_BITE_TARGET_SIZE,
+                             }}
+                          />
+                          <div
+                             className="absolute -translate-x-1/2 -translate-y-1/2 rounded-full border-[6px] border-[#ffd166] bg-[#ffd166]/10 shadow-[0_0_24px_rgba(255,209,102,0.85)]"
+                             style={{
+                                left: `${fishingBiteCircle.x}%`,
+                                top: `${fishingBiteCircle.y}%`,
+                                width: fishingBiteCircle.outerSize,
+                                height: fishingBiteCircle.outerSize,
+                             }}
+                          />
+                          {fishingBiteSparkle && (
+                             <div
+                                key={fishingBiteSparkle.id}
+                                className="pointer-events-none absolute z-30 -translate-x-1/2 -translate-y-1/2"
+                                style={{
+                                   left: `${fishingBiteSparkle.x}%`,
+                                   top: `${fishingBiteSparkle.y}%`,
+                                }}
+                             >
+                                <video
+                                   key={fishingBiteSparkle.id}
+                                   src={FISHING_BITE_SPARKLE_WEBM_SRC}
+                                   className="h-64 w-64 -translate-x-1/2 -translate-y-1/2 object-contain opacity-100 drop-shadow-[0_0_18px_rgba(255,255,255,0.85)]"
+                                   autoPlay
+                                   muted
+                                   playsInline
+                                   preload="auto"
+                                />
+                             </div>
+                          )}
+                          <div className="absolute left-4 top-4 rounded-full border border-[#67e8f9]/70 bg-black/65 px-4 py-2 text-sm font-black text-[#fdf6e3] shadow-[0_0_12px_rgba(103,232,249,0.35)]">
+                             {fishingBiteRound}/{FISHING_BITE_ROUNDS}　成功 {fishingBiteScore}　コンボ {fishingBiteCombo}連 x{(1 + Math.min(1, fishingBiteCombo / FISHING_BITE_ROUNDS)).toFixed(1)}
+                          </div>
+                       </div>
+                    )}
                     {(fishingMiniGameStage === 'hit' || isFishingHitSplashActive) && (
                        <>
-                          {(!isFishingHitSplashActive || isFishingHitIntroActive) && (
+                          {!isFishingHitSplashActive && (
                              <img
                                 key={isFishingHitIntroActive ? 'hit-intro' : 'hit-gauge'}
                                 src={FISHING_SCENE_HIT_OVERLAY_SRC}
@@ -5799,11 +6020,11 @@ export default function App() {
                           )}
                           {isFishingHitSplashActive && (
                              <div className="absolute inset-0 bg-black/10">
-                                <img
+                               <img
                                    key={fishingHitCountdown}
                                    src={`/img/${fishingHitCountdown}.png`}
                                    alt={`${fishingHitCountdown}`}
-                                   className={`absolute left-1/2 top-1/2 h-[76%] max-h-[360px] w-[76%] max-w-[360px] -translate-x-1/2 -translate-y-1/2 object-contain animate-[farmHitZoom_0.28s_cubic-bezier(0.2,1.35,0.28,1)_both] drop-shadow-[0_0_26px_rgba(255,209,102,0.95)] ${isFishingHitIntroActive ? 'opacity-0' : 'opacity-100'}`}
+                                   className={`absolute inset-x-[10%] top-[7%] z-20 h-[76%] w-[80%] object-cover animate-[farmCountdownFrameBurst_0.34s_cubic-bezier(0.2,1.35,0.28,1)_both] drop-shadow-[0_0_26px_rgba(255,209,102,0.95)] ${isFishingHitIntroActive ? 'opacity-0' : 'opacity-100'}`}
                                 />
                                 <div className="absolute bottom-6 left-1/2 -translate-x-1/2 rounded-full border-2 border-[#ffd166]/80 bg-black/70 px-6 py-2 text-lg font-black text-[#ffd166] shadow-[0_0_18px_rgba(255,209,102,0.45)]">
                                    テンション開始まで
@@ -5828,8 +6049,8 @@ export default function App() {
                                 <div
                                    className="absolute top-0 h-full bg-[linear-gradient(180deg,rgba(134,239,172,0.92),rgba(34,197,94,0.72))] shadow-[0_0_18px_rgba(34,197,94,0.55)]"
                                    style={{
-                                      left: `${FISHING_KEEP_GREEN_MIN}%`,
-                                      width: `${FISHING_KEEP_GREEN_MAX - FISHING_KEEP_GREEN_MIN}%`,
+                                      left: `${fishingHitGreenMin}%`,
+                                      width: `${fishingHitGreenWidth}%`,
                                    }}
                                 />
                              )}
@@ -5843,7 +6064,7 @@ export default function App() {
                           {fishingMiniGameStage === 'power'
                              ? `クリック / Enter / Space で強さ決定  ${Math.round(fishingGauge)}%`
                              : fishingMiniGameStage === 'bite'
-                                ? '水面を見つめて、魚が食いつく瞬間を待とう'
+                                ? '外側の円が内側の円と重なる瞬間を狙え！'
                                 : fishingMiniGameStage === 'hit'
                                    ? '真ん中の緑ゾーンで止めろ！'
                                    : `緑ゾーン内で魚の体力を削る / 外れるとテンション上昇`}
@@ -5907,7 +6128,14 @@ export default function App() {
                     <div className="rounded-2xl border border-[#ffd166]/55 bg-black/35 p-4">
                        <div className="text-2xl font-black text-[#ffd166]">{fishingResultText}</div>
                        {fishingResultSizeCm && <div className="mt-2 text-[#dda15e]">サイズ: {fishingResultSizeCm}cm</div>}
-                       <div className="mt-3 text-sm text-[#c8a87a]">クリック / Enter / Space で閉じる</div>
+                       {fishingResultIsNewRecord && (
+                          <div className="mt-3 inline-flex items-center rounded-full border-2 border-[#fff7ad] bg-[linear-gradient(180deg,#fff7ad,#f59e0b)] px-5 py-1.5 text-sm font-black text-[#2d1b15] shadow-[0_0_18px_rgba(255,209,102,0.75)]">
+                             記録更新！
+                          </div>
+                       )}
+                       <div className="mt-3 text-sm text-[#c8a87a]">
+                          {!isFishingResultInputLocked && 'クリック / Enter / Space で閉じる'}
+                       </div>
                     </div>
                  )}
               </div>
