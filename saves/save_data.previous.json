@@ -44336,7 +44336,7 @@
       "label": "洞窟の奥には何が？",
       "text": "暗すぎて何も見えない...。これ以上は進めなさそうだ。",
       "autoTrigger": true,
-      "imageSrc": "/img/cave.",
+      "imageSrc": "/img/cave.jpg",
       "seSrc": "/se/cave.mp3"
     }
   ],

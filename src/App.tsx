@@ -2460,7 +2460,7 @@ export default function App() {
   const startNewGameWithDifficulty = (difficultyId: GameDifficulty) => {
     const slot = pendingNewGameSlot ?? 1;
     const difficultyOption = DIFFICULTY_OPTIONS.find(option => option.id === difficultyId) ?? DIFFICULTY_OPTIONS[2];
-    if (!window.confirm(`スロット${slot}で${difficultyOption.label}（${difficultyOption.desc}）を開始します。マップ設定は残し、進行を最初から開始します。よろしいですか？`)) return;
+    if (!window.confirm(`スロット${slot}で${difficultyOption.label}（${difficultyOption.desc}）を開始します。よろしいですか？`)) return;
     playFixSound();
     setCurrentSaveSlot(slot);
     setPendingNewGameDifficulty(difficultyOption.id);
