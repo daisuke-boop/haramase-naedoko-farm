@@ -4,6 +4,10 @@ import path from 'path';
 import {defineConfig} from 'vite';
 import fs from 'fs';
 
+const FARM_GIRL_CARD_BACK_SRC = '/img/card.png';
+const FARM_GIRL_CARD_IMAGES = ['/img/chibiichi-card.jpg', '/img/ruby-card.jpg', '/img/mel-card.jpg'];
+const OPEN_FARM_GIRL_CARD_COUNT = FARM_GIRL_CARD_IMAGES.filter(src => src !== FARM_GIRL_CARD_BACK_SRC).length;
+
 export default defineConfig(() => {
   return {
     plugins: [
@@ -25,6 +29,9 @@ export default defineConfig(() => {
                 savePath: slot === 1
                   ? path.resolve(saveDir, 'save_data.json')
                   : path.resolve(saveDir, `save_data.slot${slot}.json`),
+                previousSavePath: slot === 1
+                  ? path.resolve(saveDir, 'save_data.previous.json')
+                  : path.resolve(saveDir, `save_data.slot${slot}.previous.json`),
               };
             };
             const createSaveSlotSummary = (slot: number) => {
@@ -37,7 +44,7 @@ export default defineConfig(() => {
                 ? data.ownedGirls.length
                 : Array.isArray(data.unlockedGirls)
                   ? data.unlockedGirls.length
-                  : 15;
+                  : OPEN_FARM_GIRL_CARD_COUNT;
               return {
                 slot,
                 exists: true,
@@ -54,6 +61,16 @@ export default defineConfig(() => {
             if (requestUrl.pathname === '/api/save-slots' && req.method === 'GET') {
               res.writeHead(200, { 'Content-Type': 'application/json' });
               res.end(JSON.stringify(Array.from({ length: 5 }, (_, index) => createSaveSlotSummary(index + 1))));
+            } else if (requestUrl.pathname === '/api/save' && req.method === 'DELETE') {
+              const { savePath, previousSavePath } = getSavePath(getSaveSlot());
+              if (fs.existsSync(savePath)) {
+                fs.unlinkSync(savePath);
+              }
+              if (fs.existsSync(previousSavePath)) {
+                fs.unlinkSync(previousSavePath);
+              }
+              res.writeHead(200, { 'Content-Type': 'application/json' });
+              res.end(JSON.stringify({ success: true }));
             } else if (requestUrl.pathname === '/api/save' && req.method === 'GET') {
               // セーブデータの取得処理
               const { savePath } = getSavePath(getSaveSlot());

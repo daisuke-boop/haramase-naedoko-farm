@@ -393,6 +393,10 @@ type SaveSlotSummary = {
 };
 type GameDifficulty = 'easy' | 'normal' | 'hard';
 
+const FARM_GIRL_CARD_BACK_SRC = '/img/card.png';
+const FARM_GIRL_CARD_IMAGES = ['/img/chibiichi-card.jpg', '/img/ruby-card.jpg', '/img/mel-card.jpg'];
+const OPEN_FARM_GIRL_CARD_COUNT = FARM_GIRL_CARD_IMAGES.filter(src => src !== FARM_GIRL_CARD_BACK_SRC).length;
+
 const KURUMI_TRADE_REWARDS: KurumiTradeReward[] = [
   { threshold: 1000, imageSrc: '/img/kurumi-pantsu.png', message: 'いつもありがとう！お礼だよっ！', voiceSrc: '/voice/kurumi1.wav' },
   { threshold: 1500, imageSrc: '/img/kurumi-pai.png', message: '嬉しいなーっ♪サービスだよっ！', voiceSrc: '/voice/kurumi2.wav' },
@@ -448,6 +452,11 @@ const FISHING_TUTORIAL_KURUMI_ZONE = { x: 1366, y: 636, w: 44, h: 62 };
 const FISHING_TUTORIAL_KURUMI_LABEL_W = 210;
 const FISHING_TUTORIAL_KURUMI_LABEL_H = 54;
 const FISHING_TUTORIAL_INTERACT_DISTANCE = 72;
+const KURUMI_INTERACT_DISTANCE = 88;
+const FISHING_TUTORIAL_KURUMI_APPROACH_POINT = {
+  x: FISHING_TUTORIAL_KURUMI_ZONE.x + FISHING_TUTORIAL_KURUMI_ZONE.w / 2,
+  y: FISHING_TUTORIAL_KURUMI_ZONE.y + FISHING_TUTORIAL_KURUMI_ZONE.h + 36,
+};
 const FISHING_TUTORIAL_STEPS: { id: FishingTutorialStep; message: string; imageSrc?: string }[] = [
   {
     id: 'intro',
@@ -479,6 +488,7 @@ const FISHING_TUTORIAL_STEPS: { id: FishingTutorialStep; message: string; imageS
     message: '説明はここまで！\nそれじゃ、お兄さんも実際に釣ってみよっ♪',
   },
 ];
+const FISHING_TUTORIAL_VOICE_SRCS = FISHING_TUTORIAL_STEPS.map((_, index) => `/voice/kurumi-fish${index + 1}.wav`);
 
 const clampNumber = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
 const isFishingRodName = (name: string): name is FishingRodName => name in FISHING_ROD_FISH_LEVELS;
@@ -622,7 +632,7 @@ export default function App() {
     stage: ['未受精', '受精準備', '受精初期'][index % 3],
     level: 1,
     affinity: 1,
-    cardImg: ['/img/chibiichi-card.png', '/img/ruby-card.png', '/img/mel-card.png'][index] ?? '/img/card.png',
+    cardImg: FARM_GIRL_CARD_IMAGES[index] ?? FARM_GIRL_CARD_BACK_SRC,
     detailImg: ['/img/chibiichi-pro.jpg', '/img/ruby-pro.jpg', '/img/mel-pro.jpg'][index] ?? '/img/card.png',
   }));
   const [itemMenuTab, setItemMenuTab] = useState('消耗品');
@@ -705,12 +715,14 @@ export default function App() {
     { name: '薬草', price: 120, stock: 8, type: '買う', desc: '体力を少し回復する定番の薬草です。' },
     { name: '携帯おにぎり', price: 260, stock: 5, type: '買う', desc: '探索前の腹ごしらえに便利です。' },
     { name: '小さな釣り餌', price: 80, stock: 12, type: '買う', desc: '川釣りで使える小さな餌です。' },
+    { name: '枝', price: 3, stock: 0, type: '売る', desc: '釣り上げた枝です。くるみが1本3Gで買い取ってくれます。' },
     { name: 'ウグイ', price: 120, stock: 0, type: '売る', desc: '釣り上げたウグイです。くるみが買い取ってくれます。' },
     { name: '木材', price: 40, stock: 20, type: '売る', desc: '農場設備の修理にも使える素材です。' },
     { name: '川魚の鱗', price: 180, stock: 3, type: '売る', desc: '光沢のある素材。くるみが買い取ってくれます。' },
   ]);
   const getFishAdjustedPrice = (itemName: string, basePrice: number) => {
     if (!FISH_ITEM_NAMES.has(itemName)) return basePrice;
+    if (itemName === '枝') return basePrice;
     const nextSize = fishInventorySizes[itemName]?.[0];
     return basePrice + (typeof nextSize === 'number' ? Math.round(nextSize * FISH_SIZE_PRICE_COEFFICIENT) : 0);
   };
@@ -1352,9 +1364,9 @@ export default function App() {
     }
 
     const systemActions = [
-      { label: 'セーブ', bgImage: '/img/save.png', action: () => setSystemSlotMode('save') },
-      { label: 'ロード', bgImage: '/img/load.png', action: () => setSystemSlotMode('load') },
-      { label: 'タイトルへ戻る', bgImage: '/img/title.png', action: returnToTitle },
+      { label: 'セーブ', bgImage: '/img/save.jpg', action: () => setSystemSlotMode('save') },
+      { label: 'ロード', bgImage: '/img/load.jpg', action: () => setSystemSlotMode('load') },
+      { label: 'タイトルへ戻る', bgImage: '/img/title.jpg', action: returnToTitle },
     ];
 
     return (
@@ -1565,6 +1577,7 @@ export default function App() {
   const shopTradePoseTimerRef = useRef<number | null>(null);
   const kurumiTradeRewardTimerRef = useRef<number | null>(null);
   const kurumiIntroCloseTimerRef = useRef<number | null>(null);
+  const fishingTutorialVoiceRef = useRef<HTMLAudioElement | null>(null);
   const [confirmPromptChoice, setConfirmPromptChoice] = useState<'yes' | 'no'>('yes');
   const [sleepFadeOpacity, setSleepFadeOpacity] = useState(0);
   const [isSleepSequenceActive, setIsSleepSequenceActive] = useState(false);
@@ -2353,6 +2366,24 @@ export default function App() {
     setBootMode('loadingSave');
   };
 
+  const deleteSaveSlot = (slot: number) => {
+    const summary = getSlotSummary(slot);
+    if (!summary?.exists) return;
+    if (!window.confirm(`セーブスロット${slot}のセーブデータを削除します。よろしいですか？`)) return;
+
+    playFixSound();
+    fetch(`/api/save?slot=${slot}`, { method: 'DELETE' })
+      .then(res => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        setSystemNotice(`スロット${slot}のセーブデータを削除しました。`);
+        refreshSaveSlotSummaries();
+      })
+      .catch(err => {
+        console.error('セーブデータの削除に失敗しました:', err);
+        setSystemNotice('セーブデータの削除に失敗しました。');
+      });
+  };
+
   const returnToTitle = () => {
     playFixSound();
     setSystemSlotMode('none');
@@ -2569,6 +2600,20 @@ export default function App() {
     kurumiIntroVoiceRef.current = playVoiceSound(src);
   };
 
+  const stopFishingTutorialVoice = () => {
+    if (!fishingTutorialVoiceRef.current) return;
+    fishingTutorialVoiceRef.current.pause();
+    fishingTutorialVoiceRef.current.currentTime = 0;
+    fishingTutorialVoiceRef.current = null;
+  };
+
+  const playFishingTutorialVoice = (stepIndex: number) => {
+    stopFishingTutorialVoice();
+    const voiceSrc = FISHING_TUTORIAL_VOICE_SRCS[stepIndex];
+    if (!voiceSrc) return;
+    fishingTutorialVoiceRef.current = playVoiceSound(voiceSrc);
+  };
+
   const playCursorSound = () => playUiSound(UI_CURSOR_SOUND_SRC);
   const playFixSound = () => playUiSound(UI_FIX_SOUND_SRC);
   const currentDay = Math.floor(turn / 4) + 1;
@@ -2593,6 +2638,7 @@ export default function App() {
     setFishingTutorialStepIndex(0);
     setSelectedFishingTutorialAction('next');
     setFishingTutorialResult(null);
+    playFishingTutorialVoice(0);
     setMenuOpen(false);
     clickTargetRef.current = null;
     setClickTargetMarker(null);
@@ -2600,6 +2646,7 @@ export default function App() {
 
   const startFishingTutorialChallenge = () => {
     playFixSound();
+    stopFishingTutorialVoice();
     setFishingTutorialOpen(false);
     setFishingTutorialResult(null);
     setSelectedFishingResultAction('retry');
@@ -2643,7 +2690,9 @@ export default function App() {
       startFishingTutorialChallenge();
       return;
     }
-    setFishingTutorialStepIndex(prev => prev + 1);
+    const nextStepIndex = fishingTutorialStepIndex + 1;
+    setFishingTutorialStepIndex(nextStepIndex);
+    playFishingTutorialVoice(nextStepIndex);
   };
 
   const renderFishingTutorialVisual = () => {
@@ -2741,6 +2790,7 @@ export default function App() {
 
   const completeFishingTutorial = () => {
     playFixSound();
+    stopFishingTutorialVoice();
     setInventoryCounts(prev => ({ ...prev, '竹の釣竿': Math.max(1, prev['竹の釣竿'] ?? 0) }));
     setEquippedItems(prev => ({ ...prev, '主人公-slot1': '竹の釣竿' }));
     setFishingTutorialCompleted(true);
@@ -2853,6 +2903,10 @@ export default function App() {
         if (kurumiIntroVoiceRef.current) {
            kurumiIntroVoiceRef.current.pause();
            kurumiIntroVoiceRef.current = null;
+        }
+        if (fishingTutorialVoiceRef.current) {
+           fishingTutorialVoiceRef.current.pause();
+           fishingTutorialVoiceRef.current = null;
         }
         if (fishingBiteTimerRef.current !== null) {
            window.clearInterval(fishingBiteTimerRef.current);
@@ -4157,6 +4211,7 @@ export default function App() {
           e.preventDefault();
           if (selectedFishingTutorialAction === 'later') {
             playFixSound();
+            stopFishingTutorialVoice();
             setFishingTutorialOpen(false);
           } else {
             advanceFishingTutorial();
@@ -4166,6 +4221,7 @@ export default function App() {
         if (e.key === 'Escape') {
           e.preventDefault();
           playFixSound();
+          stopFishingTutorialVoice();
           setFishingTutorialOpen(false);
           return;
         }
@@ -4378,7 +4434,7 @@ export default function App() {
           const kurumiCenterY = currentKurumi.y + currentKurumi.h / 2;
           const dx = playerPos.x - kurumiCenterX;
           const dy = playerPos.y - kurumiCenterY;
-          if (Math.sqrt(dx * dx + dy * dy) < 180) {
+          if (Math.sqrt(dx * dx + dy * dy) <= KURUMI_INTERACT_DISTANCE) {
             e.preventDefault();
             playFixSound();
             startKurumiInteraction();
@@ -6036,7 +6092,7 @@ export default function App() {
      }));
   }
 
-  const handleAnimationZoneClick = (id: string) => {
+  const handleAnimationZoneClick = (id: string, clickPoint?: { x: number; y: number }) => {
      if (setupMode === 'animation') {
         cycleZoneType(id);
         return;
@@ -6050,7 +6106,16 @@ export default function App() {
      const kurumiCenterY = zone.y + zone.h / 2;
      const dx = pos.x - kurumiCenterX;
      const dy = pos.y - kurumiCenterY;
-     if (Math.sqrt(dx * dx + dy * dy) >= 180) return;
+     if (Math.sqrt(dx * dx + dy * dy) > KURUMI_INTERACT_DISTANCE) {
+        const approachPoint = clickPoint ?? {
+           x: kurumiCenterX,
+           y: zone.y + zone.h + 36,
+        };
+        clickTargetRef.current = approachPoint;
+        setClickTargetMarker(approachPoint);
+        setDialogMessage('くるみの近くまで移動します。');
+        return;
+     }
 
      playFixSound();
      startKurumiInteraction();
@@ -6063,7 +6128,7 @@ export default function App() {
      const day = summary.day ?? 1;
      const debt = (summary.debt ?? 100000000).toLocaleString();
      const goldText = (summary.gold ?? 0).toLocaleString();
-     const ownedGirlCount = summary.ownedGirlCount ?? 15;
+     const ownedGirlCount = summary.ownedGirlCount ?? OPEN_FARM_GIRL_CARD_COUNT;
      return `${day}日目 / 借金 ${debt} G / 所持金 ${goldText} G / 取得娘数 ${ownedGirlCount}人`;
   };
   const formatSlotUpdatedAt = (slot: number) => {
@@ -6081,7 +6146,7 @@ export default function App() {
           {bootMode !== 'playing' && (
             <div className="absolute inset-0 z-[300] flex items-center justify-center bg-black">
               <div className="relative aspect-[1672/941] w-full max-h-full overflow-hidden bg-black">
-                <img src="/img/titleview.png" alt="孕ませ苗床ファーム タイトル" className="absolute inset-0 h-full w-full object-contain" />
+                <img src="/img/titleview.jpg" alt="孕ませ苗床ファーム タイトル" className="absolute inset-0 h-full w-full object-contain" />
                 <button
                   type="button"
                   aria-label="はじめから"
@@ -6122,22 +6187,40 @@ export default function App() {
                         <div className="grid gap-3">
                           {Array.from({ length: 5 }).map((_, index) => {
                             const slot = index + 1;
+                            const summary = getSlotSummary(slot);
                             return (
-	                              <button
+	                              <div
 	                                key={slot}
-	                                type="button"
-	                                onClick={() => titlePanelMode === 'new' ? startNewGameInSlot(slot) : continueGameFromSlot(slot)}
-	                                className="grid gap-1 rounded border-2 border-[#bc6c25] bg-[#2d1b15]/90 px-5 py-3 text-left text-[#fdf6e3] hover:border-white hover:bg-[#4a2a1f]"
+	                                className="relative"
 	                              >
-	                                <span className="flex items-center justify-between text-xl font-black">
-	                                  <span>セーブスロット {slot}</span>
-	                                  <span className="text-sm text-[#dda15e]">{titlePanelMode === 'new' ? '新規開始' : 'ロード'}</span>
-	                                </span>
-	                                <span className="text-sm font-bold text-[#ffd166]">{formatSlotSummary(slot)}</span>
-	                                {formatSlotUpdatedAt(slot) && (
-	                                  <span className="text-xs font-bold text-[#a3b18a]">更新 {formatSlotUpdatedAt(slot)}</span>
-	                                )}
-	                              </button>
+                                  {summary?.exists && (
+                                    <button
+                                      type="button"
+                                      onClick={(event) => {
+                                        event.stopPropagation();
+                                        deleteSaveSlot(slot);
+                                      }}
+                                      className="absolute right-2 top-2 z-10 rounded border border-[#ff9b85]/80 bg-[#5a1f17]/95 px-2 py-1 text-xs font-black text-[#fff7dc] shadow hover:border-white hover:bg-[#8a2f24]"
+                                      aria-label={`セーブスロット${slot}を削除`}
+                                    >
+                                      削除
+                                    </button>
+                                  )}
+                                  <button
+                                    type="button"
+                                    onClick={() => titlePanelMode === 'new' ? startNewGameInSlot(slot) : continueGameFromSlot(slot)}
+                                    className="grid w-full gap-1 rounded border-2 border-[#bc6c25] bg-[#2d1b15]/90 px-5 py-3 pr-16 text-left text-[#fdf6e3] hover:border-white hover:bg-[#4a2a1f]"
+                                  >
+                                    <span className="flex items-center justify-between gap-4 text-xl font-black">
+                                      <span>セーブスロット {slot}</span>
+                                      <span className="text-sm text-[#dda15e]">{titlePanelMode === 'new' ? '新規開始' : 'ロード'}</span>
+                                    </span>
+                                    <span className="text-sm font-bold text-[#ffd166]">{formatSlotSummary(slot)}</span>
+                                    {formatSlotUpdatedAt(slot) && (
+                                      <span className="text-xs font-bold text-[#a3b18a]">更新 {formatSlotUpdatedAt(slot)}</span>
+                                    )}
+                                  </button>
+	                              </div>
                             );
                           })}
                         </div>
@@ -6221,26 +6304,43 @@ export default function App() {
 	                    const summary = getSlotSummary(slot);
 	                    const disabled = systemSlotMode === 'load' && !summary?.exists;
 	                    return (
-	                      <button
+	                      <div
 	                        key={slot}
-	                        type="button"
-	                        disabled={disabled}
-	                        onClick={() => systemSlotMode === 'save' ? saveGameToSlot(slot) : loadGameFromSystemSlot(slot)}
-	                        className={`grid gap-1 rounded border-2 px-5 py-3 text-left ${
-	                          disabled
-	                            ? 'cursor-not-allowed border-[#5a3010] bg-black/45 text-[#8a7060]'
-	                            : 'border-[#bc6c25] bg-[#2d1b15]/90 text-[#fdf6e3] hover:border-white hover:bg-[#4a2a1f]'
-	                        }`}
+                          className="relative"
 	                      >
-	                        <span className="flex items-center justify-between text-xl font-black">
-	                          <span>セーブスロット {slot}</span>
-	                          <span className="text-sm text-[#dda15e]">{systemSlotMode === 'save' ? 'ここに保存' : 'ロード'}</span>
-	                        </span>
-	                        <span className="text-sm font-bold text-[#ffd166]">{formatSlotSummary(slot)}</span>
-	                        {formatSlotUpdatedAt(slot) && (
-	                          <span className="text-xs font-bold text-[#a3b18a]">更新 {formatSlotUpdatedAt(slot)}</span>
-	                        )}
-	                      </button>
+                          {summary?.exists && (
+                            <button
+                              type="button"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                deleteSaveSlot(slot);
+                              }}
+                              className="absolute right-2 top-2 z-10 rounded border border-[#ff9b85]/80 bg-[#5a1f17]/95 px-2 py-1 text-xs font-black text-[#fff7dc] shadow hover:border-white hover:bg-[#8a2f24]"
+                              aria-label={`セーブスロット${slot}を削除`}
+                            >
+                              削除
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            disabled={disabled}
+                            onClick={() => systemSlotMode === 'save' ? saveGameToSlot(slot) : loadGameFromSystemSlot(slot)}
+                            className={`grid w-full gap-1 rounded border-2 px-5 py-3 pr-16 text-left ${
+                              disabled
+                                ? 'cursor-not-allowed border-[#5a3010] bg-black/45 text-[#8a7060]'
+                                : 'border-[#bc6c25] bg-[#2d1b15]/90 text-[#fdf6e3] hover:border-white hover:bg-[#4a2a1f]'
+                            }`}
+                          >
+                            <span className="flex items-center justify-between gap-4 text-xl font-black">
+                              <span>セーブスロット {slot}</span>
+                              <span className="text-sm text-[#dda15e]">{systemSlotMode === 'save' ? 'ここに保存' : 'ロード'}</span>
+                            </span>
+                            <span className="text-sm font-bold text-[#ffd166]">{formatSlotSummary(slot)}</span>
+                            {formatSlotUpdatedAt(slot) && (
+                              <span className="text-xs font-bold text-[#a3b18a]">更新 {formatSlotUpdatedAt(slot)}</span>
+                            )}
+                          </button>
+	                      </div>
 	                    );
 	                  })}
 	                </div>
@@ -6649,7 +6749,9 @@ export default function App() {
                  onClick={(e) => {
                     e.stopPropagation();
                     if (!isNearFishingTutorialKurumi(pos)) {
-                       setDialogMessage('くるみにもっと近づいて話しかけよう。');
+                       clickTargetRef.current = FISHING_TUTORIAL_KURUMI_APPROACH_POINT;
+                       setClickTargetMarker(FISHING_TUTORIAL_KURUMI_APPROACH_POINT);
+                       setDialogMessage('くるみの近くまで移動します。');
                        return;
                     }
                     openFishingTutorial();
@@ -7372,20 +7474,20 @@ export default function App() {
                                    ? 'くるみ\n「やったぁー！\nお兄さん初めてなのに上手〜！\nこの調子でどんどん釣って、\n釣り名人になってね♪\n大きい魚ほど暴れるけど、\nそのぶんくるみが高く買い取っちゃうよ！\nこれで立派な釣り人デビューだね♪」'
                                    : 'くるみ\n「あーっ、逃げられちゃった！\nでも大丈夫！\n釣りは焦らないのがコツだから、もう一回やってみよう！」'}
                              </div>
-                             <div className="flex justify-center gap-3">
+                             <div className="flex justify-center gap-6 px-8">
                                 <button
                                    type="button"
                                    onMouseEnter={() => setSelectedFishingResultAction('retry')}
                                    onPointerDown={(event) => event.stopPropagation()}
                                    onClick={(event) => { event.stopPropagation(); retryFishingTutorial(); }}
-                                   className={`relative flex h-11 w-44 items-center justify-center rounded-lg border-2 px-4 text-sm font-black transition-all ${
+                                   className={`relative flex h-12 w-60 items-center justify-center rounded-lg border-2 px-8 text-sm font-black leading-none transition-all whitespace-nowrap ${
                                       selectedFishingResultAction === 'retry'
                                          ? 'border-[#fdf6e3] bg-[#0e7490] text-white shadow-[0_0_18px_rgba(103,232,249,0.85)] ring-2 ring-[#67e8f9]'
                                          : 'border-[#67e8f9] bg-[#164e63] text-[#fdf6e3] hover:bg-[#0e7490]'
                                    }`}
                                 >
                                    {selectedFishingResultAction === 'retry' && (
-                                      <span className="absolute left-3 text-[#ffd166]">▶</span>
+                                      <span className="absolute left-5 text-[#ffd166]">▶</span>
                                    )}
                                    もう一度挑戦！
                                 </button>
@@ -7394,14 +7496,14 @@ export default function App() {
                                    onMouseEnter={() => setSelectedFishingResultAction('complete')}
                                    onPointerDown={(event) => event.stopPropagation()}
                                    onClick={(event) => { event.stopPropagation(); completeFishingTutorial(); }}
-                                   className={`relative flex h-11 w-44 items-center justify-center rounded-lg border-2 px-4 text-sm font-black transition-all ${
+                                   className={`relative flex h-12 w-60 items-center justify-center rounded-lg border-2 px-8 text-sm font-black leading-none transition-all whitespace-nowrap ${
                                       selectedFishingResultAction === 'complete'
                                          ? 'border-[#fdf6e3] bg-[#b45309] text-white shadow-[0_0_18px_rgba(255,209,102,0.85)] ring-2 ring-[#ffd166]'
                                          : 'border-[#ffd166] bg-[#7a4317] text-[#fdf6e3] hover:bg-[#8d4f1b]'
                                    }`}
                                 >
                                    {selectedFishingResultAction === 'complete' && (
-                                      <span className="absolute left-3 text-[#67e8f9]">▶</span>
+                                      <span className="absolute left-5 text-[#67e8f9]">▶</span>
                                    )}
                                    チュートリアルを終わる
                                 </button>
@@ -7505,7 +7607,7 @@ export default function App() {
                           <button
                              type="button"
                              onMouseEnter={() => setSelectedFishingTutorialAction('later')}
-                             onClick={() => { playFixSound(); setFishingTutorialOpen(false); }}
+                             onClick={() => { playFixSound(); stopFishingTutorialVoice(); setFishingTutorialOpen(false); }}
                              className={`rounded-lg border-2 px-5 py-2 text-sm font-black transition-all ${
                                 selectedFishingTutorialAction === 'later'
                                    ? 'scale-105 border-[#ffd166] bg-[#5a3010] text-[#fdf6e3] shadow-[0_0_16px_rgba(255,209,102,0.45)]'

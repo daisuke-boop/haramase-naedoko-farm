@@ -1,4 +1,9 @@
 {
+  "turn": 4,
+  "gold": 5000,
+  "debt": 5000000,
+  "difficulty": "easy",
+  "currentMap": "doukutsu",
   "zones": [
     {
       "id": "1781485855659",
@@ -44318,7 +44323,7 @@
       "label": "洞窟の奥には何が？",
       "text": "暗すぎて何も見えない...。これ以上は進めなさそうだ。",
       "autoTrigger": true,
-      "imageSrc": "/img/cave.png",
+      "imageSrc": "/img/cave.jpg",
       "seSrc": "/se/cave.mp3"
     },
     {
@@ -44331,7 +44336,7 @@
       "label": "洞窟の奥には何が？",
       "text": "暗すぎて何も見えない...。これ以上は進めなさそうだ。",
       "autoTrigger": true,
-      "imageSrc": "/img/cave.png",
+      "imageSrc": "/img/cave.",
       "seSrc": "/se/cave.mp3"
     }
   ],
@@ -44384,12 +44389,62 @@
       "rows": 6
     }
   },
+  "inventoryCounts": {
+    "薬草": 0,
+    "携帯おにぎり": 5,
+    "気付け水": 0,
+    "小さな釣り餌": 0,
+    "ウグイ": 0,
+    "木材": 2,
+    "石材": 2,
+    "薬草の葉": 3,
+    "川魚の鱗": 3,
+    "小さな宝石": 1,
+    "古びた硬貨": 2,
+    "乾いたハーブ": 3,
+    "余った作物": 4,
+    "古い鍵": 1,
+    "農場契約書": 1,
+    "母屋の地図": 1,
+    "娘管理台帳": 1,
+    "竹の釣竿": 1,
+    "丈夫な釣竿": 1,
+    "高級釣竿": 1,
+    "伝説の釣り竿": 1,
+    "のこぎり": 1,
+    "丈夫なのこぎり": 1,
+    "高級のこぎり": 1,
+    "つるはし": 1,
+    "丈夫なつるはし": 1,
+    "高級つるはし": 1,
+    "農神の指輪": 1,
+    "枝": 0
+  },
+  "equippedItems": {
+    "主人公-slot1": "竹の釣竿",
+    "主人公-slot2": "のこぎり",
+    "主人公-slot3": "つるはし",
+    "主人公-slot4": "農神の指輪",
+    "ちびいち-slot1": "小さな鈴",
+    "ちびいち-slot2": ""
+  },
   "caughtFishIds": [
-    "ugui"
+    "eda"
   ],
   "fishBestSizes": {
-    "ugui": 11.9
+    "eda": 13.3
   },
+  "fishInventorySizes": {
+    "枝": []
+  },
+  "fishingTutorialCompleted": true,
+  "kurumiIntroAskedTopics": [
+    "village",
+    "debt",
+    "naedoko",
+    "pantsu"
+  ],
+  "kurumiIntroCompletedDay": 1,
   "bathTubMaskZone": {
     "x": 1260,
     "y": 380,

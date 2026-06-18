@@ -13,6 +13,9 @@ const SAVE_DIR = path.resolve(__dirname, 'saves');
 const SAVE_FILE = path.resolve(SAVE_DIR, 'save_data.json');
 const PREVIOUS_SAVE_FILE = path.resolve(SAVE_DIR, 'save_data.previous.json');
 const SAVE_SLOT_COUNT = 5;
+const FARM_GIRL_CARD_BACK_SRC = '/img/card.png';
+const FARM_GIRL_CARD_IMAGES = ['/img/chibiichi-card.jpg', '/img/ruby-card.jpg', '/img/mel-card.jpg'];
+const OPEN_FARM_GIRL_CARD_COUNT = FARM_GIRL_CARD_IMAGES.filter(src => src !== FARM_GIRL_CARD_BACK_SRC).length;
 const GRID_COLS = 128;
 const GRID_ROWS = 72;
 const VALID_MAPS = new Set(['farm', 'house', 'shed', 'waterfall', 'kawa', 'doukutsu', 'takiura']);
@@ -108,7 +111,7 @@ const createSaveSlotSummary = (slot: number) => {
     ? data.ownedGirls.length
     : Array.isArray(data.unlockedGirls)
       ? data.unlockedGirls.length
-      : 15;
+      : OPEN_FARM_GIRL_CARD_COUNT;
   const caughtFishCount = Array.isArray(data.caughtFishIds) ? data.caughtFishIds.length : 0;
 
   return {
@@ -161,6 +164,26 @@ app.get('/api/save-slots', (req, res) => {
   } catch (error) {
     console.error('セーブスロット一覧の読み込みに失敗しました:', error);
     return res.status(500).json({ error: 'セーブスロット一覧の読み込みに失敗しました。' });
+  }
+});
+
+app.delete('/api/save', (req, res) => {
+  try {
+    const slot = getSaveSlot(req.query.slot);
+    const saveFile = getSaveFileForSlot(slot);
+    const previousSaveFile = getPreviousSaveFileForSlot(slot);
+
+    if (fs.existsSync(saveFile)) {
+      fs.unlinkSync(saveFile);
+    }
+    if (fs.existsSync(previousSaveFile)) {
+      fs.unlinkSync(previousSaveFile);
+    }
+
+    return res.json({ success: true, slot });
+  } catch (error) {
+    console.error('セーブデータの削除に失敗しました:', error);
+    return res.status(500).json({ error: 'セーブデータの削除に失敗しました。' });
   }
 });
 

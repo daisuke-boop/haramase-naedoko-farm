@@ -83,7 +83,7 @@ type SpriteItemProps = {
   z: AnimZone,
   isSetupMode: boolean,
   onZoneDelete: (id: string) => void,
-  onZoneClick?: (id: string) => void,
+  onZoneClick?: (id: string, point?: { x: number; y: number }) => void,
   isSelected: boolean,
   onSelect: (id: string) => void,
   onDragStart: (e: React.PointerEvent, id: string) => void,
@@ -541,7 +541,10 @@ const SpriteItem = ({ z, isSetupMode, onZoneDelete, onZoneClick, isSelected, onS
                onSelect(z.id);
             } else if (z.type === 'kurumi' && !isKurumiTent) {
                e.stopPropagation();
-               onZoneClick?.(z.id);
+               const rect = e.currentTarget.getBoundingClientRect();
+               const localX = rect.width > 0 ? ((e.clientX - rect.left) / rect.width) * z.w : z.w / 2;
+               const localY = rect.height > 0 ? ((e.clientY - rect.top) / rect.height) * z.h : z.h / 2;
+               onZoneClick?.(z.id, { x: z.x + localX, y: z.y + localY });
             }
          }}
          onContextMenu={(e) => {
@@ -791,7 +794,7 @@ type AnimationLayerProps = {
   zones: AnimZone[],
   isSetupMode: boolean,
   onZoneDelete: (id: string) => void,
-  onZoneClick?: (id: string) => void,
+  onZoneClick?: (id: string, point?: { x: number; y: number }) => void,
   selectedZoneId: string | null,
   onSelect: (id: string) => void,
   onZoneDragStart: (e: React.PointerEvent, id: string) => void,

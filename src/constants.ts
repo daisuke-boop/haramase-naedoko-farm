@@ -56,10 +56,10 @@ export const mapBackgrounds: Record<GameMap, string | Record<TimeOfDay, string>>
   farm: mapBgUrls,
   waterfall: waterfallBgUrls,
   kawa: kawaBgUrls,
-  house: '/img/ie.png',
-  shed: '/img/koya.png',
-  doukutsu: '/img/doukutsu.png',
-  takiura: '/img/takiura.png',
+  house: '/img/ie.jpg',
+  shed: '/img/koya.jpg',
+  doukutsu: '/img/doukutsu.jpg',
+  takiura: '/img/takiura.jpg',
 };
 
 export const DEFAULT_FIELD_CORNERS: FieldCornerMap = {

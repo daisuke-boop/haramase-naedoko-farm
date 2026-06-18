@@ -11,6 +11,9 @@ var SAVE_DIR = path.resolve(__dirname, "saves");
 var SAVE_FILE = path.resolve(SAVE_DIR, "save_data.json");
 var PREVIOUS_SAVE_FILE = path.resolve(SAVE_DIR, "save_data.previous.json");
 var SAVE_SLOT_COUNT = 5;
+var FARM_GIRL_CARD_BACK_SRC = "/img/card.png";
+var FARM_GIRL_CARD_IMAGES = ["/img/chibiichi-card.jpg", "/img/ruby-card.jpg", "/img/mel-card.jpg"];
+var OPEN_FARM_GIRL_CARD_COUNT = FARM_GIRL_CARD_IMAGES.filter((src) => src !== FARM_GIRL_CARD_BACK_SRC).length;
 var GRID_COLS = 128;
 var GRID_ROWS = 72;
 var VALID_MAPS = /* @__PURE__ */ new Set(["farm", "house", "shed", "waterfall", "kawa", "doukutsu", "takiura"]);
@@ -80,7 +83,7 @@ var createSaveSlotSummary = (slot) => {
   const debt = typeof data.debt === "number" && Number.isFinite(data.debt) ? data.debt : 1e8;
   const gold = typeof data.gold === "number" && Number.isFinite(data.gold) ? data.gold : 5e3;
   const map = typeof data.currentMap === "string" && VALID_MAPS.has(data.currentMap) ? data.currentMap : "farm";
-  const ownedGirlCount = Array.isArray(data.ownedGirls) ? data.ownedGirls.length : Array.isArray(data.unlockedGirls) ? data.unlockedGirls.length : 15;
+  const ownedGirlCount = Array.isArray(data.ownedGirls) ? data.ownedGirls.length : Array.isArray(data.unlockedGirls) ? data.unlockedGirls.length : OPEN_FARM_GIRL_CARD_COUNT;
   const caughtFishCount = Array.isArray(data.caughtFishIds) ? data.caughtFishIds.length : 0;
   return {
     slot,
@@ -126,6 +129,23 @@ app.get("/api/save-slots", (req, res) => {
   } catch (error) {
     console.error("\u30BB\u30FC\u30D6\u30B9\u30ED\u30C3\u30C8\u4E00\u89A7\u306E\u8AAD\u307F\u8FBC\u307F\u306B\u5931\u6557\u3057\u307E\u3057\u305F:", error);
     return res.status(500).json({ error: "\u30BB\u30FC\u30D6\u30B9\u30ED\u30C3\u30C8\u4E00\u89A7\u306E\u8AAD\u307F\u8FBC\u307F\u306B\u5931\u6557\u3057\u307E\u3057\u305F\u3002" });
+  }
+});
+app.delete("/api/save", (req, res) => {
+  try {
+    const slot = getSaveSlot(req.query.slot);
+    const saveFile = getSaveFileForSlot(slot);
+    const previousSaveFile = getPreviousSaveFileForSlot(slot);
+    if (fs.existsSync(saveFile)) {
+      fs.unlinkSync(saveFile);
+    }
+    if (fs.existsSync(previousSaveFile)) {
+      fs.unlinkSync(previousSaveFile);
+    }
+    return res.json({ success: true, slot });
+  } catch (error) {
+    console.error("\u30BB\u30FC\u30D6\u30C7\u30FC\u30BF\u306E\u524A\u9664\u306B\u5931\u6557\u3057\u307E\u3057\u305F:", error);
+    return res.status(500).json({ error: "\u30BB\u30FC\u30D6\u30C7\u30FC\u30BF\u306E\u524A\u9664\u306B\u5931\u6557\u3057\u307E\u3057\u305F\u3002" });
   }
 });
 app.post("/api/save", (req, res) => {
