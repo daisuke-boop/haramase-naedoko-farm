@@ -13,10 +13,50 @@ export default defineConfig(() => {
         name: 'save-api-middleware',
         configureServer(server) {
           server.middlewares.use((req, res, next) => {
-            if (req.url === '/api/save' && req.method === 'GET') {
-              // セーブデータの取得処理
+            const requestUrl = new URL(req.url ?? '/', 'http://localhost');
+            const getSaveSlot = () => {
+              const slot = Number(requestUrl.searchParams.get('slot') ?? 1);
+              return Number.isInteger(slot) && slot >= 1 && slot <= 5 ? slot : 1;
+            };
+            const getSavePath = (slot: number) => {
               const saveDir = path.resolve(__dirname, 'saves');
-              const savePath = path.resolve(saveDir, 'save_data.json');
+              return {
+                saveDir,
+                savePath: slot === 1
+                  ? path.resolve(saveDir, 'save_data.json')
+                  : path.resolve(saveDir, `save_data.slot${slot}.json`),
+              };
+            };
+            const createSaveSlotSummary = (slot: number) => {
+              const { savePath } = getSavePath(slot);
+              if (!fs.existsSync(savePath)) return { slot, exists: false };
+              const data = JSON.parse(fs.readFileSync(savePath, 'utf8'));
+              const stat = fs.statSync(savePath);
+              const turn = typeof data.turn === 'number' ? data.turn : 0;
+              const ownedGirlCount = Array.isArray(data.ownedGirls)
+                ? data.ownedGirls.length
+                : Array.isArray(data.unlockedGirls)
+                  ? data.unlockedGirls.length
+                  : 15;
+              return {
+                slot,
+                exists: true,
+                day: Math.floor(turn / 4) + 1,
+                debt: typeof data.debt === 'number' ? data.debt : 100000000,
+                gold: typeof data.gold === 'number' ? data.gold : 5000,
+                map: typeof data.currentMap === 'string' ? data.currentMap : 'farm',
+                updatedAt: stat.mtime.toISOString(),
+                ownedGirlCount,
+                caughtFishCount: Array.isArray(data.caughtFishIds) ? data.caughtFishIds.length : 0,
+              };
+            };
+
+            if (requestUrl.pathname === '/api/save-slots' && req.method === 'GET') {
+              res.writeHead(200, { 'Content-Type': 'application/json' });
+              res.end(JSON.stringify(Array.from({ length: 5 }, (_, index) => createSaveSlotSummary(index + 1))));
+            } else if (requestUrl.pathname === '/api/save' && req.method === 'GET') {
+              // セーブデータの取得処理
+              const { savePath } = getSavePath(getSaveSlot());
               if (fs.existsSync(savePath)) {
                 res.writeHead(200, { 'Content-Type': 'application/json' });
                 res.end(fs.readFileSync(savePath, 'utf8'));
@@ -24,7 +64,7 @@ export default defineConfig(() => {
                 res.writeHead(200, { 'Content-Type': 'application/json' });
                 res.end(JSON.stringify({}));
               }
-            } else if (req.url === '/api/save' && req.method === 'POST') {
+            } else if (requestUrl.pathname === '/api/save' && req.method === 'POST') {
               // セーブデータの保存処理
               let body = '';
               req.on('data', chunk => {
@@ -32,11 +72,10 @@ export default defineConfig(() => {
               });
               req.on('end', () => {
                 try {
-                  const saveDir = path.resolve(__dirname, 'saves');
+                  const { saveDir, savePath } = getSavePath(getSaveSlot());
                   if (!fs.existsSync(saveDir)) {
                     fs.mkdirSync(saveDir, { recursive: true });
                   }
-                  const savePath = path.resolve(saveDir, 'save_data.json');
                   fs.writeFileSync(savePath, JSON.stringify(JSON.parse(body), null, 2), 'utf8');
                   res.writeHead(200, { 'Content-Type': 'application/json' });
                   res.end(JSON.stringify({ success: true }));

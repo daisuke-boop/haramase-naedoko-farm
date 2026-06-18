@@ -37,12 +37,18 @@ import {
   KURUMI_DEFAULT_SPRITE_H,
   KURUMI_DEFAULT_SPRITE_W,
   KURUMI_SHOP_SOUND_SRC,
+  KURUMI_START2_SOUND_SRC,
+  KURUMI_START3_SOUND_SRC,
+  KURUMI_START4_SOUND_SRC,
+  KURUMI_START5_SOUND_SRC,
+  KURUMI_START_SOUND_SRC,
   RIVER_HEAR_DISTANCE,
   RIVER_SOUND_SRC,
   SHOP_BGM_SRC,
   SPEED,
   TAKIURA_WATERFALL_POINT,
   TIME_OF_DAY_LABELS,
+  TITLE_BGM_SRC,
   UI_CURSOR_SOUND_SRC,
   UI_FIX_SOUND_SRC,
   UI_SUCCESS_SOUND_SRC,
@@ -111,6 +117,7 @@ type InspectSpot = {
   h: number;
   label: string;
   text: string;
+  texts?: string[];
   autoTrigger?: boolean;
   imageSrc?: string;
   videoSrc?: string;
@@ -289,6 +296,8 @@ type FishingFanConfig = {
   opacity: number;
 };
 
+type FishingRodName = '竹の釣竿' | '丈夫な釣竿' | '高級釣竿' | '伝説の釣り竿';
+
 const DEFAULT_FISHING_FAN_CONFIG: FishingFanConfig = {
   width: 420,
   height: 155,
@@ -307,6 +316,11 @@ const DEFAULT_FISHING_FAN_CONFIGS: Record<string, FishingFanConfig> = {
     height: 220,
     opacity: 0.22,
   },
+  '伝説の釣り竿': {
+    width: 680,
+    height: 250,
+    opacity: 0.2,
+  },
 };
 
 const FISHING_KEEP_GREEN_MIN = 42;
@@ -314,8 +328,6 @@ const FISHING_KEEP_GREEN_MAX = 58;
 const FISHING_KEEP_GREEN_CENTER = 50;
 const FISHING_KEEP_GREEN_SUCCESS_WIDTH = FISHING_KEEP_GREEN_MAX - FISHING_KEEP_GREEN_MIN;
 const FISHING_KEEP_GREEN_FAIL_WIDTH = FISHING_KEEP_GREEN_SUCCESS_WIDTH / 2;
-const FISHING_FAN_SWEET_MIN = FISHING_KEEP_GREEN_MIN;
-const FISHING_FAN_SWEET_MAX = FISHING_KEEP_GREEN_MAX;
 const FISHING_FISH_MAX_HP = 100;
 const FISHING_TENSION_MAX = 100;
 const FISHING_BITE_ROUNDS = 5;
@@ -327,7 +339,7 @@ const FISHING_SCENE_CAST_SRC = '/img/fishing1.jpg';
 const FISHING_SCENE_UKI_SRC = '/img/uki.jpg';
 const FISHING_SCENE_HIT_SRC = '/img/hit.jpg';
 const FISHING_SCENE_HIT_OVERLAY_SRC = '/img/hit.png';
-const FISHING_SCENE_RESULT_SRC = '/img/1ugui.jpg';
+const FISHING_SCENE_RESULT_SRC = '/img/0eda.jpg';
 const FISHING_SCENE_ESCAPE_SRC = '/img/fishing4.jpg';
 const FISHING_BITE_SPARKLE_WEBM_SRC = '/video/sparkle.webm';
 const FISHING_CAST_SOUND_SRC = '/se/fishing.wav';
@@ -343,9 +355,14 @@ type KurumiTradeReward = {
 
 type FishZukanEntry = {
   id: string;
+  level: number;
   no: number;
   name: string;
   imageSrc: string;
+  sizeMin: number;
+  sizeMax: number;
+  fixedSize?: number;
+  note: string;
 };
 
 type FishingBiteCircle = {
@@ -360,24 +377,147 @@ type FishingBiteSparkle = {
   id: number;
 };
 
+type FishingTutorialStep = 'intro' | 'rod' | 'direction' | 'power' | 'bite' | 'hit' | 'result';
+type FishingTutorialResult = 'success' | 'fail' | null;
+type KurumiIntroTopicId = 'village' | 'debt' | 'naedoko' | 'pantsu';
+type SaveSlotSummary = {
+  slot: number;
+  exists: boolean;
+  day?: number;
+  debt?: number;
+  gold?: number;
+  map?: GameMap;
+  updatedAt?: string;
+  ownedGirlCount?: number;
+  caughtFishCount?: number;
+};
+type GameDifficulty = 'easy' | 'normal' | 'hard';
+
 const KURUMI_TRADE_REWARDS: KurumiTradeReward[] = [
   { threshold: 1000, imageSrc: '/img/kurumi-pantsu.png', message: 'いつもありがとう！お礼だよっ！', voiceSrc: '/voice/kurumi1.wav' },
   { threshold: 1500, imageSrc: '/img/kurumi-pai.png', message: '嬉しいなーっ♪サービスだよっ！', voiceSrc: '/voice/kurumi2.wav' },
   { threshold: 2000, imageSrc: '/img/kurumi-hadaka.png', message: 'もう！お兄さんったら！', voiceSrc: '/voice/kurumi3.wav' },
 ];
+const KURUMI_INTRO_FIRST_MESSAGE = '私はくるみだよっ！\nはらませ村でいろんなものを取引してるんだー！\nお兄ちゃんは借金がいっぱいあるって聞いたから、\nくるみが色々手伝ってあげるねっ！\n何か聞きたいことはある？';
+const KURUMI_INTRO_TOPICS: { id: KurumiIntroTopicId; label: string; answer: string; voiceSrc?: string }[] = [
+  { id: 'village', label: '孕ませ村とは？', answer: '初めて来た人はみーんな\nその名前で驚くみたい。\nくるみは何とも思わないけどねー！\nでも、とってもいいとこだよ♪\nかわいい野菜や果物も育つし、\n釣りしたり洞窟探検したり楽しいとこだよっ！', voiceSrc: KURUMI_START2_SOUND_SRC },
+  { id: 'debt', label: '借金の返し方は？', answer: 'うーん、育てた野菜や果物売ったり...かなぁ。\nあっ！くるみねー、色々ものを作るの得意なんだぁー！\nだから、もし素材とか欲しいものがあったら\nまた話しかけてね。\nあと、釣りも得意なんだぁ。\nそうだっ！釣りのやり方も教えるから、\n興味があったら教えてあげる！\n明日そこの橋の上で待ってるね！', voiceSrc: KURUMI_START3_SOUND_SRC },
+  { id: 'naedoko', label: '苗床って？', answer: '孕ませ村の特産品の事だよっ！\n野菜や果物の苗床っていう女の子たちを育てたら、\nたっくさん美味しい野菜や果物ができるんだよー！\n幸い、むふふぅーっ！\nおにぃさんはあっちの方も強そうだし...\nきっといい野菜や果物が育つと思うよっ！', voiceSrc: KURUMI_START4_SOUND_SRC },
+  { id: 'pantsu', label: 'パンツ見せて！', answer: 'えー、どうしょっかなぁー！...考えとくねっ♡', voiceSrc: KURUMI_START5_SOUND_SRC },
+];
+const KURUMI_INTRO_TOPIC_IDS = KURUMI_INTRO_TOPICS.map(topic => topic.id);
+const KURUMI_INTRO_CLOSE_FADE_MS = 650;
 
 const FISH_ZUKAN_ENTRIES: FishZukanEntry[] = [
-  { id: 'ugui', no: 1, name: 'ウグイ', imageSrc: '/img/1ugui.jpg' },
-  { id: 'nijimasu', no: 2, name: 'ニジマス', imageSrc: '/img/2nijimasu.jpg' },
-  { id: 'ayu', no: 3, name: 'アユ', imageSrc: '/img/3ayu.jpg' },
-  { id: 'iwana', no: 4, name: 'イワナ', imageSrc: '/img/4iwana.jpg' },
-  { id: 'shakuiwana', no: 5, name: '尺イワナ', imageSrc: '/img/5shakuiwana.jpg' },
-  { id: 'sakuramasu', no: 6, name: 'サクラマス', imageSrc: '/img/6sakuramasu.jpg' },
-  { id: 'sake', no: 7, name: 'サケ', imageSrc: '/img/7sake.jpg' },
-  { id: 'raigyo', no: 8, name: 'ライギョ', imageSrc: '/img/8raigyo.jpg' },
-  { id: 'mozukugani', no: 9, name: 'モクズガニ', imageSrc: '/img/9mozukugani.jpg' },
-  { id: 'oonamazu', no: 10, name: '大ナマズ', imageSrc: '/img/10oonamazu.jpg' },
+  { id: 'eda', level: 0, no: 1, name: '枝', imageSrc: '/img/0eda.jpg', sizeMin: 5, sizeMax: 15, note: 'ゴミ・流木' },
+  { id: 'gomu', level: 1, no: 2, name: '使用済みコンドーム', imageSrc: '/img/1kondom.jpg', sizeMin: 10, sizeMax: 20, note: 'ゴミ・長靴の破片など' },
+  { id: 'funa', level: 2, no: 3, name: 'フナ', imageSrc: '/img/2funa.jpg', sizeMin: 15, sizeMax: 30, note: '実在・中型' },
+  { id: 'oikawa', level: 3, no: 4, name: 'オイカワ', imageSrc: '/img/3oikawa.jpg', sizeMin: 10, sizeMax: 15, note: '実在・小型' },
+  { id: 'ugui', level: 4, no: 5, name: 'ウグイ', imageSrc: '/img/4ugui.jpg', sizeMin: 20, sizeMax: 40, note: '実在・中型' },
+  { id: 'dojo', level: 5, no: 6, name: 'どじょう', imageSrc: '/img/5dojo.jpg', sizeMin: 10, sizeMax: 15, note: '実在・小型' },
+  { id: 'haze', level: 6, no: 7, name: 'ハゼ', imageSrc: '/img/6haze.jpg', sizeMin: 10, sizeMax: 20, note: '実在・小型' },
+  { id: 'pantsu', level: 7, no: 8, name: 'パンツ', imageSrc: '/img/7usagi.jpg', sizeMin: 20, sizeMax: 20, fixedSize: 20, note: 'ゲーム的ジョーク枠' },
+  { id: 'nijimasu', level: 8, no: 9, name: 'ニジマス', imageSrc: '/img/8nijimasu.jpg', sizeMin: 30, sizeMax: 60, note: '実在・大型' },
+  { id: 'yamame', level: 9, no: 10, name: 'ヤマメ', imageSrc: '/img/9yamame.jpg', sizeMin: 20, sizeMax: 30, note: '実在・中型' },
+  { id: 'uroko', level: 10, no: 11, name: '人魚の鱗', imageSrc: '/img/10uroko.jpg', sizeMin: 8, sizeMax: 8, fixedSize: 8, note: 'レアアイテム' },
+  { id: 'iwana', level: 11, no: 12, name: 'イワナ', imageSrc: '/img/11iwana.jpg', sizeMin: 30, sizeMax: 50, note: '実在・大型' },
+  { id: 'ayu', level: 12, no: 13, name: '鮎', imageSrc: '/img/12ayu.jpg', sizeMin: 20, sizeMax: 30, note: '実在・中型' },
+  { id: 'shakuiwana', level: 13, no: 14, name: '尺イワナ', imageSrc: '/img/13shakuiwana.jpg', sizeMin: 30, sizeMax: 35, note: '尺を基準とした個体' },
+  { id: 'sakuramasu', level: 14, no: 15, name: 'サクラマス', imageSrc: '/img/14sakuramasu.jpg', sizeMin: 40, sizeMax: 70, note: '実在・大型' },
+  { id: 'sake', level: 15, no: 16, name: 'サケ', imageSrc: '/img/15sake.jpg', sizeMin: 50, sizeMax: 100, note: '実在・特大' },
+  { id: 'raigyo', level: 16, no: 17, name: 'ライギョ', imageSrc: '/img/16raigyo.jpg', sizeMin: 40, sizeMax: 80, note: '実在・大型' },
+  { id: 'mozukugani', level: 17, no: 18, name: 'モズクガニ', imageSrc: '/img/17mozukugani.jpg', sizeMin: 20, sizeMax: 35, note: '実在・甲殻類' },
+  { id: 'itou', level: 18, no: 19, name: 'イトウ', imageSrc: '/img/18itou.jpg', sizeMin: 60, sizeMax: 150, note: '実在・幻の巨大魚' },
+  { id: 'akibin', level: 19, no: 20, name: '手紙の入った空き瓶', imageSrc: '/img/19akibin.jpg', sizeMin: 26, sizeMax: 26, fixedSize: 26, note: 'レアアイテム' },
+  { id: 'oonamazu', level: 20, no: 21, name: 'オオナマズ', imageSrc: '/img/20oonamazu.jpg', sizeMin: 80, sizeMax: 150, note: '実在・巨大' },
+  { id: 'nishikigoi', level: 21, no: 22, name: '錦鯉', imageSrc: '/img/21nishikigoi.jpg', sizeMin: 50, sizeMax: 100, note: '実在・特大' },
+  { id: 'aoningyo', level: 22, no: 23, name: '青い人魚', imageSrc: '/img/22aoningyo.jpg', sizeMin: 165, sizeMax: 165, fixedSize: 165, note: 'ファンタジー枠' },
+  { id: 'kiironingyo', level: 23, no: 24, name: '黄色い人魚', imageSrc: '/img/23kiironingyo.jpg', sizeMin: 145, sizeMax: 145, fixedSize: 145, note: 'ファンタジー枠' },
+  { id: 'pinkningyo', level: 24, no: 25, name: 'ピンクの人魚', imageSrc: '/img/24pinkningyo.jpg', sizeMin: 162, sizeMax: 162, fixedSize: 162, note: 'ファンタジー枠' },
 ];
+const FISH_SIZE_PRICE_COEFFICIENT = 4;
+const FISH_ITEM_NAMES = new Set(FISH_ZUKAN_ENTRIES.map(fish => fish.name));
+const FISHING_ROD_FISH_LEVELS: Record<FishingRodName, number[]> = {
+  '竹の釣竿': [0, 1, 2, 3, 4, 5],
+  '丈夫な釣竿': [6, 7, 8, 9, 10],
+  '高級釣竿': [11, 12, 13, 14, 15, 16, 17, 18, 19],
+  '伝説の釣り竿': [20, 21, 22, 23, 24],
+};
+const DEFAULT_FISHING_ROD: FishingRodName = '竹の釣竿';
+const FISHING_TUTORIAL_KURUMI_ZONE = { x: 1366, y: 636, w: 44, h: 62 };
+const FISHING_TUTORIAL_KURUMI_LABEL_W = 210;
+const FISHING_TUTORIAL_KURUMI_LABEL_H = 54;
+const FISHING_TUTORIAL_INTERACT_DISTANCE = 72;
+const FISHING_TUTORIAL_STEPS: { id: FishingTutorialStep; message: string; imageSrc?: string }[] = [
+  {
+    id: 'intro',
+    message: 'くるみが釣りを教えちゃうよっ！\n孕ませ村は水が綺麗で、\n魚がたっくさんいるんだよっ！\n釣った魚はくるみが買い取ることもできるしー、\n何か他のことにも使えるかもしれないから、\n釣りを覚えておいて損はないよ♪',
+  },
+  {
+    id: 'rod',
+    message: 'はい、これ！\n初心者も扱いやすい竹の釣り竿！\nさっそくここで釣ってみよう！\n今はチュートリアルだから何回もチャレンジできるけど、\nチュートリアルが終わったら\n行動ポイントを消費するから気をつけてねっ',
+    imageSrc: '/img/takesao.jpg',
+  },
+  {
+    id: 'direction',
+    message: 'まずは投げるポイントを決めよう！\n扇型の黄色い部分に向かって投げると\n釣りやすくなるから、\nしっかり狙って投げてねっ！',
+  },
+  {
+    id: 'power',
+    message: '次は投げる強さを決めるよっ！\nバーが左右に動いてるから、\nいいタイミングで決定してね！\n強く投げれば投げるほど釣れやすくなるよ！',
+  },
+  {
+    id: 'bite',
+    message: '次はタイミングゲームだよ！\n円が重なるタイミングで\n決定ボタンを押してね！\n連続で成功すればするほど、\n大きな魚が釣れるかも？',
+  },
+  {
+    id: 'hit',
+    message: '魚が掛かった！\nここまで来ればもう少し！\n決定ボタンを押したり離したりして、\n緑のゾーンをキープしてね！',
+  },
+  {
+    id: 'result',
+    message: '説明はここまで！\nそれじゃ、お兄さんも実際に釣ってみよっ♪',
+  },
+];
+
+const clampNumber = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
+const isFishingRodName = (name: string): name is FishingRodName => name in FISHING_ROD_FISH_LEVELS;
+const getFishingRodName = (name: string): FishingRodName => isFishingRodName(name) ? name : DEFAULT_FISHING_ROD;
+const getFishingFanSweetWidth = (fishLevel: number) => {
+  if (fishLevel >= 22) return 5;
+  return Number((80 - (75 * clampNumber(fishLevel, 0, 22)) / 22).toFixed(1));
+};
+const createFishingFanSweetRange = (fish: FishZukanEntry) => {
+  const width = getFishingFanSweetWidth(fish.level);
+  const start = Number((Math.random() * (100 - width)).toFixed(1));
+  return {
+    min: start,
+    max: Number((start + width).toFixed(1)),
+  };
+};
+const selectFishingTargetFish = (rodName: string) => {
+  const levels = FISHING_ROD_FISH_LEVELS[getFishingRodName(rodName)];
+  const candidates = FISH_ZUKAN_ENTRIES.filter(fish => levels.includes(fish.level));
+  return candidates[Math.floor(Math.random() * candidates.length)] ?? FISH_ZUKAN_ENTRIES[0];
+};
+const getFishSizeRatio = (fish: FishZukanEntry, size: number) => {
+  if (fish.sizeMax <= fish.sizeMin) return 1;
+  return clampNumber((size - fish.sizeMin) / (fish.sizeMax - fish.sizeMin), 0, 1);
+};
+const createFishingTargetSize = (fish: FishZukanEntry, biteScore: number, biteCombo: number) => {
+  if (typeof fish.fixedSize === 'number') return fish.fixedSize;
+  const quality = clampNumber((biteScore / FISHING_BITE_ROUNDS) * 0.72 + (biteCombo / FISHING_BITE_ROUNDS) * 0.28, 0, 1);
+  const lowRoll = Math.random() * (0.45 + quality * 0.35);
+  const highBonus = Math.max(0, quality - 0.45) * Math.random() * 0.35;
+  const sizeRatio = clampNumber(lowRoll + highBonus, 0, 1);
+  return Number((fish.sizeMin + (fish.sizeMax - fish.sizeMin) * sizeRatio).toFixed(1));
+};
+const DIFFICULTY_OPTIONS: { id: GameDifficulty; label: string; debt: number; desc: string }[] = [
+  { id: 'easy', label: 'イージー', debt: 5000000, desc: '借金額 500万円' },
+  { id: 'normal', label: 'ノーマル', debt: 20000000, desc: '借金額 2000万円' },
+  { id: 'hard', label: 'ハード', debt: 100000000, desc: '借金額 1億円' },
+];
+const DEFAULT_DEBT = DIFFICULTY_OPTIONS.find(option => option.id === 'hard')?.debt ?? 100000000;
 
 const loadFishingFanConfigs = (): Record<string, FishingFanConfig> => {
   try {
@@ -405,6 +545,14 @@ export default function App() {
   const keys = useRef<{ [key: string]: boolean }>({});
   const posRef = useRef(pos);
   useEffect(() => { posRef.current = pos; }, [pos]);
+  const [bootMode, setBootMode] = useState<'title' | 'loadingSave' | 'playing'>('title');
+  const [titlePanelMode, setTitlePanelMode] = useState<'none' | 'new' | 'difficulty' | 'load' | 'config'>('none');
+  const [currentSaveSlot, setCurrentSaveSlot] = useState(1);
+  const [startingNewGame, setStartingNewGame] = useState(false);
+  const [pendingNewGameSlot, setPendingNewGameSlot] = useState<number | null>(null);
+  const [pendingNewGameDifficulty, setPendingNewGameDifficulty] = useState<GameDifficulty>('hard');
+  const [systemSlotMode, setSystemSlotMode] = useState<'none' | 'save' | 'load'>('none');
+  const [saveSlotSummaries, setSaveSlotSummaries] = useState<SaveSlotSummary[]>([]);
 
   const [setupMode, setSetupMode] = useState<'none' | 'animation' | 'collision' | 'hideArea' | 'doors' | 'footstep' | 'crops' | 'bed' | 'bathTub'>('none');
 
@@ -475,6 +623,7 @@ export default function App() {
     level: 1,
     affinity: 1,
     cardImg: ['/img/chibiichi-card.png', '/img/ruby-card.png', '/img/mel-card.png'][index] ?? '/img/card.png',
+    detailImg: ['/img/chibiichi-pro.jpg', '/img/ruby-pro.jpg', '/img/mel-pro.jpg'][index] ?? '/img/card.png',
   }));
   const [itemMenuTab, setItemMenuTab] = useState('消耗品');
   const itemMenuTabRef = useRef('消耗品');
@@ -486,7 +635,7 @@ export default function App() {
   const [selectedEquipmentOptionIndex, setSelectedEquipmentOptionIndex] = useState(0);
   const selectedEquipmentOptionIndexRef = useRef(0);
   const [equippedItems, setEquippedItems] = useState<Record<string, string>>({
-    '主人公-slot1': '竹の釣竿',
+    '主人公-slot1': '',
     '主人公-slot2': 'のこぎり',
     '主人公-slot3': 'つるはし',
     '主人公-slot4': '農神の指輪',
@@ -499,6 +648,7 @@ export default function App() {
   const selectedStatusGirlIndexRef = useRef(0);
   const [selectedFarmGirlIndex, setSelectedFarmGirlIndex] = useState(0);
   const selectedFarmGirlIndexRef = useRef(0);
+  const [farmGirlDetailOpen, setFarmGirlDetailOpen] = useState(false);
   const [selectedFarmFacilityIndex, setSelectedFarmFacilityIndex] = useState(0);
   const selectedFarmFacilityIndexRef = useRef(0);
   const [zukanFilter, setZukanFilter] = useState('通常');
@@ -508,18 +658,21 @@ export default function App() {
   const [caughtFishIds, setCaughtFishIds] = useState<string[]>([]);
   const [fishBestSizes, setFishBestSizes] = useState<Record<string, number>>({});
   const [fishSizeUpdatedIds, setFishSizeUpdatedIds] = useState<string[]>([]);
+  const [fishInventorySizes, setFishInventorySizes] = useState<Record<string, number[]>>({});
   const [systemNotice, setSystemNotice] = useState('システム項目を選択してください。');
   const systemNoticeRef = useRef('システム項目を選択してください。');
   const [selectedSystemActionIndex, setSelectedSystemActionIndex] = useState(0);
   const selectedSystemActionIndexRef = useRef(0);
   const [gold, setGold] = useState(5000);
+  const [debt, setDebt] = useState(DEFAULT_DEBT);
+  const [difficulty, setDifficulty] = useState<GameDifficulty>('hard');
   const [kurumiTradeTotal, setKurumiTradeTotal] = useState(0);
   const [inventoryCounts, setInventoryCounts] = useState<Record<string, number>>({
     '薬草': 0,
     '携帯おにぎり': 0,
     '気付け水': 0,
     '小さな釣り餌': 0,
-    '川魚': 0,
+    'ウグイ': 0,
     '木材': 20,
     '石材': 2,
     '薬草の葉': 3,
@@ -532,9 +685,10 @@ export default function App() {
     '農場契約書': 1,
     '母屋の地図': 1,
     '娘管理台帳': 1,
-    '竹の釣竿': 1,
+    '竹の釣竿': 0,
     '丈夫な釣竿': 1,
     '高級釣竿': 1,
+    '伝説の釣り竿': 1,
     'のこぎり': 1,
     '丈夫なのこぎり': 1,
     '高級のこぎり': 1,
@@ -551,9 +705,19 @@ export default function App() {
     { name: '薬草', price: 120, stock: 8, type: '買う', desc: '体力を少し回復する定番の薬草です。' },
     { name: '携帯おにぎり', price: 260, stock: 5, type: '買う', desc: '探索前の腹ごしらえに便利です。' },
     { name: '小さな釣り餌', price: 80, stock: 12, type: '買う', desc: '川釣りで使える小さな餌です。' },
+    { name: 'ウグイ', price: 120, stock: 0, type: '売る', desc: '釣り上げたウグイです。くるみが買い取ってくれます。' },
     { name: '木材', price: 40, stock: 20, type: '売る', desc: '農場設備の修理にも使える素材です。' },
     { name: '川魚の鱗', price: 180, stock: 3, type: '売る', desc: '光沢のある素材。くるみが買い取ってくれます。' },
   ]);
+  const getFishAdjustedPrice = (itemName: string, basePrice: number) => {
+    if (!FISH_ITEM_NAMES.has(itemName)) return basePrice;
+    const nextSize = fishInventorySizes[itemName]?.[0];
+    return basePrice + (typeof nextSize === 'number' ? Math.round(nextSize * FISH_SIZE_PRICE_COEFFICIENT) : 0);
+  };
+  const shopItemsForDisplay = shopItems.map(item => ({
+    ...item,
+    price: item.type === '売る' ? getFishAdjustedPrice(item.name, item.price) : item.price,
+  }));
   const renderMenuDetail = (id: MenuItemId) => {
     const tabs = ['消耗品', '素材', '装備品', '売却品', 'だいじなもの'];
     const stats = [
@@ -583,13 +747,14 @@ export default function App() {
     const zukanCards = Array.from({ length: 15 }).map((_, index) => ['通常', '妊娠', 'レア', '未入手'][index % 4]);
     const itemByTab: Record<string, string[]> = {
       '消耗品': ['薬草', '携帯おにぎり', '気付け水', '小さな釣り餌'],
-      '素材': ['川魚', '木材', '石材', '薬草の葉', '川魚の鱗'],
-      '装備品': ['竹の釣竿', '丈夫な釣竿', '高級釣竿', 'のこぎり', '丈夫なのこぎり', '高級のこぎり', 'つるはし', '丈夫なつるはし', '高級つるはし', '農神の指輪'],
+      '素材': ['ウグイ', '木材', '石材', '薬草の葉', '川魚の鱗'],
+      '装備品': ['竹の釣竿', '丈夫な釣竿', '高級釣竿', '伝説の釣り竿', 'のこぎり', '丈夫なのこぎり', '高級のこぎり', 'つるはし', '丈夫なつるはし', '高級つるはし', '農神の指輪'],
       '売却品': ['小さな宝石', '古びた硬貨', '乾いたハーブ', '余った作物'],
       'だいじなもの': ['古い鍵', '農場契約書', '母屋の地図', '娘管理台帳'],
     };
-    const selectedTabItems = itemByTab[itemMenuTab] ?? itemByTab['消耗品'];
-    const activeItem = selectedTabItems.includes(selectedItemName) ? selectedItemName : selectedTabItems[0];
+    const getOwnedMenuItems = (items: string[]) => items.filter(name => (inventoryCounts[name] ?? 0) > 0);
+    const selectedTabItems = getOwnedMenuItems(itemByTab[itemMenuTab] ?? itemByTab['消耗品']);
+    const activeItem = selectedTabItems.includes(selectedItemName) ? selectedItemName : selectedTabItems[0] ?? '';
 
     if (id === 'item') {
       return (
@@ -599,20 +764,21 @@ export default function App() {
               <button
                 key={tab}
                 type="button"
-                onPointerDown={() => { setMenuFocusArea('content'); setMenuContentFocus('primary'); setItemMenuTab(tab); setSelectedItemName(itemByTab[tab][0]); }}
+                onPointerDown={() => { setMenuFocusArea('content'); setMenuContentFocus('primary'); setItemMenuTab(tab); setSelectedItemName(getOwnedMenuItems(itemByTab[tab])[0] ?? ''); }}
                 onMouseEnter={() => { if (itemMenuTab !== tab) playCursorSound(); }}
-                onClick={() => { playFixSound(); setMenuFocusArea('content'); setMenuContentFocus('primary'); setItemMenuTab(tab); setSelectedItemName(itemByTab[tab][0]); }}
+                onClick={() => { playFixSound(); setMenuFocusArea('content'); setMenuContentFocus('primary'); setItemMenuTab(tab); setSelectedItemName(getOwnedMenuItems(itemByTab[tab])[0] ?? ''); }}
                 style={{ ...menuPanelBaseStyle, background: itemMenuTab === tab ? 'rgba(74,88,35,0.82)' : menuPanelBaseStyle.background }}
                 className="text-left cursor-pointer hover:brightness-125"
               >
                 <div style={menuValueStyle}>{tab}</div>
-                <div style={menuTinyLabelStyle}>{itemMenuTab === tab ? '選択中' : `${itemByTab[tab].length}個`}</div>
+                <div style={menuTinyLabelStyle}>{itemMenuTab === tab ? '選択中' : `${getOwnedMenuItems(itemByTab[tab]).length}個`}</div>
               </button>
             ))}
           </div>
           <div style={menuPanelBaseStyle}>
-            <div className="grid grid-cols-2 gap-3">
-              {selectedTabItems.map((name, index) => (
+            {selectedTabItems.length > 0 ? (
+              <div className="grid grid-cols-2 gap-3">
+                {selectedTabItems.map((name, index) => (
                 <button
                   key={name}
                   type="button"
@@ -624,14 +790,19 @@ export default function App() {
                   <span className="text-[#fdf6e3] font-bold">{name}</span>
                   <span className="text-[#dda15e] text-sm">x{inventoryCounts[name] ?? 0}</span>
                 </button>
-              ))}
-            </div>
+                ))}
+              </div>
+            ) : (
+              <div className="flex h-full items-center justify-center text-[#c8a87a]">
+                このカテゴリの所持アイテムはありません。
+              </div>
+            )}
           </div>
           <div style={menuPanelBaseStyle} className="flex flex-col gap-3">
             <div style={menuTinyLabelStyle}>選択アイテム</div>
-            <div className="text-[#fdf6e3] text-2xl font-bold">{activeItem}</div>
+            <div className="text-[#fdf6e3] text-2xl font-bold">{activeItem || '未所持'}</div>
             <div className="text-[#c8a87a] leading-relaxed">カテゴリ: {itemMenuTab}<br />使用・確認・整理の対象になります。</div>
-            <button onClick={() => { playFixSound(); setDialogMessage(`${activeItem}を確認しました。`); }} className="mt-auto bg-[#4a5823] hover:bg-[#60732d] border-2 border-[#a3b18a] rounded px-4 py-3 font-bold cursor-pointer">
+            <button disabled={!activeItem} onClick={() => { playFixSound(); setDialogMessage(`${activeItem}を確認しました。`); }} className="mt-auto bg-[#4a5823] hover:bg-[#60732d] border-2 border-[#a3b18a] rounded px-4 py-3 font-bold cursor-pointer disabled:cursor-not-allowed disabled:opacity-45">
               確認する
             </button>
           </div>
@@ -678,7 +849,7 @@ export default function App() {
       const selectedEquipmentSlotLabel = selectedEquipmentCharacter.slotLabels[selectedEquipmentSlotIndex] ?? `slot${selectedEquipmentSlotIndex + 1}`;
       const selectedEquippedItem = equippedItems[selectedEquipmentSlot] || '';
       const equipmentOptionsBySlot: Record<string, string[]> = {
-        '釣具系': ['竹の釣竿', '丈夫な釣竿', '高級釣竿'],
+        '釣具系': ['竹の釣竿', '丈夫な釣竿', '高級釣竿', '伝説の釣り竿'],
         '採取道具系': ['のこぎり', '丈夫なのこぎり', '高級のこぎり', 'つるはし', '丈夫なつるはし', '高級つるはし'],
         'アクセサリー': ['農神の指輪'],
         'slot1': ['小さな鈴'],
@@ -691,8 +862,8 @@ export default function App() {
         (inventoryCounts[name] ?? 0) > 0 && !equippedItemNames.includes(name)
       ));
       return (
-        <div className="grid grid-cols-[58%_1fr] gap-5 h-full">
-          <div style={menuPanelBaseStyle} className="grid grid-cols-2 gap-4 h-full">
+        <div className="grid h-full grid-cols-[58%_1fr] gap-5 pb-10">
+          <div style={menuPanelBaseStyle} className="grid h-full grid-cols-2 gap-4">
             {equipmentCharacters.map((char) => (
               <button
                 key={char.label}
@@ -700,12 +871,12 @@ export default function App() {
                 onPointerDown={() => { setMenuFocusArea('content'); setMenuContentFocus('primary'); setSelectedEquipmentSlot(`${char.label}-slot1`); }}
                 onMouseEnter={() => { if (!selectedEquipmentSlot.startsWith(char.label)) playCursorSound(); }}
                 onClick={() => { playFixSound(); setMenuFocusArea('content'); setMenuContentFocus('primary'); setEquipmentActionOpen(false); setSelectedEquipmentSlot(`${char.label}-slot1`); }}
-                className={`farm-menu-character-stage relative overflow-hidden border cursor-pointer flex flex-col items-center justify-end p-4 ${selectedEquipmentSlot.startsWith(char.label) ? 'is-selected border-white ring-4 ring-[#ffd166]/50' : 'border-[#5a3010]'}`}
+                className={`farm-menu-character-stage relative flex cursor-pointer flex-col items-center justify-end overflow-hidden border p-4 pb-6 ${selectedEquipmentSlot.startsWith(char.label) ? 'is-selected border-white ring-4 ring-[#ffd166]/50' : 'border-[#5a3010]'}`}
               >
-                <div className="absolute inset-x-8 bottom-8 h-28 rounded-full bg-black/30 blur-xl" />
-                <img src={char.img} className="relative z-10 max-h-[630px] w-full object-contain drop-shadow-[0_18px_26px_rgba(0,0,0,0.45)]" alt={char.label} />
-                <div className="relative z-20 w-full mt-3 rounded-xl bg-black/45 border border-white/10 px-4 py-3 text-left">
-                  <div className="text-[#fdf6e3] text-2xl font-bold">{char.label}</div>
+                <div className="absolute inset-x-8 bottom-24 h-28 rounded-full bg-black/30 blur-xl" />
+                <img src={char.img} className="relative z-10 max-h-[545px] min-h-0 w-full flex-1 object-contain drop-shadow-[0_18px_26px_rgba(0,0,0,0.45)]" alt={char.label} />
+                <div className="relative z-20 mt-3 min-h-[82px] w-full rounded-xl border border-white/10 bg-black/45 px-4 py-3 text-left">
+                  <div className="truncate text-2xl font-bold leading-tight text-[#fdf6e3]">{char.label}</div>
                   <div className="text-xl">{renderStars(char.affinity)}</div>
                 </div>
               </button>
@@ -902,7 +1073,7 @@ export default function App() {
       const farmOverviewItems = [
         ['信用度', '35 / 100'],
         ['次の返済日', `残り ${daysUntilRepayment} 日`],
-        ['借入金', '100,000,000 G'],
+        ['借入金', `${debt.toLocaleString()} G`],
         ['金利', '3.2%'],
         ['経過日数', `${currentDay} 日`],
         ['行動回数', actionCountLabel],
@@ -910,7 +1081,7 @@ export default function App() {
       const farmFacilityItems = ['柵 Lv1', '電気柵 未設置', '箱罠 x2'];
       const farmInfoItems = [...farmOverviewItems, ...farmFacilityItems.map(item => ['設備', item])];
       return (
-        <div className="grid grid-cols-[220px_1fr_280px] gap-4 h-full">
+        <div className="relative grid grid-cols-[220px_1fr_280px] gap-4 h-full">
           <div style={menuPanelBaseStyle} className="flex flex-col gap-3">
             {farmOverviewItems.map(([label, value], index) => (
               <button
@@ -931,15 +1102,22 @@ export default function App() {
               <div className="mt-2 text-[#d7b98a] text-sm leading-relaxed">{selectedFarmGirl.trait} / {selectedFarmGirl.stage}</div>
             </div>
           </div>
-          <div style={menuPanelBaseStyle} className="overflow-hidden">
-            <div className="grid grid-cols-5 gap-3 h-full">
+          <div style={menuPanelBaseStyle} className="flex min-h-0 flex-col gap-3 overflow-hidden">
+            <div className="flex items-end justify-between gap-3">
+              <div>
+                <div style={menuTinyLabelStyle}>娘カード一覧</div>
+                <div className="text-[#fdf6e3] text-lg font-bold leading-tight">クリックで中央に詳細表示</div>
+              </div>
+              <div className="text-[#d7b98a] text-sm font-bold">{menuGirls.length} / {menuGirls.length}</div>
+            </div>
+            <div className="farm-girl-card-grid grid min-h-0 flex-1 grid-cols-6 gap-3 overflow-hidden">
               {menuGirls.map((girl, index) => (
                 <button
                   key={girl.name}
                   type="button"
-                  onPointerDown={() => { setMenuFocusArea('content'); setMenuContentFocus('secondary'); setSelectedFarmGirlIndex(index); }}
+                  onPointerDown={() => { setMenuFocusArea('content'); setMenuContentFocus('secondary'); setSelectedFarmGirlIndex(index); setFarmGirlDetailOpen(true); }}
                   onMouseEnter={() => { if (selectedFarmGirlIndex !== index) playCursorSound(); }}
-                  onClick={() => { playFixSound(); setMenuFocusArea('content'); setMenuContentFocus('secondary'); setSelectedFarmGirlIndex(index); setDialogMessage(`${girl.name}のお世話画面を開きました。`); }}
+                  onClick={() => { playFixSound(); setMenuFocusArea('content'); setMenuContentFocus('secondary'); setSelectedFarmGirlIndex(index); setFarmGirlDetailOpen(true); setDialogMessage(`${girl.name}の詳細情報を表示しました。`); }}
                   className={`farm-girl-card-button relative overflow-hidden border rounded cursor-pointer text-left ${selectedFarmGirlIndex === index ? 'is-selected border-white' : 'border-[#6b3b2f]'}`}
                 >
                   <img src={girl.cardImg} alt={girl.name} className="absolute inset-0 h-full w-full object-cover" />
@@ -953,14 +1131,18 @@ export default function App() {
             </div>
           </div>
           <div style={menuPanelBaseStyle} className="flex flex-col gap-3">
-            <div className="farm-girl-card-preview relative overflow-hidden rounded border border-[#f1c27d]/70">
+            <button
+              type="button"
+              onClick={() => { playFixSound(); setFarmGirlDetailOpen(true); setDialogMessage(`${selectedFarmGirl.name}の詳細情報を表示しました。`); }}
+              className="farm-girl-card-preview relative overflow-hidden rounded border border-[#f1c27d]/70 cursor-pointer"
+            >
               <img src={selectedFarmGirl.cardImg} alt={selectedFarmGirl.name} className="absolute inset-0 h-full w-full object-cover" />
               <div className="absolute inset-0 bg-gradient-to-t from-black/82 via-black/10 to-transparent" />
               <div className="absolute left-3 right-3 bottom-3 rounded bg-black/58 border border-white/10 px-3 py-2">
                 <div className="text-[#fff7dc] text-2xl font-bold leading-tight">{selectedFarmGirl.name}</div>
                 <div className="mt-1 text-lg">{renderStars(selectedFarmGirl.affinity)}</div>
               </div>
-            </div>
+            </button>
             <div className="bg-black/30 border border-[#5a3010]/70 rounded px-3 py-3">
               <div style={menuTinyLabelStyle}>詳細</div>
               <div className="mt-2 grid grid-cols-2 gap-2 text-sm">
@@ -1002,6 +1184,55 @@ export default function App() {
               <div className="mt-1 text-[#fdf6e3] font-bold">{farmInfoItems[selectedFarmFacilityIndex]?.[0]}: {farmInfoItems[selectedFarmFacilityIndex]?.[1]}</div>
             </div>
           </div>
+          {farmGirlDetailOpen && (
+            <div
+              className="fixed inset-0 z-[120] flex items-center justify-center bg-black/58 px-8 py-6"
+              onClick={() => { playFixSound(); setMenuFocusArea('content'); setMenuContentFocus('secondary'); setFarmGirlDetailOpen(false); }}
+            >
+              <div className="farm-girl-detail-modal relative grid h-full max-h-[740px] w-full max-w-[980px] grid-cols-[minmax(0,1fr)_260px] overflow-hidden rounded border border-[#f1c27d]/80 bg-[#160d12] shadow-[0_26px_70px_rgba(0,0,0,0.72)]">
+                <button
+                  type="button"
+                  onClick={(event) => { event.stopPropagation(); playFixSound(); setFarmGirlDetailOpen(false); }}
+                  className="absolute right-3 top-3 z-20 flex h-10 w-10 items-center justify-center rounded border border-white/35 bg-black/65 text-xl font-bold text-[#fff7dc] hover:bg-[#4a241b]"
+                  aria-label="詳細を閉じる"
+                >
+                  ×
+                </button>
+                <div className="relative min-h-0 bg-black">
+                  <img src={selectedFarmGirl.detailImg} alt={`${selectedFarmGirl.name} 詳細`} className="absolute inset-0 h-full w-full object-contain" />
+                </div>
+                <div className="flex flex-col gap-3 border-l border-[#76502c]/70 bg-[#24140f] p-4 pr-5">
+                  <div style={menuTinyLabelStyle}>詳細カード</div>
+                  <div className="farm-girl-card-preview relative overflow-hidden rounded border border-[#f1c27d]/70">
+                    <img src={selectedFarmGirl.cardImg} alt={selectedFarmGirl.name} className="absolute inset-0 h-full w-full object-cover" />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/82 via-black/10 to-transparent" />
+                    <div className="absolute left-3 right-3 bottom-3 rounded bg-black/58 border border-white/10 px-3 py-2">
+                      <div className="text-[#fff7dc] text-xl font-bold leading-tight">{selectedFarmGirl.name}</div>
+                      <div className="mt-1 text-base">{renderStars(selectedFarmGirl.affinity)}</div>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 text-sm">
+                    <div className="rounded bg-black/25 px-2 py-2">
+                      <div className="text-[#c8a87a] text-xs">レベル</div>
+                      <div className="text-[#fdf6e3] text-lg font-bold">Lv {selectedFarmGirl.level}</div>
+                    </div>
+                    <div className="rounded bg-black/25 px-2 py-2">
+                      <div className="text-[#c8a87a] text-xs">星</div>
+                      <div className="text-[#ffd45a] text-lg font-bold">{selectedFarmGirl.affinity} / 5</div>
+                    </div>
+                    <div className="rounded bg-black/25 px-2 py-2">
+                      <div className="text-[#c8a87a] text-xs">性格</div>
+                      <div className="text-[#fdf6e3] font-bold">{selectedFarmGirl.trait}</div>
+                    </div>
+                    <div className="rounded bg-black/25 px-2 py-2">
+                      <div className="text-[#c8a87a] text-xs">状態</div>
+                      <div className="text-[#fdf6e3] font-bold">{selectedFarmGirl.stage}</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       );
     }
@@ -1011,7 +1242,9 @@ export default function App() {
       const zukanFilters = ['通常', '魚', '妊娠', 'レアリティ', '未入手'];
       const selectedFish = FISH_ZUKAN_ENTRIES[Math.min(selectedZukanIndex, FISH_ZUKAN_ENTRIES.length - 1)];
       const selectedFishCaught = !!selectedFish && caughtFishIds.includes(selectedFish.id);
-      const selectedFishBestSize = selectedFish ? fishBestSizes[selectedFish.id] : undefined;
+      const selectedFishSizeHistory = selectedFish ? fishInventorySizes[selectedFish.name] ?? [] : [];
+      const selectedFishBestSizeFromHistory = selectedFishSizeHistory.length > 0 ? Math.max(...selectedFishSizeHistory) : undefined;
+      const selectedFishBestSize = selectedFish ? fishBestSizes[selectedFish.id] ?? selectedFishBestSizeFromHistory : undefined;
       const selectedFishHasUpdate = !!selectedFish && fishSizeUpdatedIds.includes(selectedFish.id);
       const fishProgress = Math.round((caughtFishIds.length / FISH_ZUKAN_ENTRIES.length) * 100);
 
@@ -1088,6 +1321,11 @@ export default function App() {
             {isFishZukan ? (
               <div className="flex flex-wrap items-center gap-3">
                 <div className="text-[#fdf6e3] font-bold">No.{selectedFish?.no ?? 1} {selectedFishCaught ? selectedFish?.name : '？？？？'}</div>
+                {selectedFish && (
+                  <div className="rounded-full border border-[#67e8f9]/45 bg-[#0f2430]/80 px-3 py-1 text-sm font-bold text-[#67e8f9]">
+                    難度 {selectedFish.level} / {selectedFish.fixedSize ? `${selectedFish.fixedSize.toFixed(1)}cm固定` : `${selectedFish.sizeMin}-${selectedFish.sizeMax}cm`}
+                  </div>
+                )}
                 <div className="rounded-full border border-[#ffd166]/60 bg-[#2d1b15]/80 px-3 py-1 text-sm font-bold text-[#ffd166] shadow-[inset_0_1px_0_rgba(255,255,255,0.12)]">
                   最大の釣果: {selectedFishCaught && selectedFishBestSize ? `${selectedFishBestSize.toFixed(1)}cm` : '--.-cm'}
                 </div>
@@ -1114,20 +1352,29 @@ export default function App() {
     }
 
     const systemActions = [
-      { label: 'セーブ', bgImage: '/img/save.png' },
-      { label: 'ロード', bgImage: '/img/load.png' },
-      { label: 'タイトルへ戻る', bgImage: '/img/title.png' },
+      { label: 'セーブ', bgImage: '/img/save.png', action: () => setSystemSlotMode('save') },
+      { label: 'ロード', bgImage: '/img/load.png', action: () => setSystemSlotMode('load') },
+      { label: 'タイトルへ戻る', bgImage: '/img/title.png', action: returnToTitle },
     ];
 
     return (
       <div className="grid grid-cols-3 gap-3 h-full">
         {systemActions.map((action, index) => (
-          <button
-            key={action.label}
-            type="button"
-            onPointerDown={() => { setMenuFocusArea('content'); setMenuContentFocus('primary'); setSelectedSystemActionIndex(index); setSystemNotice(`${action.label}を選択しました。`); }}
-            onMouseEnter={() => { playCursorSound(); setSelectedSystemActionIndex(index); }}
-            onClick={() => { playFixSound(); setMenuFocusArea('content'); setMenuContentFocus('primary'); setSelectedSystemActionIndex(index); setSystemNotice(`${action.label}を選択しました。`); }}
+	          <button
+	            key={action.label}
+	            type="button"
+	            onPointerDown={(event) => {
+	              event.preventDefault();
+	              event.stopPropagation();
+	              playFixSound();
+	              setMenuFocusArea('content');
+	              setMenuContentFocus('primary');
+	              setSelectedSystemActionIndex(index);
+	              setSystemNotice(`${action.label}を選択しました。`);
+	              action.action();
+	            }}
+	            onMouseEnter={() => { playCursorSound(); setSelectedSystemActionIndex(index); }}
+	            onClick={() => { setMenuFocusArea('content'); setMenuContentFocus('primary'); setSelectedSystemActionIndex(index); setSystemNotice(`${action.label}を選択しました。`); }}
             className={`farm-menu-system-action has-art group relative overflow-hidden border-2 border-[#bc6c25] cursor-pointer ${selectedSystemActionIndex === index ? 'is-selected' : ''}`}
             style={{
               backgroundImage: `url("${action.bgImage}")`,
@@ -1235,10 +1482,10 @@ export default function App() {
   const [fishingCastAngle, setFishingCastAngle] = useState(0);
   const [fishingCastPower, setFishingCastPower] = useState(0);
   const [fishingFanConfigs, setFishingFanConfigs] = useState<Record<string, FishingFanConfig>>(loadFishingFanConfigs);
-  const equippedFishingRod = equippedItems['主人公-slot1'] || '竹の釣竿';
+  const equippedFishingRod = equippedItems['主人公-slot1']
+    ? getFishingRodName(equippedItems['主人公-slot1'])
+    : DEFAULT_FISHING_ROD;
   const fishingFanConfig = fishingFanConfigs[equippedFishingRod] ?? DEFAULT_FISHING_FAN_CONFIG;
-  const fishingHitGreenMin = FISHING_KEEP_GREEN_CENTER - fishingHitGreenWidth / 2;
-  const fishingHitGreenMax = FISHING_KEEP_GREEN_CENTER + fishingHitGreenWidth / 2;
   useEffect(() => {
     fishingGaugeRef.current = fishingGauge;
   }, [fishingGauge]);
@@ -1277,12 +1524,28 @@ export default function App() {
   const [fishingFishHp, setFishingFishHp] = useState(FISHING_FISH_MAX_HP);
   const [fishingTension, setFishingTension] = useState(0);
   const [fishingHitGreenWidth, setFishingHitGreenWidth] = useState(FISHING_KEEP_GREEN_SUCCESS_WIDTH);
+  const [fishingKeepGreenWidth, setFishingKeepGreenWidth] = useState(FISHING_KEEP_GREEN_SUCCESS_WIDTH);
+  const [fishingFanSweetMin, setFishingFanSweetMin] = useState(FISHING_KEEP_GREEN_MIN);
+  const [fishingFanSweetMax, setFishingFanSweetMax] = useState(FISHING_KEEP_GREEN_MAX);
+  const [fishingTargetFish, setFishingTargetFish] = useState<FishZukanEntry>(FISH_ZUKAN_ENTRIES[0]);
+  const [fishingTargetSizeValue, setFishingTargetSizeValue] = useState<number | null>(null);
+  const fishingHitGreenMin = FISHING_KEEP_GREEN_CENTER - fishingHitGreenWidth / 2;
+  const fishingHitGreenMax = FISHING_KEEP_GREEN_CENTER + fishingHitGreenWidth / 2;
+  const fishingKeepGreenMin = FISHING_KEEP_GREEN_CENTER - fishingKeepGreenWidth / 2;
+  const fishingKeepGreenMax = FISHING_KEEP_GREEN_CENTER + fishingKeepGreenWidth / 2;
   const [fishingResultText, setFishingResultText] = useState('');
   const [fishingResultSizeCm, setFishingResultSizeCm] = useState('');
   const [fishingResultImageSrc, setFishingResultImageSrc] = useState(FISHING_SCENE_RESULT_SRC);
   const [fishingResultIsNewRecord, setFishingResultIsNewRecord] = useState(false);
   const [isFishingHitSplashActive, setIsFishingHitSplashActive] = useState(false);
   const [isFishingHitIntroActive, setIsFishingHitIntroActive] = useState(false);
+  const [fishingTutorialCompleted, setFishingTutorialCompleted] = useState(false);
+  const [fishingTutorialOpen, setFishingTutorialOpen] = useState(false);
+  const [fishingTutorialStepIndex, setFishingTutorialStepIndex] = useState(0);
+  const [selectedFishingTutorialAction, setSelectedFishingTutorialAction] = useState<'later' | 'next'>('next');
+  const [selectedFishingResultAction, setSelectedFishingResultAction] = useState<'retry' | 'complete'>('retry');
+  const [isFishingTutorialRun, setIsFishingTutorialRun] = useState(false);
+  const [fishingTutorialResult, setFishingTutorialResult] = useState<FishingTutorialResult>(null);
   const [fishingHitCountdown, setFishingHitCountdown] = useState(3);
   const [fishingHitLimitSeconds, setFishingHitLimitSeconds] = useState(10);
   const [isFishingResultInputLocked, setIsFishingResultInputLocked] = useState(false);
@@ -1293,8 +1556,15 @@ export default function App() {
   const [isShopTradePose, setIsShopTradePose] = useState(false);
   const [activeKurumiTradeReward, setActiveKurumiTradeReward] = useState<KurumiTradeReward | null>(null);
   const [shownKurumiTradeRewardThresholds, setShownKurumiTradeRewardThresholds] = useState<number[]>([]);
+  const [kurumiIntroOpen, setKurumiIntroOpen] = useState(false);
+  const [kurumiIntroMessage, setKurumiIntroMessage] = useState(KURUMI_INTRO_FIRST_MESSAGE);
+  const [kurumiIntroSelectedIndex, setKurumiIntroSelectedIndex] = useState(0);
+  const [kurumiIntroAskedTopics, setKurumiIntroAskedTopics] = useState<KurumiIntroTopicId[]>([]);
+  const [kurumiIntroCompletedDay, setKurumiIntroCompletedDay] = useState<number | null>(null);
+  const [kurumiIntroClosing, setKurumiIntroClosing] = useState(false);
   const shopTradePoseTimerRef = useRef<number | null>(null);
   const kurumiTradeRewardTimerRef = useRef<number | null>(null);
+  const kurumiIntroCloseTimerRef = useRef<number | null>(null);
   const [confirmPromptChoice, setConfirmPromptChoice] = useState<'yes' | 'no'>('yes');
   const [sleepFadeOpacity, setSleepFadeOpacity] = useState(0);
   const [isSleepSequenceActive, setIsSleepSequenceActive] = useState(false);
@@ -1313,7 +1583,7 @@ export default function App() {
   const isFishingKeepPressedRef = useRef(false);
   const movementLockedRef = useRef(false);
   
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
   const [zones, setZones] = useState<AnimZone[]>(defaultZones.map(ensureAnimZoneSpriteSize));
   const [selectedZoneId, setSelectedZoneId] = useState<string | null>(null);
   const [turn, setTurn] = useState(0);
@@ -1377,11 +1647,12 @@ export default function App() {
   const [activeAutoEventSpot, setActiveAutoEventSpot] = useState<InspectSpot | null>(null);
   const [activeAutoEventMessage, setActiveAutoEventMessage] = useState('');
   const [displayedAutoEventMessage, setDisplayedAutoEventMessage] = useState('');
+  const [activeAutoEventMessageIndex, setActiveAutoEventMessageIndex] = useState(0);
 
   const [selectedAudioFile, setSelectedAudioFile] = useState('/bgm/farmbgm.wav');
   const bgmRef = useRef<HTMLAudioElement | null>(null);
   const bgmStartedRef = useRef(false);
-  const bgmSourceRef = useRef('/bgm/farmbgm.wav');
+  const bgmSourceRef = useRef(TITLE_BGM_SRC);
   const bgmFadeRafRef = useRef<number | null>(null);
   const bgmFadingRef = useRef(false);
   const wasFishingBgmActiveRef = useRef(false);
@@ -1401,6 +1672,7 @@ export default function App() {
   const voiceVolumeRef = useRef<number>(voiceVolume);
   const audioGainsRef = useRef<Record<string, number>>(audioGains);
   const eventAudioRefs = useRef<HTMLAudioElement[]>([]);
+  const kurumiIntroVoiceRef = useRef<HTMLAudioElement | null>(null);
   const triggeredAutoEventIdsRef = useRef<Set<string>>(new Set());
   useEffect(() => {
      seVolumeRef.current = seVolume;
@@ -1432,8 +1704,8 @@ export default function App() {
   };
 
   useEffect(() => {
-     movementLockedRef.current = sleepPromptVisible || craftPromptVisible || fishingPromptVisible || fishingMiniGameOpen || kurumiShopOpen || isSleepSequenceActive;
-  }, [sleepPromptVisible, craftPromptVisible, fishingPromptVisible, fishingMiniGameOpen, kurumiShopOpen, isSleepSequenceActive]);
+     movementLockedRef.current = sleepPromptVisible || craftPromptVisible || fishingPromptVisible || fishingMiniGameOpen || fishingTutorialOpen || kurumiShopOpen || kurumiIntroOpen || isSleepSequenceActive;
+  }, [sleepPromptVisible, craftPromptVisible, fishingPromptVisible, fishingMiniGameOpen, fishingTutorialOpen, kurumiShopOpen, kurumiIntroOpen, isSleepSequenceActive]);
 
   useEffect(() => {
      if (sleepPromptVisible || craftPromptVisible || fishingPromptVisible) {
@@ -1530,20 +1802,25 @@ export default function App() {
            return;
         }
 
-        if (fishingMiniGameStage === 'keep') {
-           const nextGauge = Math.max(0, Math.min(100, fishingGauge + (isFishingKeepPressedRef.current ? -2.6 : 1.8)));
-           const isInGreenZone = nextGauge >= fishingHitGreenMin && nextGauge <= fishingHitGreenMax;
-           setFishingGauge(nextGauge);
-           setFishingFishHp(prev => isInGreenZone ? Math.max(0, prev - 1.15) : prev);
+	        if (fishingMiniGameStage === 'keep') {
+             const targetSize = fishingTargetSizeValue ?? fishingTargetFish.sizeMin;
+             const sizeRatio = getFishSizeRatio(fishingTargetFish, targetSize);
+             const levelRatio = clampNumber(fishingTargetFish.level / 24, 0, 1);
+             const hpDamage = Math.max(0.34, 1.15 - levelRatio * 0.36 - sizeRatio * 0.44);
+             const tensionGain = 2.1 + levelRatio * 1.35 + sizeRatio * 1.1;
+	           const nextGauge = Math.max(0, Math.min(100, fishingGauge + (isFishingKeepPressedRef.current ? -2.6 : 1.8)));
+	           const isInGreenZone = nextGauge >= fishingKeepGreenMin && nextGauge <= fishingKeepGreenMax;
+	           setFishingGauge(nextGauge);
+	           setFishingFishHp(prev => isInGreenZone ? Math.max(0, prev - hpDamage) : prev);
            setFishingTension(prev => (
               isInGreenZone
                  ? Math.max(0, prev - 0.8)
-                 : Math.min(FISHING_TENSION_MAX, prev + 2.4)
+                 : Math.min(FISHING_TENSION_MAX, prev + tensionGain)
            ));
         }
      }, 50);
      return () => window.clearInterval(timerId);
-  }, [fishingHitGreenMax, fishingHitGreenMin, fishingMiniGameOpen, fishingMiniGameStage, fishingGauge, isFishingHitSplashActive]);
+	  }, [fishingKeepGreenMax, fishingKeepGreenMin, fishingMiniGameOpen, fishingMiniGameStage, fishingGauge, isFishingHitSplashActive, fishingTargetFish, fishingTargetSizeValue]);
 
   useEffect(() => {
      isFishingKeepPressedRef.current = isFishingKeepPressed;
@@ -1573,10 +1850,7 @@ export default function App() {
         }
         setFishingBiteRound(prev => {
            if (prev >= FISHING_BITE_ROUNDS) {
-              setFishingMiniGameStage('hit');
-              setFishingGauge(0);
-              setFishingHitLimitSeconds(10);
-              fishingGaugeDirectionRef.current = 1;
+              beginFishingHitStage(fishingBiteScore, fishingBiteCombo);
               return prev;
            }
            setFishingBiteCircle({
@@ -1608,7 +1882,8 @@ export default function App() {
               setFishingResultIsNewRecord(false);
               setFishingResultText('魚に逃げられた...');
               setDialogMessage('魚に逃げられた...');
-              playUiSound(FISH_LOSE_SOUND_SRC);
+              if (isFishingTutorialRun) setFishingTutorialResult('fail');
+              playVoiceSound(FISH_LOSE_SOUND_SRC);
               setFishingMiniGameStage('result');
            }
            return next;
@@ -1620,27 +1895,30 @@ export default function App() {
   useEffect(() => {
      if (!fishingMiniGameOpen || fishingMiniGameStage !== 'keep') return;
      if (fishingFishHp <= 0) {
-        const ugui = FISH_ZUKAN_ENTRIES[0];
-        if (ugui && !caughtFishIds.includes(ugui.id)) {
-          setCaughtFishIds(prev => [...prev, ugui.id]);
+        const caughtFish = fishingTargetFish;
+        if (caughtFish && !caughtFishIds.includes(caughtFish.id)) {
+          setCaughtFishIds(prev => [...prev, caughtFish.id]);
         }
-        const comboMultiplier = 1 + Math.min(1, fishingBiteCombo / FISHING_BITE_ROUNDS);
-        const bigSizeChance = Math.min(0.9, (0.16 + fishingBiteScore * 0.12) * comboMultiplier);
-        const sizeValue = Number((Math.random() < bigSizeChance ? 18 + Math.random() * 8 : 10 + Math.random() * 10).toFixed(1));
+        const sizeValue = fishingTargetSizeValue ?? createFishingTargetSize(caughtFish, fishingBiteScore, fishingBiteCombo);
         const sizeCm = sizeValue.toFixed(1);
-        const isNewRecord = !!ugui && sizeValue > (fishBestSizes[ugui.id] ?? 0);
-        if (isNewRecord && ugui) {
-          setFishBestSizes(prev => ({ ...prev, [ugui.id]: sizeValue }));
-          setFishSizeUpdatedIds(prev => prev.includes(ugui.id) ? prev : [...prev, ugui.id]);
+        const isNewRecord = !!caughtFish && sizeValue > (fishBestSizes[caughtFish.id] ?? 0);
+        if (isNewRecord && caughtFish) {
+          setFishBestSizes(prev => ({ ...prev, [caughtFish.id]: sizeValue }));
+          setFishSizeUpdatedIds(prev => prev.includes(caughtFish.id) ? prev : [...prev, caughtFish.id]);
         }
-        setInventoryCounts(prev => ({ ...prev, '川魚': (prev['川魚'] ?? 0) + 1 }));
+        setInventoryCounts(prev => ({ ...prev, [caughtFish.name]: (prev[caughtFish.name] ?? 0) + 1 }));
+        setFishInventorySizes(prev => ({
+          ...prev,
+          [caughtFish.name]: [...(prev[caughtFish.name] ?? []), sizeValue],
+        }));
         setFishingResultSizeCm(sizeCm);
-        setFishingResultImageSrc(FISHING_SCENE_RESULT_SRC);
+        setFishingResultImageSrc(caughtFish.imageSrc);
         setFishingResultIsNewRecord(isNewRecord);
-        setFishingResultText('お見事！ウグイを釣り上げた。');
-        setDialogMessage(`お見事！ウグイを釣り上げた。`);
+        setFishingResultText(`お見事！${caughtFish.name}を釣り上げた。`);
+        setDialogMessage(`お見事！${caughtFish.name}を釣り上げた。`);
+        if (isFishingTutorialRun) setFishingTutorialResult('success');
         playUiSound(IWANA_SPLASH_SOUND_SRC);
-        playUiSound(FISH_RESULT_SOUND_SRC);
+        playVoiceSound(FISH_RESULT_SOUND_SRC);
         setIsFishingResultInputLocked(true);
         if (fishingResultLockTimerRef.current !== null) {
           window.clearTimeout(fishingResultLockTimerRef.current);
@@ -1658,10 +1936,11 @@ export default function App() {
         setFishingResultIsNewRecord(false);
         setFishingResultText('糸が切れて魚に逃げられた...');
         setDialogMessage('糸が切れて魚に逃げられた...');
-        playUiSound(FISH_LOSE_SOUND_SRC);
+        if (isFishingTutorialRun) setFishingTutorialResult('fail');
+        playVoiceSound(FISH_LOSE_SOUND_SRC);
         setFishingMiniGameStage('result');
      }
-  }, [caughtFishIds, fishBestSizes, fishingBiteCombo, fishingBiteScore, fishingFishHp, fishingTension, fishingMiniGameOpen, fishingMiniGameStage]);
+  }, [caughtFishIds, fishBestSizes, fishingBiteCombo, fishingBiteScore, fishingFishHp, fishingTargetFish, fishingTargetSizeValue, fishingTension, fishingMiniGameOpen, fishingMiniGameStage]);
 
   const TILE_SIZE = 15;
   const GRID_COLS = 128; // 1920 / 15
@@ -1769,13 +2048,26 @@ export default function App() {
 
   // 起動時のセーブデータロード
   useEffect(() => {
+    if (bootMode !== 'loadingSave') return;
     let active = true;
-    fetch('/api/save')
+    setIsLoading(true);
+    fetch(`/api/save?slot=${currentSaveSlot}`)
       .then(res => res.json())
       .then(data => {
         if (!active) return;
         if (data && Object.keys(data).length > 0) {
-          if (data.zones) setZones(ensureRequiredZones(data.zones));
+	          if (
+	            typeof data.turn === 'number' &&
+	            Number.isInteger(data.turn) &&
+	            data.turn >= 0
+	          ) {
+	            setTurn(data.turn);
+	          }
+	          if (typeof data.currentMap === 'string' && data.currentMap in mapBackgrounds) {
+	            setCurrentMap(data.currentMap as GameMap);
+	            currentMapRef.current = data.currentMap as GameMap;
+	          }
+	          if (data.zones) setZones(ensureRequiredZones(data.zones));
           if (data.doors) {
             const parsedDoors = data.doors as WarpDoor[];
             const migratedDoors = parsedDoors.map(d => {
@@ -1789,9 +2081,15 @@ export default function App() {
             });
             setDoors(ensureRequiredRouteDoors(migratedDoors));
           }
-          if (typeof data.bgmVolume === 'number') setBgmVolume(data.bgmVolume);
-          if (typeof data.seVolume === 'number') setSeVolume(data.seVolume);
-          if (typeof data.voiceVolume === 'number') setVoiceVolume(data.voiceVolume);
+	          if (typeof data.bgmVolume === 'number') setBgmVolume(data.bgmVolume);
+	          if (typeof data.seVolume === 'number') setSeVolume(data.seVolume);
+	          if (typeof data.voiceVolume === 'number') setVoiceVolume(data.voiceVolume);
+	          if (typeof data.debt === 'number' && Number.isFinite(data.debt) && data.debt >= 0) {
+	            setDebt(data.debt);
+	          }
+	          if (typeof data.difficulty === 'string' && DIFFICULTY_OPTIONS.some(option => option.id === data.difficulty)) {
+	            setDifficulty(data.difficulty as GameDifficulty);
+	          }
           if (data.audioGains) {
             const migratedAudioGains = { ...data.audioGains };
             if (typeof migratedAudioGains['/taki.mp3'] === 'number' && typeof migratedAudioGains[WATERFALL_SOUND_SRC] !== 'number') {
@@ -1861,6 +2159,68 @@ export default function App() {
               ))
             ) as Record<string, number>);
           }
+          if (data.inventoryCounts && typeof data.inventoryCounts === 'object') {
+            const parsedInventoryCounts = data.inventoryCounts as Record<string, unknown>;
+            setInventoryCounts(prev => ({
+              ...prev,
+              ...Object.fromEntries(
+                Object.entries(parsedInventoryCounts).filter(([, count]) => (
+                  typeof count === 'number' &&
+                  Number.isFinite(count) &&
+                  count >= 0
+                ))
+              ) as Record<string, number>,
+            }));
+          }
+          if (data.equippedItems && typeof data.equippedItems === 'object') {
+            const parsedEquippedItems = data.equippedItems as Record<string, unknown>;
+            setEquippedItems(prev => ({
+              ...prev,
+              ...Object.fromEntries(
+                Object.entries(parsedEquippedItems).filter(([, item]) => typeof item === 'string')
+              ) as Record<string, string>,
+            }));
+          }
+          if (data.fishInventorySizes && typeof data.fishInventorySizes === 'object') {
+            const parsedFishInventorySizes = data.fishInventorySizes as Record<string, unknown>;
+            setFishInventorySizes(Object.fromEntries(
+              Object.entries(parsedFishInventorySizes)
+                .filter(([name, sizes]) => FISH_ITEM_NAMES.has(name) && Array.isArray(sizes))
+                .map(([name, sizes]) => [
+                  name,
+                  (sizes as unknown[]).filter((size): size is number => (
+                    typeof size === 'number' &&
+                    Number.isFinite(size) &&
+                    size > 0
+                  )),
+                ])
+            ) as Record<string, number[]>);
+          }
+          if (typeof data.fishingTutorialCompleted === 'boolean') {
+            setFishingTutorialCompleted(data.fishingTutorialCompleted);
+          }
+          if (data.fishingTutorialCompleted === true) {
+            setInventoryCounts(prev => ({ ...prev, '竹の釣竿': Math.max(1, prev['竹の釣竿'] ?? 0) }));
+            setEquippedItems(prev => ({ ...prev, '主人公-slot1': '竹の釣竿' }));
+          } else {
+            setInventoryCounts(prev => ({ ...prev, '竹の釣竿': 0 }));
+            setEquippedItems(prev => ({
+              ...prev,
+              '主人公-slot1': prev['主人公-slot1'] === '竹の釣竿' ? '' : prev['主人公-slot1'],
+            }));
+          }
+          if (Array.isArray(data.kurumiIntroAskedTopics)) {
+            setKurumiIntroAskedTopics(data.kurumiIntroAskedTopics.filter((id: unknown): id is KurumiIntroTopicId => (
+              typeof id === 'string' && KURUMI_INTRO_TOPIC_IDS.includes(id as KurumiIntroTopicId)
+            )));
+          }
+          if (
+            typeof data.kurumiIntroCompletedDay === 'number' &&
+            Number.isFinite(data.kurumiIntroCompletedDay) &&
+            data.kurumiIntroCompletedDay >= 1
+          ) {
+            setKurumiIntroCompletedDay(data.kurumiIntroCompletedDay);
+          }
           if (
             data.bathTubMaskZone &&
             typeof data.bathTubMaskZone.x === 'number' &&
@@ -1871,51 +2231,152 @@ export default function App() {
             setBathTubMaskZone(data.bathTubMaskZone);
           }
         }
+        if (startingNewGame) {
+          setTurn(0);
+          setGold(5000);
+          const difficultyOption = DIFFICULTY_OPTIONS.find(option => option.id === pendingNewGameDifficulty) ?? DIFFICULTY_OPTIONS[2];
+          setDifficulty(difficultyOption.id);
+          setDebt(difficultyOption.debt);
+          setKurumiTradeTotal(0);
+          setShownKurumiTradeRewardThresholds([]);
+          setKurumiIntroAskedTopics([]);
+          setKurumiIntroCompletedDay(null);
+          setCaughtFishIds([]);
+          setFishBestSizes({});
+          setFishSizeUpdatedIds([]);
+          setFishInventorySizes({});
+          setFishingTutorialCompleted(false);
+          setFishingTutorialOpen(false);
+          setIsFishingTutorialRun(false);
+          setFishingTutorialResult(null);
+          setInventoryCounts(prev => ({ ...prev, '竹の釣竿': 0 }));
+          setEquippedItems(prev => ({ ...prev, '主人公-slot1': '' }));
+          setCurrentMap('farm');
+          currentMapRef.current = 'farm';
+          setPos({ x: 960, y: 540 });
+          posRef.current = { x: 960, y: 540 };
+          setDir('down');
+          setDialogMessage(DEFAULT_SYSTEM_MESSAGE);
+          setShowDialog(false);
+        }
+        setStartingNewGame(false);
+        setBootMode('playing');
+        setMenuOpen(false);
         setIsLoading(false);
       })
       .catch(err => {
         console.error('セーブデータの読み込みに失敗しました:', err);
+        setStartingNewGame(false);
+        setBootMode('playing');
+        setMenuOpen(false);
         setIsLoading(false);
       });
 
     return () => {
       active = false;
     };
-  }, []);
+  }, [bootMode, currentSaveSlot, startingNewGame, pendingNewGameDifficulty]);
+
+  const createSaveData = () => ({
+    turn,
+    gold,
+    debt,
+    difficulty,
+    currentMap,
+    zones,
+    doors,
+    bgmVolume,
+    seVolume,
+    voiceVolume,
+    audioGains,
+    mapBgmSources,
+    obstacles: normalizeTileRecord(obstacles, isEnabledTileValue),
+    hideAreaTiles: normalizeTileRecord(hideAreaTiles, isEnabledTileValue),
+    footstepTiles: normalizeTileRecord(footstepTiles, isFootstepTileValue),
+    wallBumpSound,
+    bedTiles: normalizeTileRecord(bedTiles, isEnabledTileValue),
+    workbenchTiles: normalizeTileRecord(workbenchTiles, isEnabledTileValue),
+    fishingTiles: normalizeTileRecord(fishingTiles, isEnabledTileValue),
+    inspectSpots,
+    plantedCrops,
+    fieldCorners,
+    fieldGridSizes,
+    inventoryCounts,
+    equippedItems,
+    caughtFishIds,
+    fishBestSizes,
+    fishInventorySizes,
+    fishingTutorialCompleted,
+    kurumiIntroAskedTopics,
+    kurumiIntroCompletedDay,
+    bathTubMaskZone
+  });
+
+  const refreshSaveSlotSummaries = () => {
+    fetch('/api/save-slots')
+      .then(res => res.json())
+      .then((data: SaveSlotSummary[]) => {
+        if (Array.isArray(data)) setSaveSlotSummaries(data);
+      })
+      .catch(err => {
+        console.error('セーブスロット一覧の読み込みに失敗しました:', err);
+      });
+  };
+
+  const saveGameToSlot = (slot: number) => {
+    playFixSound();
+    fetch(`/api/save?slot=${slot}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(createSaveData())
+    })
+      .then(res => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        setCurrentSaveSlot(slot);
+        setSystemNotice(`スロット${slot}にセーブしました。`);
+        setDialogMessage(`スロット${slot}にセーブしました。`);
+        refreshSaveSlotSummaries();
+        setSystemSlotMode('none');
+      })
+      .catch(err => {
+        console.error('手動セーブに失敗しました:', err);
+        setSystemNotice('セーブに失敗しました。');
+      });
+  };
+
+  const loadGameFromSystemSlot = (slot: number) => {
+    playFixSound();
+    setCurrentSaveSlot(slot);
+    setStartingNewGame(false);
+    setSystemSlotMode('none');
+    setMenuOpen(false);
+    setBootMode('loadingSave');
+  };
+
+  const returnToTitle = () => {
+    playFixSound();
+    setSystemSlotMode('none');
+    setTitlePanelMode('none');
+    setMenuOpen(false);
+    setBootMode('title');
+  };
+
+  useEffect(() => {
+    if (titlePanelMode === 'new' || titlePanelMode === 'load' || systemSlotMode !== 'none') {
+      refreshSaveSlotSummaries();
+    }
+  }, [titlePanelMode, systemSlotMode]);
 
   // 状態変更を検知して自動セーブする useEffect
   useEffect(() => {
     if (isLoading) return; // ロード中は保存しない
+    if (bootMode !== 'playing') return; // タイトル画面では保存しない
 
     const timer = setTimeout(() => {
-      const saveData = {
-        zones,
-        doors,
-        bgmVolume,
-        seVolume,
-        voiceVolume,
-        audioGains,
-        mapBgmSources,
-        obstacles: normalizeTileRecord(obstacles, isEnabledTileValue),
-        hideAreaTiles: normalizeTileRecord(hideAreaTiles, isEnabledTileValue),
-        footstepTiles: normalizeTileRecord(footstepTiles, isFootstepTileValue),
-        wallBumpSound,
-        bedTiles: normalizeTileRecord(bedTiles, isEnabledTileValue),
-        workbenchTiles: normalizeTileRecord(workbenchTiles, isEnabledTileValue),
-        fishingTiles: normalizeTileRecord(fishingTiles, isEnabledTileValue),
-        inspectSpots,
-        plantedCrops,
-        fieldCorners,
-        fieldGridSizes,
-        caughtFishIds,
-        fishBestSizes,
-        bathTubMaskZone
-      };
-
-      fetch('/api/save', {
+      fetch(`/api/save?slot=${currentSaveSlot}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(saveData)
+        body: JSON.stringify(createSaveData())
       }).catch(err => {
         console.error('自動セーブに失敗しました:', err);
       });
@@ -1924,6 +2385,12 @@ export default function App() {
     return () => clearTimeout(timer);
   }, [
     isLoading,
+    bootMode,
+    currentSaveSlot,
+    turn,
+    currentMap,
+    debt,
+    difficulty,
     zones,
     doors,
     bgmVolume,
@@ -1942,10 +2409,42 @@ export default function App() {
     plantedCrops,
     fieldCorners,
     fieldGridSizes,
+    inventoryCounts,
+    equippedItems,
     caughtFishIds,
     fishBestSizes,
+    fishInventorySizes,
+    fishingTutorialCompleted,
+    kurumiIntroAskedTopics,
+    kurumiIntroCompletedDay,
     bathTubMaskZone
   ]);
+
+  const startNewGameInSlot = (slot: number) => {
+    playFixSound();
+    setPendingNewGameSlot(slot);
+    setTitlePanelMode('difficulty');
+  };
+
+  const startNewGameWithDifficulty = (difficultyId: GameDifficulty) => {
+    const slot = pendingNewGameSlot ?? 1;
+    const difficultyOption = DIFFICULTY_OPTIONS.find(option => option.id === difficultyId) ?? DIFFICULTY_OPTIONS[2];
+    if (!window.confirm(`スロット${slot}で${difficultyOption.label}（${difficultyOption.desc}）を開始します。マップ設定は残し、進行を最初から開始します。よろしいですか？`)) return;
+    playFixSound();
+    setCurrentSaveSlot(slot);
+    setPendingNewGameDifficulty(difficultyOption.id);
+    setStartingNewGame(true);
+    setTitlePanelMode('none');
+    setBootMode('loadingSave');
+  };
+
+  const continueGameFromSlot = (slot: number) => {
+    playFixSound();
+    setCurrentSaveSlot(slot);
+    setStartingNewGame(false);
+    setTitlePanelMode('none');
+    setBootMode('loadingSave');
+  };
 
   const getFootstepTileKey = (x: number, y: number, map: GameMap) => {
     const gx = Math.floor(x / TILE_SIZE);
@@ -2037,13 +2536,220 @@ export default function App() {
       audio.volume = getEffectiveVolume(src, voiceVolumeRef.current, audioGainsRef.current);
       audio.currentTime = 0;
       void audio.play();
+      return audio;
     } catch (e) {
       console.error(e);
+      return null;
     }
+  };
+
+  const fadeOutAudio = (audio: HTMLAudioElement | null, fadeMs = 500) => {
+    if (!audio) return;
+    const startVolume = audio.volume;
+    const startTime = performance.now();
+    const fade = (now: number) => {
+      const progress = Math.min((now - startTime) / fadeMs, 1);
+      audio.volume = startVolume * (1 - progress);
+      if (progress < 1) {
+        requestAnimationFrame(fade);
+        return;
+      }
+      audio.pause();
+      audio.currentTime = 0;
+    };
+    requestAnimationFrame(fade);
+  };
+
+  const playKurumiIntroVoice = (src: string) => {
+    if (kurumiIntroVoiceRef.current) {
+      kurumiIntroVoiceRef.current.pause();
+      kurumiIntroVoiceRef.current.currentTime = 0;
+      kurumiIntroVoiceRef.current = null;
+    }
+    kurumiIntroVoiceRef.current = playVoiceSound(src);
   };
 
   const playCursorSound = () => playUiSound(UI_CURSOR_SOUND_SRC);
   const playFixSound = () => playUiSound(UI_FIX_SOUND_SRC);
+  const currentDay = Math.floor(turn / 4) + 1;
+  const isKurumiShopUnlocked = kurumiIntroCompletedDay !== null && currentDay > kurumiIntroCompletedDay;
+  const hasAskedAllKurumiIntroTopics = KURUMI_INTRO_TOPIC_IDS.every(id => kurumiIntroAskedTopics.includes(id));
+  const shouldShowFishingTutorialKurumi = bootMode === 'playing' && currentMap === 'farm' && currentDay === 2 && !fishingTutorialCompleted;
+  const currentFishingTutorialStep = FISHING_TUTORIAL_STEPS[fishingTutorialStepIndex] ?? FISHING_TUTORIAL_STEPS[0];
+  const activeAutoEventMessages = activeAutoEventSpot
+     ? (activeAutoEventSpot.texts?.length ? activeAutoEventSpot.texts : [activeAutoEventSpot.text || activeAutoEventSpot.label || 'イベントが発生しました。'])
+     : [];
+  const isNearFishingTutorialKurumi = (playerPos = posRef.current) => {
+    const kurumiCenterX = FISHING_TUTORIAL_KURUMI_ZONE.x + FISHING_TUTORIAL_KURUMI_ZONE.w / 2;
+    const kurumiCenterY = FISHING_TUTORIAL_KURUMI_ZONE.y + FISHING_TUTORIAL_KURUMI_ZONE.h / 2;
+    const dx = playerPos.x - kurumiCenterX;
+    const dy = playerPos.y - kurumiCenterY;
+    return Math.sqrt(dx * dx + dy * dy) <= FISHING_TUTORIAL_INTERACT_DISTANCE;
+  };
+
+  const openFishingTutorial = () => {
+    playFixSound();
+    setFishingTutorialOpen(true);
+    setFishingTutorialStepIndex(0);
+    setSelectedFishingTutorialAction('next');
+    setFishingTutorialResult(null);
+    setMenuOpen(false);
+    clickTargetRef.current = null;
+    setClickTargetMarker(null);
+  };
+
+  const startFishingTutorialChallenge = () => {
+    playFixSound();
+    setFishingTutorialOpen(false);
+    setFishingTutorialResult(null);
+    setSelectedFishingResultAction('retry');
+    setIsFishingTutorialRun(true);
+    const targetFish = FISH_ZUKAN_ENTRIES[0];
+    const sweetRange = createFishingFanSweetRange(targetFish);
+    setFishingTargetFish(targetFish);
+    setFishingTargetSizeValue(null);
+    setFishingFanSweetMin(sweetRange.min);
+    setFishingFanSweetMax(sweetRange.max);
+    setFishingMiniGameOpen(true);
+    setFishingMiniGameStage('direction');
+    setFishingGauge(50);
+    setFishingCastAngle(0);
+    setFishingCastPower(0);
+    setFishingBiteRound(1);
+    setFishingBiteScore(0);
+    setFishingBiteCombo(0);
+    setFishingBiteCircle({ x: 50, y: 50, outerSize: FISHING_BITE_START_SIZE });
+    setFishingFishHp(FISHING_FISH_MAX_HP);
+    setFishingTension(0);
+    setFishingHitGreenWidth(FISHING_KEEP_GREEN_SUCCESS_WIDTH);
+    setFishingKeepGreenWidth(FISHING_KEEP_GREEN_SUCCESS_WIDTH);
+    setFishingResultSizeCm('');
+    setFishingResultIsNewRecord(false);
+    setFishingResultImageSrc(FISHING_SCENE_RESULT_SRC);
+    setFishingResultText('');
+    setSelectedFishingResultAction('retry');
+    setIsFishingHitSplashActive(false);
+    setIsFishingHitIntroActive(false);
+    setFishingHitCountdown(3);
+    setFishingHitLimitSeconds(10);
+    setIsFishingKeepPressed(false);
+    fishingGaugeDirectionRef.current = 1;
+    setDialogMessage('くるみの釣りチュートリアルを開始しました。');
+  };
+
+  const advanceFishingTutorial = () => {
+    playFixSound();
+    if (fishingTutorialStepIndex >= FISHING_TUTORIAL_STEPS.length - 1) {
+      startFishingTutorialChallenge();
+      return;
+    }
+    setFishingTutorialStepIndex(prev => prev + 1);
+  };
+
+  const renderFishingTutorialVisual = () => {
+    if (currentFishingTutorialStep.imageSrc) {
+      return (
+        <img
+          src={currentFishingTutorialStep.imageSrc}
+          alt="竹の釣り竿"
+          className="absolute inset-x-8 bottom-12 mx-auto h-[430px] w-[320px] rounded-xl border-2 border-[#ffd166]/70 bg-black/55 object-contain object-center p-4 drop-shadow-[0_28px_32px_rgba(0,0,0,0.6)]"
+        />
+      );
+    }
+
+    if (currentFishingTutorialStep.id === 'direction') {
+      return (
+        <div className="absolute inset-x-8 bottom-12 h-[430px] rounded-xl border-2 border-[#67e8f9]/60 bg-[radial-gradient(circle_at_50%_75%,rgba(20,83,45,0.95),rgba(12,28,37,0.95))] p-5 shadow-[inset_0_0_28px_rgba(0,0,0,0.65)]">
+          <div className="absolute inset-x-0 top-5 text-center text-sm font-black tracking-[0.18em] text-[#67e8f9]">CAST POINT</div>
+          <div className="absolute inset-x-0 bottom-7 mx-auto h-[250px] w-[260px]">
+            <div className="absolute bottom-0 left-1/2 h-4 w-4 -translate-x-1/2 rounded-full border-2 border-white bg-[#ffd166] shadow-[0_0_16px_rgba(255,209,102,0.9)]" />
+            <svg viewBox="0 0 260 250" className="absolute inset-0 overflow-visible">
+              <path d="M130 230 L38 48 A120 120 0 0 1 222 48 Z" fill="rgba(253,246,227,0.22)" stroke="rgba(253,246,227,0.75)" strokeWidth="3" />
+              <path d="M130 230 L96 55 A120 120 0 0 1 180 60 Z" fill="rgba(255,209,102,0.72)" />
+              <line x1="130" y1="230" x2="130" y2="38" stroke="#67e8f9" strokeWidth="5" strokeLinecap="round" className="farm-tutorial-fan-needle" />
+            </svg>
+          </div>
+        </div>
+      );
+    }
+
+    if (currentFishingTutorialStep.id === 'power') {
+      return (
+        <div className="absolute inset-x-8 bottom-12 flex h-[430px] flex-col justify-end rounded-xl border-2 border-[#ffd166]/60 bg-[linear-gradient(180deg,rgba(18,28,39,0.96),rgba(45,27,21,0.96))] p-6 shadow-[inset_0_0_28px_rgba(0,0,0,0.65)]">
+          <div className="absolute inset-x-0 top-8 text-center text-sm font-black tracking-[0.18em] text-[#ffd166]">POWER</div>
+          <div className="mb-24 text-center text-5xl font-black text-[#fdf6e3] drop-shadow-[0_0_18px_rgba(255,209,102,0.35)]">投げる強さ</div>
+          <div className="relative h-12 overflow-hidden rounded-full border-2 border-[#fdf6e3]/85 bg-black/70 shadow-[inset_0_4px_10px_rgba(0,0,0,0.75)]">
+            <div className="absolute left-[66%] top-0 h-full w-[19%] bg-[#eab308]/85" />
+            <div className="absolute left-[85%] top-0 h-full w-[10%] bg-[#22c55e]/90" />
+            <div className="absolute left-[95%] top-0 h-full w-[5%] bg-[#ef4444]/90" />
+            <div className="farm-tutorial-power-marker absolute top-1/2 h-[150%] w-4 -translate-y-1/2 rounded-full bg-[#ffd166] shadow-[0_0_18px_rgba(255,209,102,0.95),0_0_0_2px_rgba(255,255,255,0.5)]" />
+          </div>
+          <div className="mt-4 grid grid-cols-3 gap-2 text-center text-[11px] font-black">
+            <div className="rounded bg-[#eab308]/25 py-1 text-[#fde68a]">GOOD</div>
+            <div className="rounded bg-[#22c55e]/25 py-1 text-[#bbf7d0]">BEST</div>
+            <div className="rounded bg-[#ef4444]/25 py-1 text-[#fecaca]">MAX</div>
+          </div>
+        </div>
+      );
+    }
+
+    if (currentFishingTutorialStep.id === 'bite') {
+      return (
+        <div className="absolute inset-x-8 bottom-12 h-[430px] rounded-xl border-2 border-[#67e8f9]/60 bg-[radial-gradient(circle_at_50%_45%,rgba(14,116,144,0.75),rgba(8,13,23,0.96))] p-6 shadow-[inset_0_0_28px_rgba(0,0,0,0.65)]">
+          <div className="absolute inset-x-0 top-8 text-center text-sm font-black tracking-[0.18em] text-[#67e8f9]">TIMING</div>
+          <div className="absolute left-1/2 top-[53%] h-24 w-24 -translate-x-1/2 -translate-y-1/2 rounded-full border-[5px] border-[#fdf6e3] bg-[#22c55e]/24 shadow-[0_0_22px_rgba(34,197,94,0.9),inset_0_0_16px_rgba(255,255,255,0.35)]" />
+          <div className="farm-tutorial-bite-ring absolute left-1/2 top-[53%] -translate-x-1/2 -translate-y-1/2 rounded-full border-[7px] border-[#ffd166] bg-[#ffd166]/10 shadow-[0_0_28px_rgba(255,209,102,0.9)]" />
+          <div className="absolute bottom-8 left-1/2 -translate-x-1/2 rounded-full border border-[#ffd166]/70 bg-black/55 px-5 py-2 text-sm font-black text-[#ffd166]">重なった瞬間に決定！</div>
+        </div>
+      );
+    }
+
+    if (currentFishingTutorialStep.id === 'hit') {
+      return (
+        <div className="absolute inset-x-8 bottom-12 h-[430px] rounded-xl border-2 border-[#ffd166]/60 bg-[linear-gradient(180deg,rgba(58,21,21,0.96),rgba(15,23,42,0.96))] p-6 shadow-[inset_0_0_28px_rgba(0,0,0,0.65)]">
+          <div className="farm-tutorial-hit-count absolute inset-x-0 top-10 text-center text-7xl font-black text-[#ffd166] drop-shadow-[0_0_20px_rgba(255,209,102,0.85)]" />
+          <div className="absolute inset-x-8 top-36 rounded-2xl border-2 border-[#fdf6e3]/65 bg-black/50 p-5">
+            <div className="mb-4 text-center text-xl font-black text-[#fdf6e3]">グリーンをキープ！</div>
+            <div className="relative h-12 overflow-hidden rounded-full border-2 border-[#fdf6e3]/85 bg-black/75 shadow-[inset_0_4px_10px_rgba(0,0,0,0.75)]">
+              <div className="absolute left-[38%] top-0 h-full w-[24%] bg-[linear-gradient(180deg,rgba(134,239,172,0.95),rgba(34,197,94,0.78))] shadow-[0_0_18px_rgba(34,197,94,0.65)]" />
+              <div className="farm-tutorial-keep-marker absolute top-1/2 h-[150%] w-4 -translate-y-1/2 rounded-full bg-[#ffd166] shadow-[0_0_18px_rgba(255,209,102,0.95),0_0_0_2px_rgba(255,255,255,0.5)]" />
+            </div>
+            <div className="mt-5 rounded-xl border border-[#ffd166]/55 bg-[#2d1414]/88 px-4 py-3 text-center text-[15px] font-black leading-snug text-[#ffe4a3] shadow-[0_0_16px_rgba(239,68,68,0.18)]">
+              グリーンから外れると魚が逃げやすくなるぞ！
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <img
+        src="/img/kurumi.png"
+        alt="くるみ"
+        className="absolute inset-x-0 bottom-0 mx-auto h-[560px] w-[430px] object-contain object-bottom drop-shadow-[0_28px_32px_rgba(0,0,0,0.6)]"
+      />
+    );
+  };
+
+  const retryFishingTutorial = () => {
+    finishFishingMiniGame();
+    window.setTimeout(() => {
+      setIsFishingTutorialRun(true);
+      startFishingTutorialChallenge();
+    }, 0);
+  };
+
+  const completeFishingTutorial = () => {
+    playFixSound();
+    setInventoryCounts(prev => ({ ...prev, '竹の釣竿': Math.max(1, prev['竹の釣竿'] ?? 0) }));
+    setEquippedItems(prev => ({ ...prev, '主人公-slot1': '竹の釣竿' }));
+    setFishingTutorialCompleted(true);
+    setFishingTutorialOpen(false);
+    setFishingTutorialResult(null);
+    setIsFishingTutorialRun(false);
+    finishFishingMiniGame();
+    setDialogMessage('くるみ「それじゃ、楽しい釣りライフを！」');
+  };
 
   useEffect(() => {
      if (autoEventTypeTimerRef.current !== null) {
@@ -2105,6 +2811,34 @@ export default function App() {
      };
   }, [activeAutoEventSpot, activeAutoEventMessage, textDisplaySpeedLevel]);
 
+  const advanceAutoEventOverlay = () => {
+    if (!activeAutoEventSpot) return;
+
+    if (displayedAutoEventMessage.length < activeAutoEventMessage.length) {
+      if (autoEventTypeTimerRef.current !== null) {
+        window.clearInterval(autoEventTypeTimerRef.current);
+        autoEventTypeTimerRef.current = null;
+      }
+      if (typeSoundRef.current) {
+        typeSoundRef.current.pause();
+        typeSoundRef.current.currentTime = 0;
+        typeSoundRef.current = null;
+      }
+      setDisplayedAutoEventMessage(activeAutoEventMessage);
+      return;
+    }
+
+    const nextIndex = activeAutoEventMessageIndex + 1;
+    if (nextIndex < activeAutoEventMessages.length) {
+      playFixSound();
+      setActiveAutoEventMessageIndex(nextIndex);
+      setActiveAutoEventMessage(activeAutoEventMessages[nextIndex]);
+      return;
+    }
+
+    closeAutoEventOverlay();
+  };
+
   useEffect(() => {
      return () => {
         if (shopTradePoseTimerRef.current !== null) {
@@ -2112,6 +2846,13 @@ export default function App() {
         }
         if (kurumiTradeRewardTimerRef.current !== null) {
            window.clearTimeout(kurumiTradeRewardTimerRef.current);
+        }
+        if (kurumiIntroCloseTimerRef.current !== null) {
+           window.clearTimeout(kurumiIntroCloseTimerRef.current);
+        }
+        if (kurumiIntroVoiceRef.current) {
+           kurumiIntroVoiceRef.current.pause();
+           kurumiIntroVoiceRef.current = null;
         }
         if (fishingBiteTimerRef.current !== null) {
            window.clearInterval(fishingBiteTimerRef.current);
@@ -2144,6 +2885,79 @@ export default function App() {
      setKurumiShopOpen(false);
   };
 
+  const openKurumiShop = () => {
+     playVoiceSound(KURUMI_SHOP_SOUND_SRC);
+     setSelectedShopItemIndex(0);
+     setSelectedShopControl('items');
+     setKurumiShopOpen(true);
+  };
+
+  const startKurumiIntro = () => {
+     if (kurumiIntroCloseTimerRef.current !== null) {
+        window.clearTimeout(kurumiIntroCloseTimerRef.current);
+        kurumiIntroCloseTimerRef.current = null;
+     }
+     playKurumiIntroVoice(KURUMI_START_SOUND_SRC);
+     setKurumiIntroMessage(KURUMI_INTRO_FIRST_MESSAGE);
+     setKurumiIntroSelectedIndex(0);
+     setKurumiIntroClosing(false);
+     setKurumiIntroOpen(true);
+  };
+
+  const startKurumiInteraction = () => {
+     clickTargetRef.current = null;
+     setClickTargetMarker(null);
+     if (isKurumiShopUnlocked) {
+        openKurumiShop();
+     } else {
+        startKurumiIntro();
+     }
+  };
+
+  const closeKurumiIntro = (shouldPlaySound = true) => {
+     if (kurumiIntroClosing) return;
+     if (shouldPlaySound) playFixSound();
+     if (!hasAskedAllKurumiIntroTopics) {
+        setKurumiIntroMessage('えへへ、まだ聞けることがあるよっ！気になることを一通り聞いてみてね。');
+        return;
+     }
+     if (hasAskedAllKurumiIntroTopics && kurumiIntroCompletedDay === null) {
+        setKurumiIntroCompletedDay(currentDay);
+     }
+     setKurumiIntroClosing(true);
+     fadeOutAudio(kurumiIntroVoiceRef.current, KURUMI_INTRO_CLOSE_FADE_MS);
+     kurumiIntroCloseTimerRef.current = window.setTimeout(() => {
+        setKurumiIntroOpen(false);
+        setKurumiIntroClosing(false);
+        kurumiIntroVoiceRef.current = null;
+        kurumiIntroCloseTimerRef.current = null;
+     }, KURUMI_INTRO_CLOSE_FADE_MS);
+  };
+
+  const handleKurumiIntroChoice = (index = kurumiIntroSelectedIndex) => {
+     if (kurumiIntroClosing) return;
+     const topic = KURUMI_INTRO_TOPICS[index];
+     playFixSound();
+     if (!topic) {
+        closeKurumiIntro(false);
+        return;
+     }
+     setKurumiIntroMessage(topic.answer);
+     if (topic.voiceSrc) {
+        playKurumiIntroVoice(topic.voiceSrc);
+     }
+     setKurumiIntroAskedTopics(prev => {
+        const next = prev.includes(topic.id) ? prev : [...prev, topic.id];
+        if (
+           kurumiIntroCompletedDay === null &&
+           KURUMI_INTRO_TOPIC_IDS.every(id => next.includes(id))
+        ) {
+           setKurumiIntroCompletedDay(currentDay);
+        }
+        return next;
+     });
+  };
+
   const handleShopCloseClick = () => {
      playFixSound();
      setKurumiShopOpen(false);
@@ -2157,31 +2971,41 @@ export default function App() {
 
   const handleShopActionClick = () => {
      const item = shopItems[selectedShopItemIndex] ?? shopItems[0];
-     if (item.stock <= 0) {
+     const itemStock = item.type === '売る' ? (inventoryCounts[item.name] ?? 0) : item.stock;
+     const tradePrice = item.type === '売る' ? getFishAdjustedPrice(item.name, item.price) : item.price;
+     if (itemStock <= 0) {
         playFixSound();
         setDialogMessage(item.type === '買う' ? '売り切れです。' : '売却できる在庫がありません。');
         return;
      }
-     if (item.type === '買う' && gold < item.price) {
+     if (item.type === '買う' && gold < tradePrice) {
         playFixSound();
         setDialogMessage('ゴールドが足りません。');
         return;
      }
      playUiSound('/se/coin.mp3');
-     const nextTradeTotal = kurumiTradeTotal + item.price;
+     const nextTradeTotal = kurumiTradeTotal + tradePrice;
      const availableRewards = KURUMI_TRADE_REWARDS.filter(reward => (
         nextTradeTotal >= reward.threshold && !shownKurumiTradeRewardThresholds.includes(reward.threshold)
      ));
      const nextReward = availableRewards[availableRewards.length - 1] ?? null;
      setKurumiTradeTotal(nextTradeTotal);
-     setGold(prev => item.type === '買う' ? prev - item.price : prev + item.price);
-     setShopItems(prev => prev.map((shopItem, index) => (
-        index === selectedShopItemIndex ? { ...shopItem, stock: Math.max(0, shopItem.stock - 1) } : shopItem
-     )));
+     setGold(prev => item.type === '買う' ? prev - tradePrice : prev + tradePrice);
+     if (item.type === '買う') {
+        setShopItems(prev => prev.map((shopItem, index) => (
+           index === selectedShopItemIndex ? { ...shopItem, stock: Math.max(0, shopItem.stock - 1) } : shopItem
+        )));
+     }
      setInventoryCounts(prev => ({
         ...prev,
         [item.name]: Math.max(0, (prev[item.name] ?? 0) + (item.type === '買う' ? 1 : -1)),
      }));
+     if (item.type === '売る' && FISH_ITEM_NAMES.has(item.name)) {
+        setFishInventorySizes(prev => ({
+           ...prev,
+           [item.name]: (prev[item.name] ?? []).slice(1),
+        }));
+     }
      setDialogMessage(`${item.name}を${item.type === '買う' ? '購入' : '売却'}しました。`);
      setIsShopTradePose(true);
      if (shopTradePoseTimerRef.current !== null) {
@@ -2300,7 +3124,9 @@ export default function App() {
     triggeredAutoEventIdsRef.current.add(spot.id);
     clickTargetRef.current = null;
     setClickTargetMarker(null);
-    setActiveAutoEventMessage(spot.text || spot.label || 'イベントが発生しました。');
+    const messages = spot.texts?.length ? spot.texts : [spot.text || spot.label || 'イベントが発生しました。'];
+    setActiveAutoEventMessageIndex(0);
+    setActiveAutoEventMessage(messages[0]);
     setActiveAutoEventSpot(spot);
     if (spot.seSrc) playEventAudio(spot.seSrc, 'se');
     if (spot.voiceSrc) playEventAudio(spot.voiceSrc, 'voice');
@@ -2313,6 +3139,7 @@ export default function App() {
     setActiveAutoEventSpot(null);
     setActiveAutoEventMessage('');
     setDisplayedAutoEventMessage('');
+    setActiveAutoEventMessageIndex(0);
   };
 
   const playSleepFadeOutSound = (src: string, fadeMs: number) => {
@@ -2492,9 +3319,34 @@ export default function App() {
     craftPromptBlockedRef.current = true;
   };
 
+  const beginFishingHitStage = (biteScore: number, biteCombo: number) => {
+    const targetSize = createFishingTargetSize(fishingTargetFish, biteScore, biteCombo);
+    const sizeRatio = getFishSizeRatio(fishingTargetFish, targetSize);
+    const levelRatio = clampNumber(fishingTargetFish.level / 24, 0, 1);
+    const hitDifficultyScale = Math.max(0.42, 1 - levelRatio * 0.22 - sizeRatio * 0.24);
+    const keepDifficultyScale = Math.max(0.36, 1 - levelRatio * 0.2 - sizeRatio * 0.36);
+
+    setFishingTargetSizeValue(targetSize);
+    setFishingHitGreenWidth(prev => Math.max(4, prev * hitDifficultyScale));
+    setFishingKeepGreenWidth(prev => Math.max(4, prev * keepDifficultyScale));
+    setFishingMiniGameStage('hit');
+    setFishingGauge(0);
+    setFishingHitLimitSeconds(10);
+    fishingGaugeDirectionRef.current = 1;
+  };
+
   const startFishingPrompt = () => {
+    const targetFish = selectFishingTargetFish(equippedFishingRod);
+    const sweetRange = createFishingFanSweetRange(targetFish);
+
     setFishingPromptVisible(false);
     fishingPromptBlockedRef.current = true;
+    setIsFishingTutorialRun(false);
+    setFishingTutorialResult(null);
+    setFishingTargetFish(targetFish);
+    setFishingTargetSizeValue(null);
+    setFishingFanSweetMin(sweetRange.min);
+    setFishingFanSweetMax(sweetRange.max);
     setFishingMiniGameOpen(true);
     setFishingMiniGameStage('direction');
     setFishingGauge(50);
@@ -2510,19 +3362,20 @@ export default function App() {
     });
     setFishingKeepSeconds(3);
     setFishingKeepMissSeconds(0);
-    setFishingFishHp(FISHING_FISH_MAX_HP);
-    setFishingTension(0);
-    setFishingHitGreenWidth(FISHING_KEEP_GREEN_SUCCESS_WIDTH);
-    setFishingResultSizeCm('');
+	    setFishingFishHp(FISHING_FISH_MAX_HP);
+	    setFishingTension(0);
+	    setFishingHitGreenWidth(FISHING_KEEP_GREEN_SUCCESS_WIDTH);
+	    setFishingKeepGreenWidth(FISHING_KEEP_GREEN_SUCCESS_WIDTH);
+	    setFishingResultSizeCm('');
     setFishingResultIsNewRecord(false);
     setFishingResultImageSrc(FISHING_SCENE_RESULT_SRC);
     setIsFishingHitSplashActive(false);
     setFishingHitCountdown(3);
     setFishingHitLimitSeconds(10);
     setIsFishingKeepPressed(false);
-    setFishingResultText('');
+	    setFishingResultText('');
     fishingGaugeDirectionRef.current = 1;
-    setDialogMessage('釣りを開始しました。');
+    setDialogMessage(`${targetFish.name}の気配がする...`);
   };
 
   const cancelFishingPrompt = () => {
@@ -2570,18 +3423,23 @@ export default function App() {
       y: 50,
       outerSize: FISHING_BITE_START_SIZE,
     });
-    setFishingBiteSparkle(null);
-    setIsFishingKeepPressed(false);
-    setFishingHitGreenWidth(FISHING_KEEP_GREEN_SUCCESS_WIDTH);
+	    setFishingBiteSparkle(null);
+	    setIsFishingKeepPressed(false);
+	    setFishingHitGreenWidth(FISHING_KEEP_GREEN_SUCCESS_WIDTH);
+	    setFishingKeepGreenWidth(FISHING_KEEP_GREEN_SUCCESS_WIDTH);
     setFishingResultText('');
     setFishingResultSizeCm('');
     setFishingResultIsNewRecord(false);
     setFishingResultImageSrc(FISHING_SCENE_RESULT_SRC);
+    setSelectedFishingResultAction('retry');
+    setIsFishingTutorialRun(false);
+    setFishingTutorialResult(null);
     fishingPromptBlockedRef.current = true;
   };
 
   const handleFishingMiniGameAction = () => {
     if (fishingMiniGameStage === 'result') {
+      if (isFishingTutorialRun) return;
       if (isFishingResultInputLocked) return;
       playFixSound();
       finishFishingMiniGame();
@@ -2591,17 +3449,20 @@ export default function App() {
     if (isFishingHitSplashActive) {
       return;
     }
-    if (fishingMiniGameStage === 'direction') {
-      const fanSuccess = fishingGauge >= FISHING_FAN_SWEET_MIN && fishingGauge <= FISHING_FAN_SWEET_MAX;
-      setFishingHitGreenWidth(fanSuccess ? FISHING_KEEP_GREEN_SUCCESS_WIDTH : FISHING_KEEP_GREEN_FAIL_WIDTH);
+	    if (fishingMiniGameStage === 'direction') {
+	      const fanSuccess = fishingGauge >= fishingFanSweetMin && fishingGauge <= fishingFanSweetMax;
+	      setFishingHitGreenWidth(fanSuccess ? FISHING_KEEP_GREEN_SUCCESS_WIDTH : FISHING_KEEP_GREEN_FAIL_WIDTH);
       setFishingCastAngle(Math.round((fishingGauge - 50) * 1.2));
       setFishingMiniGameStage('power');
       setFishingGauge(0);
       fishingGaugeDirectionRef.current = 1;
       return;
     }
-    if (fishingMiniGameStage === 'power') {
-      setFishingCastPower(Math.round(fishingGauge));
+	    if (fishingMiniGameStage === 'power') {
+	      const castPower = Math.round(fishingGauge);
+	      const powerAccuracy = Math.max(0, 1 - Math.abs(castPower - 105) / 105);
+	      setFishingCastPower(castPower);
+	      setFishingKeepGreenWidth(FISHING_KEEP_GREEN_FAIL_WIDTH * (1 + powerAccuracy));
       playUiSound(FISHING_CAST_SOUND_SRC);
       setFishingMiniGameStage('bite');
       setFishingGauge(50);
@@ -2619,7 +3480,10 @@ export default function App() {
     }
     if (fishingMiniGameStage === 'bite') {
       const timingDiff = Math.abs(fishingBiteCircle.outerSize - FISHING_BITE_TARGET_SIZE);
-      if (timingDiff <= 16) {
+      const biteSucceeded = timingDiff <= 16;
+      const nextBiteScore = biteSucceeded ? Math.min(FISHING_BITE_ROUNDS, fishingBiteScore + 1) : fishingBiteScore;
+      const nextBiteCombo = biteSucceeded ? Math.min(FISHING_BITE_ROUNDS, fishingBiteCombo + 1) : 0;
+      if (biteSucceeded) {
         setFishingBiteScore(prev => Math.min(FISHING_BITE_ROUNDS, prev + 1));
         setFishingBiteCombo(prev => Math.min(FISHING_BITE_ROUNDS, prev + 1));
         setFishingBiteSparkle({
@@ -2644,10 +3508,7 @@ export default function App() {
       }
       setFishingBiteRound(prev => {
         if (prev >= FISHING_BITE_ROUNDS) {
-          setFishingMiniGameStage('hit');
-          setFishingGauge(0);
-          setFishingHitLimitSeconds(10);
-          fishingGaugeDirectionRef.current = 1;
+          beginFishingHitStage(nextBiteScore, nextBiteCombo);
           return prev;
         }
         setFishingBiteCircle({
@@ -2663,11 +3524,12 @@ export default function App() {
       const hitGauge = fishingGaugeRef.current;
       const success = hitGauge >= fishingHitGreenMin && hitGauge <= fishingHitGreenMax;
       if (success) {
-        setIsFishingHitSplashActive(true);
-        setIsFishingHitIntroActive(true);
-        setFishingHitCountdown(3);
-        setDialogMessage('HIT！');
-        playUiSound(IWANA_SPLASH_SOUND_SRC);
+	        setIsFishingHitSplashActive(true);
+	        setIsFishingHitIntroActive(true);
+	        setFishingHitCountdown(3);
+	        setDialogMessage('HIT！');
+	        playUiSound(IWANA_SPLASH_SOUND_SRC);
+	        playVoiceSound('/voice/3.wav');
         if (fishingHitSplashTimerRef.current !== null) {
           window.clearTimeout(fishingHitSplashTimerRef.current);
         }
@@ -2680,10 +3542,14 @@ export default function App() {
         fishingHitIntroTimerRef.current = window.setTimeout(() => {
           setIsFishingHitIntroActive(false);
           fishingHitIntroTimerRef.current = null;
-        }, 700);
-        fishingHitCountdownTimerRef.current = window.setInterval(() => {
-          setFishingHitCountdown(prev => Math.max(1, prev - 1));
-        }, 1000);
+	        }, 700);
+	        fishingHitCountdownTimerRef.current = window.setInterval(() => {
+	          setFishingHitCountdown(prev => {
+	            const next = Math.max(1, prev - 1);
+	            if (next !== prev) playVoiceSound(`/voice/${next}.wav`);
+	            return next;
+	          });
+	        }, 1000);
         fishingHitSplashTimerRef.current = window.setTimeout(() => {
           setIsFishingHitSplashActive(false);
           setIsFishingHitIntroActive(false);
@@ -2711,7 +3577,8 @@ export default function App() {
       setFishingResultIsNewRecord(false);
       setFishingResultText('魚を逃してしまった...');
       setDialogMessage('魚を逃してしまった...');
-      playUiSound(FISH_LOSE_SOUND_SRC);
+      if (isFishingTutorialRun) setFishingTutorialResult('fail');
+      playVoiceSound(FISH_LOSE_SOUND_SRC);
       setFishingMiniGameStage('result');
       return;
     }
@@ -2988,9 +3855,9 @@ export default function App() {
 
   // BGMの初期化と自動再生処理
   useEffect(() => {
-    const audio = new Audio('/bgm/farmbgm.wav');
+    const audio = new Audio(TITLE_BGM_SRC);
     audio.loop = true;
-    audio.volume = getEffectiveVolume('/bgm/farmbgm.wav', bgmVolume, audioGainsRef.current);
+    audio.volume = getEffectiveVolume(TITLE_BGM_SRC, bgmVolume, audioGainsRef.current);
     bgmRef.current = audio;
 
     const startBgm = () => {
@@ -3022,7 +3889,9 @@ export default function App() {
     if (!audio) return;
     if (fishingMiniGameOpen || wasFishingBgmActiveRef.current) return;
 
-    const nextSource = kurumiShopOpen ? SHOP_BGM_SRC : mapBgmSources[currentMap] ?? DEFAULT_MAP_BGM_SOURCES[currentMap];
+    const nextSource = bootMode === 'playing'
+      ? kurumiShopOpen ? SHOP_BGM_SRC : mapBgmSources[currentMap] ?? DEFAULT_MAP_BGM_SOURCES[currentMap]
+      : TITLE_BGM_SRC;
     if (bgmSourceRef.current === nextSource) return;
 
     const shouldResume = bgmStartedRef.current && !audio.paused;
@@ -3040,7 +3909,7 @@ export default function App() {
         console.log("BGM switch autoplay blocked", err);
       });
     }
-  }, [currentMap, bgmVolume, audioGains, mapBgmSources, kurumiShopOpen, fishingMiniGameOpen]);
+  }, [bootMode, currentMap, bgmVolume, audioGains, mapBgmSources, kurumiShopOpen, fishingMiniGameOpen]);
 
   // BGM音量変更時の反映
   useEffect(() => {
@@ -3248,10 +4117,86 @@ export default function App() {
         e.preventDefault();
       }
 
+      if (bootMode !== 'playing') {
+        return;
+      }
+
+      if (farmGirlDetailOpen) {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          playFixSound();
+          setMenuFocusArea('content');
+          setMenuContentFocus('secondary');
+          setFarmGirlDetailOpen(false);
+        }
+        return;
+      }
+
       if (activeAutoEventSpot) {
-        if (e.key === 'Enter' || e.key === ' ' || e.key === 'Escape') {
+        if (e.repeat) return;
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          advanceAutoEventOverlay();
+        }
+        if (e.key === 'Escape') {
           e.preventDefault();
           closeAutoEventOverlay();
+        }
+        return;
+      }
+
+      if (fishingTutorialOpen) {
+        if (e.repeat) return;
+        if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+          e.preventDefault();
+          playCursorSound();
+          setSelectedFishingTutorialAction(e.key === 'ArrowLeft' ? 'later' : 'next');
+          return;
+        }
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          if (selectedFishingTutorialAction === 'later') {
+            playFixSound();
+            setFishingTutorialOpen(false);
+          } else {
+            advanceFishingTutorial();
+          }
+          return;
+        }
+        if (e.key === 'Escape') {
+          e.preventDefault();
+          playFixSound();
+          setFishingTutorialOpen(false);
+          return;
+        }
+        return;
+      }
+
+      if (kurumiIntroOpen) {
+        if (kurumiIntroClosing) {
+          e.preventDefault();
+          return;
+        }
+        if (e.repeat) return;
+        if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+          e.preventDefault();
+          playCursorSound();
+          setKurumiIntroSelectedIndex(prev => {
+            const choiceCount = KURUMI_INTRO_TOPICS.length + 1;
+            const delta = e.key === 'ArrowDown' ? 1 : -1;
+            return (prev + delta + choiceCount) % choiceCount;
+          });
+          return;
+        }
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          handleKurumiIntroChoice();
+          return;
+        }
+        if (e.key === 'Escape') {
+          e.preventDefault();
+          closeKurumiIntro();
+          return;
         }
         return;
       }
@@ -3330,6 +4275,29 @@ export default function App() {
 
       if (fishingMiniGameOpen) {
         if (e.repeat) return;
+        if (fishingMiniGameStage === 'result' && isFishingTutorialRun) {
+          if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+            e.preventDefault();
+            playCursorSound();
+            setSelectedFishingResultAction(e.key === 'ArrowLeft' ? 'retry' : 'complete');
+            return;
+          }
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            if (selectedFishingResultAction === 'retry') {
+              retryFishingTutorial();
+            } else {
+              completeFishingTutorial();
+            }
+            return;
+          }
+          if (e.key === 'Escape') {
+            e.preventDefault();
+            completeFishingTutorial();
+            return;
+          }
+          return;
+        }
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault();
           handleFishingMiniGameAction();
@@ -3393,6 +4361,13 @@ export default function App() {
 
       if (!menuOpenRef.current && setupMode === 'none' && (e.key === 'Enter' || e.key === ' ')) {
         const playerPos = posRef.current;
+        if (shouldShowFishingTutorialKurumi) {
+          if (isNearFishingTutorialKurumi(playerPos)) {
+            e.preventDefault();
+            openFishingTutorial();
+            return;
+          }
+        }
         const currentKurumi = zones.find(zone => (
           zone.type === 'kurumi' &&
           (!zone.map || zone.map === currentMapRef.current) &&
@@ -3406,12 +4381,7 @@ export default function App() {
           if (Math.sqrt(dx * dx + dy * dy) < 180) {
             e.preventDefault();
             playFixSound();
-            playVoiceSound(KURUMI_SHOP_SOUND_SRC);
-            clickTargetRef.current = null;
-            setClickTargetMarker(null);
-            setKurumiShopOpen(true);
-            setSelectedShopItemIndex(0);
-            setSelectedShopControl('items');
+            startKurumiInteraction();
             return;
           }
         }
@@ -3446,11 +4416,12 @@ export default function App() {
         const moveBy = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0;
         const itemByTab: Record<string, string[]> = {
           '消耗品': ['薬草', '携帯おにぎり', '気付け水', '小さな釣り餌'],
-          '素材': ['川魚', '木材', '石材', '薬草の葉', '川魚の鱗'],
-          '装備品': ['竹の釣竿', '丈夫な釣竿', '高級釣竿', 'のこぎり', '丈夫なのこぎり', '高級のこぎり', 'つるはし', '丈夫なつるはし', '高級つるはし', '農神の指輪'],
+          '素材': ['ウグイ', '木材', '石材', '薬草の葉', '川魚の鱗'],
+          '装備品': ['竹の釣竿', '丈夫な釣竿', '高級釣竿', '伝説の釣り竿', 'のこぎり', '丈夫なのこぎり', '高級のこぎり', 'つるはし', '丈夫なつるはし', '高級つるはし', '農神の指輪'],
           '売却品': ['小さな宝石', '古びた硬貨', '乾いたハーブ', '余った作物'],
           'だいじなもの': ['古い鍵', '農場契約書', '母屋の地図', '娘管理台帳'],
         };
+        const getOwnedMenuItems = (items: string[]) => items.filter(name => (inventoryCounts[name] ?? 0) > 0);
         const moveGridIndex = (currentIndex: number, key: string, columns: number, length: number) => {
           if (key === 'ArrowLeft') return currentIndex % columns === 0 ? currentIndex : currentIndex - 1;
           if (key === 'ArrowRight') return currentIndex % columns === columns - 1 || currentIndex + 1 >= length ? currentIndex : currentIndex + 1;
@@ -3479,7 +4450,7 @@ export default function App() {
           if (currentMenuItem.id === 'item') {
             const tabs = Object.keys(itemByTab);
             const tabIndex = Math.max(0, tabs.indexOf(itemMenuTabRef.current));
-            const currentItems = itemByTab[itemMenuTabRef.current] ?? itemByTab['消耗品'];
+            const currentItems = getOwnedMenuItems(itemByTab[itemMenuTabRef.current] ?? itemByTab['消耗品']);
             const currentIndex = Math.max(0, currentItems.indexOf(selectedItemNameRef.current));
 
             if (menuContentFocusRef.current === 'primary') {
@@ -3490,11 +4461,15 @@ export default function App() {
               } else if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
                 const nextTab = tabs[Math.max(0, Math.min(tabs.length - 1, tabIndex + (e.key === 'ArrowDown' ? 1 : -1)))];
                 setItemMenuTab(nextTab);
-                setSelectedItemName(itemByTab[nextTab][0]);
+                setSelectedItemName(getOwnedMenuItems(itemByTab[nextTab])[0] ?? '');
               }
               return;
             }
 
+            if (currentItems.length === 0) {
+              setMenuContentFocus('primary');
+              return;
+            }
             if (e.key === 'ArrowLeft' && currentIndex % 2 === 0) {
               setMenuContentFocus('primary');
               return;
@@ -3551,8 +4526,12 @@ export default function App() {
 
           if (currentMenuItem.id === 'item') {
             const tabs = Object.keys(itemByTab);
-            const currentItems = itemByTab[itemMenuTabRef.current] ?? itemByTab['消耗品'];
+            const currentItems = getOwnedMenuItems(itemByTab[itemMenuTabRef.current] ?? itemByTab['消耗品']);
             const currentIndex = Math.max(0, currentItems.indexOf(selectedItemNameRef.current));
+            if (currentItems.length === 0) {
+              setMenuContentFocus('primary');
+              return;
+            }
             if (e.key === 'ArrowLeft' && currentIndex % 2 === 0) {
               const tabIndex = Math.max(0, tabs.indexOf(itemMenuTabRef.current));
               if (tabIndex === 0) {
@@ -3560,7 +4539,7 @@ export default function App() {
               } else {
                 const nextTab = tabs[tabIndex - 1];
                 setItemMenuTab(nextTab);
-                setSelectedItemName(itemByTab[nextTab][0]);
+                setSelectedItemName(getOwnedMenuItems(itemByTab[nextTab])[0] ?? '');
               }
               return;
             }
@@ -3568,7 +4547,7 @@ export default function App() {
               const tabIndex = Math.max(0, tabs.indexOf(itemMenuTabRef.current));
               const nextTab = tabs[Math.min(tabs.length - 1, tabIndex + 1)];
               setItemMenuTab(nextTab);
-              setSelectedItemName(itemByTab[nextTab][0]);
+              setSelectedItemName(getOwnedMenuItems(itemByTab[nextTab])[0] ?? '');
               return;
             }
             setSelectedItemName(currentItems[moveGridIndex(currentIndex, e.key, 2, currentItems.length)]);
@@ -3588,7 +4567,7 @@ export default function App() {
               'ちびいち': ['slot1', 'slot2'],
             };
             const optionsBySlot: Record<string, string[]> = {
-              '釣具系': ['竹の釣竿', '丈夫な釣竿', '高級釣竿'],
+              '釣具系': ['竹の釣竿', '丈夫な釣竿', '高級釣竿', '伝説の釣り竿'],
               '採取道具系': ['のこぎり', '丈夫なのこぎり', '高級のこぎり', 'つるはし', '丈夫なつるはし', '高級つるはし'],
               'アクセサリー': ['農神の指輪'],
               'slot1': ['小さな鈴'],
@@ -3708,13 +4687,15 @@ export default function App() {
           if (currentMenuItem.id === 'item') {
             const itemByTab: Record<string, string[]> = {
               '消耗品': ['薬草', '携帯おにぎり', '気付け水', '小さな釣り餌'],
-              '素材': ['川魚', '木材', '石材', '薬草の葉', '川魚の鱗'],
-              '装備品': ['竹の釣竿', '丈夫な釣竿', '高級釣竿', 'のこぎり', '丈夫なのこぎり', '高級のこぎり', 'つるはし', '丈夫なつるはし', '高級つるはし', '農神の指輪'],
+              '素材': ['ウグイ', '木材', '石材', '薬草の葉', '川魚の鱗'],
+              '装備品': ['竹の釣竿', '丈夫な釣竿', '高級釣竿', '伝説の釣り竿', 'のこぎり', '丈夫なのこぎり', '高級のこぎり', 'つるはし', '丈夫なつるはし', '高級つるはし', '農神の指輪'],
               '売却品': ['小さな宝石', '古びた硬貨', '乾いたハーブ', '余った作物'],
               'だいじなもの': ['古い鍵', '農場契約書', '母屋の地図', '娘管理台帳'],
             };
+            const getOwnedMenuItems = (items: string[]) => items.filter(name => (inventoryCounts[name] ?? 0) > 0);
             setSelectedItemName(prev => {
-              const currentItems = itemByTab[itemMenuTabRef.current] ?? itemByTab['消耗品'];
+              const currentItems = getOwnedMenuItems(itemByTab[itemMenuTabRef.current] ?? itemByTab['消耗品']);
+              if (currentItems.length === 0) return '';
               const currentIndex = Math.max(0, currentItems.indexOf(prev));
               return currentItems[(currentIndex + moveBy + currentItems.length) % currentItems.length];
             });
@@ -3747,7 +4728,7 @@ export default function App() {
               const farmInfoItems = [
                 ['信用度', '35 / 100'],
                 ['次の返済日', `残り ${daysUntilRepayment} 日`],
-                ['借入金', '100,000,000 G'],
+                ['借入金', `${debt.toLocaleString()} G`],
                 ['金利', '3.2%'],
                 ['経過日数', `${currentDay} 日`],
                 ['設備', '柵 Lv1'],
@@ -3758,7 +4739,7 @@ export default function App() {
               if (selectedInfo) setDialogMessage(`${selectedInfo[0]}: ${selectedInfo[1]}`);
             } else {
               const selectedName = menuGirls[selectedFarmGirlIndexRef.current]?.name;
-              if (selectedName) setDialogMessage(`${selectedName}のお世話画面を開きました。`);
+              if (selectedName) setDialogMessage(`${selectedName}の詳細情報を表示しました。`);
             }
           } else if (currentMenuItem.id === 'item') {
             setDialogMessage(`${selectedItemNameRef.current}を確認しました。`);
@@ -3778,7 +4759,7 @@ export default function App() {
               'ちびいち': ['slot1', 'slot2'],
             };
             const optionsBySlot: Record<string, string[]> = {
-              '釣具系': ['竹の釣竿', '丈夫な釣竿', '高級釣竿'],
+              '釣具系': ['竹の釣竿', '丈夫な釣竿', '高級釣竿', '伝説の釣り竿'],
               '採取道具系': ['のこぎり', '丈夫なのこぎり', '高級のこぎり', 'つるはし', '丈夫なつるはし', '高級つるはし'],
               'アクセサリー': ['農神の指輪'],
               'slot1': ['小さな鈴'],
@@ -3814,12 +4795,19 @@ export default function App() {
             } else {
               setDialogMessage(`No.${selectedZukanIndexRef.current + 1}を確認しました。`);
             }
-          } else if (currentMenuItem.id === 'system') {
-            const actions = ['セーブ', 'ロード', 'タイトルへ戻る'];
-            const action = actions[selectedSystemActionIndexRef.current] ?? actions[0];
-            setSystemNotice(`${action}を選択しました。`);
-            setDialogMessage(`${action}を選択しました。`);
-          }
+	          } else if (currentMenuItem.id === 'system') {
+	            const actions = ['セーブ', 'ロード', 'タイトルへ戻る'];
+	            const action = actions[selectedSystemActionIndexRef.current] ?? actions[0];
+	            setSystemNotice(`${action}を選択しました。`);
+	            setDialogMessage(`${action}を選択しました。`);
+	            if (action === 'セーブ') {
+	              setSystemSlotMode('save');
+	            } else if (action === 'ロード') {
+	              setSystemSlotMode('load');
+	            } else {
+	              returnToTitle();
+	            }
+	          }
         } else if (e.key === 'Escape') {
           e.preventDefault();
           playFixSound();
@@ -4242,7 +5230,7 @@ export default function App() {
       window.removeEventListener('keydown', handleKeyDown); window.removeEventListener('keyup', handleKeyUp);
       cancelAnimationFrame(animationFrameId);
     };
-  }, [setupMode, bedTiles, workbenchTiles, fishingTiles, sleepPromptVisible, craftPromptVisible, fishingPromptVisible, confirmPromptChoice, activeAutoEventSpot, kurumiShopOpen, selectedShopControl, selectedShopItemIndex, shopItems, gold, equipmentActionOpen, equippedItems, inventoryCounts, caughtFishIds, fishingMiniGameOpen, fishingMiniGameStage]);
+  }, [setupMode, bedTiles, workbenchTiles, fishingTiles, sleepPromptVisible, craftPromptVisible, fishingPromptVisible, confirmPromptChoice, activeAutoEventSpot, activeAutoEventMessage, activeAutoEventMessageIndex, activeAutoEventMessages, displayedAutoEventMessage, turn, kurumiShopOpen, kurumiIntroOpen, kurumiIntroSelectedIndex, kurumiIntroAskedTopics, kurumiIntroCompletedDay, selectedShopControl, selectedShopItemIndex, shopItems, gold, equipmentActionOpen, equippedItems, inventoryCounts, caughtFishIds, fishingMiniGameOpen, fishingMiniGameStage, selectedFishingTutorialAction, selectedFishingResultAction, farmGirlDetailOpen, bootMode]);
 
   // Zone creation states
   const [dragStart, setDragStart] = useState<{ x: number, y: number } | null>(null);
@@ -5065,20 +6053,202 @@ export default function App() {
      if (Math.sqrt(dx * dx + dy * dy) >= 180) return;
 
      playFixSound();
-     playVoiceSound(KURUMI_SHOP_SOUND_SRC);
-     clickTargetRef.current = null;
-     setClickTargetMarker(null);
-     setSelectedShopItemIndex(0);
-     setSelectedShopControl('items');
-     setKurumiShopOpen(true);
+     startKurumiInteraction();
+  };
+
+  const getSlotSummary = (slot: number) => saveSlotSummaries.find(summary => summary.slot === slot);
+  const formatSlotSummary = (slot: number) => {
+     const summary = getSlotSummary(slot);
+     if (!summary?.exists) return '空きスロット';
+     const day = summary.day ?? 1;
+     const debt = (summary.debt ?? 100000000).toLocaleString();
+     const goldText = (summary.gold ?? 0).toLocaleString();
+     const ownedGirlCount = summary.ownedGirlCount ?? 15;
+     return `${day}日目 / 借金 ${debt} G / 所持金 ${goldText} G / 取得娘数 ${ownedGirlCount}人`;
+  };
+  const formatSlotUpdatedAt = (slot: number) => {
+     const summary = getSlotSummary(slot);
+     if (!summary?.updatedAt) return '';
+     const date = new Date(summary.updatedAt);
+     if (Number.isNaN(date.getTime())) return '';
+     return `${date.getMonth() + 1}/${date.getDate()} ${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
   };
 
   return (
     <div className="min-h-screen bg-[#111] flex items-center justify-center p-4 py-8 overflow-hidden select-none" style={{ fontFamily: '"DotGothic16", sans-serif' }}>
       <div style={{ width: 1920 * scale, height: 1156 * scale, position: 'relative' }}>
         <div className="w-[1920px] bg-[#9bb869] border-[8px] border-[#222] rounded-md flex flex-col relative overflow-hidden shadow-2xl" style={{ height: '1156px', transform: `scale(${scale})`, transformOrigin: 'top left' }}>
-          
-        {/* Header UI */}
+          {bootMode !== 'playing' && (
+            <div className="absolute inset-0 z-[300] flex items-center justify-center bg-black">
+              <div className="relative aspect-[1672/941] w-full max-h-full overflow-hidden bg-black">
+                <img src="/img/titleview.png" alt="孕ませ苗床ファーム タイトル" className="absolute inset-0 h-full w-full object-contain" />
+                <button
+                  type="button"
+                  aria-label="はじめから"
+                  onClick={() => { playFixSound(); setTitlePanelMode('new'); }}
+                  className="absolute left-[12.8%] top-[83.9%] h-[9.6%] w-[22.8%] cursor-pointer rounded opacity-0"
+                />
+                <button
+                  type="button"
+                  aria-label="つづきから"
+                  onClick={() => { playFixSound(); setTitlePanelMode('load'); }}
+                  className="absolute left-[38.4%] top-[83.5%] h-[9.8%] w-[20.5%] cursor-pointer rounded opacity-0"
+                />
+                <button
+                  type="button"
+                  aria-label="コンフィグ"
+                  onClick={() => { playFixSound(); setTitlePanelMode('config'); }}
+                  className="absolute left-[61.2%] top-[83.7%] h-[9.8%] w-[19.4%] cursor-pointer rounded opacity-0"
+                />
+
+                {titlePanelMode !== 'none' && (
+                  <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/58 px-8">
+                    <div className="w-[560px] rounded-lg border-4 border-[#ffd166] bg-[#1a100d]/95 p-6 text-[#fdf6e3] shadow-[0_20px_60px_rgba(0,0,0,0.72)]">
+	                      <div className="mb-5 flex items-center justify-between gap-4">
+	                        <div className="text-3xl font-black">
+	                          {titlePanelMode === 'new' ? 'はじめから' : titlePanelMode === 'difficulty' ? '難易度選択' : titlePanelMode === 'load' ? 'つづきから' : 'コンフィグ'}
+	                        </div>
+                        <button
+                          type="button"
+                          onClick={() => { playFixSound(); setTitlePanelMode('none'); }}
+                          className="h-10 w-10 rounded border border-white/40 bg-black/60 text-2xl font-black text-[#fff7dc]"
+                          aria-label="閉じる"
+                        >
+                          ×
+                        </button>
+                      </div>
+
+	                      {(titlePanelMode === 'new' || titlePanelMode === 'load') && (
+                        <div className="grid gap-3">
+                          {Array.from({ length: 5 }).map((_, index) => {
+                            const slot = index + 1;
+                            return (
+	                              <button
+	                                key={slot}
+	                                type="button"
+	                                onClick={() => titlePanelMode === 'new' ? startNewGameInSlot(slot) : continueGameFromSlot(slot)}
+	                                className="grid gap-1 rounded border-2 border-[#bc6c25] bg-[#2d1b15]/90 px-5 py-3 text-left text-[#fdf6e3] hover:border-white hover:bg-[#4a2a1f]"
+	                              >
+	                                <span className="flex items-center justify-between text-xl font-black">
+	                                  <span>セーブスロット {slot}</span>
+	                                  <span className="text-sm text-[#dda15e]">{titlePanelMode === 'new' ? '新規開始' : 'ロード'}</span>
+	                                </span>
+	                                <span className="text-sm font-bold text-[#ffd166]">{formatSlotSummary(slot)}</span>
+	                                {formatSlotUpdatedAt(slot) && (
+	                                  <span className="text-xs font-bold text-[#a3b18a]">更新 {formatSlotUpdatedAt(slot)}</span>
+	                                )}
+	                              </button>
+                            );
+                          })}
+                        </div>
+	                      )}
+
+	                      {titlePanelMode === 'difficulty' && (
+	                        <div className="grid gap-3">
+	                          <div className="rounded border border-[#bc6c25]/70 bg-black/35 px-4 py-3 text-sm font-bold text-[#dda15e]">
+	                            セーブスロット {pendingNewGameSlot ?? 1} で開始する難易度を選択してください。
+	                          </div>
+	                          {DIFFICULTY_OPTIONS.map(option => (
+	                            <button
+	                              key={option.id}
+	                              type="button"
+	                              onClick={() => startNewGameWithDifficulty(option.id)}
+	                              className="grid gap-1 rounded border-2 border-[#bc6c25] bg-[#2d1b15]/90 px-5 py-4 text-left text-[#fdf6e3] hover:border-white hover:bg-[#4a2a1f]"
+	                            >
+	                              <span className="text-2xl font-black">{option.label}</span>
+	                              <span className="text-base font-bold text-[#ffd166]">{option.desc}</span>
+	                            </button>
+	                          ))}
+	                        </div>
+	                      )}
+
+	                      {titlePanelMode === 'config' && (
+                        <div className="grid gap-5">
+                          {[
+                            { label: 'BGM', value: bgmVolume, setValue: setBgmVolume },
+                            { label: 'SE', value: seVolume, setValue: setSeVolume },
+                            { label: 'VOICE', value: voiceVolume, setValue: setVoiceVolume },
+                          ].map(({ label, value, setValue }) => (
+                            <label key={label} className="grid gap-2">
+                              <div className="flex items-center justify-between text-lg font-black">
+                                <span>{label}</span>
+                                <span className="text-[#ffd166]">{Math.round(value * 100)}%</span>
+                              </div>
+                              <input
+                                type="range"
+                                min={0}
+                                max={100}
+                                value={Math.round(value * 100)}
+                                onChange={(event) => setValue(Number(event.target.value) / 100)}
+                                className="farm-volume-slider w-full cursor-pointer"
+                              />
+                            </label>
+                          ))}
+                        </div>
+                      )}
+
+                      {bootMode === 'loadingSave' && (
+                        <div className="mt-4 rounded bg-black/40 px-4 py-2 text-center text-sm font-bold text-[#ffd166]">ロード中...</div>
+                      )}
+                    </div>
+                  </div>
+                )}
+	              </div>
+	            </div>
+	          )}
+	          {bootMode === 'playing' && systemSlotMode !== 'none' && (
+	            <div className="absolute inset-0 z-[310] flex items-center justify-center bg-black/62 px-8">
+	              <div className="w-[680px] rounded-lg border-4 border-[#ffd166] bg-[#1a100d]/96 p-6 text-[#fdf6e3] shadow-[0_20px_60px_rgba(0,0,0,0.72)]">
+	                <div className="mb-5 flex items-center justify-between gap-4">
+	                  <div>
+	                    <div className="text-3xl font-black">{systemSlotMode === 'save' ? 'セーブ' : 'ロード'}</div>
+	                    <div className="mt-1 text-sm font-bold text-[#dda15e]">
+	                      {systemSlotMode === 'save' ? '保存先のスロットを選択してください。' : '読み込むスロットを選択してください。'}
+	                    </div>
+	                  </div>
+	                  <button
+	                    type="button"
+	                    onClick={() => { playFixSound(); setSystemSlotMode('none'); }}
+	                    className="h-10 w-10 rounded border border-white/40 bg-black/60 text-2xl font-black text-[#fff7dc]"
+	                    aria-label="閉じる"
+	                  >
+	                    ×
+	                  </button>
+	                </div>
+	                <div className="grid gap-3">
+	                  {Array.from({ length: 5 }).map((_, index) => {
+	                    const slot = index + 1;
+	                    const summary = getSlotSummary(slot);
+	                    const disabled = systemSlotMode === 'load' && !summary?.exists;
+	                    return (
+	                      <button
+	                        key={slot}
+	                        type="button"
+	                        disabled={disabled}
+	                        onClick={() => systemSlotMode === 'save' ? saveGameToSlot(slot) : loadGameFromSystemSlot(slot)}
+	                        className={`grid gap-1 rounded border-2 px-5 py-3 text-left ${
+	                          disabled
+	                            ? 'cursor-not-allowed border-[#5a3010] bg-black/45 text-[#8a7060]'
+	                            : 'border-[#bc6c25] bg-[#2d1b15]/90 text-[#fdf6e3] hover:border-white hover:bg-[#4a2a1f]'
+	                        }`}
+	                      >
+	                        <span className="flex items-center justify-between text-xl font-black">
+	                          <span>セーブスロット {slot}</span>
+	                          <span className="text-sm text-[#dda15e]">{systemSlotMode === 'save' ? 'ここに保存' : 'ロード'}</span>
+	                        </span>
+	                        <span className="text-sm font-bold text-[#ffd166]">{formatSlotSummary(slot)}</span>
+	                        {formatSlotUpdatedAt(slot) && (
+	                          <span className="text-xs font-bold text-[#a3b18a]">更新 {formatSlotUpdatedAt(slot)}</span>
+	                        )}
+	                      </button>
+	                    );
+	                  })}
+	                </div>
+	              </div>
+	            </div>
+	          )}
+	          
+	        {/* Header UI */}
         <div className="h-[60px] bg-[#2d1b15] border-b-[4px] border-[#bc6c25] flex items-center justify-between px-6 z-40 text-[#fdf6e3]">
           <div className="flex gap-10 text-lg">
             <span className="flex items-center gap-2">
@@ -5209,7 +6379,11 @@ export default function App() {
 
            {/* Background Distortion Animations */}
            <AnimationLayer 
-              zones={zones.filter(z => (!z.map || z.map === currentMap) && isAnimZoneVisibleAtTime(z, timeOfDay))} 
+              zones={zones.filter(z => (
+                 (!z.map || z.map === currentMap) &&
+                 isAnimZoneVisibleAtTime(z, timeOfDay) &&
+                 !(shouldShowFishingTutorialKurumi && z.type === 'kurumi')
+              ))} 
               isSetupMode={setupMode === 'animation'} 
               onZoneDelete={(id) => {
                  setZones(z => z.filter(x => x.id !== id));
@@ -5466,7 +6640,45 @@ export default function App() {
                     />
                  </div>
               );
-           })}
+           })} 
+
+           {setupMode === 'none' && shouldShowFishingTutorialKurumi && (
+              <button
+                 type="button"
+                 onPointerDown={(e) => e.stopPropagation()}
+                 onClick={(e) => {
+                    e.stopPropagation();
+                    if (!isNearFishingTutorialKurumi(pos)) {
+                       setDialogMessage('くるみにもっと近づいて話しかけよう。');
+                       return;
+                    }
+                    openFishingTutorial();
+                 }}
+                 className="absolute z-[38] cursor-pointer border-0 bg-transparent p-0 text-left"
+                 style={{
+                    left: FISHING_TUTORIAL_KURUMI_ZONE.x + FISHING_TUTORIAL_KURUMI_ZONE.w / 2 - FISHING_TUTORIAL_KURUMI_LABEL_W / 2,
+                    top: FISHING_TUTORIAL_KURUMI_ZONE.y - FISHING_TUTORIAL_KURUMI_LABEL_H,
+                    width: FISHING_TUTORIAL_KURUMI_LABEL_W,
+                    height: FISHING_TUTORIAL_KURUMI_ZONE.h + FISHING_TUTORIAL_KURUMI_LABEL_H,
+                 }}
+                 aria-label="釣りのチュートリアル"
+              >
+                 <div className="pointer-events-none absolute left-0 top-0 w-full rounded-2xl border-2 border-[#67e8f9] bg-[#1a100d]/95 px-4 py-2 text-center text-sm font-black text-[#fdf6e3] shadow-[0_0_18px_rgba(103,232,249,0.45)]">
+                    釣りのチュートリアル
+                    <div className="absolute left-1/2 top-full h-0 w-0 -translate-x-1/2 border-x-[10px] border-t-[12px] border-x-transparent border-t-[#67e8f9]" />
+                 </div>
+                 <img
+                    src="/img/kurumi1.png"
+                    alt="くるみ"
+                    className="pointer-events-none absolute bottom-0 left-1/2 object-contain object-bottom drop-shadow-[0_12px_14px_rgba(0,0,0,0.55)]"
+                    style={{
+                       width: FISHING_TUTORIAL_KURUMI_ZONE.w,
+                       height: FISHING_TUTORIAL_KURUMI_ZONE.h,
+                       transform: 'translateX(-50%)',
+                    }}
+                 />
+              </button>
+           )}
 
            {/* Play mode inspect markers */}
            {setupMode === 'none' && inspectSpots.filter(spot => spot.map === currentMap && !spot.autoTrigger).map(spot => {
@@ -5580,6 +6792,9 @@ export default function App() {
                 <div className="w-[820px] max-w-[calc(100%-32px)] rounded-2xl border-[4px] border-[#67e8f9] bg-[linear-gradient(180deg,rgba(39,22,16,0.98),rgba(14,9,8,0.98))] p-5 text-center text-[#fdf6e3] shadow-[0_18px_48px_rgba(0,0,0,0.72),inset_0_0_24px_rgba(103,232,249,0.08)]">
                    <div className="mb-2 text-sm font-bold tracking-[0.22em] text-[#67e8f9] drop-shadow-[0_0_10px_rgba(103,232,249,0.7)]">FISHING</div>
                    <div className="mb-3 text-2xl font-bold drop-shadow-[0_2px_0_rgba(0,0,0,0.8)]">投げる方向を決めよう</div>
+                   <div className="mb-3 text-base font-bold text-[#ffd166] drop-shadow-[0_2px_0_rgba(0,0,0,0.8)]">
+                      黄色い範囲に合わせて投げればHITしやすくなるぞ！
+                   </div>
                    <div className="relative mb-4 aspect-[16/9] overflow-hidden rounded-xl border-2 border-[#fdf6e3]/70 bg-black shadow-[inset_0_0_24px_rgba(0,0,0,0.72),0_10px_28px_rgba(0,0,0,0.55)]">
                       <img
                          src={FISHING_SCENE_CAST_SRC}
@@ -5604,24 +6819,30 @@ export default function App() {
              const baseY = height - 24;
              const angleDeg = (fishingGauge - 50) * 1.2;
              const angleRad = angleDeg * Math.PI / 180;
-             const needleLength = radiusY - 18;
+             const fanRayLength = Math.hypot(radiusX, radiusY);
+             const needleLength = fanRayLength;
              const needleX = centerX + Math.sin(angleRad) * needleLength;
              const needleY = baseY - Math.cos(angleRad) * needleLength;
              const leftX = centerX - radiusX;
              const rightX = centerX + radiusX;
              const topY = baseY - radiusY;
-             const sweetSpotLeftAngle = (FISHING_FAN_SWEET_MIN - 50) * 1.2 * Math.PI / 180;
-             const sweetSpotRightAngle = (FISHING_FAN_SWEET_MAX - 50) * 1.2 * Math.PI / 180;
-             const sweetSpotLength = radiusY - 12;
+             const fanPath = `M${centerX} ${baseY} L${leftX} ${topY} A${radiusX} ${radiusY} 0 0 1 ${rightX} ${topY} Z`;
+             const sweetSpotLeftAngle = (fishingFanSweetMin - 50) * 1.2 * Math.PI / 180;
+             const sweetSpotRightAngle = (fishingFanSweetMax - 50) * 1.2 * Math.PI / 180;
+             const sweetSpotLength = fanRayLength;
              const sweetLeftX = centerX + Math.sin(sweetSpotLeftAngle) * sweetSpotLength;
              const sweetLeftY = baseY - Math.cos(sweetSpotLeftAngle) * sweetSpotLength;
              const sweetRightX = centerX + Math.sin(sweetSpotRightAngle) * sweetSpotLength;
              const sweetRightY = baseY - Math.cos(sweetSpotRightAngle) * sweetSpotLength;
+             const sweetSpotPath = `M${centerX} ${baseY} L${sweetLeftX} ${sweetLeftY} A${radiusX} ${radiusY} 0 0 1 ${sweetRightX} ${sweetRightY} Z`;
+             const overlayLeft = isFishingTutorialRun
+                ? clampNumber(pos.x + 260, width / 2 + 24, GAME_WIDTH - width / 2 - 260)
+                : pos.x;
 
              return (
              <div
                 className="absolute z-[82] pointer-events-auto -translate-x-1/2 -translate-y-full"
-                style={{ left: pos.x, top: Math.max(height + 62, pos.y - 34), width, height }}
+                style={{ left: overlayLeft, top: Math.max(height + 62, pos.y - 34), width, height }}
                 onPointerDown={(e) => {
                    e.preventDefault();
                    e.stopPropagation();
@@ -5633,23 +6854,30 @@ export default function App() {
                    className="absolute left-0 top-0 h-full w-full drop-shadow-[0_10px_18px_rgba(0,0,0,0.65)]"
                    aria-hidden="true"
                 >
+                   <defs>
+                      <clipPath id="fishing-direction-fan-clip">
+                         <path d={fanPath} />
+                      </clipPath>
+                   </defs>
                    <path
-                      d={`M${centerX} ${baseY} L${leftX} ${topY} A${radiusX} ${radiusY} 0 0 1 ${rightX} ${topY} Z`}
+                      d={fanPath}
                       fill={`rgba(253, 246, 227, ${fishingFanConfig.opacity})`}
                    />
                    <path
-                      d={`M${centerX} ${baseY} L${sweetLeftX} ${sweetLeftY} A${radiusX} ${radiusY} 0 0 1 ${sweetRightX} ${sweetRightY} Z`}
+                      d={sweetSpotPath}
+                      clipPath="url(#fishing-direction-fan-clip)"
                       fill="rgba(255, 209, 102, 0.34)"
                       stroke="rgba(255, 247, 173, 0.72)"
-                      strokeWidth="2"
+                      strokeWidth="1"
                    />
                    <line
                       x1={centerX}
                       y1={baseY}
                       x2={needleX}
                       y2={needleY}
+                      clipPath="url(#fishing-direction-fan-clip)"
                       stroke="#ffd166"
-                      strokeWidth="8"
+                      strokeWidth="4"
                       strokeLinecap="round"
                    />
                    <line
@@ -5657,8 +6885,9 @@ export default function App() {
                       y1={baseY}
                       x2={needleX}
                       y2={needleY}
+                      clipPath="url(#fishing-direction-fan-clip)"
                       stroke="rgba(255,255,255,0.45)"
-                      strokeWidth="2"
+                      strokeWidth="1.25"
                       strokeLinecap="round"
                    />
                 </svg>
@@ -5961,6 +7190,9 @@ export default function App() {
                        src={fishingSceneImage}
                        alt="釣り"
                        className="h-full w-full object-cover opacity-100 transition-opacity duration-700"
+                       onError={(event) => {
+                          event.currentTarget.src = FISHING_SCENE_ESCAPE_SRC;
+                       }}
                     />
                     <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_48%,rgba(0,0,0,0.28)_100%)]" />
                     {fishingMiniGameStage === 'bite' && (
@@ -6045,15 +7277,15 @@ export default function App() {
                                    <div className="absolute left-[95.238%] top-0 h-full w-[4.762%] bg-[#ef4444]/85" />
                                 </>
                              )}
-                             {(fishingMiniGameStage === 'hit' || fishingMiniGameStage === 'keep') && (
-                                <div
-                                   className="absolute top-0 h-full bg-[linear-gradient(180deg,rgba(134,239,172,0.92),rgba(34,197,94,0.72))] shadow-[0_0_18px_rgba(34,197,94,0.55)]"
-                                   style={{
-                                      left: `${fishingHitGreenMin}%`,
-                                      width: `${fishingHitGreenWidth}%`,
-                                   }}
-                                />
-                             )}
+	                             {(fishingMiniGameStage === 'hit' || fishingMiniGameStage === 'keep') && (
+	                                <div
+	                                   className="absolute top-0 h-full bg-[linear-gradient(180deg,rgba(134,239,172,0.92),rgba(34,197,94,0.72))] shadow-[0_0_18px_rgba(34,197,94,0.55)]"
+	                                   style={{
+	                                      left: `${fishingMiniGameStage === 'keep' ? fishingKeepGreenMin : fishingHitGreenMin}%`,
+	                                      width: `${fishingMiniGameStage === 'keep' ? fishingKeepGreenWidth : fishingHitGreenWidth}%`,
+	                                   }}
+	                                />
+	                             )}
                              <div
                                 className="absolute top-1/2 h-[130%] w-3 -translate-x-1/2 -translate-y-1/2 rounded-full bg-[#ffd166] shadow-[0_0_16px_rgba(255,209,102,0.95),0_0_0_2px_rgba(255,255,255,0.4)]"
                                 style={{ left: `${gaugeLeft}%` }}
@@ -6074,13 +7306,13 @@ export default function App() {
                              残り {fishingHitLimitSeconds.toFixed(1)} 秒
                           </div>
                        )}
-                       {fishingMiniGameStage === 'power' && (
-                          <div className="mt-2 grid grid-cols-3 gap-2 text-[11px] font-bold">
-                             <div className="rounded bg-[#eab308]/25 px-2 py-1 text-[#fde68a]">70-90% GOOD</div>
-                             <div className="rounded bg-[#22c55e]/25 px-2 py-1 text-[#bbf7d0]">90-100% BEST</div>
-                             <div className="rounded bg-[#ef4444]/25 px-2 py-1 text-[#fecaca]">100-105% OVER</div>
-                          </div>
-                       )}
+	                       {fishingMiniGameStage === 'power' && (
+	                          <div className="mt-2 grid grid-cols-3 gap-2 text-[11px] font-bold">
+	                             <div className="rounded bg-[#eab308]/25 px-2 py-1 text-[#fde68a]">70-90% GOOD</div>
+	                             <div className="rounded bg-[#22c55e]/25 px-2 py-1 text-[#bbf7d0]">100-105% BEST</div>
+	                             <div className="rounded bg-[#ef4444]/25 px-2 py-1 text-[#fecaca]">105% MAX</div>
+	                          </div>
+	                       )}
                        {fishingMiniGameStage === 'keep' && (
                           <div className="mt-2 rounded-full border border-[#67e8f9]/25 bg-black/25 px-4 py-1.5 text-xs font-bold text-[#dda15e]">
                              長押しで左へ戻す / 離すと右へ進む / テンションMAXで糸切れ
@@ -6133,9 +7365,53 @@ export default function App() {
                              記録更新！
                           </div>
                        )}
-                       <div className="mt-3 text-sm text-[#c8a87a]">
-                          {!isFishingResultInputLocked && 'クリック / Enter / Space で閉じる'}
-                       </div>
+                       {isFishingTutorialRun ? (
+                          <div className="mt-4 grid gap-3">
+                             <div className="whitespace-pre-line rounded-xl border border-[#dda15e]/45 bg-[#2d1b15]/72 px-4 py-3 text-left text-sm font-bold leading-relaxed text-[#fdf6e3]">
+                                {fishingTutorialResult === 'success'
+                                   ? 'くるみ\n「やったぁー！\nお兄さん初めてなのに上手〜！\nこの調子でどんどん釣って、\n釣り名人になってね♪\n大きい魚ほど暴れるけど、\nそのぶんくるみが高く買い取っちゃうよ！\nこれで立派な釣り人デビューだね♪」'
+                                   : 'くるみ\n「あーっ、逃げられちゃった！\nでも大丈夫！\n釣りは焦らないのがコツだから、もう一回やってみよう！」'}
+                             </div>
+                             <div className="flex justify-center gap-3">
+                                <button
+                                   type="button"
+                                   onMouseEnter={() => setSelectedFishingResultAction('retry')}
+                                   onPointerDown={(event) => event.stopPropagation()}
+                                   onClick={(event) => { event.stopPropagation(); retryFishingTutorial(); }}
+                                   className={`relative flex h-11 w-44 items-center justify-center rounded-lg border-2 px-4 text-sm font-black transition-all ${
+                                      selectedFishingResultAction === 'retry'
+                                         ? 'border-[#fdf6e3] bg-[#0e7490] text-white shadow-[0_0_18px_rgba(103,232,249,0.85)] ring-2 ring-[#67e8f9]'
+                                         : 'border-[#67e8f9] bg-[#164e63] text-[#fdf6e3] hover:bg-[#0e7490]'
+                                   }`}
+                                >
+                                   {selectedFishingResultAction === 'retry' && (
+                                      <span className="absolute left-3 text-[#ffd166]">▶</span>
+                                   )}
+                                   もう一度挑戦！
+                                </button>
+                                <button
+                                   type="button"
+                                   onMouseEnter={() => setSelectedFishingResultAction('complete')}
+                                   onPointerDown={(event) => event.stopPropagation()}
+                                   onClick={(event) => { event.stopPropagation(); completeFishingTutorial(); }}
+                                   className={`relative flex h-11 w-44 items-center justify-center rounded-lg border-2 px-4 text-sm font-black transition-all ${
+                                      selectedFishingResultAction === 'complete'
+                                         ? 'border-[#fdf6e3] bg-[#b45309] text-white shadow-[0_0_18px_rgba(255,209,102,0.85)] ring-2 ring-[#ffd166]'
+                                         : 'border-[#ffd166] bg-[#7a4317] text-[#fdf6e3] hover:bg-[#8d4f1b]'
+                                   }`}
+                                >
+                                   {selectedFishingResultAction === 'complete' && (
+                                      <span className="absolute left-3 text-[#67e8f9]">▶</span>
+                                   )}
+                                   チュートリアルを終わる
+                                </button>
+                             </div>
+                          </div>
+                       ) : (
+                          <div className="mt-3 text-sm text-[#c8a87a]">
+                             {!isFishingResultInputLocked && 'クリック / Enter / Space で閉じる'}
+                          </div>
+                       )}
                     </div>
                  )}
               </div>
@@ -6198,7 +7474,123 @@ export default function App() {
                        <p className="min-h-[64px] text-[22px] leading-relaxed">
                           {displayedAutoEventMessage}
                        </p>
+                       {activeAutoEventMessages.length > 1 && (
+                          <div className="mt-3 text-right text-xs font-bold text-[#dda15e]">
+                             {activeAutoEventMessageIndex + 1} / {activeAutoEventMessages.length}
+                          </div>
+                       )}
                     </div>
+                 </div>
+              </div>
+           </div>
+        )}
+
+        {fishingTutorialOpen && (
+           <div className="absolute inset-0 z-[88] flex items-center justify-center bg-black/55 px-8">
+              <div className="grid h-[690px] w-[1120px] grid-cols-[1fr_390px] overflow-hidden rounded-2xl border-[4px] border-[#67e8f9] bg-[#1a100d]/96 text-[#fdf6e3] shadow-2xl">
+                 <div className="flex min-h-0 flex-col gap-4 p-8">
+                    <div>
+                       <div className="text-sm font-bold tracking-[0.28em] text-[#67e8f9]">FISHING LESSON</div>
+                       <div className="mt-2 text-3xl font-black">釣りのチュートリアル</div>
+                    </div>
+                    <div className="min-h-[260px] flex-1 whitespace-pre-line rounded-xl border-2 border-[#bc6c25]/70 bg-[#2d1b15]/85 p-5 text-[21px] font-bold leading-[1.48]">
+                       くるみ
+                       {'\n'}「{currentFishingTutorialStep.message}」
+                    </div>
+                    <div className="flex items-center justify-between gap-4">
+                       <div className="text-sm font-bold text-[#a3b18a]">
+                          {fishingTutorialStepIndex + 1} / {FISHING_TUTORIAL_STEPS.length}
+                       </div>
+                       <div className="flex gap-3">
+                          <button
+                             type="button"
+                             onMouseEnter={() => setSelectedFishingTutorialAction('later')}
+                             onClick={() => { playFixSound(); setFishingTutorialOpen(false); }}
+                             className={`rounded-lg border-2 px-5 py-2 text-sm font-black transition-all ${
+                                selectedFishingTutorialAction === 'later'
+                                   ? 'scale-105 border-[#ffd166] bg-[#5a3010] text-[#fdf6e3] shadow-[0_0_16px_rgba(255,209,102,0.45)]'
+                                   : 'border-[#5a3010] bg-black/45 text-[#dda15e] hover:bg-[#3a2418]'
+                             }`}
+                          >
+                             あとで
+                          </button>
+                          <button
+                             type="button"
+                             onMouseEnter={() => setSelectedFishingTutorialAction('next')}
+                             onClick={advanceFishingTutorial}
+                             className={`rounded-lg border-2 px-6 py-2 text-sm font-black transition-all ${
+                                selectedFishingTutorialAction === 'next'
+                                   ? 'scale-105 border-[#fff3b0] bg-[#9a5a1d] text-white shadow-[0_0_18px_rgba(255,209,102,0.55)]'
+                                   : 'border-[#8d6420] bg-[#5a3010] text-[#dda15e] hover:bg-[#7a4317] hover:text-[#fdf6e3]'
+                             }`}
+                          >
+                             {fishingTutorialStepIndex >= FISHING_TUTORIAL_STEPS.length - 1 ? '釣ってみる！' : '次へ'}
+                          </button>
+                       </div>
+                    </div>
+                 </div>
+                 <div className="relative border-l border-[#67e8f9]/45 bg-gradient-to-b from-[#15313a] to-[#160d0a]">
+                    <div className="absolute left-8 right-8 top-8 z-10 rounded-2xl border-2 border-[#f1c27d]/80 bg-[#fdf6e3]/95 px-6 py-4 text-[#2d1b15] shadow-xl">
+                       <div className="text-2xl font-black tracking-wide">くるみ</div>
+                       <div className="mt-1 text-[19px] font-bold leading-snug">ここで釣りを覚えよっ！</div>
+                    </div>
+                    {renderFishingTutorialVisual()}
+                 </div>
+              </div>
+           </div>
+        )}
+
+        {kurumiIntroOpen && (
+           <div className={`absolute inset-0 z-[89] flex items-center justify-center bg-black/55 transition-opacity duration-[650ms] ${kurumiIntroClosing ? 'pointer-events-none opacity-0' : 'pointer-events-auto opacity-100'}`}>
+              <div className="grid h-[720px] w-[1120px] grid-cols-[1fr_430px] overflow-hidden rounded-2xl border-[4px] border-[#dda15e] bg-[#1a100d]/96 text-[#fdf6e3] shadow-2xl">
+                 <div className="flex min-h-0 min-w-0 flex-col gap-4 p-8">
+                    <div>
+                       <div className="text-sm font-bold tracking-[0.28em] text-[#67e8f9]">KURUMI</div>
+                       <div className="mt-2 text-3xl font-black">くるみ</div>
+                    </div>
+                    <div className="h-[218px] overflow-hidden whitespace-pre-line rounded-xl border-2 border-[#bc6c25]/70 bg-[#2d1b15]/80 p-5 text-[20px] font-bold leading-[1.42]">
+                       {kurumiIntroMessage}
+                    </div>
+                    <div className="grid gap-2">
+                       {[...KURUMI_INTRO_TOPICS, { id: 'close' as const, label: 'とくにない', answer: '' }].map((topic, index) => {
+                          const isSelected = kurumiIntroSelectedIndex === index;
+                          const isAsked = topic.id !== 'close' && kurumiIntroAskedTopics.includes(topic.id);
+                          const canClose = topic.id !== 'close' || hasAskedAllKurumiIntroTopics;
+                          return (
+                             <button
+                                key={topic.id}
+                                type="button"
+                                onMouseEnter={() => {
+                                  if (!isSelected) playCursorSound();
+                                  setKurumiIntroSelectedIndex(index);
+                                }}
+                                onClick={() => handleKurumiIntroChoice(index)}
+                                className={`flex h-[52px] items-center justify-between rounded-lg border-2 px-5 text-left text-[20px] font-bold transition-colors ${
+                                  isSelected ? 'border-white bg-[#bc6c25]/70' : 'border-[#5a3010] bg-[#2d1b15]/75 hover:bg-[#3a2418]'
+                                } ${canClose ? 'text-[#fdf6e3]' : 'text-[#8a7060]'}`}
+                             >
+                                <span>{topic.label}</span>
+                                {isAsked && <span className="rounded-full border border-[#ffd166]/70 px-3 py-1 text-sm text-[#ffd166]">聞いた</span>}
+                             </button>
+                          );
+                       })}
+                    </div>
+                    <div className="mt-auto flex gap-4 text-sm font-bold text-[#a3b18a]">
+                       <span>↑↓ 選択</span>
+                       <span>Enter 決定</span>
+                       <span>{hasAskedAllKurumiIntroTopics ? 'Esc 終了' : '全部聞くと終了できます'}</span>
+                    </div>
+                 </div>
+                 <div className="relative border-l border-[#bc6c25]/60 bg-gradient-to-b from-[#3b2418] to-[#160d0a]">
+                    <div className="absolute left-8 right-8 top-8 z-10 rounded-2xl border-2 border-[#f1c27d]/80 bg-[#fdf6e3]/95 px-6 py-4 text-[#2d1b15] shadow-xl">
+                       <div className="text-2xl font-black tracking-wide">くるみ</div>
+                       <div className="mt-1 text-[20px] font-bold leading-snug">なんでも聞いてねっ！</div>
+                    </div>
+                    <img
+                       src="/img/kurumi.png"
+                       alt="くるみ"
+                       className="absolute inset-x-0 bottom-0 mx-auto h-[610px] w-[500px] object-contain object-bottom drop-shadow-[0_28px_32px_rgba(0,0,0,0.6)]"
+                    />
                  </div>
               </div>
            </div>
@@ -6210,7 +7602,8 @@ export default function App() {
            selectedShopControl={selectedShopControl}
            setSelectedShopControl={setSelectedShopControl}
            setSelectedShopItemIndex={setSelectedShopItemIndex}
-           shopItems={shopItems}
+           shopItems={shopItemsForDisplay}
+           inventoryCounts={inventoryCounts}
            gold={gold}
            kurumiTradeTotal={kurumiTradeTotal}
            isShopTradePose={isShopTradePose}
@@ -6769,6 +8162,10 @@ export default function App() {
            setFishingFanHeight={setFishingFanHeight}
            fishingFanOpacity={fishingFanConfig.opacity}
            setFishingFanOpacity={setFishingFanOpacity}
+           fishingFanSweetMin={fishingFanSweetMin}
+           setFishingFanSweetMin={setFishingFanSweetMin}
+           fishingFanSweetMax={fishingFanSweetMax}
+           setFishingFanSweetMax={setFishingFanSweetMax}
         />
       </div>
      </div>

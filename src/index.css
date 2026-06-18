@@ -328,3 +328,103 @@ canvas {
     filter: brightness(1) saturate(1);
   }
 }
+
+.farm-tutorial-fan-needle {
+  transform-origin: 130px 230px;
+  animation: farmTutorialFanNeedle 2.2s ease-in-out infinite alternate;
+}
+
+.farm-tutorial-power-marker {
+  animation: farmTutorialPowerMarker 1.8s ease-in-out infinite alternate;
+}
+
+.farm-tutorial-bite-ring {
+  animation: farmTutorialBiteRing 1.35s ease-in-out infinite;
+}
+
+.farm-tutorial-hit-count::before {
+  content: "HIT";
+  animation: farmTutorialHitCount 4.2s steps(1, end) infinite;
+}
+
+.farm-tutorial-keep-marker {
+  animation: farmTutorialKeepMarker 2.5s ease-in-out infinite;
+}
+
+@keyframes farmTutorialFanNeedle {
+  0% {
+    transform: rotate(-28deg);
+  }
+  100% {
+    transform: rotate(28deg);
+  }
+}
+
+@keyframes farmTutorialPowerMarker {
+  0% {
+    left: 4%;
+  }
+  45% {
+    left: 88%;
+  }
+  62% {
+    left: 72%;
+  }
+  100% {
+    left: 96%;
+  }
+}
+
+@keyframes farmTutorialBiteRing {
+  0% {
+    width: 210px;
+    height: 210px;
+    opacity: 0.25;
+  }
+  62% {
+    width: 96px;
+    height: 96px;
+    opacity: 1;
+  }
+  100% {
+    width: 62px;
+    height: 62px;
+    opacity: 0.2;
+  }
+}
+
+@keyframes farmTutorialHitCount {
+  0%, 20% {
+    content: "HIT";
+  }
+  21%, 40% {
+    content: "3";
+  }
+  41%, 60% {
+    content: "2";
+  }
+  61%, 80% {
+    content: "1";
+  }
+  81%, 100% {
+    content: "KEEP";
+  }
+}
+
+@keyframes farmTutorialKeepMarker {
+  0% {
+    left: 30%;
+  }
+  28% {
+    left: 48%;
+  }
+  55% {
+    left: 61%;
+  }
+  78% {
+    left: 43%;
+  }
+  100% {
+    left: 55%;
+  }
+}

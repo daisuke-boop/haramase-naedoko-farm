@@ -10,6 +10,7 @@ var PORT = process.env.PORT || 4173;
 var SAVE_DIR = path.resolve(__dirname, "saves");
 var SAVE_FILE = path.resolve(SAVE_DIR, "save_data.json");
 var PREVIOUS_SAVE_FILE = path.resolve(SAVE_DIR, "save_data.previous.json");
+var SAVE_SLOT_COUNT = 5;
 var GRID_COLS = 128;
 var GRID_ROWS = 72;
 var VALID_MAPS = /* @__PURE__ */ new Set(["farm", "house", "shed", "waterfall", "kawa", "doukutsu", "takiura"]);
@@ -61,6 +62,38 @@ var countObstacleMaps = (obstacles) => {
   });
   return counts;
 };
+var getSaveSlot = (rawSlot) => {
+  const slot = Number(rawSlot ?? 1);
+  return Number.isInteger(slot) && slot >= 1 && slot <= SAVE_SLOT_COUNT ? slot : 1;
+};
+var getSaveFileForSlot = (slot) => slot === 1 ? SAVE_FILE : path.resolve(SAVE_DIR, `save_data.slot${slot}.json`);
+var getPreviousSaveFileForSlot = (slot) => slot === 1 ? PREVIOUS_SAVE_FILE : path.resolve(SAVE_DIR, `save_data.slot${slot}.previous.json`);
+var createSaveSlotSummary = (slot) => {
+  const saveFile = getSaveFileForSlot(slot);
+  if (!fs.existsSync(saveFile)) {
+    return { slot, exists: false };
+  }
+  const data = JSON.parse(fs.readFileSync(saveFile, "utf8"));
+  const stat = fs.statSync(saveFile);
+  const turn = typeof data.turn === "number" && Number.isFinite(data.turn) ? data.turn : 0;
+  const day = Math.floor(turn / 4) + 1;
+  const debt = typeof data.debt === "number" && Number.isFinite(data.debt) ? data.debt : 1e8;
+  const gold = typeof data.gold === "number" && Number.isFinite(data.gold) ? data.gold : 5e3;
+  const map = typeof data.currentMap === "string" && VALID_MAPS.has(data.currentMap) ? data.currentMap : "farm";
+  const ownedGirlCount = Array.isArray(data.ownedGirls) ? data.ownedGirls.length : Array.isArray(data.unlockedGirls) ? data.unlockedGirls.length : 15;
+  const caughtFishCount = Array.isArray(data.caughtFishIds) ? data.caughtFishIds.length : 0;
+  return {
+    slot,
+    exists: true,
+    day,
+    debt,
+    gold,
+    map,
+    updatedAt: stat.mtime.toISOString(),
+    ownedGirlCount,
+    caughtFishCount
+  };
+};
 var hasSuspiciousObstacleLoss = (currentData, nextData) => {
   const currentCounts = countObstacleMaps(currentData.obstacles);
   const nextCounts = countObstacleMaps(nextData.obstacles);
@@ -73,8 +106,10 @@ var hasSuspiciousObstacleLoss = (currentData, nextData) => {
 app.use(express.json({ limit: "50mb" }));
 app.get("/api/save", (req, res) => {
   try {
-    if (fs.existsSync(SAVE_FILE)) {
-      const data = fs.readFileSync(SAVE_FILE, "utf8");
+    const slot = getSaveSlot(req.query.slot);
+    const saveFile = getSaveFileForSlot(slot);
+    if (fs.existsSync(saveFile)) {
+      const data = fs.readFileSync(saveFile, "utf8");
       res.setHeader("Content-Type", "application/json");
       return res.send(data);
     } else {
@@ -85,14 +120,25 @@ app.get("/api/save", (req, res) => {
     return res.status(500).json({ error: "\u30BB\u30FC\u30D6\u30C7\u30FC\u30BF\u306E\u8AAD\u307F\u8FBC\u307F\u306B\u5931\u6557\u3057\u307E\u3057\u305F\u3002" });
   }
 });
+app.get("/api/save-slots", (req, res) => {
+  try {
+    return res.json(Array.from({ length: SAVE_SLOT_COUNT }, (_, index) => createSaveSlotSummary(index + 1)));
+  } catch (error) {
+    console.error("\u30BB\u30FC\u30D6\u30B9\u30ED\u30C3\u30C8\u4E00\u89A7\u306E\u8AAD\u307F\u8FBC\u307F\u306B\u5931\u6557\u3057\u307E\u3057\u305F:", error);
+    return res.status(500).json({ error: "\u30BB\u30FC\u30D6\u30B9\u30ED\u30C3\u30C8\u4E00\u89A7\u306E\u8AAD\u307F\u8FBC\u307F\u306B\u5931\u6557\u3057\u307E\u3057\u305F\u3002" });
+  }
+});
 app.post("/api/save", (req, res) => {
   try {
+    const slot = getSaveSlot(req.query.slot);
+    const saveFile = getSaveFileForSlot(slot);
+    const previousSaveFile = getPreviousSaveFileForSlot(slot);
     const sanitizedBody = sanitizeSaveData(req.body);
     if (!fs.existsSync(SAVE_DIR)) {
       fs.mkdirSync(SAVE_DIR, { recursive: true });
     }
-    if (fs.existsSync(SAVE_FILE)) {
-      const currentData = JSON.parse(fs.readFileSync(SAVE_FILE, "utf8"));
+    if (fs.existsSync(saveFile)) {
+      const currentData = JSON.parse(fs.readFileSync(saveFile, "utf8"));
       const currentObstacleCount = Object.keys(currentData.obstacles ?? {}).length;
       const nextObstacleCount = Object.keys(sanitizedBody.obstacles ?? {}).length;
       const currentDoorCount = Array.isArray(currentData.doors) ? currentData.doors.length : 0;
@@ -105,9 +151,9 @@ app.post("/api/save", (req, res) => {
         console.warn("\u885D\u7A81\u8A2D\u5B9A\u304C\u5927\u304D\u304F\u6B20\u3051\u308B\u30BB\u30FC\u30D6\u4E0A\u66F8\u304D\u3092\u62D2\u5426\u3057\u307E\u3057\u305F\u3002");
         return res.status(409).json({ error: "\u885D\u7A81\u8A2D\u5B9A\u304C\u5927\u304D\u304F\u6B20\u3051\u308B\u30BB\u30FC\u30D6\u4E0A\u66F8\u304D\u3092\u62D2\u5426\u3057\u307E\u3057\u305F\u3002" });
       }
-      fs.copyFileSync(SAVE_FILE, PREVIOUS_SAVE_FILE);
+      fs.copyFileSync(saveFile, previousSaveFile);
     }
-    fs.writeFileSync(SAVE_FILE, JSON.stringify(sanitizedBody, null, 2), "utf8");
+    fs.writeFileSync(saveFile, JSON.stringify(sanitizedBody, null, 2), "utf8");
     return res.json({ success: true });
   } catch (error) {
     console.error("\u30BB\u30FC\u30D6\u30C7\u30FC\u30BF\u306E\u66F8\u304D\u8FBC\u307F\u306B\u5931\u6557\u3057\u307E\u3057\u305F:", error);

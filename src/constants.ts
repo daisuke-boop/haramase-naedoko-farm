@@ -208,8 +208,14 @@ export const BATH_CHANGE_SOUND_SRC = '/se/cloak.mp3';
 export const BATH_SPLASH_SOUND_SRC = '/se/chapon.mp3';
 export const FISH_RESULT_SOUND_SRC = '/voice/fish-result.wav';
 export const FISH_LOSE_SOUND_SRC = '/voice/fish-lose.wav';
+export const TITLE_BGM_SRC = '/bgm/title.mp3';
 export const SHOP_BGM_SRC = '/bgm/shop.mp3';
 export const KURUMI_SHOP_SOUND_SRC = '/voice/kurumi.wav';
+export const KURUMI_START_SOUND_SRC = '/voice/kurumi-start.wav';
+export const KURUMI_START2_SOUND_SRC = '/voice/kurumi-start2.wav';
+export const KURUMI_START3_SOUND_SRC = '/voice/kurumi-start3.wav';
+export const KURUMI_START4_SOUND_SRC = '/voice/kurumi-start4.wav';
+export const KURUMI_START5_SOUND_SRC = '/voice/kurumi-start5.wav';
 export const RIVER_HEAR_DISTANCE = 360;
 export const FIREPLACE_HEAR_DISTANCE = 520;
 export const FARM_RIVER_POINTS = [
@@ -222,6 +228,7 @@ export const FARM_RIVER_POINTS = [
 ];
 
 export const AUDIO_FILE_ENTRIES: { src: string; label: string; category: AudioCategory }[] = [
+  { src: TITLE_BGM_SRC, label: 'BGM: タイトル', category: 'bgm' },
   { src: '/bgm/farmbgm.wav', label: 'BGM: 牧場', category: 'bgm' },
   { src: '/bgm/ie.mp3', label: 'BGM: 家・小屋', category: 'bgm' },
   { src: '/bgm/yado.mp3', label: 'BGM: 宿（就寝）', category: 'bgm' },
@@ -250,6 +257,11 @@ export const AUDIO_FILE_ENTRIES: { src: string; label: string; category: AudioCa
   { src: FISH_RESULT_SOUND_SRC, label: 'VOICE: 釣果', category: 'voice' },
   { src: FISH_LOSE_SOUND_SRC, label: 'VOICE: 釣り失敗', category: 'voice' },
   { src: KURUMI_SHOP_SOUND_SRC, label: 'VOICE: くるみ商店あいさつ', category: 'voice' },
+  { src: KURUMI_START_SOUND_SRC, label: 'VOICE: くるみ初回会話', category: 'voice' },
+  { src: KURUMI_START2_SOUND_SRC, label: 'VOICE: くるみ 村説明', category: 'voice' },
+  { src: KURUMI_START3_SOUND_SRC, label: 'VOICE: くるみ 借金説明', category: 'voice' },
+  { src: KURUMI_START4_SOUND_SRC, label: 'VOICE: くるみ 苗床説明', category: 'voice' },
+  { src: KURUMI_START5_SOUND_SRC, label: 'VOICE: くるみ パンツ質問', category: 'voice' },
 ];
 
 export const BGM_FILE_ENTRIES = AUDIO_FILE_ENTRIES.filter(entry => entry.category === 'bgm');

@@ -15,6 +15,7 @@ type ShopOverlayProps = {
   setSelectedShopControl: React.Dispatch<React.SetStateAction<'items' | 'action' | 'close'>>;
   setSelectedShopItemIndex: React.Dispatch<React.SetStateAction<number>>;
   shopItems: ShopItem[];
+  inventoryCounts: Record<string, number>;
   gold: number;
   kurumiTradeTotal: number;
   isShopTradePose: boolean;
@@ -34,6 +35,7 @@ const ShopOverlay = ({
   setSelectedShopControl,
   setSelectedShopItemIndex,
   shopItems,
+  inventoryCounts,
   gold,
   kurumiTradeTotal,
   isShopTradePose,
@@ -48,6 +50,7 @@ const ShopOverlay = ({
   if (!kurumiShopOpen) return null;
   const buyItems = shopItems.map((item, index) => ({ item, index })).filter(({ item }) => item.type === '買う');
   const sellItems = shopItems.map((item, index) => ({ item, index })).filter(({ item }) => item.type === '売る');
+  const getDisplayStock = (item: ShopItem) => item.type === '売る' ? (inventoryCounts[item.name] ?? 0) : item.stock;
   const hasRewardPose = Boolean(kurumiRewardImageSrc);
   const kurumiMessage = kurumiRewardMessage || (isShopTradePose ? 'ありがとー！' : (
     <>
@@ -111,7 +114,7 @@ const ShopOverlay = ({
                                       <span className="text-[#fdf6e3] text-base font-bold whitespace-nowrap leading-tight">{item.name}</span>
                                       <span className="flex items-center justify-between gap-3">
                                          <span className="text-[#ffd166] font-bold whitespace-nowrap">{item.price.toLocaleString()} G</span>
-                                         <span className="text-[#c8a87a] text-sm whitespace-nowrap">在庫 {item.stock}</span>
+                                         <span className="text-[#c8a87a] text-sm whitespace-nowrap">在庫 {getDisplayStock(item)}</span>
                                       </span>
                                    </button>
                                 );
@@ -134,7 +137,7 @@ const ShopOverlay = ({
                                       <span className="text-[#fdf6e3] text-base font-bold whitespace-nowrap leading-tight">{item.name}</span>
                                       <span className="flex items-center justify-between gap-3">
                                          <span className="text-[#ffd166] font-bold whitespace-nowrap">{item.price.toLocaleString()} G</span>
-                                         <span className="text-[#c8a87a] text-sm whitespace-nowrap">在庫 {item.stock}</span>
+                                         <span className="text-[#c8a87a] text-sm whitespace-nowrap">在庫 {getDisplayStock(item)}</span>
                                       </span>
                                    </button>
                                 );

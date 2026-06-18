@@ -44,6 +44,10 @@ type DebugPanelProps = {
   setFishingFanHeight: React.Dispatch<React.SetStateAction<number>>;
   fishingFanOpacity: number;
   setFishingFanOpacity: React.Dispatch<React.SetStateAction<number>>;
+  fishingFanSweetMin: number;
+  setFishingFanSweetMin: React.Dispatch<React.SetStateAction<number>>;
+  fishingFanSweetMax: number;
+  setFishingFanSweetMax: React.Dispatch<React.SetStateAction<number>>;
 };
 
 const DebugPanel = ({
@@ -81,14 +85,26 @@ const DebugPanel = ({
   setFishingFanHeight,
   fishingFanOpacity,
   setFishingFanOpacity,
+  fishingFanSweetMin,
+  setFishingFanSweetMin,
+  fishingFanSweetMax,
+  setFishingFanSweetMax,
 }: DebugPanelProps) => {
+  const stopDebugPropagation = (e: React.SyntheticEvent) => {
+    e.stopPropagation();
+  };
+
   return (
         <div 
-           className={`absolute bg-[#1a100d]/90 border-[3px] border-red-600 rounded-lg p-2.5 flex flex-col gap-2 z-50 text-[#fdf6e3] text-xs shadow-2xl w-[240px] select-none transition-opacity duration-200 ${setupMode !== 'none' ? 'opacity-40 hover:opacity-100' : ''}`}
+           className={`absolute bg-[#1a100d]/90 border-[3px] border-red-600 rounded-lg p-2.5 flex flex-col gap-2 z-[140] text-[#fdf6e3] text-xs shadow-2xl w-[240px] select-none transition-opacity duration-200 ${setupMode !== 'none' ? 'opacity-40 hover:opacity-100' : ''}`}
            style={{
               left: debugPanelPos.x,
               top: debugPanelPos.y
            }}
+           onPointerDown={stopDebugPropagation}
+           onPointerUp={stopDebugPropagation}
+           onClick={stopDebugPropagation}
+           onKeyDown={stopDebugPropagation}
         >
           <div 
              onPointerDown={handleDebugDragStart}
@@ -318,6 +334,36 @@ const DebugPanel = ({
                     value={Math.round(fishingFanOpacity * 100)}
                     onChange={(e) => setFishingFanOpacity(Number(e.target.value) / 100)}
                     className="w-full cursor-pointer accent-cyan-500 h-1 bg-gray-700 rounded-lg appearance-none"
+                 />
+              </label>
+              <label className="flex flex-col gap-0.5 text-[8px] text-gray-300">
+                 <span className="flex justify-between">
+                    <span>黄色範囲 左</span>
+                    <span>{fishingFanSweetMin}%</span>
+                 </span>
+                 <input
+                    type="range"
+                    min="0"
+                    max={Math.max(0, fishingFanSweetMax - 1)}
+                    step="1"
+                    value={fishingFanSweetMin}
+                    onChange={(e) => setFishingFanSweetMin(Number(e.target.value))}
+                    className="w-full cursor-pointer accent-yellow-400 h-1 bg-gray-700 rounded-lg appearance-none"
+                 />
+              </label>
+              <label className="flex flex-col gap-0.5 text-[8px] text-gray-300">
+                 <span className="flex justify-between">
+                    <span>黄色範囲 右</span>
+                    <span>{fishingFanSweetMax}%</span>
+                 </span>
+                 <input
+                    type="range"
+                    min={Math.min(100, fishingFanSweetMin + 1)}
+                    max="100"
+                    step="1"
+                    value={fishingFanSweetMax}
+                    onChange={(e) => setFishingFanSweetMax(Number(e.target.value))}
+                    className="w-full cursor-pointer accent-yellow-400 h-1 bg-gray-700 rounded-lg appearance-none"
                  />
               </label>
            </div>
