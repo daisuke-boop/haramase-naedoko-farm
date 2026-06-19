@@ -230,6 +230,7 @@ const ensureRequiredZones = (zones: AnimZone[]) => {
 };
 
 const isAnimZoneVisibleAtTime = (zone: AnimZone, timeOfDay: TimeOfDay) => {
+  if (zone.type === 'kurumi' && timeOfDay === 'night') return true;
   if (zone.timeOfDays && zone.timeOfDays.length > 0) return zone.timeOfDays.includes(timeOfDay);
   return !zone.timeOfDay || zone.timeOfDay === timeOfDay;
 };
@@ -351,6 +352,7 @@ const FISHING_REEL_SOUND_SRC = '/se/reel.mp3';
 const FISHING_NUSHI_SOUND_SRC = '/voice/kawanushi.wav';
 const FISHING_NUSHI_COUNTDOWN_DELAY_MS = 1200;
 const FISHING_BGM_SRC = '/bgm/fishking.mp3';
+const DEBUG_DIALOGUE_STORAGE_KEY = 'farmDebugDialogueOverrides';
 
 type KurumiTradeReward = {
   threshold: number;
@@ -399,8 +401,26 @@ type FishingBiteSparkle = {
   id: number;
 };
 
+type DebugDialogueStep = {
+  debugKey: string;
+  message: string;
+  voiceSrc?: string;
+  imageSrc?: string;
+};
+
 type FishingTutorialStep = 'intro' | 'rod' | 'direction' | 'power' | 'bite' | 'hit' | 'result';
 type FishingTutorialResult = 'success' | 'fail' | null;
+type CraftCircle = { id: number; x: number; y: number; size: number; expiresAt: number; durationMs: number };
+type CraftRecipeId = '【レシピ】のこぎり' | '【レシピ】つるはし';
+const isRecipeItemName = (name: string) => name.startsWith('【レシピ】');
+type GatheringTutorialChoice = 'logging' | 'mining';
+type CraftRecipeConfig = {
+  output: string;
+  materials: Record<string, number>;
+  circleCountRange: [number, number];
+  circleDurationRangeMs: [number, number];
+  scorePerCircle: number;
+};
 type KurumiIntroTopicId = 'village' | 'debt' | 'naedoko' | 'pantsu';
 type SaveSlotSummary = {
   slot: number;
@@ -466,10 +486,26 @@ const FISHING_NUSHI_RING_NAME = '釣神の指輪';
 const FISHING_NUSHI_DEBUG_RING_NAME = '釣神の指輪（デバッグ用）';
 const ITEM_MENU_BASE_ITEMS: Record<string, string[]> = {
   '消耗品': ['薬草', '気付け水', '小さな釣り餌'],
-  '素材': ['木材', '川魚の鱗'],
+  '素材': ['木材', '川魚の鱗', 'モグラの爪', 'ウサギの靭帯', '軟らかい銅鉱石', '泥混じりの鉄鉱石', '柔らかな若枝'],
   '装備品': ['竹の釣竿', '丈夫な釣竿', '高級釣竿', '伝説の釣り竿', 'のこぎり', '丈夫なのこぎり', '高級のこぎり', 'つるはし', '丈夫なつるはし', '高級つるはし', '農神の指輪', FISHING_NUSHI_RING_NAME, FISHING_NUSHI_DEBUG_RING_NAME],
   '売却品': [],
   'だいじなもの': ['【レシピ】のこぎり', '【レシピ】つるはし'],
+};
+const INITIAL_INVENTORY_COUNTS: Record<string, number> = {
+  '丈夫な釣竿': 1, '高級釣竿': 1, '伝説の釣り竿': 1,
+  'のこぎり': 1, '丈夫なのこぎり': 1, '高級のこぎり': 1,
+  'つるはし': 1, '丈夫なつるはし': 1, '高級つるはし': 1,
+  '農神の指輪': 1,
+  [FISHING_NUSHI_RING_NAME]: 1,
+  [FISHING_NUSHI_DEBUG_RING_NAME]: 1,
+};
+const INITIAL_EQUIPPED_ITEMS: Record<string, string> = {
+  '主人公-slot1': '',
+  '主人公-slot2': 'のこぎり',
+  '主人公-slot3': 'つるはし',
+  '主人公-slot4': '農神の指輪',
+  'ちびいち-slot1': '小さな鈴',
+  'ちびいち-slot2': '',
 };
 const createItemMenuItems = (inventoryCounts: Record<string, number>) => {
   const ownedFishNames = FISH_ZUKAN_ENTRIES
@@ -504,6 +540,22 @@ const RECIPE_DETAILS: Record<string, { title: string; materials: string[]; steps
     note: '注意：岩を叩くとすぐ鈍る。小石掘りから始めよ。',
   },
 };
+const CRAFT_RECIPE_CONFIGS: Record<CraftRecipeId, CraftRecipeConfig> = {
+  '【レシピ】のこぎり': {
+    output: 'のこぎり',
+    materials: { 'モグラの爪': 5, 'ウサギの靭帯': 2, '軟らかい銅鉱石': 1, '柔らかな若枝': 2 },
+    circleCountRange: [5, 6],
+    circleDurationRangeMs: [2000, 3000],
+    scorePerCircle: 18,
+  },
+  '【レシピ】つるはし': {
+    output: 'つるはし',
+    materials: { 'モグラの爪': 5, 'ウサギの靭帯': 2, '泥混じりの鉄鉱石': 1, '柔らかな若枝': 2 },
+    circleCountRange: [10, 14],
+    circleDurationRangeMs: [1200, 1800],
+    scorePerCircle: 9,
+  },
+};
 const FISHING_ROD_FISH_LEVELS: Record<FishingRodName, number[]> = {
   '竹の釣竿': [0, 1, 2, 3, 4, 5],
   '丈夫な釣竿': [6, 7, 8, 9, 10],
@@ -520,38 +572,122 @@ const FISHING_TUTORIAL_KURUMI_APPROACH_POINT = {
   x: FISHING_TUTORIAL_KURUMI_ZONE.x + FISHING_TUTORIAL_KURUMI_ZONE.w / 2,
   y: FISHING_TUTORIAL_KURUMI_ZONE.y + FISHING_TUTORIAL_KURUMI_ZONE.h + 36,
 };
-const FISHING_TUTORIAL_STEPS: { id: FishingTutorialStep; message: string; imageSrc?: string }[] = [
+const FISHING_TUTORIAL_STEPS: (DebugDialogueStep & { id: FishingTutorialStep })[] = [
   {
     id: 'intro',
+    debugKey: 'fishing_tutorial_intro',
     message: 'くるみが釣りを教えちゃうよっ！\n孕ませ村は水が綺麗で、\n魚がたっくさんいるんだよっ！\n釣った魚はくるみが買い取ることもできるしー、\n何か他のことにも使えるかもしれないから、\n釣りを覚えておいて損はないよ♪',
   },
   {
     id: 'rod',
+    debugKey: 'fishing_tutorial_rod',
     message: 'はい、これ！\n初心者も扱いやすい竹の釣り竿！\nさっそくここで釣ってみよう！\n今はチュートリアルだから何回もチャレンジできるけど、\nチュートリアルが終わったら\n行動ポイントを消費するから気をつけてねっ',
     imageSrc: '/img/takesao.jpg',
   },
   {
     id: 'direction',
+    debugKey: 'fishing_tutorial_direction',
     message: 'まずは投げるポイントを決めよう！\n扇型の黄色い部分に向かって投げると\n釣りやすくなるから、\nしっかり狙って投げてねっ！',
   },
   {
     id: 'power',
+    debugKey: 'fishing_tutorial_power',
     message: '次は投げる強さを決めるよっ！\nバーが左右に動いてるから、\nいいタイミングで決定してね！\n強く投げれば投げるほど釣れやすくなるよ！',
   },
   {
     id: 'bite',
+    debugKey: 'fishing_tutorial_bite',
     message: '次はタイミングゲームだよ！\n円が重なるタイミングで\n決定ボタンを押してね！\n連続で成功すればするほど、\n大きな魚が釣れるかも？',
   },
   {
     id: 'hit',
+    debugKey: 'fishing_tutorial_hit',
     message: '魚が掛かった！\nここまで来ればもう少し！\n決定ボタンを押したり離したりして、\n緑のゾーンをキープしてね！',
   },
   {
     id: 'result',
+    debugKey: 'fishing_tutorial_result',
     message: '説明はここまで！\nそれじゃ、お兄さんも実際に釣ってみよっ♪',
   },
 ];
 const FISHING_TUTORIAL_VOICE_SRCS = FISHING_TUTORIAL_STEPS.map((_, index) => `/voice/kurumi-fish${index + 1}.wav`);
+const FISHING_TUTORIAL_END_STEPS: DebugDialogueStep[] = [
+  {
+    debugKey: 'fishing_tutorial_end_1',
+    message: 'いろんな場所で釣りができるから試して見てねっ！\nあっ！あと、釣り以外にも木を伐採して\n木材を採取したり、北の洞窟にいけば珍しい鉱石の採掘もできるんだー！',
+    voiceSrc: '/voice/kurumi-fish8.wav',
+  },
+  {
+    debugKey: 'fishing_tutorial_end_2',
+    message: 'もし伐採とか採掘に興味があるなら、それに必要な道具のレシピを\nくるみが売ってあげるから、あとでくるみのところまで来てねっ♡\nじゃっ、まったねー！',
+    voiceSrc: '/voice/kurumi-fish9.wav',
+  },
+];
+const SAW_CRAFT_TUTORIAL_STEPS: DebugDialogueStep[] = [
+  {
+    debugKey: 'saw_craft_tutorial_1',
+    message: 'あっ！それは伐採に必要なのこぎりのレシピだよっ！\nクラフトするのにいろんな素材がいるんだけど、お兄さんは初めてだから\n最初だけ素材をあげるね！',
+    voiceSrc: '/voice/craft1.wav',
+  },
+  {
+    debugKey: 'saw_craft_tutorial_2',
+    message: 'レシピはいつでもだいじなものから見れるから、気になったら確認してみてねっ！\nじゃあ、早速のこぎりを作ってみよー♪\nちょうどお兄さんのお家の横にクラフト小屋があるからそこに集合ねっ♡',
+    voiceSrc: '/voice/craft2.wav',
+  },
+];
+const PICKAXE_CRAFT_TUTORIAL_STEPS: DebugDialogueStep[] = [
+  {
+    debugKey: 'pickaxe_craft_tutorial_1',
+    message: 'あっ！それは採掘に必要なつるはしのレシピだよっ！\nクラフトするのにいろんな素材がいるんだけど、お兄さんは初めてだから\n最初だけ素材をあげるね！',
+    voiceSrc: '/voice/craft5.wav',
+  },
+];
+const GATHERING_TUTORIAL_COMMON_STEPS: DebugDialogueStep[] = [
+  {
+    debugKey: 'gathering_tutorial_common_1',
+    message: 'おっ！お兄さんクラフトの才能もあるんだねぇ♪\nすっごーい！\n釣りもできるしクラフトもできるし、\nも・し・か・し・て...\nあっちの方も得意なのかしらー？♡',
+    voiceSrc: '/voice/craft6.wav',
+  },
+  {
+    debugKey: 'gathering_tutorial_common_2',
+    message: 'じゃーあ、今作ったのこぎりと、つるはしで素材集め！\nやってみよー♪\nどっちから始める？わくわく、わくわく♡',
+    voiceSrc: '/voice/craft7.wav',
+  },
+];
+const GATHERING_TUTORIAL_BRANCH_STEPS: Record<GatheringTutorialChoice, DebugDialogueStep[]> = {
+  logging: [
+    {
+      debugKey: 'gathering_tutorial_logging_1',
+      message: '孕ませ村には、たーーっくさんの木が生えてるんだぁ。\nこの木材を使えば、他にもいろんなアイテムがクラフトできるから\n色々と挑戦してみてねっ！',
+      voiceSrc: '/voice/craft8.wav',
+    },
+    {
+      debugKey: 'gathering_tutorial_logging_2',
+      message: 'どの木が伐採できるかランダムなんだけどー、\nお兄さんなら簡単に見つけられるよねっ！\n試しにこのマップにある木をどれか調べてみよー♪',
+      voiceSrc: '/voice/craft9.wav',
+    },
+  ],
+  mining: [
+    {
+      debugKey: 'gathering_tutorial_mining_1',
+      message: '孕ませ村には、たーーっくさんの鉱石が眠ってるんだぁ♪\n採取した鉱石を使えば、いろんなアイテムがクラフトできるから\n色々と挑戦してみてねっ！',
+      voiceSrc: '/voice/craft10.wav',
+    },
+    {
+      debugKey: 'gathering_tutorial_mining_2',
+      message: 'どの岩で採掘できるかランダムなんだけどー、\nお兄さんなら簡単に見つけられるよねっ！\n試しにポストの下にある岩を調べてみよー♪',
+      voiceSrc: '/voice/craft11.wav',
+    },
+  ],
+};
+const SAW_CRAFT_SHED_TUTORIAL_STEP: DebugDialogueStep = {
+  debugKey: 'saw_craft_tutorial_3',
+  message: 'ここがクラフト小屋だよっ！\n準備はできてるから、今度はお兄さんがクラフト台を調べてみてねっ！\nさっき渡したレシピは「だいじなもの」から選べるよ♪',
+  voiceSrc: '/voice/craft3.wav',
+};
+const CRAFT_TUTORIAL_KURUMI_ZONE = { x: 940, y: 480, w: 60, h: 60 };
+const CRAFT_TUTORIAL_KURUMI_LABEL_W = 210;
+const CRAFT_TUTORIAL_KURUMI_LABEL_H = 54;
 
 const clampNumber = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
 const isFishingRodName = (name: string): name is FishingRodName => name in FISHING_ROD_FISH_LEVELS;
@@ -646,6 +782,8 @@ export default function App() {
   const [systemSlotMode, setSystemSlotMode] = useState<'none' | 'save' | 'load'>('none');
   const [saveSlotSummaries, setSaveSlotSummaries] = useState<SaveSlotSummary[]>([]);
   const [pendingDeleteSaveSlot, setPendingDeleteSaveSlot] = useState<number | null>(null);
+  const [pendingOverwriteSaveSlot, setPendingOverwriteSaveSlot] = useState<number | null>(null);
+  const [missingSaveSlot, setMissingSaveSlot] = useState<number | null>(null);
   const autoSaveBlockedSlotsRef = useRef<Set<number>>(new Set());
 
   const [setupMode, setSetupMode] = useState<'none' | 'animation' | 'collision' | 'hideArea' | 'doors' | 'footstep' | 'crops' | 'bed' | 'bathTub'>('none');
@@ -728,14 +866,7 @@ export default function App() {
   const [equipmentActionOpen, setEquipmentActionOpen] = useState(false);
   const [selectedEquipmentOptionIndex, setSelectedEquipmentOptionIndex] = useState(0);
   const selectedEquipmentOptionIndexRef = useRef(0);
-  const [equippedItems, setEquippedItems] = useState<Record<string, string>>({
-    '主人公-slot1': '',
-    '主人公-slot2': 'のこぎり',
-    '主人公-slot3': 'つるはし',
-    '主人公-slot4': '農神の指輪',
-    'ちびいち-slot1': '小さな鈴',
-    'ちびいち-slot2': '',
-  });
+  const [equippedItems, setEquippedItems] = useState<Record<string, string>>(() => ({ ...INITIAL_EQUIPPED_ITEMS }));
   const equippedItemsRef = useRef(equippedItems);
   const [selectedSkillName, setSelectedSkillName] = useState('農具の扱い');
   const selectedSkillNameRef = useRef('農具の扱い');
@@ -746,6 +877,16 @@ export default function App() {
   const [farmGirlDetailOpen, setFarmGirlDetailOpen] = useState(false);
   const [recipeDetailOpen, setRecipeDetailOpen] = useState(false);
   const [selectedRecipeName, setSelectedRecipeName] = useState('');
+  const [craftRecipeSelectMode, setCraftRecipeSelectMode] = useState(false);
+  const [craftConfirmRecipeName, setCraftConfirmRecipeName] = useState<CraftRecipeId | null>(null);
+  const [craftInsufficientRecipeName, setCraftInsufficientRecipeName] = useState<CraftRecipeId | null>(null);
+  const [craftMiniGameOpen, setCraftMiniGameOpen] = useState(false);
+  const [craftMiniGameRecipeName, setCraftMiniGameRecipeName] = useState<CraftRecipeId | null>(null);
+  const [craftMiniGameCircles, setCraftMiniGameCircles] = useState<CraftCircle[]>([]);
+  const [craftMiniGameScore, setCraftMiniGameScore] = useState(0);
+  const [craftMiniGameTargetCount, setCraftMiniGameTargetCount] = useState(0);
+  const [craftMiniGameSpawnedCount, setCraftMiniGameSpawnedCount] = useState(0);
+  const [craftMiniGameResult, setCraftMiniGameResult] = useState<'success' | 'fail' | null>(null);
   const [selectedFarmFacilityIndex, setSelectedFarmFacilityIndex] = useState(0);
   const selectedFarmFacilityIndexRef = useRef(0);
   const [zukanFilter, setZukanFilter] = useState('通常');
@@ -765,30 +906,7 @@ export default function App() {
   const [debt, setDebt] = useState(DEFAULT_DEBT);
   const [difficulty, setDifficulty] = useState<GameDifficulty>('hard');
   const [kurumiTradeTotal, setKurumiTradeTotal] = useState(0);
-  const [inventoryCounts, setInventoryCounts] = useState<Record<string, number>>({
-    '薬草': 0,
-    '携帯おにぎり': 0,
-    '気付け水': 0,
-    '小さな釣り餌': 0,
-    'ウグイ': 0,
-    '木材': 0,
-    '川魚の鱗': 0,
-    '【レシピ】のこぎり': 0,
-    '【レシピ】つるはし': 0,
-    '竹の釣竿': 0,
-    '丈夫な釣竿': 1,
-    '高級釣竿': 1,
-    '伝説の釣り竿': 1,
-    'のこぎり': 1,
-    '丈夫なのこぎり': 1,
-    '高級のこぎり': 1,
-    'つるはし': 1,
-    '丈夫なつるはし': 1,
-    '高級つるはし': 1,
-    '農神の指輪': 1,
-    [FISHING_NUSHI_RING_NAME]: 1,
-    [FISHING_NUSHI_DEBUG_RING_NAME]: 1,
-  });
+  const [inventoryCounts, setInventoryCounts] = useState<Record<string, number>>(() => ({ ...INITIAL_INVENTORY_COUNTS }));
   const heroLevel = 1;
   const actionCountMax = 5 + Math.max(0, heroLevel - 1);
   const actionCountCurrent = actionCountMax;
@@ -830,7 +948,11 @@ export default function App() {
       });
   });
   const shopItemsForDisplay = [
-    ...shopItems.filter(item => item.type === '買う' && item.stock > 0),
+    ...shopItems.filter(item => (
+      item.type === '買う' &&
+      item.stock > 0 &&
+      (!isRecipeItemName(item.name) || (inventoryCounts[item.name] ?? 0) === 0)
+    )),
     ...fishShopItems,
     ...shopItems.filter(item => item.type === '売る' && (inventoryCounts[item.name] ?? 0) > 0),
   ];
@@ -894,9 +1016,26 @@ export default function App() {
                   <button
                     key={name}
                     type="button"
-                    onPointerDown={() => { setMenuFocusArea('content'); setMenuContentFocus('secondary'); setSelectedItemName(name); if (RECIPE_DETAILS[name]) openRecipeDetail(name); }}
+                    onPointerDown={() => {
+                      setMenuFocusArea('content');
+                      setMenuContentFocus('secondary');
+                      setSelectedItemName(name);
+                      if (!craftRecipeSelectMode && RECIPE_DETAILS[name]) {
+                        openRecipeDetail(name);
+                      }
+                    }}
                     onMouseEnter={() => { if (activeItem !== name) playCursorSound(); }}
-                    onClick={() => { playFixSound(); setMenuFocusArea('content'); setMenuContentFocus('secondary'); setSelectedItemName(name); if (RECIPE_DETAILS[name]) openRecipeDetail(name); }}
+                    onClick={() => {
+                      setMenuFocusArea('content');
+                      setMenuContentFocus('secondary');
+                      setSelectedItemName(name);
+                      if (craftRecipeSelectMode && itemMenuTab === 'だいじなもの') {
+                        handleCraftRecipeSelected(name);
+                      } else {
+                        playFixSound();
+                        if (RECIPE_DETAILS[name]) openRecipeDetail(name);
+                      }
+                    }}
                     className={`flex justify-between items-center px-4 py-3 border rounded cursor-pointer text-left ${activeItem === name ? 'bg-[#bc6c25]/45 border-white' : 'bg-black/35 border-[#5a3010] hover:bg-[#3a2418]'}`}
                   >
                     <span className="text-[#fdf6e3] font-bold">{name}</span>
@@ -913,7 +1052,23 @@ export default function App() {
             <div style={menuPanelBaseStyle} className="flex flex-col gap-3">
               <div style={menuTinyLabelStyle}>選択アイテム</div>
               <div className="text-[#fdf6e3] text-2xl font-bold">{activeItem || '未所持'}</div>
-              <div className="text-[#c8a87a] leading-relaxed">カテゴリ: {itemMenuTab}<br />使用・確認・整理の対象になります。</div>
+              <div className="text-[#c8a87a] leading-relaxed">
+                カテゴリ: {itemMenuTab}<br />
+                {craftRecipeSelectMode ? '作りたいレシピを選んでください。' : '使用・確認・整理の対象になります。'}
+              </div>
+              {craftRecipeSelectMode && (
+                <button
+                  disabled={!activeItem || !isCraftRecipeId(activeItem)}
+                  onPointerDown={(event) => event.stopPropagation()}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    handleCraftRecipeSelected(activeItem);
+                  }}
+                  className="mt-auto bg-[#8d6420] hover:bg-[#b87924] border-2 border-[#ffd166] rounded px-4 py-3 font-bold cursor-pointer disabled:cursor-not-allowed disabled:opacity-45"
+                >
+                  このレシピで作る
+                </button>
+              )}
               {!activeRecipe && (
                 <button disabled={!activeItem} onClick={() => { playFixSound(); setDialogMessage(`${activeItem}を確認しました。`); }} className="mt-auto bg-[#4a5823] hover:bg-[#60732d] border-2 border-[#a3b18a] rounded px-4 py-3 font-bold cursor-pointer disabled:cursor-not-allowed disabled:opacity-45">
                   確認する
@@ -977,8 +1132,8 @@ export default function App() {
         (inventoryCounts[name] ?? 0) > 0 && !equippedItemNames.includes(name)
       ));
       return (
-        <div className="grid h-full grid-cols-[58%_1fr] gap-5 pb-10">
-          <div style={menuPanelBaseStyle} className="grid h-full grid-cols-2 gap-4">
+        <div className="grid h-full min-h-0 grid-cols-[58%_1fr] gap-5 pb-10">
+          <div style={menuPanelBaseStyle} className="grid h-full min-h-0 grid-cols-2 gap-4 overflow-hidden">
             {equipmentCharacters.map((char) => (
               <button
                 key={char.label}
@@ -997,8 +1152,8 @@ export default function App() {
               </button>
             ))}
           </div>
-          <div style={menuPanelBaseStyle} className="flex flex-col gap-4">
-              <div key={selectedEquipmentCharacter.label}>
+          <div style={menuPanelBaseStyle} className="flex min-h-0 flex-col gap-4 overflow-hidden">
+              <div key={selectedEquipmentCharacter.label} className="flex min-h-0 flex-1 flex-col">
                 <div className="flex items-start gap-3 mb-4">
                   <div className="w-20 h-24 rounded border border-[#f1c27d]/60 bg-black/35 overflow-hidden flex items-end justify-center">
                     <img src={selectedEquipmentCharacter.img} className="max-h-full w-full object-contain" alt={selectedEquipmentCharacter.label} />
@@ -1033,7 +1188,7 @@ export default function App() {
                 )})}
               </div>
               {equipmentActionOpen && menuContentFocus === 'secondary' && (
-                <div className="mt-4 rounded-lg border-2 border-[#dda15e] bg-black/35 p-4 shadow-inner">
+                <div className="mt-4 flex min-h-0 flex-1 flex-col rounded-lg border-2 border-[#dda15e] bg-black/35 p-4 shadow-inner">
                   <div className="flex items-center justify-between gap-3">
                     <div>
                       <div style={menuTinyLabelStyle}>装備操作</div>
@@ -1059,9 +1214,9 @@ export default function App() {
                       </button>
                     </div>
                   ) : (
-                    <div className="mt-3">
+                    <div className="mt-3 flex min-h-0 flex-1 flex-col">
                       <div className="mb-2 text-[#c8a87a] text-sm">装備欄</div>
-                      <div className="grid grid-cols-1 gap-2">
+                      <div className="grid min-h-0 grid-cols-1 gap-2 overflow-y-auto pr-2">
                         {equipableItems.length > 0 ? equipableItems.map((name, optionIndex) => (
                           <button
                             key={name}
@@ -1691,6 +1846,21 @@ export default function App() {
   const [fishingTutorialCompleted, setFishingTutorialCompleted] = useState(false);
   const [fishingTutorialOpen, setFishingTutorialOpen] = useState(false);
   const [fishingTutorialStepIndex, setFishingTutorialStepIndex] = useState(0);
+  const [fishingTutorialEndingOpen, setFishingTutorialEndingOpen] = useState(false);
+  const [fishingTutorialEndingStepIndex, setFishingTutorialEndingStepIndex] = useState(0);
+  const [sawCraftTutorialIntroOpen, setSawCraftTutorialIntroOpen] = useState(false);
+  const [sawCraftTutorialIntroStepIndex, setSawCraftTutorialIntroStepIndex] = useState(0);
+  const [craftTutorialRecipeName, setCraftTutorialRecipeName] = useState<CraftRecipeId>('【レシピ】のこぎり');
+  const [sawCraftTutorialReady, setSawCraftTutorialReady] = useState(false);
+  const [sawCraftTutorialShedDialogueOpen, setSawCraftTutorialShedDialogueOpen] = useState(false);
+  const [sawCraftTutorialWorkbenchReady, setSawCraftTutorialWorkbenchReady] = useState(false);
+  const [sawCraftTutorialCompleted, setSawCraftTutorialCompleted] = useState(false);
+  const [craftedRecipeIds, setCraftedRecipeIds] = useState<CraftRecipeId[]>([]);
+  const [gatheringTutorialOpen, setGatheringTutorialOpen] = useState(false);
+  const [gatheringTutorialStepIndex, setGatheringTutorialStepIndex] = useState(0);
+  const [gatheringTutorialChoice, setGatheringTutorialChoice] = useState<GatheringTutorialChoice | null>(null);
+  const [selectedGatheringTutorialChoice, setSelectedGatheringTutorialChoice] = useState<GatheringTutorialChoice>('logging');
+  const [gatheringTutorialCompleted, setGatheringTutorialCompleted] = useState(false);
   const [selectedFishingTutorialAction, setSelectedFishingTutorialAction] = useState<'later' | 'next'>('next');
   const [selectedFishingResultAction, setSelectedFishingResultAction] = useState<'retry' | 'complete'>('retry');
   const [isFishingTutorialRun, setIsFishingTutorialRun] = useState(false);
@@ -1715,7 +1885,9 @@ export default function App() {
   const kurumiTradeRewardTimerRef = useRef<number | null>(null);
   const kurumiIntroCloseTimerRef = useRef<number | null>(null);
   const fishingTutorialVoiceRef = useRef<HTMLAudioElement | null>(null);
+  const sawCraftTutorialVoiceRef = useRef<HTMLAudioElement | null>(null);
   const [confirmPromptChoice, setConfirmPromptChoice] = useState<'yes' | 'no'>('yes');
+  const [craftPromptSource, setCraftPromptSource] = useState<'kurumi' | 'workbench' | null>(null);
   const [sleepFadeOpacity, setSleepFadeOpacity] = useState(0);
   const [isSleepSequenceActive, setIsSleepSequenceActive] = useState(false);
   const sleepPromptBlockedRef = useRef(false);
@@ -1778,6 +1950,17 @@ export default function App() {
   const [dialogHovered, setDialogHovered] = useState(false);
   const [showDialog, setShowDialog] = useState<boolean>(false); // Hidden until an inspect/event message opens it
   const [dialogMessage, setDialogMessage] = useState(DEFAULT_SYSTEM_MESSAGE);
+  const [debugDialogueOverrides, setDebugDialogueOverrides] = useState<Record<string, string>>(() => {
+    try {
+      const stored = window.localStorage.getItem(DEBUG_DIALOGUE_STORAGE_KEY);
+      if (!stored) return {};
+      const parsed = JSON.parse(stored);
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
+      return Object.fromEntries(Object.entries(parsed).filter(([, value]) => typeof value === 'string')) as Record<string, string>;
+    } catch {
+      return {};
+    }
+  });
   const [dialogBoxPos, setDialogBoxPos] = useState({ x: 16, y: 1156 - DIALOG_BOX_MIN_HEIGHT - 16 });
   const [dialogBoxSize, setDialogBoxSize] = useState({ width: DIALOG_BOX_DEFAULT_WIDTH, height: DIALOG_BOX_MIN_HEIGHT });
   const [isDraggingDialog, setIsDraggingDialog] = useState(false);
@@ -1855,8 +2038,20 @@ export default function App() {
   };
 
   useEffect(() => {
-     movementLockedRef.current = sleepPromptVisible || craftPromptVisible || fishingPromptVisible || fishingMiniGameOpen || fishingTutorialOpen || kurumiShopOpen || kurumiIntroOpen || isSleepSequenceActive;
-  }, [sleepPromptVisible, craftPromptVisible, fishingPromptVisible, fishingMiniGameOpen, fishingTutorialOpen, kurumiShopOpen, kurumiIntroOpen, isSleepSequenceActive]);
+    try {
+      if (Object.keys(debugDialogueOverrides).length === 0) {
+        window.localStorage.removeItem(DEBUG_DIALOGUE_STORAGE_KEY);
+      } else {
+        window.localStorage.setItem(DEBUG_DIALOGUE_STORAGE_KEY, JSON.stringify(debugDialogueOverrides));
+      }
+    } catch {
+      // Debug-only storage must never block normal gameplay.
+    }
+  }, [debugDialogueOverrides]);
+
+  useEffect(() => {
+     movementLockedRef.current = sleepPromptVisible || craftPromptVisible || fishingPromptVisible || fishingMiniGameOpen || craftMiniGameOpen || fishingTutorialOpen || fishingTutorialEndingOpen || sawCraftTutorialIntroOpen || sawCraftTutorialShedDialogueOpen || gatheringTutorialOpen || kurumiShopOpen || kurumiIntroOpen || isSleepSequenceActive;
+  }, [sleepPromptVisible, craftPromptVisible, fishingPromptVisible, fishingMiniGameOpen, craftMiniGameOpen, fishingTutorialOpen, fishingTutorialEndingOpen, sawCraftTutorialIntroOpen, sawCraftTutorialShedDialogueOpen, gatheringTutorialOpen, kurumiShopOpen, kurumiIntroOpen, isSleepSequenceActive]);
 
   useEffect(() => {
      if (sleepPromptVisible || craftPromptVisible || fishingPromptVisible) {
@@ -2192,9 +2387,110 @@ export default function App() {
   const [bedTiles, setBedTiles] = useState<Record<string, boolean>>(createDefaultBedTiles());
   const [workbenchTiles, setWorkbenchTiles] = useState<Record<string, boolean>>({});
   const [fishingTiles, setFishingTiles] = useState<Record<string, boolean>>({});
-  const [selectedEventTileType, setSelectedEventTileType] = useState<'bed' | 'workbench' | 'fishing' | 'inspect' | 'auto'>('bed');
+  const [miningTiles, setMiningTiles] = useState<Record<string, boolean>>({});
+  const [loggingTiles, setLoggingTiles] = useState<Record<string, boolean>>({});
+  const [selectedEventTileType, setSelectedEventTileType] = useState<'bed' | 'workbench' | 'fishing' | 'mining' | 'logging' | 'inspect' | 'auto'>('bed');
   const [bedDrawMode, setBedDrawMode] = useState<boolean | null>(null);
   const [bathTubMaskZone, setBathTubMaskZone] = useState<RectZone>(DEFAULT_HOUSE_BATH_TUB_MASK_ZONE);
+
+  const createCurrentMapSettingsSnapshot = () => ({
+    zones,
+    doors,
+    obstacles,
+    hideAreaTiles,
+    footstepTiles,
+    wallBumpSound,
+    bedTiles,
+    workbenchTiles,
+    fishingTiles,
+    miningTiles,
+    loggingTiles,
+    inspectSpots,
+    fieldCorners,
+    fieldGridSizes,
+    mapBgmSources,
+    bathTubMaskZone,
+  });
+
+  const createMapSettingsSnapshotFromSave = (data: Record<string, unknown>) => {
+    const current = createCurrentMapSettingsSnapshot();
+    const nextZones = Array.isArray(data.zones) ? ensureRequiredZones(data.zones as AnimZone[]) : current.zones;
+    let nextDoors = current.doors;
+    if (Array.isArray(data.doors)) {
+      const migratedDoors = (data.doors as WarpDoor[]).map(d => {
+        if (d.id === 'door_to_house' && d.spawnY === 900) return { ...d, spawnY: 770 };
+        if (d.id === 'door_to_shed' && d.spawnY === 900) return { ...d, spawnY: 650 };
+        return d;
+      });
+      nextDoors = ensureRequiredRouteDoors(migratedDoors);
+    }
+
+    const nextMapBgms = { ...current.mapBgmSources };
+    if (data.mapBgmSources && typeof data.mapBgmSources === 'object') {
+      const bgmSrcSet = new Set(BGM_FILE_ENTRIES.map(entry => entry.src));
+      Object.entries(data.mapBgmSources as Partial<Record<GameMap, string>>).forEach(([map, src]) => {
+        if (map in DEFAULT_MAP_BGM_SOURCES && typeof src === 'string' && bgmSrcSet.has(src)) {
+          nextMapBgms[map as GameMap] = src;
+        }
+      });
+    }
+
+    return {
+      zones: nextZones,
+      doors: nextDoors,
+      obstacles: data.obstacles ? normalizeTileRecord(data.obstacles, isEnabledTileValue) : current.obstacles,
+      hideAreaTiles: data.hideAreaTiles ? normalizeTileRecord(data.hideAreaTiles, isEnabledTileValue) : current.hideAreaTiles,
+      footstepTiles: data.footstepTiles ? normalizeTileRecord(data.footstepTiles, isFootstepTileValue) : current.footstepTiles,
+      wallBumpSound: typeof data.wallBumpSound === 'string' ? data.wallBumpSound as WallBumpSound : current.wallBumpSound,
+      bedTiles: data.bedTiles ? normalizeTileRecord(data.bedTiles, isEnabledTileValue) : current.bedTiles,
+      workbenchTiles: data.workbenchTiles ? normalizeTileRecord(data.workbenchTiles, isEnabledTileValue) : current.workbenchTiles,
+      fishingTiles: data.fishingTiles ? normalizeTileRecord(data.fishingTiles, isEnabledTileValue) : current.fishingTiles,
+      miningTiles: data.miningTiles ? normalizeTileRecord(data.miningTiles, isEnabledTileValue) : current.miningTiles,
+      loggingTiles: data.loggingTiles ? normalizeTileRecord(data.loggingTiles, isEnabledTileValue) : current.loggingTiles,
+      inspectSpots: Array.isArray(data.inspectSpots)
+        ? data.inspectSpots.filter((spot: InspectSpot) => (
+          spot &&
+          typeof spot.id === 'string' &&
+          spot.map in mapBackgrounds &&
+          typeof spot.x === 'number' &&
+          typeof spot.y === 'number' &&
+          typeof spot.w === 'number' &&
+          typeof spot.h === 'number' &&
+          typeof spot.label === 'string' &&
+          typeof spot.text === 'string'
+        ))
+        : current.inspectSpots,
+      fieldCorners: data.fieldCorners ? data.fieldCorners as FieldCornerMap : current.fieldCorners,
+      fieldGridSizes: data.fieldGridSizes ? data.fieldGridSizes as FieldGridSizeMap : current.fieldGridSizes,
+      mapBgmSources: nextMapBgms,
+      bathTubMaskZone: (
+        data.bathTubMaskZone &&
+        typeof (data.bathTubMaskZone as RectZone).x === 'number' &&
+        typeof (data.bathTubMaskZone as RectZone).y === 'number' &&
+        typeof (data.bathTubMaskZone as RectZone).w === 'number' &&
+        typeof (data.bathTubMaskZone as RectZone).h === 'number'
+      ) ? data.bathTubMaskZone as RectZone : current.bathTubMaskZone,
+    };
+  };
+
+  const applyMapSettingsSnapshot = (snapshot: ReturnType<typeof createCurrentMapSettingsSnapshot>) => {
+    setZones(snapshot.zones);
+    setDoors(snapshot.doors);
+    setObstacles(snapshot.obstacles);
+    setHideAreaTiles(snapshot.hideAreaTiles);
+    setFootstepTiles(snapshot.footstepTiles);
+    setWallBumpSound(snapshot.wallBumpSound);
+    setBedTiles(snapshot.bedTiles);
+    setWorkbenchTiles(snapshot.workbenchTiles);
+    setFishingTiles(snapshot.fishingTiles);
+    setMiningTiles(snapshot.miningTiles);
+    setLoggingTiles(snapshot.loggingTiles);
+    setInspectSpots(snapshot.inspectSpots);
+    setFieldCorners(snapshot.fieldCorners);
+    setFieldGridSizes(snapshot.fieldGridSizes);
+    setMapBgmSources(snapshot.mapBgmSources);
+    setBathTubMaskZone(snapshot.bathTubMaskZone);
+  };
 
   const [plantedCrops, setPlantedCrops] = useState<Record<string, boolean>>({});
   const [fieldCorners, setFieldCorners] = useState<FieldCornerMap>(DEFAULT_FIELD_CORNERS);
@@ -2228,10 +2524,23 @@ export default function App() {
     if (bootMode !== 'loadingSave') return;
     let active = true;
     setIsLoading(true);
-    fetch(`/api/save?slot=${currentSaveSlot}`)
-      .then(res => res.json())
-      .then(data => {
+    Promise.all([
+      fetch(`/api/save?slot=${currentSaveSlot}`).then(res => res.json()),
+      startingNewGame
+        ? fetch('/api/map-settings').then(res => res.json())
+        : Promise.resolve(null),
+    ])
+      .then(([data, savedMapSettings]) => {
         if (!active) return;
+        const loadedSaveData = data && typeof data === 'object' && !Array.isArray(data)
+          ? data as Record<string, unknown>
+          : {};
+        const canonicalMapSettings = savedMapSettings && typeof savedMapSettings === 'object' && !Array.isArray(savedMapSettings)
+          ? savedMapSettings as Record<string, unknown>
+          : loadedSaveData;
+        const mapSettingsForNewGame = startingNewGame
+          ? createMapSettingsSnapshotFromSave(canonicalMapSettings)
+          : null;
         if (data && Object.keys(data).length > 0) {
 	          if (
 	            typeof data.turn === 'number' &&
@@ -2305,6 +2614,8 @@ export default function App() {
           if (data.bedTiles) setBedTiles(normalizeTileRecord(data.bedTiles, isEnabledTileValue));
           if (data.workbenchTiles) setWorkbenchTiles(normalizeTileRecord(data.workbenchTiles, isEnabledTileValue));
           if (data.fishingTiles) setFishingTiles(normalizeTileRecord(data.fishingTiles, isEnabledTileValue));
+          if (data.miningTiles) setMiningTiles(normalizeTileRecord(data.miningTiles, isEnabledTileValue));
+          if (data.loggingTiles) setLoggingTiles(normalizeTileRecord(data.loggingTiles, isEnabledTileValue));
           if (Array.isArray(data.inspectSpots)) {
             setInspectSpots(data.inspectSpots.filter((spot: InspectSpot) => (
               spot &&
@@ -2382,6 +2693,26 @@ export default function App() {
           if (typeof data.fishingTutorialCompleted === 'boolean') {
             setFishingTutorialCompleted(data.fishingTutorialCompleted);
           }
+          if (typeof data.sawCraftTutorialReady === 'boolean') {
+            setSawCraftTutorialReady(data.sawCraftTutorialReady);
+          }
+          if (isCraftRecipeId(data.craftTutorialRecipeName)) {
+            setCraftTutorialRecipeName(data.craftTutorialRecipeName);
+          }
+          if (typeof data.sawCraftTutorialWorkbenchReady === 'boolean') {
+            setSawCraftTutorialWorkbenchReady(data.sawCraftTutorialWorkbenchReady);
+          }
+          if (typeof data.sawCraftTutorialCompleted === 'boolean') {
+            setSawCraftTutorialCompleted(data.sawCraftTutorialCompleted);
+          }
+          if (Array.isArray(data.craftedRecipeIds)) {
+            setCraftedRecipeIds(data.craftedRecipeIds.filter((name: unknown): name is CraftRecipeId => (
+              typeof name === 'string' && isCraftRecipeId(name)
+            )));
+          }
+          if (typeof data.gatheringTutorialCompleted === 'boolean') {
+            setGatheringTutorialCompleted(data.gatheringTutorialCompleted);
+          }
           if (data.fishingTutorialCompleted === true) {
             setInventoryCounts(prev => ({ ...prev, '竹の釣竿': Math.max(1, prev['竹の釣竿'] ?? 0) }));
             setEquippedItems(prev => ({ ...prev, '主人公-slot1': '竹の釣竿' }));
@@ -2415,6 +2746,9 @@ export default function App() {
           }
         }
         if (startingNewGame) {
+          if (mapSettingsForNewGame) {
+            applyMapSettingsSnapshot(mapSettingsForNewGame);
+          }
           setTurn(0);
           setGold(5000);
           const difficultyOption = DIFFICULTY_OPTIONS.find(option => option.id === pendingNewGameDifficulty) ?? DIFFICULTY_OPTIONS[2];
@@ -2431,10 +2765,17 @@ export default function App() {
           setFishInventorySizes({});
           setFishingTutorialCompleted(false);
           setFishingTutorialOpen(false);
+          setSawCraftTutorialIntroOpen(false);
+          setSawCraftTutorialIntroStepIndex(0);
+          setSawCraftTutorialReady(false);
+          setSawCraftTutorialShedDialogueOpen(false);
+          setSawCraftTutorialWorkbenchReady(false);
+          setSawCraftTutorialCompleted(false);
           setIsFishingTutorialRun(false);
           setFishingTutorialResult(null);
-          setInventoryCounts(prev => ({ ...prev, '竹の釣竿': 0 }));
-          setEquippedItems(prev => ({ ...prev, '主人公-slot1': '' }));
+          setInventoryCounts({ ...INITIAL_INVENTORY_COUNTS });
+          setEquippedItems({ ...INITIAL_EQUIPPED_ITEMS });
+          equippedItemsRef.current = { ...INITIAL_EQUIPPED_ITEMS };
           setCurrentMap('farm');
           currentMapRef.current = 'farm';
           setPos({ x: 960, y: 540 });
@@ -2481,6 +2822,8 @@ export default function App() {
     bedTiles: normalizeTileRecord(bedTiles, isEnabledTileValue),
     workbenchTiles: normalizeTileRecord(workbenchTiles, isEnabledTileValue),
     fishingTiles: normalizeTileRecord(fishingTiles, isEnabledTileValue),
+    miningTiles: normalizeTileRecord(miningTiles, isEnabledTileValue),
+    loggingTiles: normalizeTileRecord(loggingTiles, isEnabledTileValue),
     inspectSpots,
     plantedCrops,
     fieldCorners,
@@ -2492,6 +2835,12 @@ export default function App() {
     fishBestSizes,
     fishInventorySizes,
     fishingTutorialCompleted,
+    craftTutorialRecipeName,
+    sawCraftTutorialReady,
+    sawCraftTutorialWorkbenchReady,
+    sawCraftTutorialCompleted,
+    craftedRecipeIds,
+    gatheringTutorialCompleted,
     kurumiIntroAskedTopics,
     kurumiIntroCompletedDay,
     bathTubMaskZone
@@ -2639,6 +2988,8 @@ export default function App() {
     bedTiles,
     workbenchTiles,
     fishingTiles,
+    miningTiles,
+    loggingTiles,
     inspectSpots,
     plantedCrops,
     fieldCorners,
@@ -2650,6 +3001,12 @@ export default function App() {
     fishBestSizes,
     fishInventorySizes,
     fishingTutorialCompleted,
+    craftTutorialRecipeName,
+    sawCraftTutorialReady,
+    sawCraftTutorialWorkbenchReady,
+    sawCraftTutorialCompleted,
+    craftedRecipeIds,
+    gatheringTutorialCompleted,
     kurumiIntroAskedTopics,
     kurumiIntroCompletedDay,
     bathTubMaskZone
@@ -2657,14 +3014,34 @@ export default function App() {
 
   const startNewGameInSlot = (slot: number) => {
     playFixSound();
+    const summary = getSlotSummary(slot);
+    if (summary?.exists) {
+      setPendingOverwriteSaveSlot(slot);
+      setConfirmPromptChoice('no');
+      return;
+    }
     setPendingNewGameSlot(slot);
+    setTitlePanelMode('difficulty');
+  };
+
+  const cancelOverwriteSaveSlot = () => {
+    playFixSound();
+    setPendingOverwriteSaveSlot(null);
+    setConfirmPromptChoice('no');
+  };
+
+  const confirmOverwriteSaveSlot = () => {
+    if (pendingOverwriteSaveSlot === null) return;
+    playFixSound();
+    setPendingNewGameSlot(pendingOverwriteSaveSlot);
+    setPendingOverwriteSaveSlot(null);
+    setConfirmPromptChoice('no');
     setTitlePanelMode('difficulty');
   };
 
   const startNewGameWithDifficulty = (difficultyId: GameDifficulty) => {
     const slot = pendingNewGameSlot ?? 1;
     const difficultyOption = DIFFICULTY_OPTIONS.find(option => option.id === difficultyId) ?? DIFFICULTY_OPTIONS[2];
-    if (!window.confirm(`スロット${slot}で${difficultyOption.label}（${difficultyOption.desc}）を開始します。よろしいですか？`)) return;
     playFixSound();
     autoSaveBlockedSlotsRef.current.delete(slot);
     setCurrentSaveSlot(slot);
@@ -2676,6 +3053,10 @@ export default function App() {
 
   const continueGameFromSlot = (slot: number) => {
     playFixSound();
+    if (!getSlotSummary(slot)?.exists) {
+      setMissingSaveSlot(slot);
+      return;
+    }
     autoSaveBlockedSlotsRef.current.delete(slot);
     setCurrentSaveSlot(slot);
     setStartingNewGame(false);
@@ -2823,16 +3204,63 @@ export default function App() {
   const playCursorSound = () => playUiSound(UI_CURSOR_SOUND_SRC);
   const playFixSound = () => playUiSound(UI_FIX_SOUND_SRC);
   const currentDay = Math.floor(turn / 4) + 1;
+  const getDebugDialogueMessage = (debugKey: string, defaultMessage: string) => debugDialogueOverrides[debugKey] ?? defaultMessage;
+  const saveDebugDialogueOverride = (debugKey: string, message: string) => {
+    setDebugDialogueOverrides(prev => ({ ...prev, [debugKey]: message }));
+  };
+  const resetDebugDialogueOverride = (debugKey: string) => {
+    setDebugDialogueOverrides(prev => {
+      const next = { ...prev };
+      delete next[debugKey];
+      return next;
+    });
+  };
+  const debugDialogueOptions = useMemo(() => {
+    const createOptions = (groupLabel: string, steps: DebugDialogueStep[]) => steps.map((step, index) => ({
+      key: step.debugKey,
+      label: `${groupLabel} ${index + 1}`,
+      defaultMessage: step.message,
+      currentMessage: getDebugDialogueMessage(step.debugKey, step.message),
+    }));
+    return [
+      ...createOptions('釣り説明', FISHING_TUTORIAL_STEPS),
+      ...createOptions('釣り後会話', FISHING_TUTORIAL_END_STEPS),
+      ...createOptions('のこぎり会話', SAW_CRAFT_TUTORIAL_STEPS),
+      ...createOptions('つるはし会話', PICKAXE_CRAFT_TUTORIAL_STEPS),
+      ...createOptions('小屋会話', [SAW_CRAFT_SHED_TUTORIAL_STEP]),
+      ...createOptions('採取共通会話', GATHERING_TUTORIAL_COMMON_STEPS),
+      ...createOptions('伐採会話', GATHERING_TUTORIAL_BRANCH_STEPS.logging),
+      ...createOptions('採掘会話', GATHERING_TUTORIAL_BRANCH_STEPS.mining),
+    ];
+  }, [debugDialogueOverrides]);
   const isKurumiShopUnlocked = kurumiIntroCompletedDay !== null && currentDay > kurumiIntroCompletedDay;
   const hasAskedAllKurumiIntroTopics = KURUMI_INTRO_TOPIC_IDS.every(id => kurumiIntroAskedTopics.includes(id));
   const shouldShowFishingTutorialKurumi = bootMode === 'playing' && currentMap === 'farm' && currentDay === 2 && !fishingTutorialCompleted;
   const currentFishingTutorialStep = FISHING_TUTORIAL_STEPS[fishingTutorialStepIndex] ?? FISHING_TUTORIAL_STEPS[0];
+  const currentFishingTutorialEndingStep = FISHING_TUTORIAL_END_STEPS[fishingTutorialEndingStepIndex] ?? FISHING_TUTORIAL_END_STEPS[0];
+  const currentCraftTutorialSteps = craftTutorialRecipeName === '【レシピ】つるはし'
+    ? PICKAXE_CRAFT_TUTORIAL_STEPS
+    : SAW_CRAFT_TUTORIAL_STEPS;
+  const currentSawCraftTutorialStep = currentCraftTutorialSteps[sawCraftTutorialIntroStepIndex] ?? currentCraftTutorialSteps[0];
+  const currentGatheringTutorialSteps = gatheringTutorialChoice
+    ? GATHERING_TUTORIAL_BRANCH_STEPS[gatheringTutorialChoice]
+    : GATHERING_TUTORIAL_COMMON_STEPS;
+  const currentGatheringTutorialStep = currentGatheringTutorialSteps[gatheringTutorialStepIndex] ?? currentGatheringTutorialSteps[0];
+  const isGatheringTutorialChoiceStep = gatheringTutorialChoice === null && gatheringTutorialStepIndex === GATHERING_TUTORIAL_COMMON_STEPS.length - 1;
   const activeAutoEventMessages = activeAutoEventSpot
      ? (activeAutoEventSpot.texts?.length ? activeAutoEventSpot.texts : [activeAutoEventSpot.text || activeAutoEventSpot.label || 'イベントが発生しました。'])
      : [];
   const isNearFishingTutorialKurumi = (playerPos = posRef.current) => {
     const kurumiCenterX = FISHING_TUTORIAL_KURUMI_ZONE.x + FISHING_TUTORIAL_KURUMI_ZONE.w / 2;
     const kurumiCenterY = FISHING_TUTORIAL_KURUMI_ZONE.y + FISHING_TUTORIAL_KURUMI_ZONE.h / 2;
+    const dx = playerPos.x - kurumiCenterX;
+    const dy = playerPos.y - kurumiCenterY;
+    return Math.sqrt(dx * dx + dy * dy) <= FISHING_TUTORIAL_INTERACT_DISTANCE;
+  };
+
+  const isNearSawCraftTutorialKurumi = (playerPos = posRef.current) => {
+    const kurumiCenterX = CRAFT_TUTORIAL_KURUMI_ZONE.x + CRAFT_TUTORIAL_KURUMI_ZONE.w / 2;
+    const kurumiCenterY = CRAFT_TUTORIAL_KURUMI_ZONE.y + CRAFT_TUTORIAL_KURUMI_ZONE.h / 2;
     const dx = playerPos.x - kurumiCenterX;
     const dy = playerPos.y - kurumiCenterY;
     return Math.sqrt(dx * dx + dy * dy) <= FISHING_TUTORIAL_INTERACT_DISTANCE;
@@ -2900,6 +3328,139 @@ export default function App() {
     const nextStepIndex = fishingTutorialStepIndex + 1;
     setFishingTutorialStepIndex(nextStepIndex);
     playFishingTutorialVoice(nextStepIndex);
+  };
+
+  const openFishingTutorialEnding = () => {
+    stopFishingTutorialVoice();
+    setFishingTutorialEndingOpen(true);
+    setFishingTutorialEndingStepIndex(0);
+    setSelectedFishingTutorialAction('next');
+    fishingTutorialVoiceRef.current = playVoiceSound(FISHING_TUTORIAL_END_STEPS[0].voiceSrc);
+  };
+
+  const closeFishingTutorialEnding = (withSound = true) => {
+    if (withSound) playFixSound();
+    stopFishingTutorialVoice();
+    setFishingTutorialEndingOpen(false);
+    setFishingTutorialEndingStepIndex(0);
+    setDialogMessage('くるみ「じゃっ、まったねー！」');
+  };
+
+  const advanceFishingTutorialEnding = () => {
+    playFixSound();
+    const nextStepIndex = fishingTutorialEndingStepIndex + 1;
+    if (nextStepIndex >= FISHING_TUTORIAL_END_STEPS.length) {
+      closeFishingTutorialEnding(false);
+      return;
+    }
+    stopFishingTutorialVoice();
+    setFishingTutorialEndingStepIndex(nextStepIndex);
+    fishingTutorialVoiceRef.current = playVoiceSound(FISHING_TUTORIAL_END_STEPS[nextStepIndex].voiceSrc);
+  };
+
+  const stopSawCraftTutorialVoice = () => {
+    if (!sawCraftTutorialVoiceRef.current) return;
+    sawCraftTutorialVoiceRef.current.pause();
+    sawCraftTutorialVoiceRef.current.currentTime = 0;
+    sawCraftTutorialVoiceRef.current = null;
+  };
+
+  const startGatheringTutorial = () => {
+    stopSawCraftTutorialVoice();
+    setGatheringTutorialChoice(null);
+    setSelectedGatheringTutorialChoice('logging');
+    setGatheringTutorialStepIndex(0);
+    setGatheringTutorialOpen(true);
+    sawCraftTutorialVoiceRef.current = playVoiceSound(GATHERING_TUTORIAL_COMMON_STEPS[0].voiceSrc);
+  };
+
+  const advanceGatheringTutorial = () => {
+    if (isGatheringTutorialChoiceStep) return;
+    playFixSound();
+    const nextStepIndex = gatheringTutorialStepIndex + 1;
+    if (nextStepIndex >= currentGatheringTutorialSteps.length) {
+      stopSawCraftTutorialVoice();
+      setGatheringTutorialOpen(false);
+      setGatheringTutorialCompleted(true);
+      setDialogMessage(gatheringTutorialChoice === 'mining'
+        ? 'ポストの下にある岩を調べてみよう。'
+        : 'このマップにある伐採できる木を探してみよう。');
+      return;
+    }
+    stopSawCraftTutorialVoice();
+    setGatheringTutorialStepIndex(nextStepIndex);
+    sawCraftTutorialVoiceRef.current = playVoiceSound(currentGatheringTutorialSteps[nextStepIndex].voiceSrc);
+  };
+
+  const chooseGatheringTutorial = (choice: GatheringTutorialChoice) => {
+    playFixSound();
+    stopSawCraftTutorialVoice();
+    setGatheringTutorialChoice(choice);
+    setGatheringTutorialStepIndex(0);
+    sawCraftTutorialVoiceRef.current = playVoiceSound(GATHERING_TUTORIAL_BRANCH_STEPS[choice][0].voiceSrc);
+  };
+
+  const moveToSawCraftTutorialShed = () => {
+    const shedEntrance = doorsRef.current.find(door => door.map === 'farm' && door.targetMap === 'shed');
+    const shedStartPos = shedEntrance
+      ? { x: shedEntrance.spawnX, y: shedEntrance.spawnY }
+      : { x: 960, y: 650 };
+    stopSawCraftTutorialVoice();
+    setSawCraftTutorialIntroOpen(false);
+    setSawCraftTutorialIntroStepIndex(0);
+    setSawCraftTutorialReady(true);
+    setSawCraftTutorialShedDialogueOpen(false);
+    setSawCraftTutorialWorkbenchReady(false);
+    setKurumiShopOpen(false);
+    setCurrentMap('shed');
+    currentMapRef.current = 'shed';
+    setPos(shedStartPos);
+    posRef.current = shedStartPos;
+    setDir('right');
+    setDialogMessage('クラフト小屋でくるみが待っています。');
+    setShowDialog(true);
+    clickTargetRef.current = null;
+    setClickTargetMarker(null);
+  };
+
+  const openSawCraftTutorialIntro = (recipeName: CraftRecipeId = '【レシピ】のこぎり') => {
+    stopSawCraftTutorialVoice();
+    setCraftTutorialRecipeName(recipeName);
+    setSawCraftTutorialIntroOpen(true);
+    setSawCraftTutorialIntroStepIndex(0);
+    const tutorialSteps = recipeName === '【レシピ】つるはし'
+      ? PICKAXE_CRAFT_TUTORIAL_STEPS
+      : SAW_CRAFT_TUTORIAL_STEPS;
+    sawCraftTutorialVoiceRef.current = playVoiceSound(tutorialSteps[0].voiceSrc);
+  };
+
+  const advanceSawCraftTutorialIntro = () => {
+    playFixSound();
+    const nextStepIndex = sawCraftTutorialIntroStepIndex + 1;
+    if (nextStepIndex >= currentCraftTutorialSteps.length) {
+      moveToSawCraftTutorialShed();
+      return;
+    }
+    stopSawCraftTutorialVoice();
+    setSawCraftTutorialIntroStepIndex(nextStepIndex);
+    sawCraftTutorialVoiceRef.current = playVoiceSound(currentCraftTutorialSteps[nextStepIndex].voiceSrc);
+  };
+
+  const openSawCraftTutorialShedDialogue = () => {
+    stopSawCraftTutorialVoice();
+    setSawCraftTutorialShedDialogueOpen(true);
+    sawCraftTutorialVoiceRef.current = playVoiceSound(SAW_CRAFT_SHED_TUTORIAL_STEP.voiceSrc);
+  };
+
+  const closeSawCraftTutorialShedDialogue = () => {
+    playFixSound();
+    stopSawCraftTutorialVoice();
+    setSawCraftTutorialShedDialogueOpen(false);
+    setSawCraftTutorialReady(false);
+    setSawCraftTutorialWorkbenchReady(true);
+    craftPromptBlockedRef.current = false;
+    const toolName = craftTutorialRecipeName === '【レシピ】つるはし' ? 'つるはし' : 'のこぎり';
+    setDialogMessage(`クラフト台を調べて、${toolName}を作ってみよう。`);
   };
 
   const renderFishingTutorialVisual = () => {
@@ -3005,7 +3566,7 @@ export default function App() {
     setFishingTutorialResult(null);
     setIsFishingTutorialRun(false);
     finishFishingMiniGame();
-    setDialogMessage('くるみ「それじゃ、楽しい釣りライフを！」');
+    openFishingTutorialEnding();
   };
 
   useEffect(() => {
@@ -3172,6 +3733,13 @@ export default function App() {
   const startKurumiInteraction = () => {
      clickTargetRef.current = null;
      setClickTargetMarker(null);
+     const hasCraftedBothTools =
+       craftedRecipeIds.includes('【レシピ】のこぎり') &&
+       craftedRecipeIds.includes('【レシピ】つるはし');
+     if (hasCraftedBothTools && !gatheringTutorialCompleted) {
+        startGatheringTutorial();
+        return;
+     }
      if (isKurumiShopUnlocked) {
         openKurumiShop();
      } else {
@@ -3229,6 +3797,166 @@ export default function App() {
      return true;
   };
 
+  const isCraftRecipeId = (name: string): name is CraftRecipeId => name in CRAFT_RECIPE_CONFIGS;
+
+  const getMissingCraftMaterials = (recipeName: CraftRecipeId) => {
+     const config = CRAFT_RECIPE_CONFIGS[recipeName];
+     return Object.entries(config.materials).filter(([materialName, requiredCount]) => (
+        (inventoryCounts[materialName] ?? 0) < requiredCount
+     ));
+  };
+
+  const openCraftRecipeMenu = () => {
+     setCraftRecipeSelectMode(true);
+     setMenuOpen(true);
+     menuOpenRef.current = true;
+     setMenuSelectedIndex(0);
+     menuSelectedIndexRef.current = 0;
+     setMenuFocusArea('content');
+     setMenuContentFocus('secondary');
+     setItemMenuTab('だいじなもの');
+     itemMenuTabRef.current = 'だいじなもの';
+     const firstOwnedRecipe = (['【レシピ】のこぎり', '【レシピ】つるはし'] as CraftRecipeId[]).find(name => (inventoryCounts[name] ?? 0) > 0);
+     const selectedRecipe = firstOwnedRecipe ?? '';
+     setSelectedItemName(selectedRecipe);
+     selectedItemNameRef.current = selectedRecipe;
+     setDialogMessage('作りたいレシピを選んでください。');
+   };
+
+  const handleCraftRecipeSelected = (recipeName: string) => {
+     if (!isCraftRecipeId(recipeName)) {
+        playFixSound();
+        setDialogMessage('クラフトできるレシピを選んでください。');
+        return;
+     }
+     playFixSound();
+     setSelectedItemName(recipeName);
+     setSelectedRecipeName(recipeName);
+     if (getMissingCraftMaterials(recipeName).length > 0) {
+        setCraftInsufficientRecipeName(recipeName);
+        setCraftConfirmRecipeName(null);
+        return;
+     }
+     setCraftConfirmRecipeName(recipeName);
+     setCraftInsufficientRecipeName(null);
+     setConfirmPromptChoice('yes');
+  };
+
+  const randomInt = (min: number, max: number) => Math.floor(min + Math.random() * (max - min + 1));
+
+  const createCraftCircle = (durationMs: number): CraftCircle => {
+     const size = randomInt(58, 86);
+     return {
+        id: Date.now() + Math.random(),
+        x: randomInt(16, 100 - 16),
+        y: randomInt(18, 82),
+        size,
+        expiresAt: Date.now() + durationMs,
+        durationMs,
+     };
+  };
+
+  const spawnNextCraftCircle = (recipeName: CraftRecipeId, spawnedCount: number, targetCount: number) => {
+     if (spawnedCount >= targetCount) return;
+     const config = CRAFT_RECIPE_CONFIGS[recipeName];
+     const durationMs = randomInt(config.circleDurationRangeMs[0], config.circleDurationRangeMs[1]);
+     setCraftMiniGameCircles([createCraftCircle(durationMs)]);
+     setCraftMiniGameSpawnedCount(spawnedCount + 1);
+  };
+
+  const startCraftMiniGame = (recipeName: CraftRecipeId) => {
+     if (getMissingCraftMaterials(recipeName).length > 0) {
+        setCraftConfirmRecipeName(null);
+        setCraftInsufficientRecipeName(recipeName);
+        return;
+     }
+     const config = CRAFT_RECIPE_CONFIGS[recipeName];
+     const targetCount = randomInt(config.circleCountRange[0], config.circleCountRange[1]);
+     setCraftConfirmRecipeName(null);
+     setRecipeDetailOpen(false);
+     setMenuOpen(false);
+     menuOpenRef.current = false;
+     setCraftRecipeSelectMode(false);
+     setCraftMiniGameOpen(true);
+     setCraftMiniGameRecipeName(recipeName);
+     setCraftMiniGameScore(0);
+     setCraftMiniGameTargetCount(targetCount);
+     setCraftMiniGameSpawnedCount(0);
+     setCraftMiniGameResult(null);
+     spawnNextCraftCircle(recipeName, 0, targetCount);
+  };
+
+  const finishCraftMiniGame = (result: 'success' | 'fail') => {
+     if (!craftMiniGameRecipeName) return;
+     const config = CRAFT_RECIPE_CONFIGS[craftMiniGameRecipeName];
+     setCraftMiniGameCircles([]);
+     setCraftMiniGameResult(result);
+     if (result === 'success') {
+        setInventoryCounts(prev => {
+           const next = { ...prev };
+           Object.entries(config.materials).forEach(([materialName, requiredCount]) => {
+              next[materialName] = Math.max(0, (next[materialName] ?? 0) - Number(requiredCount));
+           });
+           next[config.output] = (next[config.output] ?? 0) + 1;
+           return next;
+        });
+        if (sawCraftTutorialWorkbenchReady && craftMiniGameRecipeName === craftTutorialRecipeName) {
+           setSawCraftTutorialWorkbenchReady(false);
+           setSawCraftTutorialCompleted(true);
+        }
+        setCraftedRecipeIds(prev => prev.includes(craftMiniGameRecipeName) ? prev : [...prev, craftMiniGameRecipeName]);
+        setDialogMessage(`${config.output}のクラフトに成功しました！`);
+     } else {
+        setDialogMessage(`${config.output}のクラフトに失敗しました。`);
+     }
+  };
+
+  const handleCraftCircleClick = (circleId: number) => {
+     if (!craftMiniGameRecipeName || craftMiniGameResult) return;
+     playFixSound();
+     const config = CRAFT_RECIPE_CONFIGS[craftMiniGameRecipeName];
+     setCraftMiniGameCircles(prev => prev.filter(circle => circle.id !== circleId));
+     setCraftMiniGameScore(prev => Math.min(100, prev + config.scorePerCircle));
+     window.setTimeout(() => {
+        spawnNextCraftCircle(craftMiniGameRecipeName, craftMiniGameSpawnedCount, craftMiniGameTargetCount);
+     }, 120);
+  };
+
+  const closeCraftMiniGame = () => {
+     playFixSound();
+     setCraftMiniGameOpen(false);
+     setCraftMiniGameRecipeName(null);
+     setCraftMiniGameCircles([]);
+     setCraftMiniGameResult(null);
+     setCraftMiniGameTargetCount(0);
+     setCraftMiniGameSpawnedCount(0);
+     setCraftMiniGameScore(0);
+  };
+
+  useEffect(() => {
+     if (!craftMiniGameOpen || !craftMiniGameRecipeName || craftMiniGameResult) return;
+     const timer = window.setInterval(() => {
+        const now = Date.now();
+        setCraftMiniGameCircles(prev => {
+           const activeCircles = prev.filter(circle => circle.expiresAt > now);
+           if (activeCircles.length !== prev.length) {
+              window.setTimeout(() => {
+                 spawnNextCraftCircle(craftMiniGameRecipeName, craftMiniGameSpawnedCount, craftMiniGameTargetCount);
+              }, 120);
+           }
+           return activeCircles;
+        });
+     }, 80);
+     return () => window.clearInterval(timer);
+  }, [craftMiniGameOpen, craftMiniGameRecipeName, craftMiniGameResult, craftMiniGameSpawnedCount, craftMiniGameTargetCount]);
+
+  useEffect(() => {
+     if (!craftMiniGameOpen || craftMiniGameResult || craftMiniGameTargetCount <= 0) return;
+     if (craftMiniGameSpawnedCount >= craftMiniGameTargetCount && craftMiniGameCircles.length === 0) {
+        finishCraftMiniGame(craftMiniGameScore >= 70 ? 'success' : 'fail');
+     }
+  }, [craftMiniGameOpen, craftMiniGameResult, craftMiniGameTargetCount, craftMiniGameSpawnedCount, craftMiniGameCircles.length, craftMiniGameScore]);
+
   const handleShopCloseClick = () => {
      playFixSound();
      setKurumiShopOpen(false);
@@ -3262,18 +3990,30 @@ export default function App() {
         nextTradeTotal >= reward.threshold && !shownKurumiTradeRewardThresholds.includes(reward.threshold)
      ));
      const nextReward = availableRewards[availableRewards.length - 1] ?? null;
+     const tutorialRecipeName = isCraftRecipeId(item.name) ? item.name : null;
+     const shouldStartCraftTutorial = item.type === '買う' && tutorialRecipeName !== null && !sawCraftTutorialReady && !sawCraftTutorialWorkbenchReady;
      setKurumiTradeTotal(nextTradeTotal);
      setGold(prev => item.type === '買う' ? prev - tradePrice : prev + tradePrice);
      if (item.type === '買う') {
         setShopItems(prev => prev.map((shopItem, index) => (
-           shopItem.name === item.name ? { ...shopItem, stock: Math.max(0, shopItem.stock - 1) } : shopItem
+           shopItem.name === item.name
+             ? { ...shopItem, stock: isRecipeItemName(shopItem.name) ? 0 : Math.max(0, shopItem.stock - 1) }
+             : shopItem
         )));
      }
      const inventoryName = item.fishName ?? item.name;
-     setInventoryCounts(prev => ({
-        ...prev,
-        [inventoryName]: Math.max(0, (prev[inventoryName] ?? 0) + (item.type === '買う' ? 1 : -1)),
-     }));
+     setInventoryCounts(prev => {
+        const next = {
+           ...prev,
+           [inventoryName]: Math.max(0, (prev[inventoryName] ?? 0) + (item.type === '買う' ? 1 : -1)),
+        };
+        if (shouldStartCraftTutorial && tutorialRecipeName) {
+           Object.entries(CRAFT_RECIPE_CONFIGS[tutorialRecipeName].materials).forEach(([materialName, count]) => {
+              next[materialName] = (next[materialName] ?? 0) + count;
+           });
+        }
+        return next;
+     });
      if (item.type === '売る' && item.fishName && typeof item.fishPrice === 'number') {
         setFishInventorySizes(prev => ({
            ...prev,
@@ -3308,6 +4048,11 @@ export default function App() {
            setActiveKurumiTradeReward(null);
            kurumiTradeRewardTimerRef.current = null;
         }, 5000);
+     }
+     if (shouldStartCraftTutorial && tutorialRecipeName) {
+        setKurumiShopOpen(false);
+        setDialogMessage('くるみからクラフト用の素材を受け取りました。');
+        openSawCraftTutorialIntro(tutorialRecipeName);
      }
   };
 
@@ -3483,7 +4228,15 @@ export default function App() {
     const audio = bgmRef.current;
     if (!audio) return;
 
-    const currentSource = kurumiShopOpen ? SHOP_BGM_SRC : mapBgmSources[currentMap] ?? DEFAULT_MAP_BGM_SOURCES[currentMap];
+    const isKurumiConversationOpen =
+      kurumiShopOpen ||
+      kurumiIntroOpen ||
+      fishingTutorialOpen ||
+      fishingTutorialEndingOpen ||
+      sawCraftTutorialIntroOpen ||
+      sawCraftTutorialShedDialogueOpen ||
+      gatheringTutorialOpen;
+    const currentSource = isKurumiConversationOpen ? SHOP_BGM_SRC : mapBgmSources[currentMap] ?? DEFAULT_MAP_BGM_SOURCES[currentMap];
     if (bgmSourceRef.current !== currentSource) {
       bgmSourceRef.current = currentSource;
       audio.pause();
@@ -3505,7 +4258,15 @@ export default function App() {
     const audio = bgmRef.current;
     if (!audio) return;
 
-    const currentSource = kurumiShopOpen ? SHOP_BGM_SRC : mapBgmSources[currentMap] ?? DEFAULT_MAP_BGM_SOURCES[currentMap];
+    const isKurumiConversationOpen =
+      kurumiShopOpen ||
+      kurumiIntroOpen ||
+      fishingTutorialOpen ||
+      fishingTutorialEndingOpen ||
+      sawCraftTutorialIntroOpen ||
+      sawCraftTutorialShedDialogueOpen ||
+      gatheringTutorialOpen;
+    const currentSource = isKurumiConversationOpen ? SHOP_BGM_SRC : mapBgmSources[currentMap] ?? DEFAULT_MAP_BGM_SOURCES[currentMap];
     bgmSourceRef.current = currentSource;
     audio.pause();
     audio.src = currentSource;
@@ -3591,11 +4352,18 @@ export default function App() {
   const startCraftPrompt = () => {
     setCraftPromptVisible(false);
     craftPromptBlockedRef.current = true;
-    setDialogMessage('クラフトを開始しました。');
+    if (craftPromptSource === 'kurumi' && sawCraftTutorialReady) {
+      setCraftPromptSource(null);
+      openSawCraftTutorialShedDialogue();
+      return;
+    }
+    setCraftPromptSource(null);
+    openCraftRecipeMenu();
   };
 
   const cancelCraftPrompt = () => {
     setCraftPromptVisible(false);
+    setCraftPromptSource(null);
     craftPromptBlockedRef.current = true;
   };
 
@@ -4130,6 +4898,40 @@ export default function App() {
     });
   };
 
+  const paintMiningTile = (x: number, y: number, drawMode: boolean) => {
+    const gx = Math.floor(x / TILE_SIZE);
+    const gy = Math.floor(y / TILE_SIZE);
+    if (gx < 0 || gx >= GRID_COLS || gy < 0 || gy >= GRID_ROWS) return;
+
+    const key = `${currentMap}_${gx},${gy}`;
+    setMiningTiles(prev => {
+      const next = { ...prev };
+      if (drawMode) {
+        next[key] = true;
+      } else {
+        delete next[key];
+      }
+      return next;
+    });
+  };
+
+  const paintLoggingTile = (x: number, y: number, drawMode: boolean) => {
+    const gx = Math.floor(x / TILE_SIZE);
+    const gy = Math.floor(y / TILE_SIZE);
+    if (gx < 0 || gx >= GRID_COLS || gy < 0 || gy >= GRID_ROWS) return;
+
+    const key = `${currentMap}_${gx},${gy}`;
+    setLoggingTiles(prev => {
+      const next = { ...prev };
+      if (drawMode) {
+        next[key] = true;
+      } else {
+        delete next[key];
+      }
+      return next;
+    });
+  };
+
   const times: TimeOfDay[] = ['morning', 'day', 'evening', 'night'];
   const timeOfDay = times[turn % 4];
 
@@ -4217,8 +5019,16 @@ export default function App() {
     if (!audio) return;
     if (fishingMiniGameOpen || wasFishingBgmActiveRef.current) return;
 
+    const isKurumiConversationOpen =
+      kurumiShopOpen ||
+      kurumiIntroOpen ||
+      fishingTutorialOpen ||
+      fishingTutorialEndingOpen ||
+      sawCraftTutorialIntroOpen ||
+      sawCraftTutorialShedDialogueOpen ||
+      gatheringTutorialOpen;
     const nextSource = bootMode === 'playing'
-      ? kurumiShopOpen ? SHOP_BGM_SRC : mapBgmSources[currentMap] ?? DEFAULT_MAP_BGM_SOURCES[currentMap]
+      ? isKurumiConversationOpen ? SHOP_BGM_SRC : mapBgmSources[currentMap] ?? DEFAULT_MAP_BGM_SOURCES[currentMap]
       : TITLE_BGM_SRC;
     if (bgmSourceRef.current === nextSource) return;
 
@@ -4237,7 +5047,7 @@ export default function App() {
         console.log("BGM switch autoplay blocked", err);
       });
     }
-  }, [bootMode, currentMap, bgmVolume, audioGains, mapBgmSources, kurumiShopOpen, fishingMiniGameOpen]);
+  }, [bootMode, currentMap, bgmVolume, audioGains, mapBgmSources, kurumiShopOpen, kurumiIntroOpen, fishingTutorialOpen, fishingTutorialEndingOpen, sawCraftTutorialIntroOpen, sawCraftTutorialShedDialogueOpen, gatheringTutorialOpen, fishingMiniGameOpen]);
 
   // BGM音量変更時の反映
   useEffect(() => {
@@ -4473,7 +5283,79 @@ export default function App() {
         return;
       }
 
+      if (pendingOverwriteSaveSlot !== null) {
+        if (e.repeat) return;
+        if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+          e.preventDefault();
+          const nextChoice = e.key === 'ArrowLeft' ? 'yes' : 'no';
+          if (confirmPromptChoice !== nextChoice) playCursorSound();
+          setConfirmPromptChoice(nextChoice);
+          return;
+        }
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          if (confirmPromptChoice === 'yes') {
+            confirmOverwriteSaveSlot();
+          } else {
+            cancelOverwriteSaveSlot();
+          }
+          return;
+        }
+        if (e.key === 'Escape') {
+          e.preventDefault();
+          cancelOverwriteSaveSlot();
+          return;
+        }
+        return;
+      }
+
       if (bootMode !== 'playing') {
+        return;
+      }
+
+      if (craftConfirmRecipeName) {
+        if (e.repeat) return;
+        if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+          e.preventDefault();
+          playCursorSound();
+          setConfirmPromptChoice(prev => prev === 'yes' ? 'no' : 'yes');
+          return;
+        }
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          if (confirmPromptChoice === 'yes') {
+            startCraftMiniGame(craftConfirmRecipeName);
+          } else {
+            playFixSound();
+            setCraftConfirmRecipeName(null);
+          }
+          return;
+        }
+        if (e.key === 'Escape') {
+          e.preventDefault();
+          playFixSound();
+          setCraftConfirmRecipeName(null);
+          return;
+        }
+        return;
+      }
+
+      if (craftInsufficientRecipeName) {
+        if (e.repeat) return;
+        if (e.key === 'Enter' || e.key === ' ' || e.key === 'Escape') {
+          e.preventDefault();
+          playFixSound();
+          setCraftInsufficientRecipeName(null);
+        }
+        return;
+      }
+
+      if (craftMiniGameOpen) {
+        if (e.repeat) return;
+        if (craftMiniGameResult && (e.key === 'Enter' || e.key === ' ' || e.key === 'Escape')) {
+          e.preventDefault();
+          closeCraftMiniGame();
+        }
         return;
       }
 
@@ -4512,6 +5394,26 @@ export default function App() {
         return;
       }
 
+      if (gatheringTutorialOpen) {
+        if (e.repeat) return;
+        if (isGatheringTutorialChoiceStep && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
+          e.preventDefault();
+          playCursorSound();
+          setSelectedGatheringTutorialChoice(prev => prev === 'logging' ? 'mining' : 'logging');
+          return;
+        }
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          if (isGatheringTutorialChoiceStep) {
+            chooseGatheringTutorial(selectedGatheringTutorialChoice);
+          } else {
+            advanceGatheringTutorial();
+          }
+          return;
+        }
+        return;
+      }
+
       if (fishingTutorialOpen) {
         if (e.repeat) return;
         if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
@@ -4537,6 +5439,45 @@ export default function App() {
           stopFishingTutorialVoice();
           setFishingTutorialOpen(false);
           return;
+        }
+        return;
+      }
+
+      if (fishingTutorialEndingOpen) {
+        if (e.repeat) return;
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          advanceFishingTutorialEnding();
+          return;
+        }
+        if (e.key === 'Escape') {
+          e.preventDefault();
+          closeFishingTutorialEnding();
+          return;
+        }
+        return;
+      }
+
+      if (sawCraftTutorialIntroOpen) {
+        if (e.repeat) return;
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          advanceSawCraftTutorialIntro();
+          return;
+        }
+        if (e.key === 'Escape') {
+          e.preventDefault();
+          moveToSawCraftTutorialShed();
+          return;
+        }
+        return;
+      }
+
+      if (sawCraftTutorialShedDialogueOpen) {
+        if (e.repeat) return;
+        if (e.key === 'Enter' || e.key === ' ' || e.key === 'Escape') {
+          e.preventDefault();
+          closeSawCraftTutorialShedDialogue();
         }
         return;
       }
@@ -4741,8 +5682,15 @@ export default function App() {
             return;
           }
         }
+        if (sawCraftTutorialReady && currentMapRef.current === 'shed' && isNearSawCraftTutorialKurumi(playerPos)) {
+          e.preventDefault();
+          playFixSound();
+          openSawCraftTutorialShedDialogue();
+          return;
+        }
         const currentKurumi = zones.find(zone => (
           zone.type === 'kurumi' &&
+          !sawCraftTutorialReady &&
           (!zone.map || zone.map === currentMapRef.current) &&
           isAnimZoneVisibleAtTime(zone, timeOfDay)
         ));
@@ -5105,8 +6053,12 @@ export default function App() {
               if (selectedName) setDialogMessage(`${selectedName}の詳細情報を表示しました。`);
             }
           } else if (currentMenuItem.id === 'item') {
-            openRecipeDetail(selectedItemNameRef.current);
-            setDialogMessage(`${selectedItemNameRef.current}を確認しました。`);
+            if (craftRecipeSelectMode && itemMenuTabRef.current === 'だいじなもの') {
+              handleCraftRecipeSelected(selectedItemNameRef.current);
+            } else {
+              openRecipeDetail(selectedItemNameRef.current);
+              setDialogMessage(`${selectedItemNameRef.current}を確認しました。`);
+            }
           } else if (currentMenuItem.id === 'equipment') {
             if (!equipmentActionOpen) {
               setMenuContentFocus('secondary');
@@ -5189,6 +6141,7 @@ export default function App() {
           }
           clickTargetRef.current = null;
           setClickTargetMarker(null);
+          setCraftRecipeSelectMode(false);
           setMenuOpen(false);
         }
       }
@@ -5298,6 +6251,59 @@ export default function App() {
       const pRight = x + 15;
       const pTop = y - 10;
       const pBottom = y;
+
+      if (currentMapRef.current === 'shed' && (sawCraftTutorialReady || sawCraftTutorialWorkbenchReady)) {
+        const kurumiLeft = CRAFT_TUTORIAL_KURUMI_ZONE.x;
+        const kurumiRight = kurumiLeft + CRAFT_TUTORIAL_KURUMI_ZONE.w;
+        const kurumiTop = CRAFT_TUTORIAL_KURUMI_ZONE.y + CRAFT_TUTORIAL_KURUMI_ZONE.h * 0.55;
+        const kurumiBottom = CRAFT_TUTORIAL_KURUMI_ZONE.y + CRAFT_TUTORIAL_KURUMI_ZONE.h;
+
+        if (
+          pRight >= kurumiLeft &&
+          pLeft <= kurumiRight &&
+          pBottom >= kurumiTop &&
+          pTop <= kurumiBottom
+        ) {
+          return true;
+        }
+      }
+
+      if (currentMapRef.current === 'farm' && timeOfDay === 'night') {
+        const kurumiZone = zones.find(zone => zone.type === 'kurumi' && (!zone.map || zone.map === 'farm'));
+        if (kurumiZone) {
+          const zoneSpriteW = Math.max(8, kurumiZone.spriteW ?? kurumiZone.w);
+          const zoneSpriteH = Math.max(8, kurumiZone.spriteH ?? kurumiZone.h);
+          const tentContainerWidth = (
+            zoneSpriteW >= kurumiZone.w
+              ? Math.min(KURUMI_DEFAULT_SPRITE_W, Math.max(8, kurumiZone.w))
+              : zoneSpriteW
+          ) * 2;
+          const tentContainerHeight = (
+            zoneSpriteH >= kurumiZone.h
+              ? Math.min(KURUMI_DEFAULT_SPRITE_H, Math.max(8, kurumiZone.h))
+              : zoneSpriteH
+          ) * 2;
+          const tentRenderedSize = Math.min(tentContainerWidth, tentContainerHeight);
+          const tentWidth = tentRenderedSize * 0.82;
+          const tentHeight = tentRenderedSize * 0.35;
+          const tentCenterX = kurumiZone.x + kurumiZone.w / 2;
+          const tentCenterY = kurumiZone.y + kurumiZone.h / 2 + tentRenderedSize * 0.12;
+          const tentLeft = tentCenterX - tentWidth / 2;
+          const tentRight = tentCenterX + tentWidth / 2;
+          const tentTop = tentCenterY - tentHeight / 2;
+          const tentBottom = tentCenterY + tentHeight / 2;
+
+          if (
+            pRight >= tentLeft &&
+            pLeft <= tentRight &&
+            pBottom >= tentTop &&
+            pTop <= tentBottom
+          ) {
+            return true;
+          }
+        }
+      }
+
       const doorPadding = 8;
       const isOnDoor = doorsRef.current
         .filter(d => d.map === currentMapRef.current)
@@ -5542,10 +6548,11 @@ export default function App() {
       const isInWorkbench = isTouchingWorkbench(currentX, currentY);
       if (!isInWorkbench) {
         craftPromptBlockedRef.current = false;
-      } else if (!craftPromptBlockedRef.current && !isInBed) {
+      } else if (!craftPromptBlockedRef.current && !isInBed && !sawCraftTutorialReady && !sawCraftTutorialShedDialogueOpen) {
         moved = false;
         clickTargetRef.current = null;
         setClickTargetMarker(null);
+        setCraftPromptSource('workbench');
         setCraftPromptVisible(true);
         movementLockedRef.current = true;
       }
@@ -5594,7 +6601,7 @@ export default function App() {
       window.removeEventListener('keydown', handleKeyDown); window.removeEventListener('keyup', handleKeyUp);
       cancelAnimationFrame(animationFrameId);
     };
-  }, [setupMode, bedTiles, workbenchTiles, fishingTiles, sleepPromptVisible, craftPromptVisible, fishingPromptVisible, confirmPromptChoice, pendingDeleteSaveSlot, activeAutoEventSpot, activeAutoEventMessage, activeAutoEventMessageIndex, activeAutoEventMessages, displayedAutoEventMessage, turn, kurumiShopOpen, kurumiIntroOpen, kurumiIntroSelectedIndex, kurumiIntroAskedTopics, kurumiIntroCompletedDay, selectedShopControl, selectedShopItemIndex, shopItems, gold, equipmentActionOpen, equippedItems, inventoryCounts, caughtFishIds, fishingMiniGameOpen, fishingMiniGameStage, isFishingResultInputLocked, selectedFishingTutorialAction, selectedFishingResultAction, recipeDetailOpen, farmGirlDetailOpen, bootMode]);
+  }, [setupMode, bedTiles, workbenchTiles, fishingTiles, miningTiles, loggingTiles, sleepPromptVisible, craftPromptVisible, fishingPromptVisible, confirmPromptChoice, pendingDeleteSaveSlot, pendingOverwriteSaveSlot, activeAutoEventSpot, activeAutoEventMessage, activeAutoEventMessageIndex, activeAutoEventMessages, displayedAutoEventMessage, turn, kurumiShopOpen, kurumiIntroOpen, kurumiIntroSelectedIndex, kurumiIntroAskedTopics, kurumiIntroCompletedDay, selectedShopControl, selectedShopItemIndex, shopItems, gold, equipmentActionOpen, equippedItems, inventoryCounts, caughtFishIds, fishingMiniGameOpen, fishingMiniGameStage, isFishingResultInputLocked, fishingTutorialOpen, fishingTutorialEndingOpen, fishingTutorialEndingStepIndex, sawCraftTutorialIntroOpen, sawCraftTutorialIntroStepIndex, sawCraftTutorialReady, sawCraftTutorialShedDialogueOpen, sawCraftTutorialWorkbenchReady, selectedFishingTutorialAction, selectedFishingResultAction, recipeDetailOpen, farmGirlDetailOpen, bootMode]);
 
   // Zone creation states
   const [dragStart, setDragStart] = useState<{ x: number, y: number } | null>(null);
@@ -5686,15 +6693,23 @@ export default function App() {
               ? bedTiles
               : selectedEventTileType === 'workbench'
                  ? workbenchTiles
-                 : fishingTiles;
+                 : selectedEventTileType === 'fishing'
+                    ? fishingTiles
+                    : selectedEventTileType === 'mining'
+                       ? miningTiles
+                       : loggingTiles;
            const drawMode = !currentTiles[key];
            setBedDrawMode(drawMode);
            if (selectedEventTileType === 'bed') {
               paintBedTile(clickX, clickY, drawMode);
            } else if (selectedEventTileType === 'workbench') {
               paintWorkbenchTile(clickX, clickY, drawMode);
-           } else {
+           } else if (selectedEventTileType === 'fishing') {
               paintFishingTile(clickX, clickY, drawMode);
+           } else if (selectedEventTileType === 'mining') {
+              paintMiningTile(clickX, clickY, drawMode);
+           } else {
+              paintLoggingTile(clickX, clickY, drawMode);
            }
         }
      } else if (setupMode === 'bathTub') {
@@ -5759,6 +6774,10 @@ export default function App() {
            paintWorkbenchTile(clickX, clickY, bedDrawMode);
         } else if (selectedEventTileType === 'fishing') {
            paintFishingTile(clickX, clickY, bedDrawMode);
+        } else if (selectedEventTileType === 'mining') {
+           paintMiningTile(clickX, clickY, bedDrawMode);
+        } else if (selectedEventTileType === 'logging') {
+           paintLoggingTile(clickX, clickY, bedDrawMode);
         }
      }
   };
@@ -5895,15 +6914,19 @@ export default function App() {
         }
      };
 
-     const handlePointerUp = () => {
+     const stopDebugDragging = () => {
         setIsDraggingDebug(false);
      };
 
      window.addEventListener('pointermove', handlePointerMove);
-     window.addEventListener('pointerup', handlePointerUp);
+     window.addEventListener('pointerup', stopDebugDragging, true);
+     window.addEventListener('pointercancel', stopDebugDragging, true);
+     window.addEventListener('blur', stopDebugDragging);
      return () => {
         window.removeEventListener('pointermove', handlePointerMove);
-        window.removeEventListener('pointerup', handlePointerUp);
+        window.removeEventListener('pointerup', stopDebugDragging, true);
+        window.removeEventListener('pointercancel', stopDebugDragging, true);
+        window.removeEventListener('blur', stopDebugDragging);
      };
   }, [isDraggingDebug, scale]);
 
@@ -6484,7 +7507,7 @@ export default function App() {
 	                        </div>
                         <button
                           type="button"
-                          onClick={() => { playFixSound(); setTitlePanelMode('none'); }}
+                          onClick={() => { playFixSound(); setPendingOverwriteSaveSlot(null); setTitlePanelMode('none'); }}
                           className="h-10 w-10 rounded border border-white/40 bg-black/60 text-2xl font-black text-[#fff7dc]"
                           aria-label="閉じる"
                         >
@@ -6691,6 +7714,60 @@ export default function App() {
               </div>
             </div>
           )}
+
+          {pendingOverwriteSaveSlot !== null && (
+            <div className="absolute inset-0 z-[360] flex items-center justify-center bg-black/60 px-8">
+              <div className="w-[460px] rounded-xl border-4 border-[#ffd166] bg-[#1a100d]/96 p-6 text-center text-[#fdf6e3] shadow-[0_20px_60px_rgba(0,0,0,0.72)]">
+                <div className="text-2xl font-black">セーブデータを上書きしますか？</div>
+                <div className="mt-3 text-base font-bold leading-relaxed text-[#ffd166]">
+                  セーブスロット {pendingOverwriteSaveSlot} には既存データがあります。<br />
+                  はじめから開始すると、このスロットに上書きされます。
+                </div>
+                <div className="mt-6 flex justify-center gap-4">
+                  <button
+                    type="button"
+                    onClick={confirmOverwriteSaveSlot}
+                    onMouseEnter={() => {
+                      if (confirmPromptChoice !== 'yes') playCursorSound();
+                      setConfirmPromptChoice('yes');
+                    }}
+                    className={`h-[52px] w-[128px] rounded-lg border-2 bg-[#4a5823] text-lg font-black text-[#fff7dc] transition-colors hover:bg-[#60732d] ${confirmPromptChoice === 'yes' ? 'border-white ring-4 ring-[#ffd166]/70' : 'border-[#a3b18a]'}`}
+                  >
+                    はい
+                  </button>
+                  <button
+                    type="button"
+                    onClick={cancelOverwriteSaveSlot}
+                    onMouseEnter={() => {
+                      if (confirmPromptChoice !== 'no') playCursorSound();
+                      setConfirmPromptChoice('no');
+                    }}
+                    className={`h-[52px] w-[128px] rounded-lg border-2 bg-[#5a2a1f] text-lg font-black text-[#fff7dc] transition-colors hover:bg-[#753527] ${confirmPromptChoice === 'no' ? 'border-white ring-4 ring-[#ffd166]/70' : 'border-[#bc6c25]'}`}
+                  >
+                    いいえ
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {missingSaveSlot !== null && (
+            <div className="absolute inset-0 z-[370] flex items-center justify-center bg-black/60 px-8">
+              <div className="w-[420px] rounded-xl border-4 border-[#ffd166] bg-[#1a100d]/96 p-6 text-center text-[#fdf6e3] shadow-[0_20px_60px_rgba(0,0,0,0.72)]">
+                <div className="text-2xl font-black">データがありません</div>
+                <div className="mt-3 text-base font-bold text-[#ffd166]">
+                  セーブスロット {missingSaveSlot} にセーブデータがありません。
+                </div>
+                <button
+                  type="button"
+                  onClick={() => { playFixSound(); setMissingSaveSlot(null); }}
+                  className="mt-6 h-[52px] w-[128px] rounded-lg border-2 border-[#a3b18a] bg-[#4a5823] text-lg font-black text-[#fff7dc] transition-colors hover:border-white hover:bg-[#60732d]"
+                >
+                  OK
+                </button>
+              </div>
+            </div>
+          )}
 	          
 	        {/* Header UI */}
         <div className="h-[60px] bg-[#2d1b15] border-b-[4px] border-[#bc6c25] flex items-center justify-between px-6 z-40 text-[#fdf6e3]">
@@ -6826,7 +7903,8 @@ export default function App() {
               zones={zones.filter(z => (
                  (!z.map || z.map === currentMap) &&
                  isAnimZoneVisibleAtTime(z, timeOfDay) &&
-                 !(shouldShowFishingTutorialKurumi && z.type === 'kurumi')
+                 !(shouldShowFishingTutorialKurumi && z.type === 'kurumi') &&
+                 !(sawCraftTutorialReady && z.type === 'kurumi')
               ))} 
               isSetupMode={setupMode === 'animation'} 
               onZoneDelete={(id) => {
@@ -6929,10 +8007,12 @@ export default function App() {
                     const isBedTile = currentMap === 'house' && !!bedTiles[`house_${gx},${gy}`];
                     const isWorkbenchTile = !!workbenchTiles[`${currentMap}_${gx},${gy}`];
                     const isFishingTile = !!fishingTiles[`${currentMap}_${gx},${gy}`];
+                    const isMiningTile = !!miningTiles[`${currentMap}_${gx},${gy}`];
+                    const isLoggingTile = !!loggingTiles[`${currentMap}_${gx},${gy}`];
                     return (
                        <div 
                           key={idx} 
-                          className={`border-[0.5px] border-black/10 transition-colors ${isFishingTile ? 'bg-cyan-300/60' : isWorkbenchTile ? 'bg-sky-400/55' : isBedTile ? 'bg-violet-500/50' : 'hover:bg-white/20'}`} 
+                          className={`border-[0.5px] border-black/10 transition-colors ${isLoggingTile ? 'bg-emerald-400/55' : isMiningTile ? 'bg-stone-300/60' : isFishingTile ? 'bg-cyan-300/60' : isWorkbenchTile ? 'bg-sky-400/55' : isBedTile ? 'bg-violet-500/50' : 'hover:bg-white/20'}`} 
                        />
                     );
                  })}
@@ -7124,6 +8204,69 @@ export default function App() {
                     }}
                  />
               </button>
+           )}
+
+           {setupMode === 'none' && sawCraftTutorialReady && currentMap === 'shed' && (
+              <button
+                 type="button"
+                 onPointerDown={(e) => e.stopPropagation()}
+                 onClick={(e) => {
+                    e.stopPropagation();
+                    if (!isNearSawCraftTutorialKurumi(pos)) {
+                       clickTargetRef.current = {
+                          x: CRAFT_TUTORIAL_KURUMI_ZONE.x - 70,
+                          y: CRAFT_TUTORIAL_KURUMI_ZONE.y + CRAFT_TUTORIAL_KURUMI_ZONE.h,
+                       };
+                       setClickTargetMarker(clickTargetRef.current);
+                       setDialogMessage('くるみの近くまで移動します。');
+                       return;
+                    }
+                    playFixSound();
+                    openSawCraftTutorialShedDialogue();
+                 }}
+                 className="absolute z-[38] cursor-pointer border-0 bg-transparent p-0 text-left"
+                 style={{
+                    left: CRAFT_TUTORIAL_KURUMI_ZONE.x + CRAFT_TUTORIAL_KURUMI_ZONE.w / 2 - CRAFT_TUTORIAL_KURUMI_LABEL_W / 2,
+                    top: CRAFT_TUTORIAL_KURUMI_ZONE.y - CRAFT_TUTORIAL_KURUMI_LABEL_H,
+                    width: CRAFT_TUTORIAL_KURUMI_LABEL_W,
+                    height: CRAFT_TUTORIAL_KURUMI_ZONE.h + CRAFT_TUTORIAL_KURUMI_LABEL_H,
+                 }}
+                 aria-label="クラフトを始める"
+              >
+                 <div className="pointer-events-none absolute left-0 top-0 w-full rounded-2xl border-2 border-[#ffd166] bg-[#1a100d]/95 px-4 py-2 text-center text-sm font-black text-[#fdf6e3] shadow-[0_0_18px_rgba(255,209,102,0.45)]">
+                    クラフトを始める
+                    <div className="absolute left-1/2 top-full h-0 w-0 -translate-x-1/2 border-x-[10px] border-t-[12px] border-x-transparent border-t-[#ffd166]" />
+                 </div>
+                 <img
+                    src="/img/kurumi1.png"
+                    alt="くるみ"
+                    className="pointer-events-none absolute bottom-0 left-1/2 object-contain object-bottom drop-shadow-[0_12px_14px_rgba(0,0,0,0.55)]"
+                    style={{
+                       width: CRAFT_TUTORIAL_KURUMI_ZONE.w,
+                       height: CRAFT_TUTORIAL_KURUMI_ZONE.h,
+                       transform: 'translateX(-50%)',
+                    }}
+                 />
+              </button>
+           )}
+
+           {setupMode === 'none' && sawCraftTutorialWorkbenchReady && currentMap === 'shed' && (
+              <div
+                 className="pointer-events-none absolute z-[38]"
+                 style={{
+                    left: CRAFT_TUTORIAL_KURUMI_ZONE.x,
+                    top: CRAFT_TUTORIAL_KURUMI_ZONE.y,
+                    width: CRAFT_TUTORIAL_KURUMI_ZONE.w,
+                    height: CRAFT_TUTORIAL_KURUMI_ZONE.h,
+                 }}
+                 aria-label="くるみ"
+              >
+                 <img
+                    src="/img/kurumi1.png"
+                    alt="くるみ"
+                    className="h-full w-full object-contain object-bottom drop-shadow-[0_12px_14px_rgba(0,0,0,0.55)]"
+                 />
+              </div>
            )}
 
            {/* Play mode inspect markers */}
@@ -7981,6 +9124,86 @@ export default function App() {
            </div>
         )}
 
+        {gatheringTutorialOpen && (
+           <div className="absolute inset-0 z-[90] flex items-center justify-center bg-black/58 px-8">
+              <div className="grid h-[620px] w-[1080px] grid-cols-[1fr_380px] overflow-hidden rounded-2xl border-[4px] border-[#ffd166] bg-[#1a100d]/96 text-[#fdf6e3] shadow-2xl">
+                 <div className="flex min-h-0 flex-col gap-4 p-8">
+                    <div>
+                       <div className="text-sm font-bold tracking-[0.28em] text-[#67e8f9]">GATHERING LESSON</div>
+                       <div className="mt-2 text-3xl font-black">素材集めの準備</div>
+                    </div>
+                    <div className="min-h-[300px] flex-1 whitespace-pre-line rounded-xl border-2 border-[#bc6c25]/70 bg-[#2d1b15]/85 p-6 text-[22px] font-bold leading-[1.55]">
+                       くるみ
+                       {'\n'}「{getDebugDialogueMessage(currentGatheringTutorialStep.debugKey, currentGatheringTutorialStep.message)}」
+                    </div>
+                    {isGatheringTutorialChoiceStep ? (
+                       <div className="flex items-center justify-between gap-4">
+                          <div className="text-sm font-bold text-[#a3b18a]">←→ 選択 / Enter 決定</div>
+                          <div className="flex gap-3">
+                             <button
+                                type="button"
+                                onMouseEnter={() => {
+                                  if (selectedGatheringTutorialChoice !== 'logging') playCursorSound();
+                                  setSelectedGatheringTutorialChoice('logging');
+                                }}
+                                onClick={() => chooseGatheringTutorial('logging')}
+                                className={`relative flex h-12 w-36 items-center justify-center rounded-lg border-2 px-5 text-sm font-black transition-all ${
+                                   selectedGatheringTutorialChoice === 'logging'
+                                      ? 'scale-105 border-[#fff3b0] bg-[#9a5a1d] text-white shadow-[0_0_18px_rgba(255,209,102,0.55)]'
+                                      : 'border-[#8d6420] bg-[#5a3010] text-[#dda15e] hover:bg-[#7a4317] hover:text-[#fdf6e3]'
+                                }`}
+                             >
+                                伐採？
+                             </button>
+                             <button
+                                type="button"
+                                onMouseEnter={() => {
+                                  if (selectedGatheringTutorialChoice !== 'mining') playCursorSound();
+                                  setSelectedGatheringTutorialChoice('mining');
+                                }}
+                                onClick={() => chooseGatheringTutorial('mining')}
+                                className={`relative flex h-12 w-36 items-center justify-center rounded-lg border-2 px-5 text-sm font-black transition-all ${
+                                   selectedGatheringTutorialChoice === 'mining'
+                                      ? 'scale-105 border-[#fff3b0] bg-[#9a5a1d] text-white shadow-[0_0_18px_rgba(255,209,102,0.55)]'
+                                      : 'border-[#8d6420] bg-[#5a3010] text-[#dda15e] hover:bg-[#7a4317] hover:text-[#fdf6e3]'
+                                }`}
+                             >
+                                採掘？
+                             </button>
+                          </div>
+                       </div>
+                    ) : (
+                       <div className="flex items-center justify-between gap-4">
+                          <div className="text-sm font-bold text-[#a3b18a]">
+                             {gatheringTutorialStepIndex + 1} / {currentGatheringTutorialSteps.length}
+                          </div>
+                          <button
+                             type="button"
+                             onPointerDown={(event) => event.stopPropagation()}
+                             onClick={advanceGatheringTutorial}
+                             className="relative flex h-12 w-44 items-center justify-center rounded-lg border-2 border-[#fff3b0] bg-[#9a5a1d] px-6 text-sm font-black leading-none text-white shadow-[0_0_18px_rgba(255,209,102,0.45)] transition-all hover:scale-105 hover:bg-[#b45309] whitespace-nowrap"
+                          >
+                             <span className="absolute left-5 text-[#67e8f9]">▶</span>
+                             {gatheringTutorialStepIndex >= currentGatheringTutorialSteps.length - 1 ? 'おわり' : '次へ'}
+                          </button>
+                       </div>
+                    )}
+                 </div>
+                 <div className="relative border-l border-[#ffd166]/45 bg-gradient-to-b from-[#4a2a14] to-[#160d0a]">
+                    <div className="absolute left-8 right-8 top-8 z-10 rounded-2xl border-2 border-[#f1c27d]/80 bg-[#fdf6e3]/95 px-6 py-4 text-[#2d1b15] shadow-xl">
+                       <div className="text-2xl font-black tracking-wide">くるみ</div>
+                       <div className="mt-1 text-[18px] font-bold leading-snug">素材集めもやってみよっ！</div>
+                    </div>
+                    <img
+                       src="/img/kurumi.png"
+                       alt="くるみ"
+                       className="absolute inset-x-0 bottom-0 mx-auto h-[540px] w-[410px] object-contain object-bottom drop-shadow-[0_28px_32px_rgba(0,0,0,0.6)]"
+                    />
+                 </div>
+              </div>
+           </div>
+        )}
+
         {fishingTutorialOpen && (
            <div className="absolute inset-0 z-[88] flex items-center justify-center bg-black/55 px-8">
               <div className="grid h-[690px] w-[1120px] grid-cols-[1fr_390px] overflow-hidden rounded-2xl border-[4px] border-[#67e8f9] bg-[#1a100d]/96 text-[#fdf6e3] shadow-2xl">
@@ -7991,7 +9214,7 @@ export default function App() {
                     </div>
                     <div className="min-h-[260px] flex-1 whitespace-pre-line rounded-xl border-2 border-[#bc6c25]/70 bg-[#2d1b15]/85 p-5 text-[21px] font-bold leading-[1.48]">
                        くるみ
-                       {'\n'}「{currentFishingTutorialStep.message}」
+                       {'\n'}「{getDebugDialogueMessage(currentFishingTutorialStep.debugKey, currentFishingTutorialStep.message)}」
                     </div>
                     <div className="flex items-center justify-between gap-4">
                        <div className="text-sm font-bold text-[#a3b18a]">
@@ -8031,6 +9254,129 @@ export default function App() {
                        <div className="mt-1 text-[19px] font-bold leading-snug">ここで釣りを覚えよっ！</div>
                     </div>
                     {renderFishingTutorialVisual()}
+                 </div>
+              </div>
+           </div>
+        )}
+
+        {fishingTutorialEndingOpen && (
+           <div className="absolute inset-0 z-[88] flex items-center justify-center bg-black/55 px-8">
+              <div className="grid h-[620px] w-[1080px] grid-cols-[1fr_380px] overflow-hidden rounded-2xl border-[4px] border-[#dda15e] bg-[#1a100d]/96 text-[#fdf6e3] shadow-2xl">
+                 <div className="flex min-h-0 flex-col gap-4 p-8">
+                    <div>
+                       <div className="text-sm font-bold tracking-[0.28em] text-[#ffd166]">KURUMI</div>
+                       <div className="mt-2 text-3xl font-black">くるみ</div>
+                    </div>
+                    <div className="min-h-[300px] flex-1 whitespace-pre-line rounded-xl border-2 border-[#bc6c25]/70 bg-[#2d1b15]/85 p-6 text-[22px] font-bold leading-[1.55]">
+                       くるみ
+                       {'\n'}「{getDebugDialogueMessage(currentFishingTutorialEndingStep.debugKey, currentFishingTutorialEndingStep.message)}」
+                    </div>
+                    <div className="flex items-center justify-between gap-4">
+                       <div className="text-sm font-bold text-[#a3b18a]">
+                          {fishingTutorialEndingStepIndex + 1} / {FISHING_TUTORIAL_END_STEPS.length}
+                       </div>
+                       <button
+                          type="button"
+                          onPointerDown={(event) => event.stopPropagation()}
+                          onClick={advanceFishingTutorialEnding}
+                          className="relative flex h-12 w-44 items-center justify-center rounded-lg border-2 border-[#fff3b0] bg-[#9a5a1d] px-6 text-sm font-black leading-none text-white shadow-[0_0_18px_rgba(255,209,102,0.45)] transition-all hover:scale-105 hover:bg-[#b45309] whitespace-nowrap"
+                       >
+                          <span className="absolute left-5 text-[#67e8f9]">▶</span>
+                          {fishingTutorialEndingStepIndex >= FISHING_TUTORIAL_END_STEPS.length - 1 ? 'おわり' : '次へ'}
+                       </button>
+                    </div>
+                 </div>
+                 <div className="relative border-l border-[#dda15e]/45 bg-gradient-to-b from-[#4a2a14] to-[#160d0a]">
+                    <div className="absolute left-8 right-8 top-8 z-10 rounded-2xl border-2 border-[#f1c27d]/80 bg-[#fdf6e3]/95 px-6 py-4 text-[#2d1b15] shadow-xl">
+                       <div className="text-2xl font-black tracking-wide">くるみ</div>
+                       <div className="mt-1 text-[18px] font-bold leading-snug">またお店にも来てねっ！</div>
+                    </div>
+                    <img
+                       src="/img/kurumi.png"
+                       alt="くるみ"
+                       className="absolute inset-x-0 bottom-0 mx-auto h-[540px] w-[410px] object-contain object-bottom drop-shadow-[0_28px_32px_rgba(0,0,0,0.6)]"
+                    />
+                 </div>
+              </div>
+           </div>
+        )}
+
+        {sawCraftTutorialIntroOpen && (
+           <div className="absolute inset-0 z-[90] flex items-center justify-center bg-black/58 px-8">
+              <div className="grid h-[620px] w-[1080px] grid-cols-[1fr_380px] overflow-hidden rounded-2xl border-[4px] border-[#ffd166] bg-[#1a100d]/96 text-[#fdf6e3] shadow-2xl">
+                 <div className="flex min-h-0 flex-col gap-4 p-8">
+                    <div>
+                       <div className="text-sm font-bold tracking-[0.28em] text-[#67e8f9]">CRAFT LESSON</div>
+                       <div className="mt-2 text-3xl font-black">クラフトの準備</div>
+                    </div>
+                    <div className="min-h-[300px] flex-1 whitespace-pre-line rounded-xl border-2 border-[#bc6c25]/70 bg-[#2d1b15]/85 p-6 text-[22px] font-bold leading-[1.55]">
+                       くるみ
+                       {'\n'}「{getDebugDialogueMessage(currentSawCraftTutorialStep.debugKey, currentSawCraftTutorialStep.message)}」
+                    </div>
+                    <div className="flex items-center justify-between gap-4">
+                       <div className="text-sm font-bold text-[#a3b18a]">
+                          {sawCraftTutorialIntroStepIndex + 1} / {currentCraftTutorialSteps.length}
+                       </div>
+                       <button
+                          type="button"
+                          onPointerDown={(event) => event.stopPropagation()}
+                          onClick={advanceSawCraftTutorialIntro}
+                          className="relative flex h-12 w-44 items-center justify-center rounded-lg border-2 border-[#fff3b0] bg-[#9a5a1d] px-6 text-sm font-black leading-none text-white shadow-[0_0_18px_rgba(255,209,102,0.45)] transition-all hover:scale-105 hover:bg-[#b45309] whitespace-nowrap"
+                       >
+                          <span className="absolute left-5 text-[#67e8f9]">▶</span>
+                          {sawCraftTutorialIntroStepIndex >= currentCraftTutorialSteps.length - 1 ? '小屋へ行く' : '次へ'}
+                       </button>
+                    </div>
+                 </div>
+                 <div className="relative border-l border-[#ffd166]/45 bg-gradient-to-b from-[#4a2a14] to-[#160d0a]">
+                    <div className="absolute left-8 right-8 top-8 z-10 rounded-2xl border-2 border-[#f1c27d]/80 bg-[#fdf6e3]/95 px-6 py-4 text-[#2d1b15] shadow-xl">
+                       <div className="text-2xl font-black tracking-wide">くるみ</div>
+                       <div className="mt-1 text-[18px] font-bold leading-snug">最初の素材はサービスだよっ！</div>
+                    </div>
+                    <img
+                       src="/img/kurumi.png"
+                       alt="くるみ"
+                       className="absolute inset-x-0 bottom-0 mx-auto h-[540px] w-[410px] object-contain object-bottom drop-shadow-[0_28px_32px_rgba(0,0,0,0.6)]"
+                    />
+                 </div>
+              </div>
+           </div>
+        )}
+
+        {sawCraftTutorialShedDialogueOpen && (
+           <div className="absolute inset-0 z-[90] flex items-center justify-center bg-black/58 px-8">
+              <div className="grid h-[620px] w-[1080px] grid-cols-[1fr_380px] overflow-hidden rounded-2xl border-[4px] border-[#ffd166] bg-[#1a100d]/96 text-[#fdf6e3] shadow-2xl">
+                 <div className="flex min-h-0 flex-col gap-4 p-8">
+                    <div>
+                       <div className="text-sm font-bold tracking-[0.28em] text-[#67e8f9]">CRAFT LESSON</div>
+                       <div className="mt-2 text-3xl font-black">クラフト小屋</div>
+                    </div>
+                    <div className="min-h-[300px] flex-1 whitespace-pre-line rounded-xl border-2 border-[#bc6c25]/70 bg-[#2d1b15]/85 p-6 text-[22px] font-bold leading-[1.55]">
+                       くるみ
+                       {'\n'}「{getDebugDialogueMessage(SAW_CRAFT_SHED_TUTORIAL_STEP.debugKey, SAW_CRAFT_SHED_TUTORIAL_STEP.message)}」
+                    </div>
+                    <div className="flex justify-end">
+                       <button
+                          type="button"
+                          onPointerDown={(event) => event.stopPropagation()}
+                          onClick={closeSawCraftTutorialShedDialogue}
+                          className="relative flex h-12 w-44 items-center justify-center rounded-lg border-2 border-[#fff3b0] bg-[#9a5a1d] px-6 text-sm font-black leading-none text-white shadow-[0_0_18px_rgba(255,209,102,0.45)] transition-all hover:scale-105 hover:bg-[#b45309] whitespace-nowrap"
+                       >
+                          <span className="absolute left-5 text-[#67e8f9]">▶</span>
+                          次へ
+                       </button>
+                    </div>
+                 </div>
+                 <div className="relative border-l border-[#ffd166]/45 bg-gradient-to-b from-[#4a2a14] to-[#160d0a]">
+                    <div className="absolute left-8 right-8 top-8 z-10 rounded-2xl border-2 border-[#f1c27d]/80 bg-[#fdf6e3]/95 px-6 py-4 text-[#2d1b15] shadow-xl">
+                       <div className="text-2xl font-black tracking-wide">くるみ</div>
+                       <div className="mt-1 text-[18px] font-bold leading-snug">クラフト台を調べてみてねっ！</div>
+                    </div>
+                    <img
+                       src="/img/kurumi.png"
+                       alt="くるみ"
+                       className="absolute inset-x-0 bottom-0 mx-auto h-[540px] w-[410px] object-contain object-bottom drop-shadow-[0_28px_32px_rgba(0,0,0,0.6)]"
+                    />
                  </div>
               </div>
            </div>
@@ -8281,7 +9627,7 @@ export default function App() {
                               </div>
                            ))}
                         </div>
-                        <div className="flex items-center gap-2">
+                        <div className="flex flex-wrap items-center justify-end gap-2">
                            <button 
                               onClick={() => { if(window.confirm('畑グリッドの四隅を初期位置に戻しますか？')) resetFieldCorners(); }} 
                               className="bg-[#4a5823] hover:bg-[#60732d] text-white text-xs px-3 py-2 rounded cursor-pointer font-bold transition-colors"
@@ -8316,9 +9662,13 @@ export default function App() {
                                     ? '青色のマスに入ると「クラフトする？」が表示されます。'
                                     : selectedEventTileType === 'fishing'
                                        ? '水色のマスに入ると「釣りをする？」が表示されます。'
-                                       : selectedEventTileType === 'inspect'
-                                          ? 'マップクリックで調べられる場所を作成します。Enter または Space で調べられます。'
-                                          : 'マップクリックで自動イベント領域を作成します。範囲に入ると画像・動画・SE・VOICEを自動再生します。'}
+                                       : selectedEventTileType === 'mining'
+                                          ? '灰色のマスに入ると採掘イベント用の反応範囲になります。'
+                                          : selectedEventTileType === 'logging'
+                                             ? '緑色のマスに入ると伐採イベント用の反応範囲になります。'
+                                             : selectedEventTileType === 'inspect'
+                                                ? 'マップクリックで調べられる場所を作成します。Enter または Space で調べられます。'
+                                                : 'マップクリックで自動イベント領域を作成します。範囲に入ると画像・動画・SE・VOICEを自動再生します。'}
                            </p>
                         </div>
                         <div className="flex items-center gap-2">
@@ -8339,6 +9689,18 @@ export default function App() {
                               className={`text-xs px-3 py-2 rounded cursor-pointer font-bold transition-colors border ${selectedEventTileType === 'fishing' ? 'bg-cyan-600 border-white text-white' : 'bg-[#2d1b15] border-[#dda15e] text-[#dda15e] hover:bg-[#4a5823]'}`}
                            >
                               🎣 釣り
+                           </button>
+                           <button
+                              onClick={() => setSelectedEventTileType('mining')}
+                              className={`text-xs px-3 py-2 rounded cursor-pointer font-bold transition-colors border ${selectedEventTileType === 'mining' ? 'bg-stone-600 border-white text-white' : 'bg-[#2d1b15] border-[#dda15e] text-[#dda15e] hover:bg-[#4a5823]'}`}
+                           >
+                              ⛏ 採掘
+                           </button>
+                           <button
+                              onClick={() => setSelectedEventTileType('logging')}
+                              className={`text-xs px-3 py-2 rounded cursor-pointer font-bold transition-colors border ${selectedEventTileType === 'logging' ? 'bg-emerald-700 border-white text-white' : 'bg-[#2d1b15] border-[#dda15e] text-[#dda15e] hover:bg-[#4a5823]'}`}
+                           >
+                              🪓 伐採
                            </button>
                            <button
                               onClick={() => setSelectedEventTileType('inspect')}
@@ -8379,6 +9741,18 @@ export default function App() {
                               className="bg-red-600 hover:bg-red-500 text-white text-xs px-3 py-2 rounded cursor-pointer font-bold transition-colors"
                            >
                               釣り全クリア
+                           </button>
+                           <button
+                              onClick={() => { if(window.confirm('採掘ポイントをすべてクリアしますか？')) { setMiningTiles({}); } }}
+                              className="bg-red-600 hover:bg-red-500 text-white text-xs px-3 py-2 rounded cursor-pointer font-bold transition-colors"
+                           >
+                              採掘全クリア
+                           </button>
+                           <button
+                              onClick={() => { if(window.confirm('伐採ポイントをすべてクリアしますか？')) { setLoggingTiles({}); } }}
+                              className="bg-red-600 hover:bg-red-500 text-white text-xs px-3 py-2 rounded cursor-pointer font-bold transition-colors"
+                           >
+                              伐採全クリア
                            </button>
                         </div>
                         {(selectedEventTileType === 'inspect' || selectedEventTileType === 'auto') && selectedInspectSpotId && (() => {
@@ -8662,7 +10036,145 @@ export default function App() {
            setFishingFanSweetMin={setFishingFanSweetMin}
            fishingFanSweetMax={fishingFanSweetMax}
            setFishingFanSweetMax={setFishingFanSweetMax}
+           debugDialogueOptions={debugDialogueOptions}
+           onSaveDebugDialogue={saveDebugDialogueOverride}
+           onResetDebugDialogue={resetDebugDialogueOverride}
         />
+        {craftConfirmRecipeName && (
+           <div className="fixed inset-0 z-[9998] flex items-center justify-center bg-black/62 px-8 pointer-events-auto">
+              <div className="w-[520px] rounded-xl border-4 border-[#ffd166] bg-[#1a100d]/96 p-6 text-center text-[#fdf6e3] shadow-[0_20px_60px_rgba(0,0,0,0.72)]">
+                 <div className="text-2xl font-black">クラフトする？</div>
+                 <div className="mt-3 text-lg font-bold text-[#ffd166]">
+                    {CRAFT_RECIPE_CONFIGS[craftConfirmRecipeName].output}を作ります。
+                 </div>
+                 <div className="mt-4 rounded-lg border border-[#bc6c25]/70 bg-black/30 p-3 text-left text-sm font-bold text-[#fdf6e3]">
+                    {Object.entries(CRAFT_RECIPE_CONFIGS[craftConfirmRecipeName].materials).map(([materialName, count]) => (
+                       <div key={materialName} className="flex justify-between">
+                          <span>{materialName}</span>
+                          <span>{inventoryCounts[materialName] ?? 0} / {count}</span>
+                       </div>
+                    ))}
+                 </div>
+                 <div className="mt-6 flex justify-center gap-4">
+                    <button
+                       type="button"
+                       onMouseEnter={() => setConfirmPromptChoice('yes')}
+                       onClick={() => startCraftMiniGame(craftConfirmRecipeName)}
+                       className={`h-[52px] w-[128px] rounded-lg border-2 bg-[#4a5823] text-lg font-black text-[#fff7dc] transition-colors hover:bg-[#60732d] ${confirmPromptChoice === 'yes' ? 'border-white ring-4 ring-[#ffd166]/70' : 'border-[#a3b18a]'}`}
+                    >
+                       はい
+                    </button>
+                    <button
+                       type="button"
+                       onMouseEnter={() => setConfirmPromptChoice('no')}
+                       onClick={() => { playFixSound(); setCraftConfirmRecipeName(null); }}
+                       className={`h-[52px] w-[128px] rounded-lg border-2 bg-[#5a2a1f] text-lg font-black text-[#fff7dc] transition-colors hover:bg-[#753527] ${confirmPromptChoice === 'no' ? 'border-white ring-4 ring-[#ffd166]/70' : 'border-[#bc6c25]'}`}
+                    >
+                       いいえ
+                    </button>
+                 </div>
+              </div>
+           </div>
+        )}
+
+        {craftInsufficientRecipeName && (
+           <div className="fixed inset-0 z-[9998] flex items-center justify-center bg-black/62 px-8 pointer-events-auto">
+              <div className="w-[520px] rounded-xl border-4 border-[#bc6c25] bg-[#1a100d]/96 p-6 text-center text-[#fdf6e3] shadow-[0_20px_60px_rgba(0,0,0,0.72)]">
+                 <div className="text-2xl font-black">素材が足りません</div>
+                 <div className="mt-4 rounded-lg border border-[#bc6c25]/70 bg-black/30 p-3 text-left text-sm font-bold text-[#fdf6e3]">
+                    {Object.entries(CRAFT_RECIPE_CONFIGS[craftInsufficientRecipeName].materials).map(([materialName, count]) => {
+                       const owned = inventoryCounts[materialName] ?? 0;
+                       return (
+                          <div key={materialName} className={`flex justify-between ${owned < count ? 'text-[#ffb4a2]' : 'text-[#bbf7d0]'}`}>
+                             <span>{materialName}</span>
+                             <span>{owned} / {count}</span>
+                          </div>
+                       );
+                    })}
+                 </div>
+                 <button
+                    type="button"
+                    onClick={() => { playFixSound(); setCraftInsufficientRecipeName(null); }}
+                    className="mt-6 h-[52px] w-[220px] rounded-lg border-2 border-[#ffd166] bg-[#7a4317] text-lg font-black text-[#fff7dc] transition-colors hover:bg-[#9a5a1d]"
+                 >
+                    素材が足りません
+                 </button>
+              </div>
+           </div>
+        )}
+
+        {craftMiniGameOpen && (
+           <div className="fixed inset-0 z-[9997] flex items-center justify-center bg-black/82 px-8 py-6 pointer-events-auto">
+              <div className="relative h-[min(88vh,820px)] w-[min(92vw,1180px)] overflow-hidden rounded-2xl border-4 border-[#67e8f9] bg-[#1a100d] text-[#fdf6e3] shadow-[0_30px_80px_rgba(0,0,0,0.75),0_0_32px_rgba(103,232,249,0.28)]">
+                 <img src="/img/kurafuto1.jpg" alt="" className="craft-dissolve-a absolute inset-0 h-full w-full object-cover" />
+                 <img src="/img/kurafuto2.jpg" alt="" className="craft-dissolve-b absolute inset-0 h-full w-full object-cover" />
+                 <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_35%,rgba(20,83,45,0.22),rgba(0,0,0,0.62)_68%)]" />
+                 <div className="absolute left-6 right-6 top-5 z-10 flex items-start justify-between gap-4">
+                    <div className="rounded-xl border-2 border-[#67e8f9]/80 bg-[#1a100d]/90 px-5 py-3 shadow-[0_14px_28px_rgba(0,0,0,0.45),inset_0_1px_0_rgba(255,255,255,0.16)]">
+                       <div className="text-xs font-black tracking-[0.22em] text-[#67e8f9]">CRAFT TIMING</div>
+                       <div className="text-2xl font-black">{craftMiniGameRecipeName ? CRAFT_RECIPE_CONFIGS[craftMiniGameRecipeName].output : 'クラフト'}</div>
+                       <div className="mt-1 text-sm font-bold text-[#ffd166]">光る円をクリックして成功率を上げよう</div>
+                    </div>
+                    <div className="rounded-xl border-2 border-[#ffd166]/80 bg-[#2d1414]/88 px-5 py-3 text-right shadow-[0_14px_28px_rgba(0,0,0,0.45),inset_0_1px_0_rgba(255,255,255,0.14)]">
+                       <div className="text-xs font-black tracking-[0.18em] text-[#ffd166]">TARGET</div>
+                       <div className="text-xl font-black">{craftMiniGameSpawnedCount} / {craftMiniGameTargetCount}</div>
+                    </div>
+                 </div>
+                 <div className="absolute inset-x-8 bottom-8 z-10 rounded-2xl border-2 border-[#fdf6e3]/70 bg-[#1a100d]/88 p-5 shadow-[0_18px_34px_rgba(0,0,0,0.52),inset_0_1px_0_rgba(255,255,255,0.18)]">
+                    <div className="mb-3 flex items-center justify-between text-sm font-black tracking-[0.08em]">
+                       <span className="text-[#67e8f9]">CRAFT RATE</span>
+                       <span className={craftMiniGameScore >= 70 ? 'text-[#fde047] drop-shadow-[0_0_10px_rgba(250,204,21,0.8)]' : 'text-[#fdf6e3]'}>{Math.round(craftMiniGameScore)}%</span>
+                    </div>
+                    <div className="relative h-12 overflow-hidden rounded-full border-2 border-[#fdf6e3]/90 bg-[linear-gradient(180deg,#120907,#050302)] shadow-[inset_0_5px_12px_rgba(0,0,0,0.86),0_5px_0_rgba(0,0,0,0.42)]">
+                       <div className="absolute inset-y-0 left-[70%] w-[30%] bg-[linear-gradient(180deg,rgba(255,241,118,0.34),rgba(234,179,8,0.2)_48%,rgba(133,77,14,0.3))]" />
+                       <div
+                          className="craft-rate-fill h-full transition-all duration-200"
+                          style={{ width: `${Math.min(100, craftMiniGameScore)}%` }}
+                       />
+                       <div className="absolute inset-x-2 top-[5px] h-[34%] rounded-full bg-white/30 blur-[1px]" />
+                       <div className="absolute inset-x-0 bottom-0 h-[38%] bg-black/22" />
+                       <div className="absolute left-[70%] top-0 h-full w-[4px] bg-[#fff7dc] shadow-[0_0_10px_rgba(255,255,255,1),0_0_18px_rgba(250,204,21,0.8)]" />
+                       <div className="absolute left-[calc(70%+10px)] top-1/2 -translate-y-1/2 text-xs font-black tracking-[0.18em] text-[#fde047] drop-shadow-[0_2px_2px_rgba(0,0,0,0.8)]">SUCCESS</div>
+                    </div>
+                 </div>
+                 {craftMiniGameCircles.map(circle => (
+                    <button
+                       key={circle.id}
+                       type="button"
+                       onClick={() => handleCraftCircleClick(circle.id)}
+                       className="craft-click-circle absolute z-20 rounded-full border-[5px] border-[#fdf6e3] bg-[#67e8f9]/28 shadow-[0_0_24px_rgba(103,232,249,0.95),0_0_42px_rgba(255,209,102,0.42),inset_0_0_18px_rgba(255,255,255,0.62)]"
+                       style={{
+                          left: `${circle.x}%`,
+                          top: `${circle.y}%`,
+                          width: circle.size,
+                          height: circle.size,
+                          marginLeft: -circle.size / 2,
+                          marginTop: -circle.size / 2,
+                          animationDuration: `${circle.durationMs}ms`,
+                       }}
+                       aria-label="クラフト円"
+                    />
+                 ))}
+                 {craftMiniGameResult && (
+                    <div className="absolute inset-0 z-30 flex items-center justify-center bg-black/68">
+                       <div className="w-[460px] rounded-xl border-4 border-[#ffd166] bg-[#1a100d]/96 p-7 text-center shadow-2xl">
+                          <div className={`text-4xl font-black ${craftMiniGameResult === 'success' ? 'text-[#fde047]' : 'text-[#ffb4a2]'}`}>
+                             {craftMiniGameResult === 'success' ? 'クラフト成功！' : 'クラフト失敗'}
+                          </div>
+                          <div className="mt-3 text-lg font-bold text-[#fdf6e3]">成功率 {Math.round(craftMiniGameScore)}%</div>
+                          <button
+                             type="button"
+                             onClick={closeCraftMiniGame}
+                             className="mt-6 h-[52px] w-[160px] rounded-lg border-2 border-[#ffd166] bg-[#8d6420] text-lg font-black text-white hover:bg-[#b87924]"
+                          >
+                             閉じる
+                          </button>
+                       </div>
+                    </div>
+                 )}
+              </div>
+           </div>
+        )}
         {recipeDetailOpen && selectedRecipeDetail && createPortal(
            <div
               className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/62 px-8 py-6 pointer-events-auto"

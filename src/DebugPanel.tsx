@@ -9,6 +9,13 @@ type AudioFileEntry = {
   category: string;
 };
 
+type DebugDialogueOption = {
+  key: string;
+  label: string;
+  defaultMessage: string;
+  currentMessage: string;
+};
+
 type DebugPanelProps = {
   setupMode: SetupMode;
   debugPanelPos: { x: number; y: number };
@@ -48,6 +55,9 @@ type DebugPanelProps = {
   setFishingFanSweetMin: React.Dispatch<React.SetStateAction<number>>;
   fishingFanSweetMax: number;
   setFishingFanSweetMax: React.Dispatch<React.SetStateAction<number>>;
+  debugDialogueOptions: DebugDialogueOption[];
+  onSaveDebugDialogue: (key: string, message: string) => void;
+  onResetDebugDialogue: (key: string) => void;
 };
 
 const DebugPanel = ({
@@ -89,7 +99,23 @@ const DebugPanel = ({
   setFishingFanSweetMin,
   fishingFanSweetMax,
   setFishingFanSweetMax,
+  debugDialogueOptions,
+  onSaveDebugDialogue,
+  onResetDebugDialogue,
 }: DebugPanelProps) => {
+  const [selectedDebugDialogueKey, setSelectedDebugDialogueKey] = React.useState(debugDialogueOptions[0]?.key ?? '');
+  const selectedDebugDialogue = debugDialogueOptions.find(option => option.key === selectedDebugDialogueKey) ?? debugDialogueOptions[0];
+  const [debugDialogueDraft, setDebugDialogueDraft] = React.useState(selectedDebugDialogue?.currentMessage ?? '');
+
+  React.useEffect(() => {
+    if (!selectedDebugDialogue && debugDialogueOptions[0]) {
+      setSelectedDebugDialogueKey(debugDialogueOptions[0].key);
+      return;
+    }
+    if (!selectedDebugDialogue) return;
+    setDebugDialogueDraft(selectedDebugDialogue.currentMessage);
+  }, [selectedDebugDialogue?.key, selectedDebugDialogue?.currentMessage, debugDialogueOptions]);
+
   const stopDebugPropagation = (e: React.SyntheticEvent) => {
     e.stopPropagation();
   };
@@ -366,6 +392,52 @@ const DebugPanel = ({
                     className="w-full cursor-pointer accent-yellow-400 h-1 bg-gray-700 rounded-lg appearance-none"
                  />
               </label>
+           </div>
+
+           {/* Dialogue Line Break Debug */}
+           <div className="flex flex-col gap-1 border-t border-red-600/30 pt-1.5 mt-0.5">
+              <div className="text-[9px] text-pink-200 font-bold text-center">💬 会話改行調整</div>
+              <select
+                 value={selectedDebugDialogue?.key ?? ''}
+                 onChange={(e) => setSelectedDebugDialogueKey(e.target.value)}
+                 className="w-full bg-[#2d1b15] border border-red-800 text-[#fdf6e3] text-[9px] rounded px-1 py-0.5 cursor-pointer"
+              >
+                 {debugDialogueOptions.map(option => (
+                    <option key={option.key} value={option.key}>{option.label}</option>
+                 ))}
+              </select>
+              <textarea
+                 value={debugDialogueDraft}
+                 onChange={(e) => setDebugDialogueDraft(e.target.value)}
+                 className="h-[104px] w-full resize-none rounded border border-red-800 bg-[#120907] px-1.5 py-1 text-[9px] leading-[1.35] text-[#fdf6e3] outline-none focus:border-[#ffd166]"
+                 spellCheck={false}
+              />
+              <div className="grid grid-cols-2 gap-1">
+                 <button
+                    type="button"
+                    disabled={!selectedDebugDialogue}
+                    onClick={() => {
+                       if (!selectedDebugDialogue) return;
+                       onSaveDebugDialogue(selectedDebugDialogue.key, debugDialogueDraft);
+                    }}
+                    className="rounded border border-green-700 bg-green-950 px-1 py-1 text-[9px] font-bold text-green-300 transition-colors hover:bg-green-900 disabled:cursor-not-allowed disabled:opacity-40"
+                 >
+                    保存
+                 </button>
+                 <button
+                    type="button"
+                    disabled={!selectedDebugDialogue}
+                    onClick={() => {
+                       if (!selectedDebugDialogue) return;
+                       onResetDebugDialogue(selectedDebugDialogue.key);
+                       setDebugDialogueDraft(selectedDebugDialogue.defaultMessage);
+                    }}
+                    className="rounded border border-red-800 bg-red-950 px-1 py-1 text-[9px] font-bold text-red-300 transition-colors hover:bg-red-900 disabled:cursor-not-allowed disabled:opacity-40"
+                 >
+                    元に戻す
+                 </button>
+              </div>
+              <div className="text-[8px] leading-tight text-gray-500">デバッグ保存だけ。本文データは変更しません。</div>
            </div>
 
            {/* Opacity Control Slider */}

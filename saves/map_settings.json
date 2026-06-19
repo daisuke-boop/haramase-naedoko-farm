@@ -1,9 +1,4 @@
 {
-  "turn": 4,
-  "gold": 5000,
-  "debt": 5000000,
-  "difficulty": "easy",
-  "currentMap": "farm",
   "zones": [
     {
       "id": "1781485855659",
@@ -208,7 +203,11 @@
       "spriteH": 55,
       "type": "kurumi",
       "map": "farm",
-      "timeOfDay": "morning"
+      "timeOfDays": [
+        "morning",
+        "day",
+        "evening"
+      ]
     },
     {
       "id": "1781660883793",
@@ -359,41 +358,6 @@
       "spawnY": 210
     }
   ],
-  "bgmVolume": 0.2,
-  "seVolume": 0.2,
-  "voiceVolume": 0.15,
-  "audioGains": {
-    "/bgm/ie.mp3": 0.2,
-    "/se/Fireplace.mp3": 1,
-    "/voice/kurumi.wav": 1,
-    "/se/kurumi.wav": 0.5,
-    "/bgm/farmbgm.wav": 0.09,
-    "/se/soil.mp3": 0.33,
-    "/se/grass.mp3": 0.3,
-    "/se/don.mp3": 0.2,
-    "/se/door.mp3": 0.3,
-    "/bgm/yado.mp3": 0.2,
-    "/se/rock.mp3": 0.97,
-    "/se/foot.mp3": 1.51,
-    "/se/jutan.mp3": 1.8,
-    "/se/suzume.mp3": 0.5,
-    "/se/zoon2.wav": 0.1,
-    "/semi.mp3": 0.4,
-    "/taki.mp3": 0.48,
-    "/se/taki.mp3": 0.48,
-    "/se/semi.mp3": 0.4,
-    "/se/Water-splash.mp3": 0.2,
-    "/se/bird.wav": 0.23
-  },
-  "mapBgmSources": {
-    "farm": "/bgm/farmbgm.wav",
-    "house": "/bgm/ie.mp3",
-    "shed": "/bgm/ie.mp3",
-    "waterfall": "/se/zoon2.wav",
-    "kawa": "/bgm/farmbgm.wav",
-    "doukutsu": "/se/zoon2.wav",
-    "takiura": "/se/zoon2.wav"
-  },
   "obstacles": {
     "farm_0,0": true,
     "farm_0,1": true,
@@ -3421,7 +3385,6 @@
     "farm_58,31": true,
     "farm_57,32": true,
     "farm_58,32": true,
-    "farm_57,33": true,
     "farm_58,33": true,
     "farm_59,31": true,
     "farm_59,32": true,
@@ -3430,14 +3393,8 @@
     "farm_59,34": true,
     "farm_58,35": true,
     "farm_59,35": true,
-    "farm_57,36": true,
     "farm_58,36": true,
     "farm_59,36": true,
-    "farm_56,35": true,
-    "farm_55,34": true,
-    "farm_55,35": true,
-    "farm_54,34": true,
-    "farm_54,35": true,
     "farm_52,34": true,
     "farm_52,35": true,
     "farm_52,33": true,
@@ -27388,7 +27345,12 @@
     "doukutsu_110,51": true,
     "doukutsu_107,53": true,
     "doukutsu_107,54": true,
-    "doukutsu_107,55": true
+    "doukutsu_107,55": true,
+    "farm_53,33": true,
+    "farm_53,34": true,
+    "farm_53,35": true,
+    "farm_55,32": true,
+    "farm_56,32": true
   },
   "hideAreaTiles": {
     "farm_1,27": true,
@@ -44276,8 +44238,11 @@
     "farm_91,28": true,
     "farm_98,43": true,
     "farm_99,43": true,
-    "farm_99,44": true
+    "farm_99,44": true,
+    "farm_98,44": true
   },
+  "miningTiles": {},
+  "loggingTiles": {},
   "inspectSpots": [
     {
       "id": "inspect_1781517937661",
@@ -44309,7 +44274,7 @@
       "label": "借金取り",
       "text": "おら！何逃げようとしてんだよ！借金返すまで逃さねぇからな！！おととい来やがれっっ！",
       "autoTrigger": true,
-      "imageSrc": "/img/barricade.png",
+      "imageSrc": "/img/barricade.jpg",
       "seSrc": "/se/unmei.mp3",
       "voiceSrc": "/voice/yakuza.wav"
     },
@@ -44350,9 +44315,20 @@
       "text": "ポストを調べた！",
       "autoTrigger": true,
       "imageSrc": "post.jpg"
+    },
+    {
+      "id": "auto_event_1781859800688",
+      "map": "takiura",
+      "x": 1670,
+      "y": 740,
+      "w": 90,
+      "h": 110,
+      "label": "滝地蔵",
+      "text": "こんな洞窟の奥にひっそり佇む地蔵...不気味だ。",
+      "autoTrigger": true,
+      "imageSrc": "jizou.jpg"
     }
   ],
-  "plantedCrops": {},
   "fieldCorners": {
     "left": {
       "topLeft": {
@@ -44401,88 +44377,19 @@
       "rows": 6
     }
   },
-  "inventoryCounts": {
-    "薬草": 0,
-    "携帯おにぎり": 5,
-    "気付け水": 0,
-    "小さな釣り餌": 0,
-    "ウグイ": 0,
-    "木材": 0,
-    "川魚の鱗": 0,
-    "竹の釣竿": 1,
-    "丈夫な釣竿": 1,
-    "高級釣竿": 1,
-    "伝説の釣り竿": 1,
-    "のこぎり": 1,
-    "丈夫なのこぎり": 1,
-    "高級のこぎり": 1,
-    "つるはし": 1,
-    "丈夫なつるはし": 1,
-    "高級つるはし": 1,
-    "農神の指輪": 1,
-    "釣神の指輪": 1,
-    "石材": 2,
-    "薬草の葉": 3,
-    "小さな宝石": 1,
-    "古びた硬貨": 2,
-    "乾いたハーブ": 3,
-    "余った作物": 4,
-    "古い鍵": 1,
-    "農場契約書": 1,
-    "母屋の地図": 1,
-    "娘管理台帳": 1,
-    "枝": 4,
-    "オイカワ": 0,
-    "フナ": 1,
-    "どじょう": 0,
-    "使用済みコンドーム": 0
+  "mapBgmSources": {
+    "farm": "/bgm/farmbgm.wav",
+    "house": "/bgm/ie.mp3",
+    "shed": "/bgm/ie.mp3",
+    "waterfall": "/se/zoon2.wav",
+    "kawa": "/bgm/farmbgm.wav",
+    "doukutsu": "/se/zoon2.wav",
+    "takiura": "/se/zoon2.wav"
   },
-  "equippedItems": {
-    "主人公-slot1": "竹の釣竿",
-    "主人公-slot2": "",
-    "主人公-slot3": "つるはし",
-    "主人公-slot4": "釣神の指輪",
-    "ちびいち-slot1": "小さな鈴",
-    "ちびいち-slot2": ""
-  },
-  "caughtFishIds": [
-    "eda",
-    "oikawa",
-    "funa",
-    "dojo",
-    "gomu",
-    "ugui"
-  ],
-  "fishBestSizes": {
-    "eda": 13.1,
-    "oikawa": 13.4,
-    "funa": 21.4,
-    "dojo": 12,
-    "gomu": 16.5,
-    "ugui": 21.7
-  },
-  "fishInventorySizes": {
-    "枝": [],
-    "オイカワ": [],
-    "フナ": [
-      21.4
-    ],
-    "どじょう": [],
-    "使用済みコンドーム": [],
-    "ウグイ": []
-  },
-  "fishingTutorialCompleted": true,
-  "kurumiIntroAskedTopics": [
-    "village",
-    "debt",
-    "naedoko",
-    "pantsu"
-  ],
-  "kurumiIntroCompletedDay": 1,
   "bathTubMaskZone": {
-    "x": 1260,
-    "y": 380,
-    "w": 50,
-    "h": 20
+    "x": 1218,
+    "y": 372,
+    "w": 118,
+    "h": 58
   }
 }

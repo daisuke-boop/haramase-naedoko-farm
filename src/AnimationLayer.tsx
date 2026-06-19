@@ -747,12 +747,18 @@ const SpriteItem = ({ z, isSetupMode, onZoneDelete, onZoneClick, isSelected, onS
                alt={isKurumiTent ? 'tent' : 'kurumi'}
                className="w-full h-full object-contain"
                style={{
-                  transform: isKurumiTent ? 'none' : `translate(${kurumiOffset.x}px, ${kurumiOffset.y}px) scaleX(${kurumiDirection})`,
+                  transform: isKurumiTent ? 'scale(2)' : `translate(${kurumiOffset.x}px, ${kurumiOffset.y}px) scaleX(${kurumiDirection})`,
                   transition: 'transform 900ms ease-in-out',
                   imageRendering: 'auto',
                   filter: 'drop-shadow(0 8px 8px rgba(0,0,0,0.38))',
                }}
             />
+            {isKurumiTent && (
+               <div className="absolute left-1/2 bottom-full z-10 mb-5 -translate-x-1/2 whitespace-nowrap rounded-lg border-2 border-[#3a281d] bg-white px-3 py-1 text-sm font-black text-[#3a281d] shadow-lg">
+                  zzz...
+                  <span className="absolute left-1/2 top-full h-3 w-3 -translate-x-1/2 -translate-y-1/2 rotate-45 border-b-2 border-r-2 border-[#3a281d] bg-white" />
+               </div>
+            )}
             {isSetupMode && (
                <div
                   className="absolute left-1/2 top-full mt-1 -translate-x-1/2 rounded bg-black/70 px-2 py-0.5 text-[10px] text-white whitespace-nowrap"

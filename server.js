@@ -10,6 +10,7 @@ var PORT = process.env.PORT || 4173;
 var SAVE_DIR = path.resolve(__dirname, "saves");
 var SAVE_FILE = path.resolve(SAVE_DIR, "save_data.json");
 var PREVIOUS_SAVE_FILE = path.resolve(SAVE_DIR, "save_data.previous.json");
+var MAP_SETTINGS_FILE = path.resolve(SAVE_DIR, "map_settings.json");
 var SAVE_SLOT_COUNT = 5;
 var FARM_GIRL_CARD_BACK_SRC = "/img/card.png";
 var FARM_GIRL_CARD_IMAGES = ["/img/chibiichi-card.jpg", "/img/ruby-card.jpg", "/img/mel-card.jpg"];
@@ -17,8 +18,26 @@ var OPEN_FARM_GIRL_CARD_COUNT = FARM_GIRL_CARD_IMAGES.filter((src) => src !== FA
 var GRID_COLS = 128;
 var GRID_ROWS = 72;
 var VALID_MAPS = /* @__PURE__ */ new Set(["farm", "house", "shed", "waterfall", "kawa", "doukutsu", "takiura"]);
-var TILE_RECORD_FIELDS = ["obstacles", "hideAreaTiles", "bedTiles", "workbenchTiles", "fishingTiles"];
+var TILE_RECORD_FIELDS = ["obstacles", "hideAreaTiles", "bedTiles", "workbenchTiles", "fishingTiles", "miningTiles", "loggingTiles"];
 var FOOTSTEP_SOUNDS = /* @__PURE__ */ new Set(["soil", "grass", "foot", "rainw", "rock", "jutan"]);
+var MAP_SETTINGS_FIELDS = [
+  "zones",
+  "doors",
+  "obstacles",
+  "hideAreaTiles",
+  "footstepTiles",
+  "wallBumpSound",
+  "bedTiles",
+  "workbenchTiles",
+  "fishingTiles",
+  "miningTiles",
+  "loggingTiles",
+  "inspectSpots",
+  "fieldCorners",
+  "fieldGridSizes",
+  "mapBgmSources",
+  "bathTubMaskZone"
+];
 var normalizeTileRecord = (raw, isValidValue) => {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
   const next = {};
@@ -75,25 +94,30 @@ var getMapSettingsFootprint = (data) => ({
   bedTiles: countRecordEntries(data.bedTiles),
   workbenchTiles: countRecordEntries(data.workbenchTiles),
   fishingTiles: countRecordEntries(data.fishingTiles),
+  miningTiles: countRecordEntries(data.miningTiles),
+  loggingTiles: countRecordEntries(data.loggingTiles),
   inspectSpots: countArrayEntries(data.inspectSpots),
   fieldCorners: countRecordEntries(data.fieldCorners),
   fieldGridSizes: countRecordEntries(data.fieldGridSizes)
 });
 var hasRichMapSettings = (data) => {
   const footprint = getMapSettingsFootprint(data);
-  return footprint.doors >= 8 || footprint.zones >= 8 || footprint.obstacles >= 100 || footprint.hideAreaTiles >= 100 || footprint.bedTiles >= 10 || footprint.workbenchTiles >= 5 || footprint.fishingTiles >= 3 || footprint.inspectSpots >= 3;
+  return footprint.doors >= 8 || footprint.zones >= 8 || footprint.obstacles >= 100 || footprint.hideAreaTiles >= 100 || footprint.bedTiles >= 10 || footprint.workbenchTiles >= 5 || footprint.fishingTiles >= 3 || footprint.miningTiles >= 3 || footprint.loggingTiles >= 3 || footprint.inspectSpots >= 3;
 };
 var hasSuspiciousMapSettingsLoss = (currentData, nextData) => {
   if (!hasRichMapSettings(currentData)) return false;
   const current = getMapSettingsFootprint(currentData);
   const next = getMapSettingsFootprint(nextData);
   const lostLargeRecord = current.obstacles >= 100 && next.obstacles < current.obstacles * 0.65 || current.hideAreaTiles >= 100 && next.hideAreaTiles < current.hideAreaTiles * 0.65;
-  const looksLikeInitialMapState = next.zones <= 5 && next.doors <= 8 && next.obstacles === 0 && next.hideAreaTiles === 0 && next.workbenchTiles === 0 && next.fishingTiles === 0;
-  const lostSetupTiles = current.bedTiles >= 10 && next.bedTiles < current.bedTiles * 0.65 || current.workbenchTiles >= 5 && next.workbenchTiles < current.workbenchTiles * 0.65 || current.fishingTiles >= 3 && next.fishingTiles < current.fishingTiles * 0.65;
+  const looksLikeInitialMapState = next.zones <= 5 && next.doors <= 8 && next.obstacles === 0 && next.hideAreaTiles === 0 && next.workbenchTiles === 0 && next.fishingTiles === 0 && next.miningTiles === 0 && next.loggingTiles === 0;
+  const lostSetupTiles = current.bedTiles >= 10 && next.bedTiles < current.bedTiles * 0.65 || current.workbenchTiles >= 5 && next.workbenchTiles < current.workbenchTiles * 0.65 || current.fishingTiles >= 3 && next.fishingTiles < current.fishingTiles * 0.65 || current.miningTiles >= 3 && next.miningTiles < current.miningTiles * 0.65 || current.loggingTiles >= 3 && next.loggingTiles < current.loggingTiles * 0.65;
   const lostZones = current.zones >= 8 && next.zones < current.zones * 0.65;
   const lostDoors = current.doors >= 8 && next.doors < current.doors * 0.75;
   return lostLargeRecord || looksLikeInitialMapState || lostSetupTiles || lostZones || lostDoors;
 };
+var extractMapSettings = (data) => Object.fromEntries(
+  MAP_SETTINGS_FIELDS.filter((field) => field in data).map((field) => [field, data[field]])
+);
 var getSaveSlot = (rawSlot) => {
   const slot = Number(rawSlot ?? 1);
   return Number.isInteger(slot) && slot >= 1 && slot <= SAVE_SLOT_COUNT ? slot : 1;
@@ -160,6 +184,15 @@ app.get("/api/save-slots", (req, res) => {
     return res.status(500).json({ error: "\u30BB\u30FC\u30D6\u30B9\u30ED\u30C3\u30C8\u4E00\u89A7\u306E\u8AAD\u307F\u8FBC\u307F\u306B\u5931\u6557\u3057\u307E\u3057\u305F\u3002" });
   }
 });
+app.get("/api/map-settings", (req, res) => {
+  try {
+    if (!fs.existsSync(MAP_SETTINGS_FILE)) return res.json({});
+    return res.json(JSON.parse(fs.readFileSync(MAP_SETTINGS_FILE, "utf8")));
+  } catch (error) {
+    console.error("\u30DE\u30C3\u30D7\u8A2D\u5B9A\u306E\u8AAD\u307F\u8FBC\u307F\u306B\u5931\u6557\u3057\u307E\u3057\u305F:", error);
+    return res.status(500).json({ error: "\u30DE\u30C3\u30D7\u8A2D\u5B9A\u306E\u8AAD\u307F\u8FBC\u307F\u306B\u5931\u6557\u3057\u307E\u3057\u305F\u3002" });
+  }
+});
 app.delete("/api/save", (req, res) => {
   try {
     const slot = getSaveSlot(req.query.slot);
@@ -186,7 +219,7 @@ app.post("/api/save", (req, res) => {
     if (!fs.existsSync(SAVE_DIR)) {
       fs.mkdirSync(SAVE_DIR, { recursive: true });
     }
-    const baselineSaveFile = fs.existsSync(saveFile) ? saveFile : fs.existsSync(previousSaveFile) ? previousSaveFile : null;
+    const baselineSaveFile = fs.existsSync(MAP_SETTINGS_FILE) ? MAP_SETTINGS_FILE : fs.existsSync(saveFile) ? saveFile : fs.existsSync(previousSaveFile) ? previousSaveFile : null;
     if (baselineSaveFile) {
       const currentData = JSON.parse(fs.readFileSync(baselineSaveFile, "utf8"));
       const currentObstacleCount = countRecordEntries(currentData.obstacles);
@@ -207,6 +240,9 @@ app.post("/api/save", (req, res) => {
       }
     }
     fs.writeFileSync(saveFile, JSON.stringify(sanitizedBody, null, 2), "utf8");
+    if (hasRichMapSettings(sanitizedBody)) {
+      fs.writeFileSync(MAP_SETTINGS_FILE, JSON.stringify(extractMapSettings(sanitizedBody), null, 2), "utf8");
+    }
     return res.json({ success: true });
   } catch (error) {
     console.error("\u30BB\u30FC\u30D6\u30C7\u30FC\u30BF\u306E\u66F8\u304D\u8FBC\u307F\u306B\u5931\u6557\u3057\u307E\u3057\u305F:", error);
