@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { motion } from 'motion/react';
 import { FieldGrid, type Point } from './components/FieldGrid';
 import Character from './Character';
@@ -468,7 +469,7 @@ const ITEM_MENU_BASE_ITEMS: Record<string, string[]> = {
   '素材': ['木材', '川魚の鱗'],
   '装備品': ['竹の釣竿', '丈夫な釣竿', '高級釣竿', '伝説の釣り竿', 'のこぎり', '丈夫なのこぎり', '高級のこぎり', 'つるはし', '丈夫なつるはし', '高級つるはし', '農神の指輪', FISHING_NUSHI_RING_NAME, FISHING_NUSHI_DEBUG_RING_NAME],
   '売却品': [],
-  'だいじなもの': [],
+  'だいじなもの': ['【レシピ】のこぎり', '【レシピ】つるはし'],
 };
 const createItemMenuItems = (inventoryCounts: Record<string, number>) => {
   const ownedFishNames = FISH_ZUKAN_ENTRIES
@@ -488,6 +489,20 @@ const createItemMenuItems = (inventoryCounts: Record<string, number>) => {
     '売却品': [...sellableFishNames, ...ITEM_MENU_BASE_ITEMS['売却品']],
     'だいじなもの': [...keyFishNames, ...ITEM_MENU_BASE_ITEMS['だいじなもの']],
   };
+};
+const RECIPE_DETAILS: Record<string, { title: string; materials: string[]; steps: string[]; note: string }> = {
+  '【レシピ】のこぎり': {
+    title: 'レシピ：のこぎり',
+    materials: ['モグラの爪（5）', 'ウサギの靭帯（2）', '軟らかい銅鉱石（1）', '柔らかな若枝（2）'],
+    steps: ['銅鉱石に爪を並べ、靭帯で固定する。', '枝で挟み、柄を作る。'],
+    note: '注意：無理な力は厳禁。すぐに爪が欠けるぞ。',
+  },
+  '【レシピ】つるはし': {
+    title: 'レシピ：つるはし',
+    materials: ['モグラの爪（5）', 'ウサギの靭帯（2）', '泥混じりの鉄鉱石（1）', '柔らかな若枝（2）'],
+    steps: ['鉄鉱石に爪を刺し、靭帯で固定する。', '枝を十字に組み、柄を作る。'],
+    note: '注意：岩を叩くとすぐ鈍る。小石掘りから始めよ。',
+  },
 };
 const FISHING_ROD_FISH_LEVELS: Record<FishingRodName, number[]> = {
   '竹の釣竿': [0, 1, 2, 3, 4, 5],
@@ -729,6 +744,8 @@ export default function App() {
   const [selectedFarmGirlIndex, setSelectedFarmGirlIndex] = useState(0);
   const selectedFarmGirlIndexRef = useRef(0);
   const [farmGirlDetailOpen, setFarmGirlDetailOpen] = useState(false);
+  const [recipeDetailOpen, setRecipeDetailOpen] = useState(false);
+  const [selectedRecipeName, setSelectedRecipeName] = useState('');
   const [selectedFarmFacilityIndex, setSelectedFarmFacilityIndex] = useState(0);
   const selectedFarmFacilityIndexRef = useRef(0);
   const [zukanFilter, setZukanFilter] = useState('通常');
@@ -736,6 +753,7 @@ export default function App() {
   const [selectedZukanIndex, setSelectedZukanIndex] = useState(0);
   const selectedZukanIndexRef = useRef(0);
   const [caughtFishIds, setCaughtFishIds] = useState<string[]>([]);
+  const [nushiCaughtFishIds, setNushiCaughtFishIds] = useState<string[]>([]);
   const [fishBestSizes, setFishBestSizes] = useState<Record<string, number>>({});
   const [fishSizeUpdatedIds, setFishSizeUpdatedIds] = useState<string[]>([]);
   const [fishInventorySizes, setFishInventorySizes] = useState<Record<string, number[]>>({});
@@ -755,6 +773,8 @@ export default function App() {
     'ウグイ': 0,
     '木材': 0,
     '川魚の鱗': 0,
+    '【レシピ】のこぎり': 0,
+    '【レシピ】つるはし': 0,
     '竹の釣竿': 0,
     '丈夫な釣竿': 1,
     '高級釣竿': 1,
@@ -777,6 +797,8 @@ export default function App() {
     { name: '薬草', price: 120, stock: 8, type: '買う', desc: '体力を少し回復する定番の薬草です。' },
     { name: '携帯おにぎり', price: 260, stock: 5, type: '買う', desc: '探索前の腹ごしらえに便利です。' },
     { name: '小さな釣り餌', price: 80, stock: 12, type: '買う', desc: '川釣りで使える小さな餌です。' },
+    { name: '【レシピ】のこぎり', price: 500, stock: 1, type: '買う', desc: 'のこぎりの作り方が書かれたレシピです。' },
+    { name: '【レシピ】つるはし', price: 500, stock: 1, type: '買う', desc: 'つるはしの作り方が書かれたレシピです。' },
     { name: '木材', price: 40, stock: 20, type: '売る', desc: '農場設備の修理にも使える素材です。' },
     { name: '川魚の鱗', price: 180, stock: 3, type: '売る', desc: '光沢のある素材。くるみが買い取ってくれます。' },
   ]);
@@ -808,7 +830,7 @@ export default function App() {
       });
   });
   const shopItemsForDisplay = [
-    ...shopItems.filter(item => item.type === '買う'),
+    ...shopItems.filter(item => item.type === '買う' && item.stock > 0),
     ...fishShopItems,
     ...shopItems.filter(item => item.type === '売る' && (inventoryCounts[item.name] ?? 0) > 0),
   ];
@@ -843,58 +865,63 @@ export default function App() {
     const getOwnedMenuItems = (items: string[]) => items.filter(name => (inventoryCounts[name] ?? 0) > 0);
     const selectedTabItems = getOwnedMenuItems(itemByTab[itemMenuTab] ?? itemByTab['消耗品']);
     const activeItem = selectedTabItems.includes(selectedItemName) ? selectedItemName : selectedTabItems[0] ?? '';
+    const activeRecipe = activeItem ? RECIPE_DETAILS[activeItem] : undefined;
 
     if (id === 'item') {
       return (
-        <div className="grid grid-cols-[190px_1fr_260px] gap-4 h-full">
-          <div className="flex flex-col gap-2">
-            {tabs.map((tab, index) => (
-              <button
-                key={tab}
-                type="button"
-                onPointerDown={() => { setMenuFocusArea('content'); setMenuContentFocus('primary'); setItemMenuTab(tab); setSelectedItemName(getOwnedMenuItems(itemByTab[tab])[0] ?? ''); }}
-                onMouseEnter={() => { if (itemMenuTab !== tab) playCursorSound(); }}
-                onClick={() => { playFixSound(); setMenuFocusArea('content'); setMenuContentFocus('primary'); setItemMenuTab(tab); setSelectedItemName(getOwnedMenuItems(itemByTab[tab])[0] ?? ''); }}
-                style={{ ...menuPanelBaseStyle, background: itemMenuTab === tab ? 'rgba(74,88,35,0.82)' : menuPanelBaseStyle.background }}
-                className="text-left cursor-pointer hover:brightness-125"
-              >
-                <div style={menuValueStyle}>{tab}</div>
-                <div style={menuTinyLabelStyle}>{itemMenuTab === tab ? '選択中' : `${getOwnedMenuItems(itemByTab[tab]).length}個`}</div>
-              </button>
-            ))}
-          </div>
-          <div style={menuPanelBaseStyle}>
-            {selectedTabItems.length > 0 ? (
-              <div className="grid grid-cols-2 gap-3">
-                {selectedTabItems.map((name, index) => (
+        <>
+          <div className="grid grid-cols-[190px_1fr_260px] gap-4 h-full">
+            <div className="flex flex-col gap-2">
+              {tabs.map((tab, index) => (
                 <button
-                  key={name}
+                  key={tab}
                   type="button"
-                  onPointerDown={() => { setMenuFocusArea('content'); setMenuContentFocus('secondary'); setSelectedItemName(name); }}
-                  onMouseEnter={() => { if (activeItem !== name) playCursorSound(); }}
-                  onClick={() => { playFixSound(); setMenuFocusArea('content'); setMenuContentFocus('secondary'); setSelectedItemName(name); }}
-                  className={`flex justify-between items-center px-4 py-3 border rounded cursor-pointer text-left ${activeItem === name ? 'bg-[#bc6c25]/45 border-white' : 'bg-black/35 border-[#5a3010] hover:bg-[#3a2418]'}`}
+                  onPointerDown={() => { setMenuFocusArea('content'); setMenuContentFocus('primary'); setItemMenuTab(tab); setSelectedItemName(getOwnedMenuItems(itemByTab[tab])[0] ?? ''); }}
+                  onMouseEnter={() => { if (itemMenuTab !== tab) playCursorSound(); }}
+                  onClick={() => { playFixSound(); setMenuFocusArea('content'); setMenuContentFocus('primary'); setItemMenuTab(tab); setSelectedItemName(getOwnedMenuItems(itemByTab[tab])[0] ?? ''); }}
+                  style={{ ...menuPanelBaseStyle, background: itemMenuTab === tab ? 'rgba(74,88,35,0.82)' : menuPanelBaseStyle.background }}
+                  className="text-left cursor-pointer hover:brightness-125"
                 >
-                  <span className="text-[#fdf6e3] font-bold">{name}</span>
-                  <span className="text-[#dda15e] text-sm">x{inventoryCounts[name] ?? 0}</span>
+                  <div style={menuValueStyle}>{tab}</div>
+                  <div style={menuTinyLabelStyle}>{itemMenuTab === tab ? '選択中' : `${getOwnedMenuItems(itemByTab[tab]).length}個`}</div>
                 </button>
-                ))}
-              </div>
-            ) : (
-              <div className="flex h-full items-center justify-center text-[#c8a87a]">
-                このカテゴリの所持アイテムはありません。
-              </div>
-            )}
+              ))}
+            </div>
+            <div style={menuPanelBaseStyle}>
+              {selectedTabItems.length > 0 ? (
+                <div className="grid grid-cols-2 gap-3">
+                  {selectedTabItems.map((name, index) => (
+                  <button
+                    key={name}
+                    type="button"
+                    onPointerDown={() => { setMenuFocusArea('content'); setMenuContentFocus('secondary'); setSelectedItemName(name); if (RECIPE_DETAILS[name]) openRecipeDetail(name); }}
+                    onMouseEnter={() => { if (activeItem !== name) playCursorSound(); }}
+                    onClick={() => { playFixSound(); setMenuFocusArea('content'); setMenuContentFocus('secondary'); setSelectedItemName(name); if (RECIPE_DETAILS[name]) openRecipeDetail(name); }}
+                    className={`flex justify-between items-center px-4 py-3 border rounded cursor-pointer text-left ${activeItem === name ? 'bg-[#bc6c25]/45 border-white' : 'bg-black/35 border-[#5a3010] hover:bg-[#3a2418]'}`}
+                  >
+                    <span className="text-[#fdf6e3] font-bold">{name}</span>
+                    <span className="text-[#dda15e] text-sm">x{inventoryCounts[name] ?? 0}</span>
+                  </button>
+                  ))}
+                </div>
+              ) : (
+                <div className="flex h-full items-center justify-center text-[#c8a87a]">
+                  このカテゴリの所持アイテムはありません。
+                </div>
+              )}
+            </div>
+            <div style={menuPanelBaseStyle} className="flex flex-col gap-3">
+              <div style={menuTinyLabelStyle}>選択アイテム</div>
+              <div className="text-[#fdf6e3] text-2xl font-bold">{activeItem || '未所持'}</div>
+              <div className="text-[#c8a87a] leading-relaxed">カテゴリ: {itemMenuTab}<br />使用・確認・整理の対象になります。</div>
+              {!activeRecipe && (
+                <button disabled={!activeItem} onClick={() => { playFixSound(); setDialogMessage(`${activeItem}を確認しました。`); }} className="mt-auto bg-[#4a5823] hover:bg-[#60732d] border-2 border-[#a3b18a] rounded px-4 py-3 font-bold cursor-pointer disabled:cursor-not-allowed disabled:opacity-45">
+                  確認する
+                </button>
+              )}
+            </div>
           </div>
-          <div style={menuPanelBaseStyle} className="flex flex-col gap-3">
-            <div style={menuTinyLabelStyle}>選択アイテム</div>
-            <div className="text-[#fdf6e3] text-2xl font-bold">{activeItem || '未所持'}</div>
-            <div className="text-[#c8a87a] leading-relaxed">カテゴリ: {itemMenuTab}<br />使用・確認・整理の対象になります。</div>
-            <button disabled={!activeItem} onClick={() => { playFixSound(); setDialogMessage(`${activeItem}を確認しました。`); }} className="mt-auto bg-[#4a5823] hover:bg-[#60732d] border-2 border-[#a3b18a] rounded px-4 py-3 font-bold cursor-pointer disabled:cursor-not-allowed disabled:opacity-45">
-              確認する
-            </button>
-          </div>
-        </div>
+        </>
       );
     }
 
@@ -1333,7 +1360,10 @@ export default function App() {
       const selectedFishSizeHistory = selectedFish ? fishInventorySizes[selectedFish.name] ?? [] : [];
       const selectedFishBestSizeFromHistory = selectedFishSizeHistory.length > 0 ? Math.max(...selectedFishSizeHistory) : undefined;
       const selectedFishBestSize = selectedFish ? fishBestSizes[selectedFish.id] ?? selectedFishBestSizeFromHistory : undefined;
-      const selectedFishIsNushiCaught = !!selectedFish && selectedFishBestSize !== undefined && isNushiSize(selectedFish, selectedFishBestSize);
+      const selectedFishIsNushiCaught = !!selectedFish && (
+        nushiCaughtFishIds.includes(selectedFish.id) ||
+        (selectedFishBestSize !== undefined && isNushiSize(selectedFish, selectedFishBestSize))
+      );
       const selectedFishHasUpdate = !!selectedFish && fishSizeUpdatedIds.includes(selectedFish.id);
       const fishProgress = Math.round((caughtFishIds.length / FISH_ZUKAN_ENTRIES.length) * 100);
 
@@ -1366,7 +1396,10 @@ export default function App() {
               const sizeHistory = fishInventorySizes[fish.name] ?? [];
               const bestSizeFromHistory = sizeHistory.length > 0 ? Math.max(...sizeHistory) : undefined;
               const bestSize = fishBestSizes[fish.id] ?? bestSizeFromHistory;
-              const isNushiCaught = caught && bestSize !== undefined && isNushiSize(fish, bestSize);
+              const isNushiCaught = caught && (
+                nushiCaughtFishIds.includes(fish.id) ||
+                (bestSize !== undefined && isNushiSize(fish, bestSize))
+              );
               return (
                 <button
                   key={fish.id}
@@ -1385,7 +1418,7 @@ export default function App() {
                     </div>
                     {isNushiCaught && (
                       <div className="absolute right-2 top-8 z-20 rounded-full border border-[#fff7ad] bg-[linear-gradient(135deg,#fff7ad,#ffd166_42%,#67e8f9)] px-2.5 py-1 text-[10px] font-black text-[#2d1b15] shadow-[0_0_16px_rgba(255,209,102,0.85),0_0_26px_rgba(103,232,249,0.45)]">
-                        ✨ ヌシ
+                        ヌシ
                       </div>
                     )}
                     <div className="relative aspect-[4/3] overflow-hidden rounded border border-[#5a3010]/80 bg-[#140c09]">
@@ -1440,7 +1473,7 @@ export default function App() {
                 )}
                 {selectedFishIsNushiCaught && (
                   <div className="rounded-full border border-[#fff7ad] bg-[linear-gradient(135deg,#fff7ad,#ffd166_42%,#67e8f9)] px-4 py-1 text-sm font-black text-[#2d1b15] shadow-[0_0_18px_rgba(255,209,102,0.82),0_0_26px_rgba(103,232,249,0.48),inset_0_1px_0_rgba(255,255,255,0.55)]">
-                    ✨ ヌシ
+                    ヌシ
                   </div>
                 )}
               </div>
@@ -1643,6 +1676,7 @@ export default function App() {
   const [fishingFanSweetMax, setFishingFanSweetMax] = useState(FISHING_KEEP_GREEN_MAX);
   const [fishingTargetFish, setFishingTargetFish] = useState<FishZukanEntry>(FISH_ZUKAN_ENTRIES[0]);
   const [fishingTargetSizeValue, setFishingTargetSizeValue] = useState<number | null>(null);
+  const [fishingTargetIsNushi, setFishingTargetIsNushi] = useState(false);
   const fishingHitGreenMin = FISHING_KEEP_GREEN_CENTER - fishingHitGreenWidth / 2;
   const fishingHitGreenMax = FISHING_KEEP_GREEN_CENTER + fishingHitGreenWidth / 2;
   const fishingKeepGreenMin = FISHING_KEEP_GREEN_CENTER - fishingKeepGreenWidth / 2;
@@ -2050,7 +2084,11 @@ export default function App() {
         setFishingResultSizeCm(sizeCm);
         setFishingResultImageSrc(caughtFish.imageSrc);
         setFishingResultIsNewRecord(isNewRecord);
-        const catchResultText = isNushiSize(caughtFish, sizeValue)
+        const isNushiCatch = fishingTargetIsNushi || isNushiSize(caughtFish, sizeValue);
+        if (isNushiCatch && caughtFish) {
+          setNushiCaughtFishIds(prev => prev.includes(caughtFish.id) ? prev : [...prev, caughtFish.id]);
+        }
+        const catchResultText = isNushiCatch
           ? `なんとヌシが釣れた！${caughtFish.name}を釣り上げた。`
           : `お見事！${caughtFish.name}を釣り上げた。`;
         setFishingResultText(catchResultText);
@@ -2079,7 +2117,7 @@ export default function App() {
         playVoiceSound(FISH_LOSE_SOUND_SRC);
         setFishingMiniGameStage('result');
      }
-  }, [caughtFishIds, fishBestSizes, fishingBiteCombo, fishingBiteScore, fishingFishHp, fishingTargetFish, fishingTargetSizeValue, fishingTension, fishingMiniGameOpen, fishingMiniGameStage]);
+  }, [caughtFishIds, fishBestSizes, fishingBiteCombo, fishingBiteScore, fishingFishHp, fishingTargetFish, fishingTargetIsNushi, fishingTargetSizeValue, fishingTension, fishingMiniGameOpen, fishingMiniGameStage]);
 
   const TILE_SIZE = 15;
   const GRID_COLS = 128; // 1920 / 15
@@ -2288,6 +2326,11 @@ export default function App() {
               typeof id === 'string' && FISH_ZUKAN_ENTRIES.some(fish => fish.id === id)
             )));
           }
+          if (Array.isArray(data.nushiCaughtFishIds)) {
+            setNushiCaughtFishIds(data.nushiCaughtFishIds.filter((id: unknown): id is string => (
+              typeof id === 'string' && FISH_ZUKAN_ENTRIES.some(fish => fish.id === id)
+            )));
+          }
           if (data.fishBestSizes && typeof data.fishBestSizes === 'object') {
             const parsedBestSizes = data.fishBestSizes as Record<string, unknown>;
             setFishBestSizes(Object.fromEntries(
@@ -2382,6 +2425,7 @@ export default function App() {
           setKurumiIntroAskedTopics([]);
           setKurumiIntroCompletedDay(null);
           setCaughtFishIds([]);
+          setNushiCaughtFishIds([]);
           setFishBestSizes({});
           setFishSizeUpdatedIds([]);
           setFishInventorySizes({});
@@ -2444,6 +2488,7 @@ export default function App() {
     inventoryCounts,
     equippedItems,
     caughtFishIds,
+    nushiCaughtFishIds,
     fishBestSizes,
     fishInventorySizes,
     fishingTutorialCompleted,
@@ -2601,6 +2646,7 @@ export default function App() {
     inventoryCounts,
     equippedItems,
     caughtFishIds,
+    nushiCaughtFishIds,
     fishBestSizes,
     fishInventorySizes,
     fishingTutorialCompleted,
@@ -2815,6 +2861,7 @@ export default function App() {
     const sweetRange = createFishingFanSweetRange(targetFish);
     setFishingTargetFish(targetFish);
     setFishingTargetSizeValue(null);
+    setFishingTargetIsNushi(false);
     setFishingFanSweetMin(sweetRange.min);
     setFishingFanSweetMax(sweetRange.max);
     setFishingMiniGameOpen(true);
@@ -3174,6 +3221,12 @@ export default function App() {
         }
         return next;
      });
+  };
+  const openRecipeDetail = (recipeName: string) => {
+     if (!RECIPE_DETAILS[recipeName]) return false;
+     setSelectedRecipeName(recipeName);
+     setRecipeDetailOpen(true);
+     return true;
   };
 
   const handleShopCloseClick = () => {
@@ -3554,7 +3607,8 @@ export default function App() {
     const nushiDebugRate = equippedAccessory === FISHING_NUSHI_DEBUG_RING_NAME
       ? FISHING_NUSHI_RING_DEBUG_RATE
       : null;
-    const targetSize = rollFishingNushi(fishingTargetFish, biteCombo, nushiRateMultiplier, nushiDebugRate)
+    const isNushiTarget = rollFishingNushi(fishingTargetFish, biteCombo, nushiRateMultiplier, nushiDebugRate);
+    const targetSize = isNushiTarget
       ? fishingTargetFish.sizeMax
       : createFishingTargetSize(fishingTargetFish, biteScore, biteCombo);
     const sizeRatio = getFishSizeRatio(fishingTargetFish, targetSize);
@@ -3563,6 +3617,7 @@ export default function App() {
     const keepDifficultyScale = Math.max(0.36, 1 - levelRatio * 0.2 - sizeRatio * 0.36);
 
     setFishingTargetSizeValue(targetSize);
+    setFishingTargetIsNushi(isNushiTarget);
     setFishingHitGreenWidth(prev => Math.max(4, prev * hitDifficultyScale));
     setFishingKeepGreenWidth(prev => Math.max(4, prev * keepDifficultyScale));
     setFishingMiniGameStage('hit');
@@ -3581,6 +3636,7 @@ export default function App() {
     setFishingTutorialResult(null);
     setFishingTargetFish(targetFish);
     setFishingTargetSizeValue(null);
+    setFishingTargetIsNushi(false);
     setFishingFanSweetMin(sweetRange.min);
     setFishingFanSweetMax(sweetRange.max);
     setFishingMiniGameOpen(true);
@@ -3651,6 +3707,7 @@ export default function App() {
     }
     setFishingMiniGameOpen(false);
     setFishingMiniGameStage('direction');
+    setFishingTargetIsNushi(false);
     setIsFishingHitSplashActive(false);
     setIsFishingHitIntroActive(false);
     setIsFishingNushiIntroActive(false);
@@ -3766,7 +3823,7 @@ export default function App() {
       const hitGauge = fishingGaugeRef.current;
       const success = hitGauge >= fishingHitGreenMin && hitGauge <= fishingHitGreenMax;
       if (success) {
-        const isNushiHit = fishingTargetSizeValue !== null && isNushiSize(fishingTargetFish, fishingTargetSizeValue);
+        const isNushiHit = fishingTargetIsNushi || (fishingTargetSizeValue !== null && isNushiSize(fishingTargetFish, fishingTargetSizeValue));
 	        setIsFishingHitSplashActive(true);
 	        setIsFishingHitIntroActive(true);
 	        setFishingHitCountdown(3);
@@ -4420,6 +4477,17 @@ export default function App() {
         return;
       }
 
+      if (recipeDetailOpen) {
+        if (e.key === 'Enter' || e.key === ' ' || e.key === 'Escape') {
+          e.preventDefault();
+          playFixSound();
+          setMenuFocusArea('content');
+          setMenuContentFocus('secondary');
+          setRecipeDetailOpen(false);
+        }
+        return;
+      }
+
       if (farmGirlDetailOpen) {
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault();
@@ -5037,6 +5105,7 @@ export default function App() {
               if (selectedName) setDialogMessage(`${selectedName}の詳細情報を表示しました。`);
             }
           } else if (currentMenuItem.id === 'item') {
+            openRecipeDetail(selectedItemNameRef.current);
             setDialogMessage(`${selectedItemNameRef.current}を確認しました。`);
           } else if (currentMenuItem.id === 'equipment') {
             if (!equipmentActionOpen) {
@@ -5525,7 +5594,7 @@ export default function App() {
       window.removeEventListener('keydown', handleKeyDown); window.removeEventListener('keyup', handleKeyUp);
       cancelAnimationFrame(animationFrameId);
     };
-  }, [setupMode, bedTiles, workbenchTiles, fishingTiles, sleepPromptVisible, craftPromptVisible, fishingPromptVisible, confirmPromptChoice, pendingDeleteSaveSlot, activeAutoEventSpot, activeAutoEventMessage, activeAutoEventMessageIndex, activeAutoEventMessages, displayedAutoEventMessage, turn, kurumiShopOpen, kurumiIntroOpen, kurumiIntroSelectedIndex, kurumiIntroAskedTopics, kurumiIntroCompletedDay, selectedShopControl, selectedShopItemIndex, shopItems, gold, equipmentActionOpen, equippedItems, inventoryCounts, caughtFishIds, fishingMiniGameOpen, fishingMiniGameStage, isFishingResultInputLocked, selectedFishingTutorialAction, selectedFishingResultAction, farmGirlDetailOpen, bootMode]);
+  }, [setupMode, bedTiles, workbenchTiles, fishingTiles, sleepPromptVisible, craftPromptVisible, fishingPromptVisible, confirmPromptChoice, pendingDeleteSaveSlot, activeAutoEventSpot, activeAutoEventMessage, activeAutoEventMessageIndex, activeAutoEventMessages, displayedAutoEventMessage, turn, kurumiShopOpen, kurumiIntroOpen, kurumiIntroSelectedIndex, kurumiIntroAskedTopics, kurumiIntroCompletedDay, selectedShopControl, selectedShopItemIndex, shopItems, gold, equipmentActionOpen, equippedItems, inventoryCounts, caughtFishIds, fishingMiniGameOpen, fishingMiniGameStage, isFishingResultInputLocked, selectedFishingTutorialAction, selectedFishingResultAction, recipeDetailOpen, farmGirlDetailOpen, bootMode]);
 
   // Zone creation states
   const [dragStart, setDragStart] = useState<{ x: number, y: number } | null>(null);
@@ -6377,6 +6446,7 @@ export default function App() {
      if (Number.isNaN(date.getTime())) return '';
      return `${date.getMonth() + 1}/${date.getDate()} ${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
   };
+  const selectedRecipeDetail = selectedRecipeName ? RECIPE_DETAILS[selectedRecipeName] : undefined;
 
   return (
     <div className="min-h-screen bg-[#111] flex items-center justify-center p-4 py-8 overflow-hidden select-none" style={{ fontFamily: '"DotGothic16", sans-serif' }}>
@@ -7430,6 +7500,7 @@ export default function App() {
               )}
             </div>
           )}
+
         </div>
 
         {sleepPromptVisible && (
@@ -7523,7 +7594,7 @@ export default function App() {
         )}
 
         {fishingMiniGameOpen && fishingMiniGameStage !== 'direction' && (() => {
-           const isFishingNushiTarget = fishingTargetSizeValue !== null && isNushiSize(fishingTargetFish, fishingTargetSizeValue);
+           const isFishingNushiTarget = fishingTargetIsNushi || (fishingTargetSizeValue !== null && isNushiSize(fishingTargetFish, fishingTargetSizeValue));
            const isFishingNushiScene = isFishingNushiTarget && (
               isFishingNushiIntroActive ||
               (fishingMiniGameStage === 'hit' && !isFishingHitSplashActive)
@@ -8592,6 +8663,40 @@ export default function App() {
            fishingFanSweetMax={fishingFanSweetMax}
            setFishingFanSweetMax={setFishingFanSweetMax}
         />
+        {recipeDetailOpen && selectedRecipeDetail && createPortal(
+           <div
+              className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/62 px-8 py-6 pointer-events-auto"
+              onClick={() => { playFixSound(); setMenuFocusArea('content'); setMenuContentFocus('secondary'); setRecipeDetailOpen(false); }}
+           >
+              <div className="recipe-detail-modal relative h-[min(86vh,820px)] w-[min(72vw,690px)]" onClick={(event) => event.stopPropagation()}>
+                 <img src="/img/recipe.jpg" alt={selectedRecipeDetail.title} className="absolute inset-0 h-full w-full object-contain drop-shadow-[0_28px_70px_rgba(0,0,0,0.72)]" />
+                 <button
+                    type="button"
+                    onClick={() => { playFixSound(); setRecipeDetailOpen(false); }}
+                    className="absolute right-[10%] top-[7%] z-20 flex h-10 w-10 items-center justify-center rounded border border-[#5b3518]/70 bg-[#2b160b]/80 text-xl font-black text-[#fff1b8] hover:bg-[#5a2c13]"
+                    aria-label="レシピを閉じる"
+                 >
+                    ×
+                 </button>
+                 <div className="recipe-detail-text absolute left-[15%] right-[15%] top-[14%] bottom-[11%] z-10 flex flex-col text-[#3b2212]">
+                    <div className="text-center text-[30px] font-black leading-tight text-[#2b170d]">{selectedRecipeDetail.title}</div>
+                    <div className="mt-8 text-[20px] font-black leading-tight">必要素材</div>
+                    <div className="mt-2 grid grid-cols-1 gap-1 text-[20px] font-black leading-tight">
+                       {selectedRecipeDetail.materials.map(material => (
+                          <div key={material}>{material}</div>
+                       ))}
+                    </div>
+                    <div className="mt-8 text-[20px] font-black leading-tight">手順</div>
+                    <div className="mt-2 flex flex-col gap-2 text-[18px] font-black leading-[1.55]">
+                       {selectedRecipeDetail.steps.map(step => (
+                          <div key={step}>{step}</div>
+                       ))}
+                    </div>
+                    <div className="mt-auto pb-7 text-[16px] font-black leading-[1.55]">{selectedRecipeDetail.note}</div>
+                 </div>
+              </div>
+           </div>
+        , document.body)}
       </div>
      </div>
     </div>

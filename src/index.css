@@ -124,6 +124,19 @@ canvas {
     inset 0 0 0 1px rgba(255, 238, 201, 0.14);
 }
 
+.recipe-detail-text {
+  font-family: var(--font-pixel), "Hiragino Sans", "Yu Gothic", sans-serif;
+  letter-spacing: 0;
+  image-rendering: pixelated;
+  -webkit-font-smoothing: none;
+  text-rendering: geometricPrecision;
+  text-shadow:
+    2px 0 rgba(255, 238, 164, 0.48),
+    0 2px rgba(255, 238, 164, 0.42),
+    -1px 0 rgba(116, 64, 28, 0.26),
+    0 -1px rgba(116, 64, 28, 0.22);
+}
+
 .farm-menu-system-action {
   background:
     radial-gradient(circle at 50% 12%, rgba(255, 239, 203, 0.18), transparent 42%),
