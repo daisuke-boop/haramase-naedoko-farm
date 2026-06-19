@@ -70,9 +70,10 @@ type CharacterProps = {
   isBathMasked?: boolean,
   playerWalkSprites: Record<PlayerDirection, [string, string, string, string]>,
   overrideWalkSprites?: Record<PlayerDirection, [string, string, string, string]>,
+  walkFrameMs?: number,
 };
 
-const Character = ({ x, y, direction, isWalking, customSprites, isHidden, isBathMasked, playerWalkSprites, overrideWalkSprites }: CharacterProps) => {
+const Character = ({ x, y, direction, isWalking, customSprites, isHidden, isBathMasked, playerWalkSprites, overrideWalkSprites, walkFrameMs = 150 }: CharacterProps) => {
   const [frame, setFrame] = useState(0);
   
   // 停止時は4方向画像、歩行時は手足差分フレームを使う
@@ -94,9 +95,9 @@ const Character = ({ x, y, direction, isWalking, customSprites, isHidden, isBath
     if (!isWalking) {
       setFrame(0); return;
     }
-    const interval = setInterval(() => setFrame(f => (f + 1) % 4), 150);
+    const interval = setInterval(() => setFrame(f => (f + 1) % 4), walkFrameMs);
     return () => clearInterval(interval);
-  }, [isWalking]);
+  }, [isWalking, walkFrameMs]);
 
   const bounce = isWalking && (frame === 1 || frame === 3) ? -2 : 0;
 

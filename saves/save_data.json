@@ -1,8 +1,8 @@
 {
   "turn": 4,
-  "gold": 5000,
-  "debt": 20000000,
-  "difficulty": "normal",
+  "gold": 2460,
+  "debt": 5000000,
+  "difficulty": "easy",
   "currentMap": "farm",
   "zones": [
     {
@@ -363,14 +363,45 @@
       "spawnY": 210
     }
   ],
-  "bgmVolume": 0,
+  "bgmVolume": 0.2,
   "seVolume": 0.2,
-  "voiceVolume": 0.8,
+  "voiceVolume": 0.1,
   "audioGains": {
-    "/bgm/ie.mp3": 1.8,
+    "/bgm/ie.mp3": 0.1,
     "/bgm/fishking.mp3": 2.5,
-    "/se/Fireplace.mp3": 1,
-    "/voice/kurumi.wav": 1
+    "/se/Fireplace.mp3": 0.1,
+    "/voice/kurumi.wav": 0.1,
+    "/bgm/title.mp3": 0.1,
+    "/bgm/farmbgm.wav": 0.1,
+    "/bgm/yado.mp3": 0.1,
+    "/bgm/shop.mp3": 0.1,
+    "/se/zoon2.wav": 0.1,
+    "/se/taki.mp3": 0.1,
+    "/se/river.mp3": 0.1,
+    "/se/semi.mp3": 0.1,
+    "/se/soil.mp3": 0.1,
+    "/se/grass.mp3": 0.1,
+    "/se/foot.mp3": 0.1,
+    "/se/rainw.mp3": 0.1,
+    "/se/rock.mp3": 0.1,
+    "/se/jutan.mp3": 0.1,
+    "/se/don.mp3": 0.1,
+    "/se/door.mp3": 0.1,
+    "/se/suzume.mp3": 0.1,
+    "/se/bird.wav": 0.1,
+    "/se/Water-splash.mp3": 0.1,
+    "/se/cursor.mp3": 0.1,
+    "/se/fix.mp3": 0.1,
+    "/se/success.mp3": 0.1,
+    "/se/cloak.mp3": 0.1,
+    "/se/chapon.mp3": 0.1,
+    "/voice/fish-result.wav": 0.1,
+    "/voice/fish-lose.wav": 0.1,
+    "/voice/kurumi-start.wav": 0.1,
+    "/voice/kurumi-start2.wav": 0.1,
+    "/voice/kurumi-start3.wav": 0.1,
+    "/voice/kurumi-start4.wav": 0.1,
+    "/voice/kurumi-start5.wav": 0.1
   },
   "mapBgmSources": {
     "farm": "/bgm/farmbgm.wav",
@@ -30815,6 +30846,7 @@
     "kawa_4,24": true,
     "kawa_6,24": true
   },
+  "bathTubMaskTiles": {},
   "footstepTiles": {
     "farm_59,38": "grass",
     "farm_59,39": "grass",
@@ -44421,13 +44453,15 @@
     "ウサギの靭帯": 0,
     "泥混じりの鉄鉱石": 0,
     "柔らかな若枝": 0,
+    "携帯おにぎり": 5,
+    "薬草": 2,
     "【レシピ】のこぎり": 1,
     "軟らかい銅鉱石": 0
   },
   "equippedItems": {
     "主人公-slot1": "竹の釣竿",
-    "主人公-slot2": "",
-    "主人公-slot3": "",
+    "主人公-slot2": "のこぎり",
+    "主人公-slot3": "つるはし",
     "主人公-slot4": "農神の指輪",
     "ちびいち-slot1": "小さな鈴",
     "ちびいち-slot2": ""
@@ -44437,11 +44471,11 @@
   ],
   "nushiCaughtFishIds": [],
   "fishBestSizes": {
-    "eda": 7.2
+    "eda": 8.8
   },
   "fishInventorySizes": {
     "枝": [
-      7.2
+      8.8
     ]
   },
   "fishingTutorialCompleted": true,
@@ -44450,20 +44484,21 @@
   "sawCraftTutorialWorkbenchReady": false,
   "sawCraftTutorialCompleted": true,
   "craftedRecipeIds": [
+    "【レシピ】つるはし",
     "【レシピ】のこぎり"
   ],
   "gatheringTutorialCompleted": true,
   "kurumiIntroAskedTopics": [
     "village",
-    "debt",
     "naedoko",
-    "pantsu"
+    "pantsu",
+    "debt"
   ],
   "kurumiIntroCompletedDay": 1,
   "bathTubMaskZone": {
-    "x": 1218,
-    "y": 372,
-    "w": 118,
-    "h": 58
+    "x": 1260,
+    "y": 380,
+    "w": 60,
+    "h": 30
   }
 }

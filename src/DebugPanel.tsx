@@ -38,6 +38,7 @@ type DebugPanelProps = {
   setSelectedAudioFile: React.Dispatch<React.SetStateAction<string>>;
   selectedAudioGain: number;
   setSelectedAudioGain: (gain: number) => void;
+  setAllAudioGains: (gain: number) => void;
   AUDIO_FILE_ENTRIES: AudioFileEntry[];
   opacityMap: number[];
   opacityLevel: number;
@@ -82,6 +83,7 @@ const DebugPanel = ({
   setSelectedAudioFile,
   selectedAudioGain,
   setSelectedAudioGain,
+  setAllAudioGains,
   AUDIO_FILE_ENTRIES,
   opacityMap,
   opacityLevel,
@@ -106,6 +108,7 @@ const DebugPanel = ({
   const [selectedDebugDialogueKey, setSelectedDebugDialogueKey] = React.useState(debugDialogueOptions[0]?.key ?? '');
   const selectedDebugDialogue = debugDialogueOptions.find(option => option.key === selectedDebugDialogueKey) ?? debugDialogueOptions[0];
   const [debugDialogueDraft, setDebugDialogueDraft] = React.useState(selectedDebugDialogue?.currentMessage ?? '');
+  const [bulkAudioGain, setBulkAudioGain] = React.useState(selectedAudioGain);
 
   React.useEffect(() => {
     if (!selectedDebugDialogue && debugDialogueOptions[0]) {
@@ -305,6 +308,26 @@ const DebugPanel = ({
                     <span className="farm-volume-percent text-orange-200">{Math.round(selectedAudioGain * 100)}%</span>
                  </div>
                  <div className="text-[8px] text-gray-500 text-right">個別ゲイン: {Math.round(selectedAudioGain * 100)}%</div>
+                 <div className="mt-1 flex items-center gap-1 border-t border-gray-700 pt-1">
+                    <span className="flex-shrink-0 text-[8px] font-bold text-orange-300">一括</span>
+                    <select
+                       value={Math.round(bulkAudioGain * 10) * 10}
+                       onChange={(e) => setBulkAudioGain(Number(e.target.value) / 100)}
+                       className="flex-shrink-0 bg-[#2d1b15] border border-red-800 text-[#fdf6e3] text-[9px] rounded px-0.5 py-0.5 cursor-pointer"
+                       style={{ width: '52px' }}
+                    >
+                       {Array.from({ length: 31 }, (_, i) => i * 10).map(v => (
+                          <option key={v} value={v}>{v}%</option>
+                       ))}
+                    </select>
+                    <button
+                       type="button"
+                       onClick={() => setAllAudioGains(bulkAudioGain)}
+                       className="min-w-0 flex-1 rounded border border-orange-700 bg-orange-950 px-1 py-1 text-[8px] font-bold text-orange-200 transition-colors hover:bg-orange-900"
+                    >
+                       全音源に反映
+                    </button>
+                 </div>
               </div>
 
               {/* 保存状態表示 */}

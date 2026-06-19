@@ -376,6 +376,7 @@ const FISHING_NUSHI_SOUND_SRC = '/voice/kawanushi.wav';
 const FISHING_NUSHI_COUNTDOWN_DELAY_MS = 1200;
 const FISHING_BGM_SRC = '/bgm/fishking.mp3';
 const DEBUG_DIALOGUE_STORAGE_KEY = 'farmDebugDialogueOverrides';
+const VOICE_AUDIO_CACHE_VERSION = '20260619-craft4-fix';
 
 type KurumiTradeReward = {
   threshold: number;
@@ -664,6 +665,11 @@ const PICKAXE_CRAFT_TUTORIAL_STEPS: DebugDialogueStep[] = [
     message: 'あっ！それは採掘に必要なつるはしのレシピだよっ！\nクラフトするのにいろんな素材がいるんだけど、お兄さんは初めてだから\n最初だけ素材をあげるね！',
     voiceSrc: '/voice/craft5.wav',
   },
+  {
+    debugKey: 'pickaxe_craft_tutorial_2',
+    message: 'レシピはいつでもだいじなものから見れるから、\n気になったら確認してみてねっ！\nじゃあ、早速つるはし\nを作ってみよー♪\nちょうどお兄さんのお家の横にクラフト小屋があるから\nそこに集合ねっ♡',
+    voiceSrc: '/voice/craft13.wav',
+  },
 ];
 const GATHERING_TUTORIAL_COMMON_STEPS: DebugDialogueStep[] = [
   {
@@ -705,12 +711,22 @@ const GATHERING_TUTORIAL_BRANCH_STEPS: Record<GatheringTutorialChoice, DebugDial
 };
 const SAW_CRAFT_SHED_TUTORIAL_STEP: DebugDialogueStep = {
   debugKey: 'saw_craft_tutorial_3',
-  message: 'ここがクラフト小屋だよっ！\n準備はできてるから、今度はお兄さんがクラフト台を調べてみてねっ！\nさっき渡したレシピは「だいじなもの」から選べるよ♪',
+  message: '早速きてくれてありがとう♡\nくるみ嬉しいなぁー♪\nこのクラフト台を調べるとレシピが出るから\n好きなレシピを選んでみてねっ！',
   voiceSrc: '/voice/craft3.wav',
 };
+const SAW_CRAFT_SHED_TUTORIAL_STEPS: DebugDialogueStep[] = [
+  SAW_CRAFT_SHED_TUTORIAL_STEP,
+  {
+    debugKey: 'saw_craft_tutorial_4',
+    message: 'レシピを選んで素材が揃ってるとクラフトできるよ！\nクラフト中は出てくる円をタッチしてね♪\n成功率が70％を超えると成功！！\nじゃ、やってみよーっ。',
+    voiceSrc: '/voice/craft4.wav',
+  },
+];
 const CRAFT_TUTORIAL_KURUMI_ZONE = { x: 940, y: 480, w: 60, h: 60 };
 const CRAFT_TUTORIAL_KURUMI_LABEL_W = 210;
 const CRAFT_TUTORIAL_KURUMI_LABEL_H = 54;
+const WARP_COOLDOWN_MS = 450;
+const CRAFT_SUCCESS_SOUND_SRC = '/se/craft.mp3';
 
 const clampNumber = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
 const isFishingRodName = (name: string): name is FishingRodName => name in FISHING_ROD_FISH_LEVELS;
@@ -1884,6 +1900,7 @@ export default function App() {
   const [craftTutorialRecipeName, setCraftTutorialRecipeName] = useState<CraftRecipeId>('【レシピ】のこぎり');
   const [sawCraftTutorialReady, setSawCraftTutorialReady] = useState(false);
   const [sawCraftTutorialShedDialogueOpen, setSawCraftTutorialShedDialogueOpen] = useState(false);
+  const [sawCraftTutorialShedStepIndex, setSawCraftTutorialShedStepIndex] = useState(0);
   const [sawCraftTutorialWorkbenchReady, setSawCraftTutorialWorkbenchReady] = useState(false);
   const [sawCraftTutorialCompleted, setSawCraftTutorialCompleted] = useState(false);
   const [craftedRecipeIds, setCraftedRecipeIds] = useState<CraftRecipeId[]>([]);
@@ -1917,6 +1934,7 @@ export default function App() {
   const kurumiIntroCloseTimerRef = useRef<number | null>(null);
   const fishingTutorialVoiceRef = useRef<HTMLAudioElement | null>(null);
   const sawCraftTutorialVoiceRef = useRef<HTMLAudioElement | null>(null);
+  const sawCraftTutorialIntroVoiceKeyRef = useRef<string | null>(null);
   const [confirmPromptChoice, setConfirmPromptChoice] = useState<'yes' | 'no'>('yes');
   const [craftPromptSource, setCraftPromptSource] = useState<'kurumi' | 'workbench' | null>(null);
   const [sleepFadeOpacity, setSleepFadeOpacity] = useState(0);
@@ -1937,6 +1955,7 @@ export default function App() {
   const fishingReelAudioRef = useRef<HTMLAudioElement | null>(null);
   const isFishingKeepPressedRef = useRef(false);
   const movementLockedRef = useRef(false);
+  const lastWarpedAtRef = useRef(0);
   
   const [isLoading, setIsLoading] = useState(false);
   const [zones, setZones] = useState<AnimZone[]>(defaultZones.map(ensureAnimZoneSpriteSize));
@@ -2023,6 +2042,7 @@ export default function App() {
   const bgmSourceRef = useRef(TITLE_BGM_SRC);
   const bgmFadeRafRef = useRef<number | null>(null);
   const bgmFadingRef = useRef(false);
+  const autoEventBgmMutedRef = useRef(false);
   const wasFishingBgmActiveRef = useRef(false);
   const walkSoundRef = useRef<HTMLAudioElement | null>(null);
   const wasPlayerInBathRef = useRef(false);
@@ -2069,6 +2089,17 @@ export default function App() {
 
   const setSelectedAudioGain = (gain: number) => {
     setAudioGains(prev => ({ ...prev, [selectedAudioFile]: Math.max(0, Math.min(gain, 3)) }));
+  };
+
+  const setAllAudioGains = (gain: number) => {
+    const clampedGain = Math.max(0, Math.min(gain, 3));
+    setAudioGains(prev => {
+      const next = { ...prev };
+      AUDIO_FILE_ENTRIES.forEach(entry => {
+        next[entry.src] = clampedGain;
+      });
+      return next;
+    });
   };
 
   useEffect(() => {
@@ -2412,6 +2443,9 @@ export default function App() {
   const [hideAreaTiles, setHideAreaTiles] = useState<Record<string, boolean>>({});
   const [selectedHideAreaDrawMode, setSelectedHideAreaDrawMode] = useState<HideAreaDrawMode>('paint');
   const [hideAreaBrushSize, setHideAreaBrushSize] = useState<1 | 3 | 5>(1);
+  const [bathTubMaskTiles, setBathTubMaskTiles] = useState<Record<string, boolean>>({});
+  const [selectedBathTubMaskDrawMode, setSelectedBathTubMaskDrawMode] = useState<HideAreaDrawMode>('paint');
+  const [bathTubMaskBrushSize, setBathTubMaskBrushSize] = useState<1 | 3 | 5>(1);
   const [footstepTiles, setFootstepTiles] = useState<Record<string, FootstepSound>>({});
   const [selectedFootstepSound, setSelectedFootstepSound] = useState<FootstepSound | 'erase'>('grass');
   const [footstepBrushSize, setFootstepBrushSize] = useState<1 | 3 | 5>(1);
@@ -2432,6 +2466,7 @@ export default function App() {
     doors,
     obstacles,
     hideAreaTiles,
+    bathTubMaskTiles,
     footstepTiles,
     wallBumpSound,
     bedTiles,
@@ -2474,6 +2509,7 @@ export default function App() {
       doors: nextDoors,
       obstacles: data.obstacles ? normalizeTileRecord(data.obstacles, isEnabledTileValue) : current.obstacles,
       hideAreaTiles: data.hideAreaTiles ? normalizeTileRecord(data.hideAreaTiles, isEnabledTileValue) : current.hideAreaTiles,
+      bathTubMaskTiles: data.bathTubMaskTiles ? normalizeTileRecord(data.bathTubMaskTiles, isEnabledTileValue) : current.bathTubMaskTiles,
       footstepTiles: data.footstepTiles ? normalizeTileRecord(data.footstepTiles, isFootstepTileValue) : current.footstepTiles,
       wallBumpSound: typeof data.wallBumpSound === 'string' ? data.wallBumpSound as WallBumpSound : current.wallBumpSound,
       bedTiles: data.bedTiles ? normalizeTileRecord(data.bedTiles, isEnabledTileValue) : current.bedTiles,
@@ -2512,6 +2548,7 @@ export default function App() {
     setDoors(snapshot.doors);
     setObstacles(snapshot.obstacles);
     setHideAreaTiles(snapshot.hideAreaTiles);
+    setBathTubMaskTiles(snapshot.bathTubMaskTiles);
     setFootstepTiles(snapshot.footstepTiles);
     setWallBumpSound(snapshot.wallBumpSound);
     setBedTiles(snapshot.bedTiles);
@@ -2552,6 +2589,8 @@ export default function App() {
   const lastCollisionPaintPoint = useRef<{ x: number; y: number } | null>(null);
   const hideAreaDrawModeRef = useRef<HideAreaDrawMode | null>(null);
   const lastHideAreaPaintPoint = useRef<{ x: number; y: number } | null>(null);
+  const bathTubMaskDrawModeRef = useRef<HideAreaDrawMode | null>(null);
+  const lastBathTubMaskPaintPoint = useRef<{ x: number; y: number } | null>(null);
 
   // 起動時のセーブデータロード
   useEffect(() => {
@@ -2642,6 +2681,10 @@ export default function App() {
 
           if (data.hideAreaTiles) {
             setHideAreaTiles(normalizeTileRecord(data.hideAreaTiles, isEnabledTileValue));
+          }
+
+          if (data.bathTubMaskTiles) {
+            setBathTubMaskTiles(normalizeTileRecord(data.bathTubMaskTiles, isEnabledTileValue));
           }
           
           if (data.wallBumpSound) setWallBumpSound(data.wallBumpSound);
@@ -2851,6 +2894,7 @@ export default function App() {
     mapBgmSources,
     obstacles: normalizeTileRecord(obstacles, isEnabledTileValue),
     hideAreaTiles: normalizeTileRecord(hideAreaTiles, isEnabledTileValue),
+    bathTubMaskTiles: normalizeTileRecord(bathTubMaskTiles, isEnabledTileValue),
     footstepTiles: normalizeTileRecord(footstepTiles, isFootstepTileValue),
     wallBumpSound,
     bedTiles: normalizeTileRecord(bedTiles, isEnabledTileValue),
@@ -3017,6 +3061,7 @@ export default function App() {
     mapBgmSources,
     obstacles,
     hideAreaTiles,
+    bathTubMaskTiles,
     footstepTiles,
     wallBumpSound,
     bedTiles,
@@ -3182,9 +3227,15 @@ export default function App() {
     }
   };
 
+  const getVoicePlaybackSrc = (src: string) => {
+    if (!src.startsWith('/voice/')) return src;
+    const separator = src.includes('?') ? '&' : '?';
+    return `${src}${separator}v=${VOICE_AUDIO_CACHE_VERSION}`;
+  };
+
   const playVoiceSound = (src: string) => {
     try {
-      const audio = new Audio(src);
+      const audio = new Audio(getVoicePlaybackSrc(src));
       audio.volume = getEffectiveVolume(src, voiceVolumeRef.current, audioGainsRef.current);
       audio.currentTime = 0;
       void audio.play();
@@ -3261,7 +3312,7 @@ export default function App() {
       ...createOptions('釣り後会話', FISHING_TUTORIAL_END_STEPS),
       ...createOptions('のこぎり会話', SAW_CRAFT_TUTORIAL_STEPS),
       ...createOptions('つるはし会話', PICKAXE_CRAFT_TUTORIAL_STEPS),
-      ...createOptions('小屋会話', [SAW_CRAFT_SHED_TUTORIAL_STEP]),
+      ...createOptions('小屋会話', SAW_CRAFT_SHED_TUTORIAL_STEPS),
       ...createOptions('採取共通会話', GATHERING_TUTORIAL_COMMON_STEPS),
       ...createOptions('伐採会話', GATHERING_TUTORIAL_BRANCH_STEPS.logging),
       ...createOptions('採掘会話', GATHERING_TUTORIAL_BRANCH_STEPS.mining),
@@ -3276,6 +3327,7 @@ export default function App() {
     ? PICKAXE_CRAFT_TUTORIAL_STEPS
     : SAW_CRAFT_TUTORIAL_STEPS;
   const currentSawCraftTutorialStep = currentCraftTutorialSteps[sawCraftTutorialIntroStepIndex] ?? currentCraftTutorialSteps[0];
+  const currentSawCraftShedTutorialStep = SAW_CRAFT_SHED_TUTORIAL_STEPS[sawCraftTutorialShedStepIndex] ?? SAW_CRAFT_SHED_TUTORIAL_STEPS[0];
   const currentGatheringTutorialSteps = gatheringTutorialChoice
     ? GATHERING_TUTORIAL_BRANCH_STEPS[gatheringTutorialChoice]
     : GATHERING_TUTORIAL_COMMON_STEPS;
@@ -3399,8 +3451,19 @@ export default function App() {
     sawCraftTutorialVoiceRef.current = null;
   };
 
+  const playSawCraftTutorialIntroVoice = (stepIndex: number, steps = currentCraftTutorialSteps) => {
+    const step = steps[stepIndex];
+    if (!step) return;
+    const voiceKey = `${craftTutorialRecipeName}:${stepIndex}:${step.voiceSrc}`;
+    if (sawCraftTutorialIntroVoiceKeyRef.current === voiceKey) return;
+    stopSawCraftTutorialVoice();
+    sawCraftTutorialIntroVoiceKeyRef.current = voiceKey;
+    sawCraftTutorialVoiceRef.current = playVoiceSound(step.voiceSrc);
+  };
+
   const startGatheringTutorial = () => {
     stopSawCraftTutorialVoice();
+    sawCraftTutorialIntroVoiceKeyRef.current = null;
     setGatheringTutorialChoice(null);
     setSelectedGatheringTutorialChoice('logging');
     setGatheringTutorialStepIndex(0);
@@ -3451,6 +3514,7 @@ export default function App() {
     setPos(shedStartPos);
     posRef.current = shedStartPos;
     setDir('right');
+    sawCraftTutorialIntroVoiceKeyRef.current = null;
     setDialogMessage('クラフト小屋でくるみが待っています。');
     setShowDialog(true);
     clickTargetRef.current = null;
@@ -3465,7 +3529,8 @@ export default function App() {
     const tutorialSteps = recipeName === '【レシピ】つるはし'
       ? PICKAXE_CRAFT_TUTORIAL_STEPS
       : SAW_CRAFT_TUTORIAL_STEPS;
-    sawCraftTutorialVoiceRef.current = playVoiceSound(tutorialSteps[0].voiceSrc);
+    sawCraftTutorialIntroVoiceKeyRef.current = null;
+    playSawCraftTutorialIntroVoice(0, tutorialSteps);
   };
 
   const advanceSawCraftTutorialIntro = () => {
@@ -3475,26 +3540,45 @@ export default function App() {
       moveToSawCraftTutorialShed();
       return;
     }
-    stopSawCraftTutorialVoice();
     setSawCraftTutorialIntroStepIndex(nextStepIndex);
-    sawCraftTutorialVoiceRef.current = playVoiceSound(currentCraftTutorialSteps[nextStepIndex].voiceSrc);
+    playSawCraftTutorialIntroVoice(nextStepIndex);
   };
+
+  useEffect(() => {
+    if (!sawCraftTutorialIntroOpen) return;
+    playSawCraftTutorialIntroVoice(sawCraftTutorialIntroStepIndex);
+  }, [sawCraftTutorialIntroOpen, sawCraftTutorialIntroStepIndex, craftTutorialRecipeName, currentSawCraftTutorialStep.voiceSrc]);
 
   const openSawCraftTutorialShedDialogue = () => {
     stopSawCraftTutorialVoice();
+    sawCraftTutorialIntroVoiceKeyRef.current = null;
+    setSawCraftTutorialShedStepIndex(0);
     setSawCraftTutorialShedDialogueOpen(true);
-    sawCraftTutorialVoiceRef.current = playVoiceSound(SAW_CRAFT_SHED_TUTORIAL_STEP.voiceSrc);
+    sawCraftTutorialVoiceRef.current = playVoiceSound(SAW_CRAFT_SHED_TUTORIAL_STEPS[0].voiceSrc);
   };
 
-  const closeSawCraftTutorialShedDialogue = () => {
+  const finishSawCraftTutorialShedDialogue = () => {
     playFixSound();
     stopSawCraftTutorialVoice();
     setSawCraftTutorialShedDialogueOpen(false);
+    setSawCraftTutorialShedStepIndex(0);
     setSawCraftTutorialReady(false);
     setSawCraftTutorialWorkbenchReady(true);
     craftPromptBlockedRef.current = false;
     const toolName = craftTutorialRecipeName === '【レシピ】つるはし' ? 'つるはし' : 'のこぎり';
     setDialogMessage(`クラフト台を調べて、${toolName}を作ってみよう。`);
+  };
+
+  const advanceSawCraftTutorialShedDialogue = () => {
+    const nextStepIndex = sawCraftTutorialShedStepIndex + 1;
+    if (nextStepIndex >= SAW_CRAFT_SHED_TUTORIAL_STEPS.length) {
+      finishSawCraftTutorialShedDialogue();
+      return;
+    }
+    playFixSound();
+    stopSawCraftTutorialVoice();
+    setSawCraftTutorialShedStepIndex(nextStepIndex);
+    sawCraftTutorialVoiceRef.current = playVoiceSound(SAW_CRAFT_SHED_TUTORIAL_STEPS[nextStepIndex].voiceSrc);
   };
 
   const renderFishingTutorialVisual = () => {
@@ -3767,10 +3851,12 @@ export default function App() {
   const startKurumiInteraction = () => {
      clickTargetRef.current = null;
      setClickTargetMarker(null);
-     const hasCraftedOrOwnsSaw = craftedRecipeIds.includes('【レシピ】のこぎり') || (inventoryCounts['のこぎり'] ?? 0) > 0;
-     const hasCraftedOrOwnsPickaxe = craftedRecipeIds.includes('【レシピ】つるはし') || (inventoryCounts['つるはし'] ?? 0) > 0;
-     const hasCraftedBothTools = hasCraftedOrOwnsSaw && hasCraftedOrOwnsPickaxe;
-     if (hasCraftedBothTools && !gatheringTutorialCompleted) {
+     const hasSawRecipe = (inventoryCounts['【レシピ】のこぎり'] ?? 0) > 0;
+     const hasPickaxeRecipe = (inventoryCounts['【レシピ】つるはし'] ?? 0) > 0;
+     const hasSawTool = (inventoryCounts['のこぎり'] ?? 0) > 0;
+     const hasPickaxeTool = (inventoryCounts['つるはし'] ?? 0) > 0;
+     const isGatheringTutorialReady = hasSawRecipe && hasPickaxeRecipe && hasSawTool && hasPickaxeTool;
+     if (isGatheringTutorialReady && !gatheringTutorialCompleted) {
         startGatheringTutorial();
         return;
      }
@@ -3962,6 +4048,7 @@ export default function App() {
      }
      const config = CRAFT_RECIPE_CONFIGS[craftMiniGameRecipeName];
      if (result === 'success') {
+        playUiSound(CRAFT_SUCCESS_SOUND_SRC);
         setInventoryCounts(prev => {
            const next = { ...prev };
            Object.entries(config.materials).forEach(([materialName, requiredCount]) => {
@@ -4222,6 +4309,8 @@ export default function App() {
     triggeredAutoEventIdsRef.current.add(spot.id);
     clickTargetRef.current = null;
     setClickTargetMarker(null);
+    autoEventBgmMutedRef.current = true;
+    fadeBgmTo(0, 900);
     const messages = spot.texts?.length ? spot.texts : [spot.text || spot.label || 'イベントが発生しました。'];
     setActiveAutoEventMessageIndex(0);
     setActiveAutoEventMessage(messages[0]);
@@ -4234,6 +4323,11 @@ export default function App() {
     clickTargetRef.current = null;
     setClickTargetMarker(null);
     fadeOutEventAudio();
+    if (autoEventBgmMutedRef.current) {
+      autoEventBgmMutedRef.current = false;
+      const targetVolume = getEffectiveVolume(bgmSourceRef.current, bgmVolume, audioGainsRef.current);
+      fadeBgmTo(targetVolume, 900);
+    }
     setActiveAutoEventSpot(null);
     setActiveAutoEventMessage('');
     setDisplayedAutoEventMessage('');
@@ -4841,6 +4935,44 @@ export default function App() {
     });
   };
 
+  const paintBathTubMaskBrush = (
+    x: number,
+    y: number,
+    drawMode: HideAreaDrawMode,
+    from?: { x: number; y: number } | null
+  ) => {
+    if (currentMap !== 'house') return;
+
+    const start = from ?? { x, y };
+    const distance = Math.hypot(x - start.x, y - start.y);
+    const steps = Math.max(1, Math.ceil(distance / (TILE_SIZE * 0.5)));
+    const brushRadius = Math.floor(bathTubMaskBrushSize / 2);
+
+    setBathTubMaskTiles(prev => {
+      const next = { ...prev };
+      for (let i = 0; i <= steps; i++) {
+        const t = i / steps;
+        const px = start.x + (x - start.x) * t;
+        const py = start.y + (y - start.y) * t;
+        const centerGx = Math.floor(px / TILE_SIZE);
+        const centerGy = Math.floor(py / TILE_SIZE);
+
+        for (let gx = centerGx - brushRadius; gx <= centerGx + brushRadius; gx++) {
+          for (let gy = centerGy - brushRadius; gy <= centerGy + brushRadius; gy++) {
+            if (gx < 0 || gx >= GRID_COLS || gy < 0 || gy >= GRID_ROWS) continue;
+            const key = `house_${gx},${gy}`;
+            if (drawMode === 'paint') {
+              next[key] = true;
+            } else {
+              delete next[key];
+            }
+          }
+        }
+      }
+      return next;
+    });
+  };
+
   const isPlayerInHideArea = (x: number, y: number, map: GameMap) => {
     const checkPoints = [
       { x, y },
@@ -4868,6 +5000,20 @@ export default function App() {
 
   const isPlayerInBathTub = (x: number, y: number, map: GameMap) => {
     if (map !== 'house') return false;
+    const hasTileMask = Object.keys(bathTubMaskTiles).some(key => key.startsWith('house_'));
+    if (hasTileMask) {
+      const checkPoints = [
+        { x, y },
+        { x: x - 12, y },
+        { x: x + 12, y },
+      ];
+      return checkPoints.some(point => {
+        const gx = Math.floor(point.x / TILE_SIZE);
+        const gy = Math.floor(point.y / TILE_SIZE);
+        if (gx < 0 || gx >= GRID_COLS || gy < 0 || gy >= GRID_ROWS) return false;
+        return !!bathTubMaskTiles[`house_${gx},${gy}`];
+      });
+    }
     return (
       x >= bathTubMaskZone.x &&
       x <= bathTubMaskZone.x + bathTubMaskZone.w &&
@@ -4877,7 +5023,7 @@ export default function App() {
   };
 
   const isPlayerInBath = isPlayerInBathArea(pos.x, pos.y, currentMap);
-  const isPlayerInBathTubMask = isPlayerInBathTub(pos.x, pos.y, currentMap);
+  const isPlayerInBathTubMask = isPlayerInBath && isPlayerInBathTub(pos.x, pos.y, currentMap);
 
   useEffect(() => {
     if (isPlayerInBath !== wasPlayerInBathRef.current) {
@@ -5195,6 +5341,7 @@ export default function App() {
     const audio = bgmRef.current;
     if (!audio) return;
     if (fishingMiniGameOpen || wasFishingBgmActiveRef.current) return;
+    if (activeAutoEventSpot) return;
 
     const isKurumiConversationOpen =
       kurumiShopOpen ||
@@ -5224,15 +5371,16 @@ export default function App() {
         console.log("BGM switch autoplay blocked", err);
       });
     }
-  }, [bootMode, currentMap, bgmVolume, audioGains, mapBgmSources, kurumiShopOpen, kurumiIntroOpen, fishingTutorialOpen, fishingTutorialEndingOpen, sawCraftTutorialIntroOpen, sawCraftTutorialShedDialogueOpen, gatheringTutorialOpen, fishingMiniGameOpen]);
+  }, [bootMode, currentMap, bgmVolume, audioGains, mapBgmSources, kurumiShopOpen, kurumiIntroOpen, fishingTutorialOpen, fishingTutorialEndingOpen, sawCraftTutorialIntroOpen, sawCraftTutorialShedDialogueOpen, gatheringTutorialOpen, fishingMiniGameOpen, activeAutoEventSpot]);
 
   // BGM音量変更時の反映
   useEffect(() => {
     if (fishingMiniGameOpen || wasFishingBgmActiveRef.current) return;
+    if (activeAutoEventSpot) return;
     if (bgmRef.current && !bgmFadingRef.current) {
       bgmRef.current.volume = getEffectiveVolume(bgmSourceRef.current, bgmVolume, audioGainsRef.current);
     }
-  }, [bgmVolume, audioGains, fishingMiniGameOpen]);
+  }, [bgmVolume, audioGains, fishingMiniGameOpen, activeAutoEventSpot]);
 
   // マップ専用の環境音
   useEffect(() => {
@@ -5654,7 +5802,7 @@ export default function App() {
         if (e.repeat) return;
         if (e.key === 'Enter' || e.key === ' ' || e.key === 'Escape') {
           e.preventDefault();
-          closeSawCraftTutorialShedDialogue();
+          advanceSawCraftTutorialShedDialogue();
         }
         return;
       }
@@ -6654,27 +6802,31 @@ export default function App() {
         
         // 扉（ワープゾーン）衝突判定
         let warped = false;
-        const currentDoors = doorsRef.current.filter(d => d.map === currentMapRef.current);
-        for (const d of currentDoors) {
-           // プレイヤーの足元の衝突判定矩形（[x - 15, x + 15] x [y - 10, y]）と扉の矩形（[d.x, d.x + d.w] x [d.y, d.y + d.h]）の交差判定を行います。
-           // これにより、扉の手前に衝突判定の壁があっても、プレイヤーが少し重なるだけでワープできるようになります。
-           const pLeft = nx - 15;
-           const pRight = nx + 15;
-           const pTop = ny - 10;
-           const pBottom = ny;
-           
-           if (pRight >= d.x && pLeft <= d.x + d.w && pBottom >= d.y && pTop <= d.y + d.h) {
-              playDoorSound();
-              setCurrentMap(d.targetMap);
-              currentMapRef.current = d.targetMap; // 即座にRefも更新し、次フレームの判定ズレを防ぐ
-              currentX = d.spawnX;
-              currentY = d.spawnY;
-              clickTargetRef.current = null; // ワープ後はクリック移動キャンセル
-              setClickTargetMarker(null);
-              warped = true;
-              moved = false; // ワープ後は一旦歩行停止
-              break;
-           }
+        const canWarp = performance.now() - lastWarpedAtRef.current >= WARP_COOLDOWN_MS;
+        if (canWarp) {
+          const currentDoors = doorsRef.current.filter(d => d.map === currentMapRef.current);
+          for (const d of currentDoors) {
+             // プレイヤーの足元の衝突判定矩形（[x - 15, x + 15] x [y - 10, y]）と扉の矩形（[d.x, d.x + d.w] x [d.y, d.y + d.h]）の交差判定を行います。
+             // これにより、扉の手前に衝突判定の壁があっても、プレイヤーが少し重なるだけでワープできるようになります。
+             const pLeft = nx - 15;
+             const pRight = nx + 15;
+             const pTop = ny - 10;
+             const pBottom = ny;
+             
+             if (pRight >= d.x && pLeft <= d.x + d.w && pBottom >= d.y && pTop <= d.y + d.h) {
+                lastWarpedAtRef.current = performance.now();
+                playDoorSound();
+                setCurrentMap(d.targetMap);
+                currentMapRef.current = d.targetMap; // 即座にRefも更新し、次フレームの判定ズレを防ぐ
+                currentX = d.spawnX;
+                currentY = d.spawnY;
+                clickTargetRef.current = null; // ワープ後はクリック移動キャンセル
+                setClickTargetMarker(null);
+                warped = true;
+                moved = false; // ワープ後は一旦歩行停止
+                break;
+             }
+          }
         }
 
         if (!warped) {
@@ -6922,15 +7074,17 @@ export default function App() {
         }
      } else if (setupMode === 'bathTub') {
         if (currentMap !== 'house') return;
-        setBathTubMaskZone(prev => {
-           const nextX = Math.round((clickX - prev.w / 2) / 10) * 10;
-           const nextY = Math.round((clickY - prev.h / 2) / 10) * 10;
-           return {
-              ...prev,
-              x: Math.max(0, Math.min(nextX, GAME_WIDTH - prev.w)),
-              y: Math.max(0, Math.min(nextY, GAME_HEIGHT - prev.h)),
-           };
-        });
+        const gx = Math.floor(clickX / TILE_SIZE);
+        const gy = Math.floor(clickY / TILE_SIZE);
+        if (gx >= 0 && gx < GRID_COLS && gy >= 0 && gy < GRID_ROWS) {
+           const isRightButton = e.button === 2 || (e.buttons & 2) === 2;
+           const drawMode: HideAreaDrawMode = e.shiftKey || isRightButton ? 'erase' : selectedBathTubMaskDrawMode;
+           bathTubMaskDrawModeRef.current = drawMode;
+           setDragStart({ x: clickX, y: clickY });
+           setDragCurrent({ x: clickX, y: clickY });
+           lastBathTubMaskPaintPoint.current = { x: clickX, y: clickY };
+           paintBathTubMaskBrush(clickX, clickY, drawMode);
+        }
      } else if (setupMode === 'doors') {
         // Create new door where clicked
         const gx = Math.floor(clickX / 20) * 20; // snap to 20px
@@ -6973,6 +7127,16 @@ export default function App() {
            lastHideAreaPaintPoint.current
         );
         lastHideAreaPaintPoint.current = { x: clickX, y: clickY };
+     } else if (setupMode === 'bathTub' && bathTubMaskDrawModeRef.current) {
+        if (currentMap !== 'house') return;
+        setDragCurrent({ x: clickX, y: clickY });
+        paintBathTubMaskBrush(
+           clickX,
+           clickY,
+           bathTubMaskDrawModeRef.current,
+           lastBathTubMaskPaintPoint.current
+        );
+        lastBathTubMaskPaintPoint.current = { x: clickX, y: clickY };
      } else if (setupMode === 'footstep' && footstepDrawMode) {
         paintFootstepTile(clickX, clickY, footstepDrawMode);
      } else if (setupMode === 'bed' && bedDrawMode !== null) {
@@ -7615,6 +7779,10 @@ export default function App() {
         setDragStart(null); setDragCurrent(null);
         hideAreaDrawModeRef.current = null;
         lastHideAreaPaintPoint.current = null;
+     } else if (setupMode === 'bathTub') {
+        setDragStart(null); setDragCurrent(null);
+        bathTubMaskDrawModeRef.current = null;
+        lastBathTubMaskPaintPoint.current = null;
      }
      setIsDrawing(null);
      setFootstepDrawMode(null);
@@ -8227,21 +8395,24 @@ export default function App() {
               </div>
            )}
 
-           {/* Bath Tub Mask Overlay */}
+           {/* Bath Tub Mask Grid Overlay */}
            {setupMode === 'bathTub' && currentMap === 'house' && (
-              <div
-                 onPointerDown={handleBathTubMaskDragStart}
-                 className="absolute z-40 border-[3px] border-dashed border-cyan-200 bg-cyan-300/35 cursor-move shadow-[0_0_16px_rgba(103,232,249,0.75)]"
-                 style={{ left: bathTubMaskZone.x, top: bathTubMaskZone.y, width: bathTubMaskZone.w, height: bathTubMaskZone.h }}
-              >
-                 <div className="absolute -top-6 left-0 bg-cyan-700 text-white text-[10px] px-2 py-0.5 rounded whitespace-nowrap select-none">
-                    ♨️ 湯船マスク
-                 </div>
-                 <div
-                    onPointerDown={handleBathTubMaskResizeStart}
-                    className="absolute bottom-[-7px] right-[-7px] w-4 h-4 bg-yellow-300 border-2 border-black cursor-se-resize z-50 rounded-sm"
-                    title="サイズ変更"
-                 />
+              <div className="absolute inset-0 z-10 pointer-events-none grid" style={{
+                 gridTemplateColumns: `repeat(${GRID_COLS}, 1fr)`,
+                 gridTemplateRows: `repeat(${GRID_ROWS}, 1fr)`
+              }}>
+                 {Array.from({ length: GRID_COLS * GRID_ROWS }).map((_, idx) => {
+                    const gx = idx % GRID_COLS;
+                    const gy = Math.floor(idx / GRID_COLS);
+                    const isMaskTile = !!bathTubMaskTiles[`house_${gx},${gy}`];
+                    const isObstacle = !!obstacles[`house_${gx},${gy}`];
+                    return (
+                       <div
+                          key={idx}
+                          className={`border-[0.5px] border-black/10 transition-colors ${isMaskTile ? 'bg-cyan-300/50' : isObstacle ? 'bg-white/25' : 'hover:bg-cyan-200/20'}`}
+                       />
+                    );
+                 })}
               </div>
            )}
 
@@ -8708,6 +8879,7 @@ export default function App() {
                 isBathMasked={isPlayerInBathTubMask}
                 playerWalkSprites={playerWalkSprites}
                 overrideWalkSprites={isPlayerInBath ? furoWalkSprites : undefined}
+                walkFrameMs={isPlayerInBath ? 240 : undefined}
              />
           )}
 
@@ -9591,17 +9763,20 @@ export default function App() {
                     </div>
                     <div className="min-h-[300px] flex-1 whitespace-pre-line rounded-xl border-2 border-[#bc6c25]/70 bg-[#2d1b15]/85 p-6 text-[22px] font-bold leading-[1.55]">
                        くるみ
-                       {'\n'}「{getDebugDialogueMessage(SAW_CRAFT_SHED_TUTORIAL_STEP.debugKey, SAW_CRAFT_SHED_TUTORIAL_STEP.message)}」
+                       {'\n'}「{getDebugDialogueMessage(currentSawCraftShedTutorialStep.debugKey, currentSawCraftShedTutorialStep.message)}」
                     </div>
-                    <div className="flex justify-end">
+                    <div className="flex items-center justify-between">
+                       <div className="text-sm font-bold text-[#a3b18a]">
+                          {sawCraftTutorialShedStepIndex + 1} / {SAW_CRAFT_SHED_TUTORIAL_STEPS.length}
+                       </div>
                        <button
                           type="button"
                           onPointerDown={(event) => event.stopPropagation()}
-                          onClick={closeSawCraftTutorialShedDialogue}
+                          onClick={advanceSawCraftTutorialShedDialogue}
                           className="relative flex h-12 w-44 items-center justify-center rounded-lg border-2 border-[#fff3b0] bg-[#9a5a1d] px-6 text-sm font-black leading-none text-white shadow-[0_0_18px_rgba(255,209,102,0.45)] transition-all hover:scale-105 hover:bg-[#b45309] whitespace-nowrap"
                        >
                           <span className="absolute left-5 text-[#67e8f9]">▶</span>
-                          次へ
+                          {sawCraftTutorialShedStepIndex >= SAW_CRAFT_SHED_TUTORIAL_STEPS.length - 1 ? 'レシピを選ぶ' : '次へ'}
                        </button>
                     </div>
                  </div>
@@ -9788,37 +9963,54 @@ export default function App() {
                      <div className="absolute top-1 left-4 bg-cyan-700 border-[2px] border-[#fdf6e3] rounded-md px-3 py-[2px] text-xs font-bold text-white shadow-sm">湯船マスク設定中</div>
                      <div className="flex gap-6 h-full items-center w-full">
                         <div className="flex-grow select-none">
-                           <p className="text-[17px] font-bold">湯船に浸かった時だけ肩まで隠す範囲を調整します。</p>
-                           <p className="text-[#a3b18a] text-[13px] mt-1">家マップで水色の枠をドラッグ、右下ハンドルでサイズ変更。マップクリックで枠を移動できます。</p>
+                           <p className="text-[17px] font-bold">湯船で人物を肩まで隠すマスをなぞって塗ります。</p>
+                           <p className="text-[#a3b18a] text-[13px] mt-1">水色のマスにプレイヤーの足元が入るとマスクがかかります。Shiftか右クリックで一時的に消せます。</p>
                         </div>
                         <div className="flex items-center gap-3 bg-[#1a100d]/95 border-[2px] border-[#bc6c25] rounded-lg p-2 text-xs text-[#fdf6e3] z-50">
-                           <div className="grid grid-cols-2 gap-x-2 gap-y-1">
-                              {(['x', 'y', 'w', 'h'] as const).map(key => (
-                                 <label key={key} className="flex items-center gap-1 uppercase">{key}:
-                                    <input
-                                       type="number"
-                                       value={Math.round(bathTubMaskZone[key])}
-                                       onChange={(e) => {
-                                          const val = Number(e.target.value);
-                                          setBathTubMaskZone(prev => {
-                                             const next = { ...prev, [key]: val };
-                                             next.w = Math.max(20, Math.min(next.w, GAME_WIDTH - next.x));
-                                             next.h = Math.max(20, Math.min(next.h, GAME_HEIGHT - next.y));
-                                             next.x = Math.max(0, Math.min(next.x, GAME_WIDTH - next.w));
-                                             next.y = Math.max(0, Math.min(next.y, GAME_HEIGHT - next.h));
-                                             return next;
-                                          });
-                                       }}
-                                       className="bg-black text-[#fdf6e3] border border-[#bc6c25] rounded w-16 px-1 text-center font-bold"
-                                    />
-                                 </label>
-                              ))}
+                           <div className="flex flex-col gap-1">
+                              <span className="text-[#dda15e] font-bold">モード</span>
+                              <div className="flex gap-2">
+                                 {(['paint', 'erase'] as HideAreaDrawMode[]).map(mode => (
+                                    <button
+                                       key={mode}
+                                       onClick={() => setSelectedBathTubMaskDrawMode(mode)}
+                                       className={`px-3 py-2 rounded border font-bold cursor-pointer transition-colors ${selectedBathTubMaskDrawMode === mode ? 'bg-[#bc6c25] border-white text-white' : 'bg-black border-[#bc6c25] text-[#dda15e] hover:bg-[#3a2418]'}`}
+                                    >
+                                       {mode === 'paint' ? '塗る' : '消す'}
+                                    </button>
+                                 ))}
+                              </div>
+                           </div>
+                           <div className="flex flex-col gap-1">
+                              <span className="text-[#dda15e] font-bold">ブラシ</span>
+                              <div className="flex gap-2">
+                                 {([1, 3, 5] as const).map(size => (
+                                    <button
+                                       key={size}
+                                       onClick={() => setBathTubMaskBrushSize(size)}
+                                       className={`px-3 py-2 rounded border font-bold cursor-pointer transition-colors ${bathTubMaskBrushSize === size ? 'bg-[#bc6c25] border-white text-white' : 'bg-black border-[#bc6c25] text-[#dda15e] hover:bg-[#3a2418]'}`}
+                                    >
+                                       {size}
+                                    </button>
+                                 ))}
+                              </div>
+                           </div>
+                           <div className="text-[#a3b18a] font-bold whitespace-nowrap">
+                              {Object.keys(bathTubMaskTiles).filter(key => key.startsWith('house_')).length} マス
                            </div>
                            <button
-                              onClick={() => setBathTubMaskZone(DEFAULT_HOUSE_BATH_TUB_MASK_ZONE)}
-                              className="bg-cyan-700 hover:bg-cyan-600 text-white text-xs px-3 py-2 rounded cursor-pointer font-bold transition-colors self-end"
+                              onClick={() => { if(window.confirm('湯船マスクのマス指定をクリアしますか？')) {
+                                 setBathTubMaskTiles(prev => {
+                                    const next = { ...prev };
+                                    Object.keys(next).forEach(key => {
+                                       if (key.startsWith('house_')) delete next[key];
+                                    });
+                                    return next;
+                                 });
+                              } }}
+                              className="bg-red-600 hover:bg-red-500 text-white text-xs px-3 py-2 rounded cursor-pointer font-bold transition-colors self-end"
                            >
-                              初期位置
+                              クリア
                            </button>
                            {currentMap !== 'house' && (
                               <div className="text-yellow-200 font-bold whitespace-nowrap">
@@ -10257,6 +10449,7 @@ export default function App() {
            setSelectedAudioFile={setSelectedAudioFile}
            selectedAudioGain={selectedAudioGain}
            setSelectedAudioGain={setSelectedAudioGain}
+           setAllAudioGains={setAllAudioGains}
            AUDIO_FILE_ENTRIES={AUDIO_FILE_ENTRIES}
            opacityMap={opacityMap}
            opacityLevel={opacityLevel}
