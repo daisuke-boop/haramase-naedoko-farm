@@ -530,11 +530,11 @@ canvas {
 }
 
 .craft-dissolve-a {
-  animation: craftDissolveA 2.8s ease-in-out infinite;
+  animation: craftDissolveA 8s ease-in-out infinite;
 }
 
 .craft-dissolve-b {
-  animation: craftDissolveB 2.8s ease-in-out infinite;
+  animation: craftDissolveB 8s ease-in-out infinite;
 }
 
 .craft-click-circle {
@@ -566,10 +566,10 @@ canvas {
 }
 
 @keyframes craftDissolveA {
-  0%, 42% {
+  0%, 37.5% {
     opacity: 1;
   }
-  50%, 92% {
+  50%, 87.5% {
     opacity: 0;
   }
   100% {
@@ -578,10 +578,10 @@ canvas {
 }
 
 @keyframes craftDissolveB {
-  0%, 42% {
+  0%, 37.5% {
     opacity: 0;
   }
-  50%, 92% {
+  50%, 87.5% {
     opacity: 1;
   }
   100% {

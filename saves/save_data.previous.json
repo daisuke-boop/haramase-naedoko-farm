@@ -363,7 +363,7 @@
       "spawnY": 210
     }
   ],
-  "bgmVolume": 0.2,
+  "bgmVolume": 0,
   "seVolume": 0.2,
   "voiceVolume": 0.8,
   "audioGains": {
@@ -44405,7 +44405,7 @@
     "丈夫な釣竿": 1,
     "高級釣竿": 1,
     "伝説の釣り竿": 1,
-    "のこぎり": 1,
+    "のこぎり": 2,
     "丈夫なのこぎり": 1,
     "高級のこぎり": 1,
     "つるはし": 2,
@@ -44420,7 +44420,9 @@
     "モグラの爪": 0,
     "ウサギの靭帯": 0,
     "泥混じりの鉄鉱石": 0,
-    "柔らかな若枝": 0
+    "柔らかな若枝": 0,
+    "【レシピ】のこぎり": 1,
+    "軟らかい銅鉱石": 0
   },
   "equippedItems": {
     "主人公-slot1": "竹の釣竿",
@@ -44443,12 +44445,14 @@
     ]
   },
   "fishingTutorialCompleted": true,
-  "craftTutorialRecipeName": "【レシピ】つるはし",
+  "craftTutorialRecipeName": "【レシピ】のこぎり",
   "sawCraftTutorialReady": false,
   "sawCraftTutorialWorkbenchReady": false,
   "sawCraftTutorialCompleted": true,
-  "craftedRecipeIds": [],
-  "gatheringTutorialCompleted": false,
+  "craftedRecipeIds": [
+    "【レシピ】のこぎり"
+  ],
+  "gatheringTutorialCompleted": true,
   "kurumiIntroAskedTopics": [
     "village",
     "debt",

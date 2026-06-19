@@ -1,8 +1,8 @@
 {
-  "turn": 4,
+  "turn": 0,
   "gold": 5000,
-  "debt": 20000000,
-  "difficulty": "normal",
+  "debt": 5000000,
+  "difficulty": "easy",
   "currentMap": "farm",
   "zones": [
     {
@@ -44405,61 +44405,39 @@
     "丈夫な釣竿": 1,
     "高級釣竿": 1,
     "伝説の釣り竿": 1,
-    "のこぎり": 2,
+    "のこぎり": 1,
     "丈夫なのこぎり": 1,
     "高級のこぎり": 1,
-    "つるはし": 2,
+    "つるはし": 1,
     "丈夫なつるはし": 1,
     "高級つるはし": 1,
     "農神の指輪": 1,
     "釣神の指輪": 1,
-    "釣神の指輪（デバッグ用）": 1,
-    "枝": 1,
-    "竹の釣竿": 1,
-    "【レシピ】つるはし": 1,
-    "モグラの爪": 0,
-    "ウサギの靭帯": 0,
-    "泥混じりの鉄鉱石": 0,
-    "柔らかな若枝": 0,
-    "【レシピ】のこぎり": 1,
-    "軟らかい銅鉱石": 0
+    "釣神の指輪（デバッグ用）": 1
   },
   "equippedItems": {
-    "主人公-slot1": "竹の釣竿",
-    "主人公-slot2": "",
-    "主人公-slot3": "",
+    "主人公-slot1": "",
+    "主人公-slot2": "のこぎり",
+    "主人公-slot3": "つるはし",
     "主人公-slot4": "農神の指輪",
     "ちびいち-slot1": "小さな鈴",
     "ちびいち-slot2": ""
   },
-  "caughtFishIds": [
-    "eda"
-  ],
+  "caughtFishIds": [],
   "nushiCaughtFishIds": [],
-  "fishBestSizes": {
-    "eda": 7.2
-  },
-  "fishInventorySizes": {
-    "枝": [
-      7.2
-    ]
-  },
-  "fishingTutorialCompleted": true,
+  "fishBestSizes": {},
+  "fishInventorySizes": {},
+  "fishingTutorialCompleted": false,
   "craftTutorialRecipeName": "【レシピ】のこぎり",
   "sawCraftTutorialReady": false,
   "sawCraftTutorialWorkbenchReady": false,
-  "sawCraftTutorialCompleted": true,
+  "sawCraftTutorialCompleted": false,
   "craftedRecipeIds": [
     "【レシピ】のこぎり"
   ],
   "gatheringTutorialCompleted": true,
-  "kurumiIntroAskedTopics": [
-    "village",
-    "debt",
-    "naedoko",
-    "pantsu"
-  ],
-  "kurumiIntroCompletedDay": 1,
+  "kurumiIntroAskedTopics": [],
+  "kurumiIntroCompletedDay": null,
   "bathTubMaskZone": {
     "x": 1218,
     "y": 372,

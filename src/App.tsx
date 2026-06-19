@@ -106,6 +106,28 @@ const getMapLabel = (map: GameMap) => {
   }
 };
 
+const LOGGING_POINT_COUNT_BY_TIME: Record<TimeOfDay, number> = {
+  morning: 10,
+  day: 10,
+  evening: 10,
+  night: 10,
+};
+const LOGGING_POINT_MAPS: GameMap[] = ['farm', 'waterfall', 'kawa'];
+const LOGGING_REWARD_WOOD = 3;
+
+const hashString = (value: string) => {
+  let hash = 2166136261;
+  for (let i = 0; i < value.length; i++) {
+    hash ^= value.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  return hash >>> 0;
+};
+
+const shuffleBySeed = <T,>(items: T[], seed: string) => (
+  [...items].sort((a, b) => hashString(`${seed}:${JSON.stringify(a)}`) - hashString(`${seed}:${JSON.stringify(b)}`))
+);
+
 
 // === BACKGROUND ANIMATION LOGIC ===
 
@@ -125,6 +147,7 @@ type InspectSpot = {
   seSrc?: string;
   voiceSrc?: string;
 };
+type LoggingPoint = { id: string; map: GameMap; x: number; y: number; w: number; h: number };
 const monoAudioGraphs = new WeakMap<HTMLAudioElement, MonoAudioGraph>();
 
 const forceMonoPlayback = (audio: HTMLAudioElement) => {
@@ -1216,7 +1239,7 @@ export default function App() {
                   ) : (
                     <div className="mt-3 flex min-h-0 flex-1 flex-col">
                       <div className="mb-2 text-[#c8a87a] text-sm">装備欄</div>
-                      <div className="grid min-h-0 grid-cols-1 gap-2 overflow-y-auto pr-2">
+                      <div className="grid min-h-0 grid-cols-2 gap-2 overflow-y-auto pr-2">
                         {equipableItems.length > 0 ? equipableItems.map((name, optionIndex) => (
                           <button
                             key={name}
@@ -1227,12 +1250,17 @@ export default function App() {
                               setEquippedItems(prev => ({ ...prev, [selectedEquipmentSlot]: name }));
                               setDialogMessage(`${name}を装備しました。`);
                             }}
-                            className={`flex items-center justify-between rounded border px-4 py-3 text-left cursor-pointer hover:bg-[#3a2418] ${
-                              selectedEquipmentOptionIndex === optionIndex ? 'border-white bg-[#bc6c25]/45' : 'border-[#5a3010] bg-[#2d1b15]/72'
+                            className={`relative flex min-h-[62px] items-center justify-between gap-2 rounded border px-4 py-3 pl-8 text-left cursor-pointer hover:bg-[#3a2418] ${
+                              selectedEquipmentOptionIndex === optionIndex
+                                ? 'border-white bg-[#bc6c25]/65 ring-2 ring-[#ffd166] shadow-[0_0_18px_rgba(255,209,102,0.45)]'
+                                : 'border-[#5a3010] bg-[#2d1b15]/72'
                             }`}
                           >
-                            <span className="text-[#fdf6e3] font-bold">{name}</span>
-                            <span className="text-[#dda15e] text-sm">x{inventoryCounts[name] ?? 0}</span>
+                            {selectedEquipmentOptionIndex === optionIndex && (
+                              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[#ffd166] font-black">▶</span>
+                            )}
+                            <span className="min-w-0 break-keep text-[#fdf6e3] font-bold leading-snug">{name}</span>
+                            <span className="shrink-0 text-[#dda15e] text-sm">x{inventoryCounts[name] ?? 0}</span>
                           </button>
                         )) : (
                           <div className="rounded border border-[#5a3010] bg-black/30 px-4 py-3 text-[#c8a87a]">
@@ -1773,6 +1801,9 @@ export default function App() {
   const [sleepPromptVisible, setSleepPromptVisible] = useState(false);
   const [craftPromptVisible, setCraftPromptVisible] = useState(false);
   const [fishingPromptVisible, setFishingPromptVisible] = useState(false);
+  const [loggingPromptVisible, setLoggingPromptVisible] = useState(false);
+  const [activeLoggingPointId, setActiveLoggingPointId] = useState<string | null>(null);
+  const [depletedLoggingPointIds, setDepletedLoggingPointIds] = useState<Record<string, boolean>>({});
   const [fishingMiniGameOpen, setFishingMiniGameOpen] = useState(false);
   const [fishingMiniGameStage, setFishingMiniGameStage] = useState<'direction' | 'power' | 'bite' | 'hit' | 'keep' | 'result'>('direction');
   const [fishingGauge, setFishingGauge] = useState(0);
@@ -1893,6 +1924,7 @@ export default function App() {
   const sleepPromptBlockedRef = useRef(false);
   const craftPromptBlockedRef = useRef(false);
   const fishingPromptBlockedRef = useRef(false);
+  const loggingPromptBlockedRef = useRef(false);
   const fishingGaugeDirectionRef = useRef(1);
   const fishingBiteTimerRef = useRef<number | null>(null);
   const fishingHitSplashTimerRef = useRef<number | null>(null);
@@ -1910,6 +1942,8 @@ export default function App() {
   const [zones, setZones] = useState<AnimZone[]>(defaultZones.map(ensureAnimZoneSpriteSize));
   const [selectedZoneId, setSelectedZoneId] = useState<string | null>(null);
   const [turn, setTurn] = useState(0);
+  const times: TimeOfDay[] = ['morning', 'day', 'evening', 'night'];
+  const timeOfDay = times[turn % 4];
 
   // プレイヤードラッグ状態
   const [isDraggingPlayer, setIsDraggingPlayer] = useState(false);
@@ -2050,14 +2084,14 @@ export default function App() {
   }, [debugDialogueOverrides]);
 
   useEffect(() => {
-     movementLockedRef.current = sleepPromptVisible || craftPromptVisible || fishingPromptVisible || fishingMiniGameOpen || craftMiniGameOpen || fishingTutorialOpen || fishingTutorialEndingOpen || sawCraftTutorialIntroOpen || sawCraftTutorialShedDialogueOpen || gatheringTutorialOpen || kurumiShopOpen || kurumiIntroOpen || isSleepSequenceActive;
-  }, [sleepPromptVisible, craftPromptVisible, fishingPromptVisible, fishingMiniGameOpen, craftMiniGameOpen, fishingTutorialOpen, fishingTutorialEndingOpen, sawCraftTutorialIntroOpen, sawCraftTutorialShedDialogueOpen, gatheringTutorialOpen, kurumiShopOpen, kurumiIntroOpen, isSleepSequenceActive]);
+     movementLockedRef.current = sleepPromptVisible || craftPromptVisible || fishingPromptVisible || loggingPromptVisible || fishingMiniGameOpen || craftMiniGameOpen || fishingTutorialOpen || fishingTutorialEndingOpen || sawCraftTutorialIntroOpen || sawCraftTutorialShedDialogueOpen || gatheringTutorialOpen || kurumiShopOpen || kurumiIntroOpen || isSleepSequenceActive;
+  }, [sleepPromptVisible, craftPromptVisible, fishingPromptVisible, loggingPromptVisible, fishingMiniGameOpen, craftMiniGameOpen, fishingTutorialOpen, fishingTutorialEndingOpen, sawCraftTutorialIntroOpen, sawCraftTutorialShedDialogueOpen, gatheringTutorialOpen, kurumiShopOpen, kurumiIntroOpen, isSleepSequenceActive]);
 
   useEffect(() => {
-     if (sleepPromptVisible || craftPromptVisible || fishingPromptVisible) {
+     if (sleepPromptVisible || craftPromptVisible || fishingPromptVisible || loggingPromptVisible) {
         setConfirmPromptChoice('yes');
      }
-  }, [sleepPromptVisible, craftPromptVisible, fishingPromptVisible]);
+  }, [sleepPromptVisible, craftPromptVisible, fishingPromptVisible, loggingPromptVisible]);
 
   useEffect(() => {
      if (!fishingMiniGameOpen) {
@@ -3733,9 +3767,9 @@ export default function App() {
   const startKurumiInteraction = () => {
      clickTargetRef.current = null;
      setClickTargetMarker(null);
-     const hasCraftedBothTools =
-       craftedRecipeIds.includes('【レシピ】のこぎり') &&
-       craftedRecipeIds.includes('【レシピ】つるはし');
+     const hasCraftedOrOwnsSaw = craftedRecipeIds.includes('【レシピ】のこぎり') || (inventoryCounts['のこぎり'] ?? 0) > 0;
+     const hasCraftedOrOwnsPickaxe = craftedRecipeIds.includes('【レシピ】つるはし') || (inventoryCounts['つるはし'] ?? 0) > 0;
+     const hasCraftedBothTools = hasCraftedOrOwnsSaw && hasCraftedOrOwnsPickaxe;
      if (hasCraftedBothTools && !gatheringTutorialCompleted) {
         startGatheringTutorial();
         return;
@@ -3856,10 +3890,12 @@ export default function App() {
      };
   };
 
-  const spawnNextCraftCircle = (recipeName: CraftRecipeId, spawnedCount: number, targetCount: number) => {
+  const spawnNextCraftCircle = (recipeName: CraftRecipeId | null, spawnedCount: number, targetCount: number) => {
      if (spawnedCount >= targetCount) return;
-     const config = CRAFT_RECIPE_CONFIGS[recipeName];
-     const durationMs = randomInt(config.circleDurationRangeMs[0], config.circleDurationRangeMs[1]);
+     const durationRange = recipeName
+        ? CRAFT_RECIPE_CONFIGS[recipeName].circleDurationRangeMs
+        : [760, 1180] as const;
+     const durationMs = randomInt(durationRange[0], durationRange[1]);
      setCraftMiniGameCircles([createCraftCircle(durationMs)]);
      setCraftMiniGameSpawnedCount(spawnedCount + 1);
   };
@@ -3886,11 +3922,45 @@ export default function App() {
      spawnNextCraftCircle(recipeName, 0, targetCount);
   };
 
+  const startLoggingMiniGame = () => {
+     if (!activeLoggingPointId) return;
+     const hasSaw = ['主人公-slot2', '主人公-slot3'].some(slotId => (
+       equippedItemsRef.current[slotId]?.includes('のこぎり')
+     ));
+     if (!hasSaw) {
+        setLoggingPromptVisible(false);
+        setActiveLoggingPointId(null);
+        loggingPromptBlockedRef.current = true;
+        setDialogMessage('伐採にはのこぎりを装備してください。');
+        return;
+     }
+     setLoggingPromptVisible(false);
+     loggingPromptBlockedRef.current = true;
+     setMenuOpen(false);
+     menuOpenRef.current = false;
+     setCraftMiniGameOpen(true);
+     setCraftMiniGameRecipeName(null);
+     setCraftMiniGameScore(0);
+     setCraftMiniGameTargetCount(8);
+     setCraftMiniGameSpawnedCount(0);
+     setCraftMiniGameResult(null);
+     spawnNextCraftCircle(null, 0, 8);
+  };
+
   const finishCraftMiniGame = (result: 'success' | 'fail') => {
-     if (!craftMiniGameRecipeName) return;
-     const config = CRAFT_RECIPE_CONFIGS[craftMiniGameRecipeName];
      setCraftMiniGameCircles([]);
      setCraftMiniGameResult(result);
+     if (!craftMiniGameRecipeName) {
+        if (result === 'success' && activeLoggingPointId) {
+           setInventoryCounts(prev => ({ ...prev, 木材: (prev['木材'] ?? 0) + LOGGING_REWARD_WOOD }));
+           setDepletedLoggingPointIds(prev => ({ ...prev, [`${timeOfDay}_${activeLoggingPointId}`]: true }));
+           setDialogMessage(`木材を${LOGGING_REWARD_WOOD}個切り出しました！`);
+        } else {
+           setDialogMessage('伐採に失敗しました。');
+        }
+        return;
+     }
+     const config = CRAFT_RECIPE_CONFIGS[craftMiniGameRecipeName];
      if (result === 'success') {
         setInventoryCounts(prev => {
            const next = { ...prev };
@@ -3912,11 +3982,13 @@ export default function App() {
   };
 
   const handleCraftCircleClick = (circleId: number) => {
-     if (!craftMiniGameRecipeName || craftMiniGameResult) return;
+     if (craftMiniGameResult) return;
      playFixSound();
-     const config = CRAFT_RECIPE_CONFIGS[craftMiniGameRecipeName];
+     const scorePerCircle = craftMiniGameRecipeName
+        ? CRAFT_RECIPE_CONFIGS[craftMiniGameRecipeName].scorePerCircle
+        : 14;
      setCraftMiniGameCircles(prev => prev.filter(circle => circle.id !== circleId));
-     setCraftMiniGameScore(prev => Math.min(100, prev + config.scorePerCircle));
+     setCraftMiniGameScore(prev => Math.min(100, prev + scorePerCircle));
      window.setTimeout(() => {
         spawnNextCraftCircle(craftMiniGameRecipeName, craftMiniGameSpawnedCount, craftMiniGameTargetCount);
      }, 120);
@@ -3931,10 +4003,11 @@ export default function App() {
      setCraftMiniGameTargetCount(0);
      setCraftMiniGameSpawnedCount(0);
      setCraftMiniGameScore(0);
+     setActiveLoggingPointId(null);
   };
 
   useEffect(() => {
-     if (!craftMiniGameOpen || !craftMiniGameRecipeName || craftMiniGameResult) return;
+     if (!craftMiniGameOpen || craftMiniGameResult) return;
      const timer = window.setInterval(() => {
         const now = Date.now();
         setCraftMiniGameCircles(prev => {
@@ -3955,7 +4028,7 @@ export default function App() {
      if (craftMiniGameSpawnedCount >= craftMiniGameTargetCount && craftMiniGameCircles.length === 0) {
         finishCraftMiniGame(craftMiniGameScore >= 70 ? 'success' : 'fail');
      }
-  }, [craftMiniGameOpen, craftMiniGameResult, craftMiniGameTargetCount, craftMiniGameSpawnedCount, craftMiniGameCircles.length, craftMiniGameScore]);
+  }, [activeLoggingPointId, craftMiniGameOpen, craftMiniGameRecipeName, craftMiniGameResult, craftMiniGameTargetCount, craftMiniGameSpawnedCount, craftMiniGameCircles.length, craftMiniGameScore, timeOfDay]);
 
   const handleShopCloseClick = () => {
      playFixSound();
@@ -4365,6 +4438,12 @@ export default function App() {
     setCraftPromptVisible(false);
     setCraftPromptSource(null);
     craftPromptBlockedRef.current = true;
+  };
+
+  const cancelLoggingPrompt = () => {
+    setLoggingPromptVisible(false);
+    setActiveLoggingPointId(null);
+    loggingPromptBlockedRef.current = true;
   };
 
   const beginFishingHitStage = (biteScore: number, biteCombo: number) => {
@@ -4932,8 +5011,106 @@ export default function App() {
     });
   };
 
-  const times: TimeOfDay[] = ['morning', 'day', 'evening', 'night'];
-  const timeOfDay = times[turn % 4];
+  const loggingPointTargetCount = LOGGING_POINT_COUNT_BY_TIME[timeOfDay];
+  const loggingCandidatePoints = useMemo<LoggingPoint[]>(() => {
+    const candidates: LoggingPoint[] = [];
+
+    LOGGING_POINT_MAPS.forEach(map => {
+      const mapTiles = Object.keys(obstacles)
+        .filter(key => key.startsWith(`${map}_`) && obstacles[key])
+        .map(key => {
+          const [, posKey] = key.split('_');
+          const [gx, gy] = posKey.split(',').map(Number);
+          return { gx, gy, key };
+        })
+        .filter(tile => Number.isInteger(tile.gx) && Number.isInteger(tile.gy));
+      const remaining = new Set(mapTiles.map(tile => tile.key));
+      const byKey = new Map(mapTiles.map(tile => [tile.key, tile]));
+
+      mapTiles.forEach(tile => {
+        if (!remaining.has(tile.key)) return;
+        const stack = [tile];
+        const component: typeof mapTiles = [];
+        remaining.delete(tile.key);
+        while (stack.length > 0) {
+          const current = stack.pop();
+          if (!current) continue;
+          component.push(current);
+          [
+            [current.gx + 1, current.gy],
+            [current.gx - 1, current.gy],
+            [current.gx, current.gy + 1],
+            [current.gx, current.gy - 1],
+          ].forEach(([gx, gy]) => {
+            const nextKey = `${map}_${gx},${gy}`;
+            const nextTile = byKey.get(nextKey);
+            if (!nextTile || !remaining.has(nextKey)) return;
+            remaining.delete(nextKey);
+            stack.push(nextTile);
+          });
+        }
+
+        const xs = component.map(t => t.gx);
+        const ys = component.map(t => t.gy);
+        const minX = Math.min(...xs);
+        const maxX = Math.max(...xs);
+        const minY = Math.min(...ys);
+        const maxY = Math.max(...ys);
+        const tileW = maxX - minX + 1;
+        const tileH = maxY - minY + 1;
+        if (component.length < 1 || component.length > 18 || tileW > 4 || tileH > 8) return;
+
+        candidates.push({
+          id: `${map}_${minX},${minY}_${tileW}x${tileH}`,
+          map,
+          x: minX * TILE_SIZE,
+          y: minY * TILE_SIZE,
+          w: tileW * TILE_SIZE,
+          h: tileH * TILE_SIZE,
+        });
+      });
+    });
+
+    Object.keys(loggingTiles).forEach(key => {
+      if (!loggingTiles[key]) return;
+      const [mapKey, posKey] = key.split('_');
+      if (!LOGGING_POINT_MAPS.includes(mapKey as GameMap) || !posKey) return;
+      const [gx, gy] = posKey.split(',').map(Number);
+      if (!Number.isInteger(gx) || !Number.isInteger(gy)) return;
+      candidates.push({
+        id: `manual_${mapKey}_${gx},${gy}`,
+        map: mapKey as GameMap,
+        x: gx * TILE_SIZE,
+        y: gy * TILE_SIZE,
+        w: TILE_SIZE,
+        h: TILE_SIZE,
+      });
+    });
+
+    return candidates;
+  }, [obstacles, loggingTiles]);
+  const activeLoggingPoints = useMemo<LoggingPoint[]>(() => {
+    const available = loggingCandidatePoints.filter(point => !depletedLoggingPointIds[`${timeOfDay}_${point.id}`]);
+    const byMap = LOGGING_POINT_MAPS
+      .map(map => ({ map, points: available.filter(point => point.map === map) }))
+      .filter(group => group.points.length > 0);
+    const selected: LoggingPoint[] = [];
+    const selectedIds = new Set<string>();
+    byMap.forEach(group => {
+      const first = shuffleBySeed<LoggingPoint>(group.points, `${turn}_${timeOfDay}_${group.map}_required`)[0];
+      if (first) {
+        selected.push(first);
+        selectedIds.add(first.id);
+      }
+    });
+
+    const targetCount = Math.max(loggingPointTargetCount, selected.length);
+    const remainingSlots = Math.max(0, targetCount - selected.length);
+    shuffleBySeed<LoggingPoint>(available.filter(point => !selectedIds.has(point.id)), `${turn}_${timeOfDay}_extra`)
+      .slice(0, remainingSlots)
+      .forEach(point => selected.push(point));
+    return selected.slice(0, targetCount);
+  }, [depletedLoggingPointIds, loggingCandidatePoints, loggingPointTargetCount, timeOfDay, turn]);
 
   const timeLabels = {
     ...TIME_OF_DAY_LABELS
@@ -5626,7 +5803,7 @@ export default function App() {
         return;
       }
 
-      if (sleepPromptVisible || craftPromptVisible || fishingPromptVisible) {
+      if (sleepPromptVisible || craftPromptVisible || fishingPromptVisible || loggingPromptVisible) {
         if (e.repeat) return;
         if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
           e.preventDefault();
@@ -5655,6 +5832,10 @@ export default function App() {
             } else {
               cancelFishingPrompt();
             }
+          } else if (confirmPromptChoice === 'yes') {
+            startLoggingMiniGame();
+          } else {
+            cancelLoggingPrompt();
           }
           return;
         }
@@ -5665,8 +5846,10 @@ export default function App() {
             cancelSleepPrompt();
           } else if (craftPromptVisible) {
             cancelCraftPrompt();
-          } else {
+          } else if (fishingPromptVisible) {
             cancelFishingPrompt();
+          } else {
+            cancelLoggingPrompt();
           }
           return;
         }
@@ -5898,12 +6081,18 @@ export default function App() {
               (inventoryCounts[name] ?? 0) > 0 && !equippedItemNames.includes(name)
             ));
             if (equipmentActionOpen && menuContentFocusRef.current === 'secondary') {
-              if (e.key === 'ArrowLeft') {
+              if (!currentEquippedItem && currentEquipableItems.length > 0 && ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
+                setSelectedEquipmentOptionIndex(prev => {
+                  const clampedPrev = Math.max(0, Math.min(currentEquipableItems.length - 1, prev));
+                  if (e.key === 'ArrowLeft' && clampedPrev % 2 === 0) {
+                    setEquipmentActionOpen(false);
+                    return clampedPrev;
+                  }
+                  const moveBy = e.key === 'ArrowDown' ? 2 : e.key === 'ArrowUp' ? -2 : e.key === 'ArrowRight' ? 1 : -1;
+                  return Math.max(0, Math.min(currentEquipableItems.length - 1, clampedPrev + moveBy));
+                });
+              } else if (e.key === 'ArrowLeft') {
                 setEquipmentActionOpen(false);
-              } else if (!currentEquippedItem && currentEquipableItems.length > 0 && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
-                setSelectedEquipmentOptionIndex(prev => (
-                  prev + (e.key === 'ArrowDown' ? 1 : -1) + currentEquipableItems.length
-                ) % currentEquipableItems.length);
               }
               return;
             }
@@ -6569,6 +6758,25 @@ export default function App() {
         movementLockedRef.current = true;
       }
 
+      const touchedLoggingPoint = activeLoggingPoints.find(point => (
+        point.map === currentMapRef.current &&
+        currentX + 18 >= point.x &&
+        currentX - 18 <= point.x + point.w &&
+        currentY >= point.y &&
+        currentY - 34 <= point.y + point.h
+      ));
+      if (!touchedLoggingPoint) {
+        setActiveLoggingPointId(null);
+        loggingPromptBlockedRef.current = false;
+      } else if (!loggingPromptBlockedRef.current && !loggingPromptVisible && !isInBed && !isInWorkbench && !isInFishingPoint) {
+        moved = false;
+        clickTargetRef.current = null;
+        setClickTargetMarker(null);
+        setActiveLoggingPointId(touchedLoggingPoint.id);
+        setLoggingPromptVisible(true);
+        movementLockedRef.current = true;
+      }
+
       const currentAutoEventSpots = inspectSpotsRef.current.filter(spot => (
         spot.autoTrigger &&
         spot.map === currentMapRef.current &&
@@ -6601,7 +6809,7 @@ export default function App() {
       window.removeEventListener('keydown', handleKeyDown); window.removeEventListener('keyup', handleKeyUp);
       cancelAnimationFrame(animationFrameId);
     };
-  }, [setupMode, bedTiles, workbenchTiles, fishingTiles, miningTiles, loggingTiles, sleepPromptVisible, craftPromptVisible, fishingPromptVisible, confirmPromptChoice, pendingDeleteSaveSlot, pendingOverwriteSaveSlot, activeAutoEventSpot, activeAutoEventMessage, activeAutoEventMessageIndex, activeAutoEventMessages, displayedAutoEventMessage, turn, kurumiShopOpen, kurumiIntroOpen, kurumiIntroSelectedIndex, kurumiIntroAskedTopics, kurumiIntroCompletedDay, selectedShopControl, selectedShopItemIndex, shopItems, gold, equipmentActionOpen, equippedItems, inventoryCounts, caughtFishIds, fishingMiniGameOpen, fishingMiniGameStage, isFishingResultInputLocked, fishingTutorialOpen, fishingTutorialEndingOpen, fishingTutorialEndingStepIndex, sawCraftTutorialIntroOpen, sawCraftTutorialIntroStepIndex, sawCraftTutorialReady, sawCraftTutorialShedDialogueOpen, sawCraftTutorialWorkbenchReady, selectedFishingTutorialAction, selectedFishingResultAction, recipeDetailOpen, farmGirlDetailOpen, bootMode]);
+  }, [setupMode, bedTiles, workbenchTiles, fishingTiles, miningTiles, loggingTiles, activeLoggingPoints, activeLoggingPointId, sleepPromptVisible, craftPromptVisible, fishingPromptVisible, loggingPromptVisible, confirmPromptChoice, pendingDeleteSaveSlot, pendingOverwriteSaveSlot, activeAutoEventSpot, activeAutoEventMessage, activeAutoEventMessageIndex, activeAutoEventMessages, displayedAutoEventMessage, turn, kurumiShopOpen, kurumiIntroOpen, kurumiIntroSelectedIndex, kurumiIntroAskedTopics, kurumiIntroCompletedDay, selectedShopControl, selectedShopItemIndex, shopItems, gold, equipmentActionOpen, equippedItems, inventoryCounts, caughtFishIds, fishingMiniGameOpen, fishingMiniGameStage, isFishingResultInputLocked, fishingTutorialOpen, fishingTutorialEndingOpen, fishingTutorialEndingStepIndex, sawCraftTutorialIntroOpen, sawCraftTutorialIntroStepIndex, sawCraftTutorialReady, sawCraftTutorialShedDialogueOpen, sawCraftTutorialWorkbenchReady, selectedFishingTutorialAction, selectedFishingResultAction, recipeDetailOpen, farmGirlDetailOpen, bootMode]);
 
   // Zone creation states
   const [dragStart, setDragStart] = useState<{ x: number, y: number } | null>(null);
@@ -8736,6 +8944,36 @@ export default function App() {
            </div>
         )}
 
+        {loggingPromptVisible && (
+           <div className="absolute inset-0 z-[70] flex items-center justify-center bg-black/20">
+              <div className="bg-[#1a100d]/95 border-[4px] border-[#86efac] rounded-xl p-6 text-[#fdf6e3] shadow-2xl w-[380px] h-[180px] text-center flex flex-col items-center justify-center">
+                 <div className="text-2xl font-bold mb-4">伐採しますか？</div>
+                 <div className="flex justify-center gap-4">
+                    <button
+                       onClick={() => { playFixSound(); startLoggingMiniGame(); }}
+                       onMouseEnter={() => {
+                          if (confirmPromptChoice !== 'yes') playCursorSound();
+                          setConfirmPromptChoice('yes');
+                       }}
+                       className={`w-[120px] h-[52px] bg-[#4a5823] hover:bg-[#60732d] border-2 rounded-lg text-lg font-bold cursor-pointer transition-colors ${confirmPromptChoice === 'yes' ? 'border-white ring-4 ring-[#ffd166]/70' : 'border-[#a3b18a]'}`}
+                    >
+                       はい
+                    </button>
+                    <button
+                       onClick={() => { playFixSound(); cancelLoggingPrompt(); }}
+                       onMouseEnter={() => {
+                          if (confirmPromptChoice !== 'no') playCursorSound();
+                          setConfirmPromptChoice('no');
+                       }}
+                       className={`w-[120px] h-[52px] bg-[#5a2a1f] hover:bg-[#753527] border-2 rounded-lg text-lg font-bold cursor-pointer transition-colors ${confirmPromptChoice === 'no' ? 'border-white ring-4 ring-[#ffd166]/70' : 'border-[#bc6c25]'}`}
+                    >
+                       いいえ
+                    </button>
+                 </div>
+              </div>
+           </div>
+        )}
+
         {fishingMiniGameOpen && fishingMiniGameStage !== 'direction' && (() => {
            const isFishingNushiTarget = fishingTargetIsNushi || (fishingTargetSizeValue !== null && isNushiSize(fishingTargetFish, fishingTargetSizeValue));
            const isFishingNushiScene = isFishingNushiTarget && (
@@ -10111,9 +10349,9 @@ export default function App() {
                  <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_35%,rgba(20,83,45,0.22),rgba(0,0,0,0.62)_68%)]" />
                  <div className="absolute left-6 right-6 top-5 z-10 flex items-start justify-between gap-4">
                     <div className="rounded-xl border-2 border-[#67e8f9]/80 bg-[#1a100d]/90 px-5 py-3 shadow-[0_14px_28px_rgba(0,0,0,0.45),inset_0_1px_0_rgba(255,255,255,0.16)]">
-                       <div className="text-xs font-black tracking-[0.22em] text-[#67e8f9]">CRAFT TIMING</div>
-                       <div className="text-2xl font-black">{craftMiniGameRecipeName ? CRAFT_RECIPE_CONFIGS[craftMiniGameRecipeName].output : 'クラフト'}</div>
-                       <div className="mt-1 text-sm font-bold text-[#ffd166]">光る円をクリックして成功率を上げよう</div>
+                       <div className="text-xs font-black tracking-[0.22em] text-[#67e8f9]">{craftMiniGameRecipeName ? 'CRAFT TIMING' : 'LOGGING TIMING'}</div>
+                       <div className="text-2xl font-black">{craftMiniGameRecipeName ? CRAFT_RECIPE_CONFIGS[craftMiniGameRecipeName].output : '伐採'}</div>
+                       <div className="mt-1 text-sm font-bold text-[#ffd166]">{craftMiniGameRecipeName ? '光る円をクリックして成功率を上げよう' : '光る円をクリックして木材を切り出そう'}</div>
                     </div>
                     <div className="rounded-xl border-2 border-[#ffd166]/80 bg-[#2d1414]/88 px-5 py-3 text-right shadow-[0_14px_28px_rgba(0,0,0,0.45),inset_0_1px_0_rgba(255,255,255,0.14)]">
                        <div className="text-xs font-black tracking-[0.18em] text-[#ffd166]">TARGET</div>
@@ -10159,7 +10397,9 @@ export default function App() {
                     <div className="absolute inset-0 z-30 flex items-center justify-center bg-black/68">
                        <div className="w-[460px] rounded-xl border-4 border-[#ffd166] bg-[#1a100d]/96 p-7 text-center shadow-2xl">
                           <div className={`text-4xl font-black ${craftMiniGameResult === 'success' ? 'text-[#fde047]' : 'text-[#ffb4a2]'}`}>
-                             {craftMiniGameResult === 'success' ? 'クラフト成功！' : 'クラフト失敗'}
+                             {craftMiniGameRecipeName
+                                ? (craftMiniGameResult === 'success' ? 'クラフト成功！' : 'クラフト失敗')
+                                : (craftMiniGameResult === 'success' ? '伐採成功！' : '伐採失敗')}
                           </div>
                           <div className="mt-3 text-lg font-bold text-[#fdf6e3]">成功率 {Math.round(craftMiniGameScore)}%</div>
                           <button
