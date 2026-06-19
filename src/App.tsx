@@ -336,14 +336,18 @@ const FISHING_BITE_START_SIZE = 172;
 const FISHING_BITE_END_SIZE = 42;
 const FISHING_BITE_ROUND_MS_LIST = [2500, 2000, 1500, 1000, 600];
 const FISHING_SCENE_CAST_SRC = '/img/fishing1.jpg';
+const FISHING_SCENE_BATTLE_A_SRC = '/img/fishing2.jpg';
+const FISHING_SCENE_BATTLE_B_SRC = '/img/fishing3.jpg';
 const FISHING_SCENE_UKI_SRC = '/img/uki.jpg';
 const FISHING_SCENE_HIT_SRC = '/img/hit.jpg';
+const FISHING_SCENE_NUSHI_SRC = '/img/nushi.png';
 const FISHING_SCENE_HIT_OVERLAY_SRC = '/img/hit.png';
 const FISHING_SCENE_RESULT_SRC = '/img/0eda.jpg';
 const FISHING_SCENE_ESCAPE_SRC = '/img/fishing4.jpg';
 const FISHING_BITE_SPARKLE_WEBM_SRC = '/video/sparkle.webm';
 const FISHING_CAST_SOUND_SRC = '/se/fishing.wav';
 const FISHING_REEL_SOUND_SRC = '/se/reel.mp3';
+const FISHING_NUSHI_SOUND_SRC = '/se/nushi.mp3';
 const FISHING_BGM_SRC = '/bgm/fishking.mp3';
 
 type KurumiTradeReward = {
@@ -361,8 +365,24 @@ type FishZukanEntry = {
   imageSrc: string;
   sizeMin: number;
   sizeMax: number;
+  priceMin?: number;
+  priceMax?: number;
+  nushiPrice?: number;
+  unlockDifficulty: GameDifficulty;
+  sellable?: boolean;
+  oneTime?: boolean;
   fixedSize?: number;
   note: string;
+};
+
+type ShopItem = {
+  name: string;
+  price: number;
+  stock: number;
+  type: '買う' | '売る';
+  desc: string;
+  fishName?: string;
+  fishPrice?: number;
 };
 
 type FishingBiteCircle = {
@@ -413,34 +433,59 @@ const KURUMI_INTRO_TOPIC_IDS = KURUMI_INTRO_TOPICS.map(topic => topic.id);
 const KURUMI_INTRO_CLOSE_FADE_MS = 650;
 
 const FISH_ZUKAN_ENTRIES: FishZukanEntry[] = [
-  { id: 'eda', level: 0, no: 1, name: '枝', imageSrc: '/img/0eda.jpg', sizeMin: 5, sizeMax: 15, note: 'ゴミ・流木' },
-  { id: 'gomu', level: 1, no: 2, name: '使用済みコンドーム', imageSrc: '/img/1kondom.jpg', sizeMin: 10, sizeMax: 20, note: 'ゴミ・長靴の破片など' },
-  { id: 'funa', level: 2, no: 3, name: 'フナ', imageSrc: '/img/2funa.jpg', sizeMin: 15, sizeMax: 30, note: '実在・中型' },
-  { id: 'oikawa', level: 3, no: 4, name: 'オイカワ', imageSrc: '/img/3oikawa.jpg', sizeMin: 10, sizeMax: 15, note: '実在・小型' },
-  { id: 'ugui', level: 4, no: 5, name: 'ウグイ', imageSrc: '/img/4ugui.jpg', sizeMin: 20, sizeMax: 40, note: '実在・中型' },
-  { id: 'dojo', level: 5, no: 6, name: 'どじょう', imageSrc: '/img/5dojo.jpg', sizeMin: 10, sizeMax: 15, note: '実在・小型' },
-  { id: 'haze', level: 6, no: 7, name: 'ハゼ', imageSrc: '/img/6haze.jpg', sizeMin: 10, sizeMax: 20, note: '実在・小型' },
-  { id: 'pantsu', level: 7, no: 8, name: 'パンツ', imageSrc: '/img/7usagi.jpg', sizeMin: 20, sizeMax: 20, fixedSize: 20, note: 'ゲーム的ジョーク枠' },
-  { id: 'nijimasu', level: 8, no: 9, name: 'ニジマス', imageSrc: '/img/8nijimasu.jpg', sizeMin: 30, sizeMax: 60, note: '実在・大型' },
-  { id: 'yamame', level: 9, no: 10, name: 'ヤマメ', imageSrc: '/img/9yamame.jpg', sizeMin: 20, sizeMax: 30, note: '実在・中型' },
-  { id: 'uroko', level: 10, no: 11, name: '人魚の鱗', imageSrc: '/img/10uroko.jpg', sizeMin: 8, sizeMax: 8, fixedSize: 8, note: 'レアアイテム' },
-  { id: 'iwana', level: 11, no: 12, name: 'イワナ', imageSrc: '/img/11iwana.jpg', sizeMin: 30, sizeMax: 50, note: '実在・大型' },
-  { id: 'ayu', level: 12, no: 13, name: '鮎', imageSrc: '/img/12ayu.jpg', sizeMin: 20, sizeMax: 30, note: '実在・中型' },
-  { id: 'shakuiwana', level: 13, no: 14, name: '尺イワナ', imageSrc: '/img/13shakuiwana.jpg', sizeMin: 30, sizeMax: 35, note: '尺を基準とした個体' },
-  { id: 'sakuramasu', level: 14, no: 15, name: 'サクラマス', imageSrc: '/img/14sakuramasu.jpg', sizeMin: 40, sizeMax: 70, note: '実在・大型' },
-  { id: 'sake', level: 15, no: 16, name: 'サケ', imageSrc: '/img/15sake.jpg', sizeMin: 50, sizeMax: 100, note: '実在・特大' },
-  { id: 'raigyo', level: 16, no: 17, name: 'ライギョ', imageSrc: '/img/16raigyo.jpg', sizeMin: 40, sizeMax: 80, note: '実在・大型' },
-  { id: 'mozukugani', level: 17, no: 18, name: 'モズクガニ', imageSrc: '/img/17mozukugani.jpg', sizeMin: 20, sizeMax: 35, note: '実在・甲殻類' },
-  { id: 'itou', level: 18, no: 19, name: 'イトウ', imageSrc: '/img/18itou.jpg', sizeMin: 60, sizeMax: 150, note: '実在・幻の巨大魚' },
-  { id: 'akibin', level: 19, no: 20, name: '手紙の入った空き瓶', imageSrc: '/img/19akibin.jpg', sizeMin: 26, sizeMax: 26, fixedSize: 26, note: 'レアアイテム' },
-  { id: 'oonamazu', level: 20, no: 21, name: 'オオナマズ', imageSrc: '/img/20oonamazu.jpg', sizeMin: 80, sizeMax: 150, note: '実在・巨大' },
-  { id: 'nishikigoi', level: 21, no: 22, name: '錦鯉', imageSrc: '/img/21nishikigoi.jpg', sizeMin: 50, sizeMax: 100, note: '実在・特大' },
-  { id: 'aoningyo', level: 22, no: 23, name: '青い人魚', imageSrc: '/img/22aoningyo.jpg', sizeMin: 165, sizeMax: 165, fixedSize: 165, note: 'ファンタジー枠' },
-  { id: 'kiironingyo', level: 23, no: 24, name: '黄色い人魚', imageSrc: '/img/23kiironingyo.jpg', sizeMin: 145, sizeMax: 145, fixedSize: 145, note: 'ファンタジー枠' },
-  { id: 'pinkningyo', level: 24, no: 25, name: 'ピンクの人魚', imageSrc: '/img/24pinkningyo.jpg', sizeMin: 162, sizeMax: 162, fixedSize: 162, note: 'ファンタジー枠' },
+  { id: 'eda', level: 0, no: 0, name: '枝', imageSrc: '/img/0eda.jpg', sizeMin: 5, sizeMax: 15, priceMin: 3, priceMax: 3, nushiPrice: 3, unlockDifficulty: 'easy', note: 'ゴミ・流木' },
+  { id: 'gomu', level: 1, no: 1, name: '使用済みコンドーム', imageSrc: '/img/1kondom.jpg', sizeMin: 10, sizeMax: 20, priceMin: 20, priceMax: 100, nushiPrice: 500, unlockDifficulty: 'easy', note: 'ゴミ・長靴の破片など' },
+  { id: 'funa', level: 2, no: 2, name: 'フナ', imageSrc: '/img/2funa.jpg', sizeMin: 15, sizeMax: 30, priceMin: 100, priceMax: 500, nushiPrice: 2500, unlockDifficulty: 'easy', note: '実在・中型' },
+  { id: 'oikawa', level: 3, no: 3, name: 'オイカワ', imageSrc: '/img/3oikawa.jpg', sizeMin: 10, sizeMax: 15, priceMin: 60, priceMax: 300, nushiPrice: 1500, unlockDifficulty: 'easy', note: '実在・小型' },
+  { id: 'ugui', level: 4, no: 4, name: 'ウグイ', imageSrc: '/img/4ugui.jpg', sizeMin: 20, sizeMax: 40, priceMin: 160, priceMax: 800, nushiPrice: 4000, unlockDifficulty: 'easy', note: '実在・中型' },
+  { id: 'dojo', level: 5, no: 5, name: 'どじょう', imageSrc: '/img/5dojo.jpg', sizeMin: 10, sizeMax: 15, priceMin: 40, priceMax: 200, nushiPrice: 1000, unlockDifficulty: 'easy', note: '実在・小型' },
+  { id: 'haze', level: 6, no: 6, name: 'ハゼ', imageSrc: '/img/6haze.jpg', sizeMin: 10, sizeMax: 20, priceMin: 50, priceMax: 250, nushiPrice: 1250, unlockDifficulty: 'easy', note: '実在・小型' },
+  { id: 'pantsu', level: 7, no: 7, name: 'パンツ', imageSrc: '/img/7usagi.jpg', sizeMin: 20, sizeMax: 20, priceMin: 50, priceMax: 100, nushiPrice: 100, unlockDifficulty: 'easy', fixedSize: 20, oneTime: true, note: 'ゲーム的ジョーク枠' },
+  { id: 'nijimasu', level: 8, no: 8, name: 'ニジマス', imageSrc: '/img/8nijimasu.jpg', sizeMin: 30, sizeMax: 40, priceMin: 600, priceMax: 3000, nushiPrice: 15000, unlockDifficulty: 'easy', note: '実在・大型' },
+  { id: 'yamame', level: 9, no: 9, name: 'ヤマメ', imageSrc: '/img/9yamame.jpg', sizeMin: 20, sizeMax: 40, priceMin: 240, priceMax: 2000, nushiPrice: 8000, unlockDifficulty: 'easy', note: '実在・中型' },
+  { id: 'uroko', level: 10, no: 10, name: '人魚の鱗', imageSrc: '/img/10uroko.jpg', sizeMin: 8, sizeMax: 8, priceMin: 3000, priceMax: 3000, nushiPrice: 15000, unlockDifficulty: 'normal', fixedSize: 8, note: 'レアアイテム' },
+  { id: 'iwana', level: 11, no: 11, name: 'イワナ', imageSrc: '/img/11iwana.jpg', sizeMin: 30, sizeMax: 50, priceMin: 800, priceMax: 4000, nushiPrice: 20000, unlockDifficulty: 'normal', note: '実在・大型' },
+  { id: 'ayu', level: 12, no: 12, name: '鮎', imageSrc: '/img/12ayu.jpg', sizeMin: 20, sizeMax: 30, priceMin: 300, priceMax: 1500, nushiPrice: 7500, unlockDifficulty: 'normal', note: '実在・中型' },
+  { id: 'shakuiwana', level: 13, no: 13, name: '尺イワナ', imageSrc: '/img/13shakuiwana.jpg', sizeMin: 50, sizeMax: 70, priceMin: 1600, priceMax: 8000, nushiPrice: 40000, unlockDifficulty: 'normal', note: '尺を基準とした個体' },
+  { id: 'sakuramasu', level: 14, no: 14, name: 'サクラマス', imageSrc: '/img/14sakuramasu.jpg', sizeMin: 60, sizeMax: 100, priceMin: 2000, priceMax: 10000, nushiPrice: 50000, unlockDifficulty: 'normal', note: '実在・大型' },
+  { id: 'sake', level: 15, no: 15, name: 'サケ', imageSrc: '/img/15sake.jpg', sizeMin: 100, sizeMax: 120, priceMin: 3000, priceMax: 15000, nushiPrice: 75000, unlockDifficulty: 'normal', note: '実在・特大' },
+  { id: 'raigyo', level: 16, no: 16, name: 'ライギョ', imageSrc: '/img/16raigyo.jpg', sizeMin: 100, sizeMax: 150, priceMin: 2400, priceMax: 12000, nushiPrice: 60000, unlockDifficulty: 'normal', note: '実在・大型' },
+  { id: 'mozukugani', level: 17, no: 17, name: 'モズクガニ', imageSrc: '/img/17mozukugani.jpg', sizeMin: 50, sizeMax: 80, priceMin: 400, priceMax: 2000, nushiPrice: 10000, unlockDifficulty: 'normal', note: '実在・甲殻類' },
+  { id: 'itou', level: 18, no: 18, name: 'イトウ', imageSrc: '/img/18itou.jpg', sizeMin: 60, sizeMax: 150, priceMin: 6000, priceMax: 30000, nushiPrice: 150000, unlockDifficulty: 'normal', note: '実在・幻の巨大魚' },
+  { id: 'akibin', level: 19, no: 19, name: '手紙の入った空き瓶', imageSrc: '/img/19akibin.jpg', sizeMin: 26, sizeMax: 26, unlockDifficulty: 'hard', fixedSize: 26, sellable: false, oneTime: true, note: 'レアアイテム' },
+  { id: 'oonamazu', level: 20, no: 20, name: 'オオナマズ', imageSrc: '/img/20oonamazu.jpg', sizeMin: 80, sizeMax: 150, priceMin: 10000, priceMax: 50000, nushiPrice: 250000, unlockDifficulty: 'hard', note: '実在・巨大' },
+  { id: 'nishikigoi', level: 21, no: 21, name: '錦鯉', imageSrc: '/img/21nishikigoi.jpg', sizeMin: 100, sizeMax: 200, priceMin: 4000, priceMax: 20000, nushiPrice: 100000, unlockDifficulty: 'hard', note: '実在・特大' },
+  { id: 'aoningyo', level: 22, no: 22, name: '青い人魚', imageSrc: '/img/22aoningyo.jpg', sizeMin: 165, sizeMax: 165, priceMin: 1000000, priceMax: 1000000, nushiPrice: 5000000, unlockDifficulty: 'hard', fixedSize: 165, note: 'ファンタジー枠' },
+  { id: 'kiironingyo', level: 23, no: 23, name: '黄色い人魚', imageSrc: '/img/23kiironingyo.jpg', sizeMin: 145, sizeMax: 145, priceMin: 500000, priceMax: 500000, nushiPrice: 2500000, unlockDifficulty: 'hard', fixedSize: 145, note: 'ファンタジー枠' },
+  { id: 'pinkningyo', level: 24, no: 24, name: 'ピンクの人魚', imageSrc: '/img/24pinkningyo.jpg', sizeMin: 162, sizeMax: 162, priceMin: 750000, priceMax: 750000, nushiPrice: 3750000, unlockDifficulty: 'hard', fixedSize: 162, note: 'ファンタジー枠' },
 ];
-const FISH_SIZE_PRICE_COEFFICIENT = 4;
 const FISH_ITEM_NAMES = new Set(FISH_ZUKAN_ENTRIES.map(fish => fish.name));
+const ITEM_MENU_BASE_ITEMS: Record<string, string[]> = {
+  '消耗品': ['薬草', '携帯おにぎり', '気付け水', '小さな釣り餌'],
+  '素材': ['木材', '石材', '薬草の葉', '川魚の鱗'],
+  '装備品': ['竹の釣竿', '丈夫な釣竿', '高級釣竿', '伝説の釣り竿', 'のこぎり', '丈夫なのこぎり', '高級のこぎり', 'つるはし', '丈夫なつるはし', '高級つるはし', '農神の指輪'],
+  '売却品': ['小さな宝石', '古びた硬貨', '乾いたハーブ', '余った作物'],
+  'だいじなもの': ['古い鍵', '農場契約書', '母屋の地図', '娘管理台帳'],
+};
+const createItemMenuItems = (inventoryCounts: Record<string, number>) => {
+  const ownedFishNames = FISH_ZUKAN_ENTRIES
+    .filter(fish => (inventoryCounts[fish.name] ?? 0) > 0)
+    .map(fish => fish.name);
+  const sellableFishNames = ownedFishNames.filter(name => {
+    const fish = FISH_ZUKAN_ENTRIES.find(entry => entry.name === name);
+    return fish?.sellable !== false;
+  });
+  const keyFishNames = ownedFishNames.filter(name => {
+    const fish = FISH_ZUKAN_ENTRIES.find(entry => entry.name === name);
+    return fish?.sellable === false;
+  });
+
+  return {
+    ...ITEM_MENU_BASE_ITEMS,
+    '売却品': [...sellableFishNames, ...ITEM_MENU_BASE_ITEMS['売却品']],
+    'だいじなもの': [...keyFishNames, ...ITEM_MENU_BASE_ITEMS['だいじなもの']],
+  };
+};
 const FISHING_ROD_FISH_LEVELS: Record<FishingRodName, number[]> = {
   '竹の釣竿': [0, 1, 2, 3, 4, 5],
   '丈夫な釣竿': [6, 7, 8, 9, 10],
@@ -505,14 +550,24 @@ const createFishingFanSweetRange = (fish: FishZukanEntry) => {
     max: Number((start + width).toFixed(1)),
   };
 };
-const selectFishingTargetFish = (rodName: string) => {
+const selectFishingTargetFish = (rodName: string, caughtIds: string[]) => {
   const levels = FISHING_ROD_FISH_LEVELS[getFishingRodName(rodName)];
-  const candidates = FISH_ZUKAN_ENTRIES.filter(fish => levels.includes(fish.level));
+  const candidates = FISH_ZUKAN_ENTRIES.filter(fish => (
+    levels.includes(fish.level) &&
+    (!fish.oneTime || !caughtIds.includes(fish.id))
+  ));
   return candidates[Math.floor(Math.random() * candidates.length)] ?? FISH_ZUKAN_ENTRIES[0];
 };
 const getFishSizeRatio = (fish: FishZukanEntry, size: number) => {
   if (fish.sizeMax <= fish.sizeMin) return 1;
   return clampNumber((size - fish.sizeMin) / (fish.sizeMax - fish.sizeMin), 0, 1);
+};
+const isNushiSize = (fish: FishZukanEntry, size: number) => size >= fish.sizeMax;
+const getFishSellPrice = (fish: FishZukanEntry, size: number) => {
+  if (fish.sellable === false || typeof fish.priceMin !== 'number' || typeof fish.priceMax !== 'number') return null;
+  if (isNushiSize(fish, size)) return fish.nushiPrice ?? fish.priceMax * 5;
+  if (fish.priceMin === fish.priceMax || fish.sizeMax <= fish.sizeMin) return fish.priceMin;
+  return Math.round(fish.priceMin + (fish.priceMax - fish.priceMin) * getFishSizeRatio(fish, size));
 };
 const createFishingTargetSize = (fish: FishZukanEntry, biteScore: number, biteCombo: number) => {
   if (typeof fish.fixedSize === 'number') return fish.fixedSize;
@@ -563,6 +618,8 @@ export default function App() {
   const [pendingNewGameDifficulty, setPendingNewGameDifficulty] = useState<GameDifficulty>('hard');
   const [systemSlotMode, setSystemSlotMode] = useState<'none' | 'save' | 'load'>('none');
   const [saveSlotSummaries, setSaveSlotSummaries] = useState<SaveSlotSummary[]>([]);
+  const [pendingDeleteSaveSlot, setPendingDeleteSaveSlot] = useState<number | null>(null);
+  const autoSaveBlockedSlotsRef = useRef<Set<number>>(new Set());
 
   const [setupMode, setSetupMode] = useState<'none' | 'animation' | 'collision' | 'hideArea' | 'doors' | 'footstep' | 'crops' | 'bed' | 'bathTub'>('none');
 
@@ -711,25 +768,45 @@ export default function App() {
   const actionCountMax = 5 + Math.max(0, heroLevel - 1);
   const actionCountCurrent = actionCountMax;
   const actionCountLabel = `${actionCountCurrent}/${actionCountMax}`;
-  const [shopItems, setShopItems] = useState([
+  const [shopItems, setShopItems] = useState<ShopItem[]>([
     { name: '薬草', price: 120, stock: 8, type: '買う', desc: '体力を少し回復する定番の薬草です。' },
     { name: '携帯おにぎり', price: 260, stock: 5, type: '買う', desc: '探索前の腹ごしらえに便利です。' },
     { name: '小さな釣り餌', price: 80, stock: 12, type: '買う', desc: '川釣りで使える小さな餌です。' },
-    { name: '枝', price: 3, stock: 0, type: '売る', desc: '釣り上げた枝です。くるみが1本3Gで買い取ってくれます。' },
-    { name: 'ウグイ', price: 120, stock: 0, type: '売る', desc: '釣り上げたウグイです。くるみが買い取ってくれます。' },
     { name: '木材', price: 40, stock: 20, type: '売る', desc: '農場設備の修理にも使える素材です。' },
     { name: '川魚の鱗', price: 180, stock: 3, type: '売る', desc: '光沢のある素材。くるみが買い取ってくれます。' },
   ]);
-  const getFishAdjustedPrice = (itemName: string, basePrice: number) => {
-    if (!FISH_ITEM_NAMES.has(itemName)) return basePrice;
-    if (itemName === '枝') return basePrice;
-    const nextSize = fishInventorySizes[itemName]?.[0];
-    return basePrice + (typeof nextSize === 'number' ? Math.round(nextSize * FISH_SIZE_PRICE_COEFFICIENT) : 0);
-  };
-  const shopItemsForDisplay = shopItems.map(item => ({
-    ...item,
-    price: item.type === '売る' ? getFishAdjustedPrice(item.name, item.price) : item.price,
-  }));
+  const fishShopItems = FISH_ZUKAN_ENTRIES.flatMap<ShopItem>(fish => {
+    if (fish.sellable === false) return [];
+    const priceCounts = new Map<number, { count: number; sizes: number[] }>();
+    (fishInventorySizes[fish.name] ?? []).forEach(size => {
+      const price = getFishSellPrice(fish, size);
+      if (price === null) return;
+      const current = priceCounts.get(price) ?? { count: 0, sizes: [] };
+      current.count += 1;
+      current.sizes.push(size);
+      priceCounts.set(price, current);
+    });
+    return Array.from(priceCounts.entries())
+      .sort(([priceA], [priceB]) => priceB - priceA)
+      .map(([price, { count, sizes }]) => {
+        const maxSize = Math.max(...sizes);
+        const nushi = sizes.some(size => isNushiSize(fish, size));
+        return {
+          name: `${fish.name} ${maxSize.toFixed(1)}cm${nushi ? ' ヌシ' : ''}`,
+          fishName: fish.name,
+          fishPrice: price,
+          price,
+          stock: count,
+          type: '売る',
+          desc: `${fish.name} ${maxSize.toFixed(1)}cm。${nushi ? 'ヌシ価格で特別に高く買い取ります。' : 'サイズに応じた価格で買い取ります。'}`,
+        };
+      });
+  });
+  const shopItemsForDisplay = [
+    ...shopItems.filter(item => item.type === '買う'),
+    ...fishShopItems,
+    ...shopItems.filter(item => item.type === '売る'),
+  ];
   const renderMenuDetail = (id: MenuItemId) => {
     const tabs = ['消耗品', '素材', '装備品', '売却品', 'だいじなもの'];
     const stats = [
@@ -757,13 +834,7 @@ export default function App() {
     ];
     const skillNodes = skillTreeBranches.flatMap(branch => branch.skills);
     const zukanCards = Array.from({ length: 15 }).map((_, index) => ['通常', '妊娠', 'レア', '未入手'][index % 4]);
-    const itemByTab: Record<string, string[]> = {
-      '消耗品': ['薬草', '携帯おにぎり', '気付け水', '小さな釣り餌'],
-      '素材': ['ウグイ', '木材', '石材', '薬草の葉', '川魚の鱗'],
-      '装備品': ['竹の釣竿', '丈夫な釣竿', '高級釣竿', '伝説の釣り竿', 'のこぎり', '丈夫なのこぎり', '高級のこぎり', 'つるはし', '丈夫なつるはし', '高級つるはし', '農神の指輪'],
-      '売却品': ['小さな宝石', '古びた硬貨', '乾いたハーブ', '余った作物'],
-      'だいじなもの': ['古い鍵', '農場契約書', '母屋の地図', '娘管理台帳'],
-    };
+    const itemByTab = createItemMenuItems(inventoryCounts);
     const getOwnedMenuItems = (items: string[]) => items.filter(name => (inventoryCounts[name] ?? 0) > 0);
     const selectedTabItems = getOwnedMenuItems(itemByTab[itemMenuTab] ?? itemByTab['消耗品']);
     const activeItem = selectedTabItems.includes(selectedItemName) ? selectedItemName : selectedTabItems[0] ?? '';
@@ -1276,7 +1347,13 @@ export default function App() {
               </button>
             ))}
           </div>
-          <div style={menuPanelBaseStyle} className={`grid grid-cols-5 gap-2 flex-1 ${isFishZukan ? 'auto-rows-fr' : ''}`}>
+          <div
+            style={menuPanelBaseStyle}
+            className={isFishZukan
+              ? 'grid min-h-0 flex-1 grid-cols-5 auto-rows-[190px] gap-2 overflow-y-auto pr-2'
+              : 'grid grid-cols-5 gap-2 flex-1'
+            }
+          >
             {isFishZukan ? FISH_ZUKAN_ENTRIES.map((fish, index) => {
               const caught = caughtFishIds.includes(fish.id);
               const hasSizeUpdate = fishSizeUpdatedIds.includes(fish.id);
@@ -1291,7 +1368,7 @@ export default function App() {
                 >
                   <div className="relative z-10 flex h-full flex-col justify-between gap-2">
                     <div className="flex items-center justify-between">
-                      <span className="text-[#fdf6e3] font-bold">No.{fish.no}</span>
+                      <span className="font-bold text-[#fdf6e3]">No.{fish.no}</span>
                       <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${caught ? 'bg-[#4a5823] text-[#d9f99d]' : 'bg-[#2d1b15] text-[#dda15e]'}`}>
                         {caught ? '釣果済' : '未発見'}
                       </span>
@@ -1883,6 +1960,25 @@ export default function App() {
   }, [fishingMiniGameOpen, fishingMiniGameStage, fishingBiteRound]);
 
   useEffect(() => {
+     if (!fishingMiniGameOpen || fishingMiniGameStage !== 'result') return;
+     setIsFishingResultInputLocked(true);
+     if (fishingResultLockTimerRef.current !== null) {
+        window.clearTimeout(fishingResultLockTimerRef.current);
+     }
+     fishingResultLockTimerRef.current = window.setTimeout(() => {
+        setIsFishingResultInputLocked(false);
+        fishingResultLockTimerRef.current = null;
+     }, 1000);
+
+     return () => {
+        if (fishingResultLockTimerRef.current !== null) {
+           window.clearTimeout(fishingResultLockTimerRef.current);
+           fishingResultLockTimerRef.current = null;
+        }
+     };
+  }, [fishingMiniGameOpen, fishingMiniGameStage]);
+
+  useEffect(() => {
      if (!fishingMiniGameOpen || fishingMiniGameStage !== 'hit' || isFishingHitSplashActive) return;
      setFishingHitLimitSeconds(10);
      const timerId = window.setInterval(() => {
@@ -2329,7 +2425,13 @@ export default function App() {
     fetch('/api/save-slots')
       .then(res => res.json())
       .then((data: SaveSlotSummary[]) => {
-        if (Array.isArray(data)) setSaveSlotSummaries(data);
+        if (Array.isArray(data)) {
+          setSaveSlotSummaries(data.map(summary => (
+            autoSaveBlockedSlotsRef.current.has(summary.slot)
+              ? { slot: summary.slot, exists: false }
+              : summary
+          )));
+        }
       })
       .catch(err => {
         console.error('セーブスロット一覧の読み込みに失敗しました:', err);
@@ -2338,6 +2440,7 @@ export default function App() {
 
   const saveGameToSlot = (slot: number) => {
     playFixSound();
+    autoSaveBlockedSlotsRef.current.delete(slot);
     fetch(`/api/save?slot=${slot}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -2369,16 +2472,37 @@ export default function App() {
   const deleteSaveSlot = (slot: number) => {
     const summary = getSlotSummary(slot);
     if (!summary?.exists) return;
-    if (!window.confirm(`セーブスロット${slot}のセーブデータを削除します。よろしいですか？`)) return;
 
-    playFixSound();
+    playCursorSound();
+    setConfirmPromptChoice('no');
+    setPendingDeleteSaveSlot(slot);
+  };
+
+  const cancelDeleteSaveSlot = () => {
+    if (pendingDeleteSaveSlot === currentSaveSlot) {
+      autoSaveBlockedSlotsRef.current.delete(pendingDeleteSaveSlot);
+    }
+    setPendingDeleteSaveSlot(null);
+    setConfirmPromptChoice('no');
+  };
+
+  const confirmDeleteSaveSlot = () => {
+    if (pendingDeleteSaveSlot === null) return;
+    const slot = pendingDeleteSaveSlot;
+
+    autoSaveBlockedSlotsRef.current.add(slot);
+    setPendingDeleteSaveSlot(null);
     fetch(`/api/save?slot=${slot}`, { method: 'DELETE' })
       .then(res => {
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        setSaveSlotSummaries(prev => prev.map(summary => (
+          summary.slot === slot ? { slot, exists: false } : summary
+        )));
         setSystemNotice(`スロット${slot}のセーブデータを削除しました。`);
         refreshSaveSlotSummaries();
       })
       .catch(err => {
+        autoSaveBlockedSlotsRef.current.delete(slot);
         console.error('セーブデータの削除に失敗しました:', err);
         setSystemNotice('セーブデータの削除に失敗しました。');
       });
@@ -2402,6 +2526,8 @@ export default function App() {
   useEffect(() => {
     if (isLoading) return; // ロード中は保存しない
     if (bootMode !== 'playing') return; // タイトル画面では保存しない
+    if (pendingDeleteSaveSlot !== null) return; // 削除確認中に予約済み自動セーブを残さない
+    if (autoSaveBlockedSlotsRef.current.has(currentSaveSlot)) return; // 削除直後のスロットを自動復活させない
 
     const timer = setTimeout(() => {
       fetch(`/api/save?slot=${currentSaveSlot}`, {
@@ -2417,6 +2543,7 @@ export default function App() {
   }, [
     isLoading,
     bootMode,
+    pendingDeleteSaveSlot,
     currentSaveSlot,
     turn,
     currentMap,
@@ -2462,6 +2589,7 @@ export default function App() {
     const difficultyOption = DIFFICULTY_OPTIONS.find(option => option.id === difficultyId) ?? DIFFICULTY_OPTIONS[2];
     if (!window.confirm(`スロット${slot}で${difficultyOption.label}（${difficultyOption.desc}）を開始します。よろしいですか？`)) return;
     playFixSound();
+    autoSaveBlockedSlotsRef.current.delete(slot);
     setCurrentSaveSlot(slot);
     setPendingNewGameDifficulty(difficultyOption.id);
     setStartingNewGame(true);
@@ -2471,6 +2599,7 @@ export default function App() {
 
   const continueGameFromSlot = (slot: number) => {
     playFixSound();
+    autoSaveBlockedSlotsRef.current.delete(slot);
     setCurrentSaveSlot(slot);
     setStartingNewGame(false);
     setTitlePanelMode('none');
@@ -3024,9 +3153,11 @@ export default function App() {
   };
 
   const handleShopActionClick = () => {
-     const item = shopItems[selectedShopItemIndex] ?? shopItems[0];
-     const itemStock = item.type === '売る' ? (inventoryCounts[item.name] ?? 0) : item.stock;
-     const tradePrice = item.type === '売る' ? getFishAdjustedPrice(item.name, item.price) : item.price;
+     const item = shopItemsForDisplay[selectedShopItemIndex] ?? shopItemsForDisplay[0];
+     const itemStock = item.type === '売る'
+        ? (item.fishName ? item.stock : (inventoryCounts[item.name] ?? 0))
+        : item.stock;
+     const tradePrice = item.price;
      if (itemStock <= 0) {
         playFixSound();
         setDialogMessage(item.type === '買う' ? '売り切れです。' : '売却できる在庫がありません。');
@@ -3047,17 +3178,24 @@ export default function App() {
      setGold(prev => item.type === '買う' ? prev - tradePrice : prev + tradePrice);
      if (item.type === '買う') {
         setShopItems(prev => prev.map((shopItem, index) => (
-           index === selectedShopItemIndex ? { ...shopItem, stock: Math.max(0, shopItem.stock - 1) } : shopItem
+           shopItem.name === item.name ? { ...shopItem, stock: Math.max(0, shopItem.stock - 1) } : shopItem
         )));
      }
+     const inventoryName = item.fishName ?? item.name;
      setInventoryCounts(prev => ({
         ...prev,
-        [item.name]: Math.max(0, (prev[item.name] ?? 0) + (item.type === '買う' ? 1 : -1)),
+        [inventoryName]: Math.max(0, (prev[inventoryName] ?? 0) + (item.type === '買う' ? 1 : -1)),
      }));
-     if (item.type === '売る' && FISH_ITEM_NAMES.has(item.name)) {
+     if (item.type === '売る' && item.fishName && typeof item.fishPrice === 'number') {
         setFishInventorySizes(prev => ({
            ...prev,
-           [item.name]: (prev[item.name] ?? []).slice(1),
+           [item.fishName!]: (prev[item.fishName!] ?? []).filter((size, index, sizes) => {
+              const price = getFishSellPrice(FISH_ZUKAN_ENTRIES.find(fish => fish.name === item.fishName) ?? FISH_ZUKAN_ENTRIES[0], size);
+              const firstMatchingIndex = sizes.findIndex(candidateSize => (
+                 getFishSellPrice(FISH_ZUKAN_ENTRIES.find(fish => fish.name === item.fishName) ?? FISH_ZUKAN_ENTRIES[0], candidateSize) === item.fishPrice
+              ));
+              return price !== item.fishPrice || index !== firstMatchingIndex;
+           }),
         }));
      }
      setDialogMessage(`${item.name}を${item.type === '買う' ? '購入' : '売却'}しました。`);
@@ -3381,6 +3519,9 @@ export default function App() {
     const keepDifficultyScale = Math.max(0.36, 1 - levelRatio * 0.2 - sizeRatio * 0.36);
 
     setFishingTargetSizeValue(targetSize);
+    if (isNushiSize(fishingTargetFish, targetSize)) {
+      playUiSound(FISHING_NUSHI_SOUND_SRC);
+    }
     setFishingHitGreenWidth(prev => Math.max(4, prev * hitDifficultyScale));
     setFishingKeepGreenWidth(prev => Math.max(4, prev * keepDifficultyScale));
     setFishingMiniGameStage('hit');
@@ -3390,7 +3531,7 @@ export default function App() {
   };
 
   const startFishingPrompt = () => {
-    const targetFish = selectFishingTargetFish(equippedFishingRod);
+    const targetFish = selectFishingTargetFish(equippedFishingRod, caughtFishIds);
     const sweetRange = createFishingFanSweetRange(targetFish);
 
     setFishingPromptVisible(false);
@@ -4171,6 +4312,34 @@ export default function App() {
         e.preventDefault();
       }
 
+      if (pendingDeleteSaveSlot !== null) {
+        if (e.repeat) return;
+        if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+          e.preventDefault();
+          const nextChoice = e.key === 'ArrowLeft' ? 'yes' : 'no';
+          if (confirmPromptChoice !== nextChoice) playCursorSound();
+          setConfirmPromptChoice(nextChoice);
+          return;
+        }
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          playFixSound();
+          if (confirmPromptChoice === 'yes') {
+            confirmDeleteSaveSlot();
+          } else {
+            cancelDeleteSaveSlot();
+          }
+          return;
+        }
+        if (e.key === 'Escape') {
+          e.preventDefault();
+          playFixSound();
+          cancelDeleteSaveSlot();
+          return;
+        }
+        return;
+      }
+
       if (bootMode !== 'playing') {
         return;
       }
@@ -4274,8 +4443,8 @@ export default function App() {
             setSelectedShopControl(e.key === 'ArrowUp' ? 'close' : 'items');
           } else {
             setSelectedShopItemIndex(prev => {
-              const currentType = shopItems[prev]?.type ?? '買う';
-              const sameTypeItems = shopItems
+              const currentType = shopItemsForDisplay[prev]?.type ?? '買う';
+              const sameTypeItems = shopItemsForDisplay
                 .map((item, index) => ({ item, index }))
                 .filter(({ item }) => item.type === currentType);
               const currentColumnIndex = Math.max(0, sameTypeItems.findIndex(({ index }) => index === prev));
@@ -4294,19 +4463,19 @@ export default function App() {
             if (e.key === 'ArrowRight') {
               setSelectedShopControl('close');
             } else {
-              const sellIndex = shopItems.findIndex(item => item.type === '売る');
+              const sellIndex = shopItemsForDisplay.findIndex(item => item.type === '売る');
               if (sellIndex >= 0) setSelectedShopItemIndex(sellIndex);
               setSelectedShopControl('items');
             }
           } else {
-            const currentType = shopItems[selectedShopItemIndex]?.type ?? '買う';
+            const currentType = shopItemsForDisplay[selectedShopItemIndex]?.type ?? '買う';
             if (e.key === 'ArrowRight' && currentType === '買う') {
-              const sellIndex = shopItems.findIndex(item => item.type === '売る');
+              const sellIndex = shopItemsForDisplay.findIndex(item => item.type === '売る');
               if (sellIndex >= 0) setSelectedShopItemIndex(sellIndex);
             } else if (e.key === 'ArrowRight') {
               setSelectedShopControl('action');
             } else if (e.key === 'ArrowLeft' && currentType === '売る') {
-              const buyIndex = shopItems.findIndex(item => item.type === '買う');
+              const buyIndex = shopItemsForDisplay.findIndex(item => item.type === '買う');
               if (buyIndex >= 0) setSelectedShopItemIndex(buyIndex);
             } else {
               setSelectedShopControl('action');
@@ -4331,6 +4500,10 @@ export default function App() {
 
       if (fishingMiniGameOpen) {
         if (e.repeat) return;
+        if (fishingMiniGameStage === 'result' && isFishingResultInputLocked) {
+          e.preventDefault();
+          return;
+        }
         if (fishingMiniGameStage === 'result' && isFishingTutorialRun) {
           if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
             e.preventDefault();
@@ -4470,13 +4643,7 @@ export default function App() {
         if (e.repeat) return;
         const currentMenuItem: { id: string; label: string; icon: string } = MENU_ITEMS[menuSelectedIndexRef.current] ?? MENU_ITEMS[0];
         const moveBy = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0;
-        const itemByTab: Record<string, string[]> = {
-          '消耗品': ['薬草', '携帯おにぎり', '気付け水', '小さな釣り餌'],
-          '素材': ['ウグイ', '木材', '石材', '薬草の葉', '川魚の鱗'],
-          '装備品': ['竹の釣竿', '丈夫な釣竿', '高級釣竿', '伝説の釣り竿', 'のこぎり', '丈夫なのこぎり', '高級のこぎり', 'つるはし', '丈夫なつるはし', '高級つるはし', '農神の指輪'],
-          '売却品': ['小さな宝石', '古びた硬貨', '乾いたハーブ', '余った作物'],
-          'だいじなもの': ['古い鍵', '農場契約書', '母屋の地図', '娘管理台帳'],
-        };
+        const itemByTab = createItemMenuItems(inventoryCounts);
         const getOwnedMenuItems = (items: string[]) => items.filter(name => (inventoryCounts[name] ?? 0) > 0);
         const moveGridIndex = (currentIndex: number, key: string, columns: number, length: number) => {
           if (key === 'ArrowLeft') return currentIndex % columns === 0 ? currentIndex : currentIndex - 1;
@@ -4568,15 +4735,16 @@ export default function App() {
 
             const currentIndex = selectedZukanIndexRef.current;
             const zukanLength = zukanFilterRef.current === '魚' ? FISH_ZUKAN_ENTRIES.length : 15;
-            if (e.key === 'ArrowUp' && currentIndex < 5) {
+            const zukanColumnCount = 5;
+            if (e.key === 'ArrowUp' && currentIndex < zukanColumnCount) {
               setMenuContentFocus('primary');
               return;
             }
-            if (e.key === 'ArrowLeft' && currentIndex % 5 === 0) {
+            if (e.key === 'ArrowLeft' && currentIndex % zukanColumnCount === 0) {
               setMenuContentFocus('primary');
               return;
             }
-            setSelectedZukanIndex(moveGridIndex(currentIndex, e.key, 5, zukanLength));
+            setSelectedZukanIndex(moveGridIndex(currentIndex, e.key, zukanColumnCount, zukanLength));
             return;
           }
 
@@ -4719,11 +4887,12 @@ export default function App() {
           if (currentMenuItem.id === 'zukan') {
             const currentIndex = selectedZukanIndexRef.current;
             const zukanLength = zukanFilterRef.current === '魚' ? FISH_ZUKAN_ENTRIES.length : 15;
-            if (e.key === 'ArrowLeft' && currentIndex % 5 === 0) {
+            const zukanColumnCount = 5;
+            if (e.key === 'ArrowLeft' && currentIndex % zukanColumnCount === 0) {
               setMenuFocusArea('nav');
               return;
             }
-            setSelectedZukanIndex(moveGridIndex(currentIndex, e.key, 5, zukanLength));
+            setSelectedZukanIndex(moveGridIndex(currentIndex, e.key, zukanColumnCount, zukanLength));
             return;
           }
 
@@ -4741,13 +4910,7 @@ export default function App() {
           }
 
           if (currentMenuItem.id === 'item') {
-            const itemByTab: Record<string, string[]> = {
-              '消耗品': ['薬草', '携帯おにぎり', '気付け水', '小さな釣り餌'],
-              '素材': ['ウグイ', '木材', '石材', '薬草の葉', '川魚の鱗'],
-              '装備品': ['竹の釣竿', '丈夫な釣竿', '高級釣竿', '伝説の釣り竿', 'のこぎり', '丈夫なのこぎり', '高級のこぎり', 'つるはし', '丈夫なつるはし', '高級つるはし', '農神の指輪'],
-              '売却品': ['小さな宝石', '古びた硬貨', '乾いたハーブ', '余った作物'],
-              'だいじなもの': ['古い鍵', '農場契約書', '母屋の地図', '娘管理台帳'],
-            };
+            const itemByTab = createItemMenuItems(inventoryCounts);
             const getOwnedMenuItems = (items: string[]) => items.filter(name => (inventoryCounts[name] ?? 0) > 0);
             setSelectedItemName(prev => {
               const currentItems = getOwnedMenuItems(itemByTab[itemMenuTabRef.current] ?? itemByTab['消耗品']);
@@ -5286,7 +5449,7 @@ export default function App() {
       window.removeEventListener('keydown', handleKeyDown); window.removeEventListener('keyup', handleKeyUp);
       cancelAnimationFrame(animationFrameId);
     };
-  }, [setupMode, bedTiles, workbenchTiles, fishingTiles, sleepPromptVisible, craftPromptVisible, fishingPromptVisible, confirmPromptChoice, activeAutoEventSpot, activeAutoEventMessage, activeAutoEventMessageIndex, activeAutoEventMessages, displayedAutoEventMessage, turn, kurumiShopOpen, kurumiIntroOpen, kurumiIntroSelectedIndex, kurumiIntroAskedTopics, kurumiIntroCompletedDay, selectedShopControl, selectedShopItemIndex, shopItems, gold, equipmentActionOpen, equippedItems, inventoryCounts, caughtFishIds, fishingMiniGameOpen, fishingMiniGameStage, selectedFishingTutorialAction, selectedFishingResultAction, farmGirlDetailOpen, bootMode]);
+  }, [setupMode, bedTiles, workbenchTiles, fishingTiles, sleepPromptVisible, craftPromptVisible, fishingPromptVisible, confirmPromptChoice, pendingDeleteSaveSlot, activeAutoEventSpot, activeAutoEventMessage, activeAutoEventMessageIndex, activeAutoEventMessages, displayedAutoEventMessage, turn, kurumiShopOpen, kurumiIntroOpen, kurumiIntroSelectedIndex, kurumiIntroAskedTopics, kurumiIntroCompletedDay, selectedShopControl, selectedShopItemIndex, shopItems, gold, equipmentActionOpen, equippedItems, inventoryCounts, caughtFishIds, fishingMiniGameOpen, fishingMiniGameStage, isFishingResultInputLocked, selectedFishingTutorialAction, selectedFishingResultAction, farmGirlDetailOpen, bootMode]);
 
   // Zone creation states
   const [dragStart, setDragStart] = useState<{ x: number, y: number } | null>(null);
@@ -6347,6 +6510,41 @@ export default function App() {
 	              </div>
 	            </div>
 	          )}
+
+          {pendingDeleteSaveSlot !== null && (
+            <div className="absolute inset-0 z-[360] flex items-center justify-center bg-black/60 px-8">
+              <div className="w-[440px] rounded-xl border-4 border-[#ff9b85] bg-[#1a100d]/96 p-6 text-center text-[#fdf6e3] shadow-[0_20px_60px_rgba(0,0,0,0.72)]">
+                <div className="text-2xl font-black">本当に削除しますか？</div>
+                <div className="mt-3 text-base font-bold leading-relaxed text-[#ffd166]">
+                  セーブスロット {pendingDeleteSaveSlot} のデータを削除します。
+                </div>
+                <div className="mt-6 flex justify-center gap-4">
+                  <button
+                    type="button"
+                    onClick={() => { playFixSound(); confirmDeleteSaveSlot(); }}
+                    onMouseEnter={() => {
+                      if (confirmPromptChoice !== 'yes') playCursorSound();
+                      setConfirmPromptChoice('yes');
+                    }}
+                    className={`h-[52px] w-[128px] rounded-lg border-2 bg-[#4a5823] text-lg font-black text-[#fff7dc] transition-colors hover:bg-[#60732d] ${confirmPromptChoice === 'yes' ? 'border-white ring-4 ring-[#ffd166]/70' : 'border-[#a3b18a]'}`}
+                  >
+                    はい
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { playFixSound(); cancelDeleteSaveSlot(); }}
+                    onMouseEnter={() => {
+                      if (confirmPromptChoice !== 'no') playCursorSound();
+                      setConfirmPromptChoice('no');
+                    }}
+                    className={`h-[52px] w-[128px] rounded-lg border-2 bg-[#5a2a1f] text-lg font-black text-[#fff7dc] transition-colors hover:bg-[#753527] ${confirmPromptChoice === 'no' ? 'border-white ring-4 ring-[#ffd166]/70' : 'border-[#bc6c25]'}`}
+                  >
+                    いいえ
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
 	          
 	        {/* Header UI */}
         <div className="h-[60px] bg-[#2d1b15] border-b-[4px] border-[#bc6c25] flex items-center justify-between px-6 z-40 text-[#fdf6e3]">
@@ -7253,9 +7451,10 @@ export default function App() {
               ? fishingResultImageSrc
               : fishingMiniGameStage === 'power'
                  ? FISHING_SCENE_CAST_SRC
-                 : (fishingMiniGameStage === 'hit' || fishingMiniGameStage === 'keep')
-                 ? FISHING_SCENE_HIT_SRC
+              : (fishingMiniGameStage === 'hit' || fishingMiniGameStage === 'keep')
+                 ? (fishingTargetSizeValue !== null && isNushiSize(fishingTargetFish, fishingTargetSizeValue) ? FISHING_SCENE_NUSHI_SRC : FISHING_SCENE_HIT_SRC)
                  : FISHING_SCENE_UKI_SRC;
+           const useFishingDissolveScene = (fishingMiniGameStage === 'hit' || fishingMiniGameStage === 'keep') && fishingSceneImage === FISHING_SCENE_HIT_SRC;
            const stageTitle = fishingMiniGameStage === 'power'
               ? '投げる位置を決めよう'
               : fishingMiniGameStage === 'bite'
@@ -7287,15 +7486,36 @@ export default function App() {
                     {stageTitle}
                  </div>
                  <div className="relative mb-4 aspect-[16/9] overflow-hidden rounded-xl border-2 border-[#fdf6e3]/70 bg-black shadow-[inset_0_0_24px_rgba(0,0,0,0.72),0_10px_28px_rgba(0,0,0,0.55)]">
-                    <img
-                       key={fishingSceneImage}
-                       src={fishingSceneImage}
-                       alt="釣り"
-                       className="h-full w-full object-cover opacity-100 transition-opacity duration-700"
-                       onError={(event) => {
-                          event.currentTarget.src = FISHING_SCENE_ESCAPE_SRC;
-                       }}
-                    />
+                    {useFishingDissolveScene ? (
+                       <>
+                          <img
+                             src={FISHING_SCENE_BATTLE_A_SRC}
+                             alt="釣り"
+                             className="farm-fishing-dissolve-a absolute inset-0 h-full w-full object-cover"
+                             onError={(event) => {
+                                event.currentTarget.src = FISHING_SCENE_ESCAPE_SRC;
+                             }}
+                          />
+                          <img
+                             src={FISHING_SCENE_BATTLE_B_SRC}
+                             alt="釣り"
+                             className="farm-fishing-dissolve-b absolute inset-0 h-full w-full object-cover"
+                             onError={(event) => {
+                                event.currentTarget.src = FISHING_SCENE_ESCAPE_SRC;
+                             }}
+                          />
+                       </>
+                    ) : (
+                       <img
+                          key={fishingSceneImage}
+                          src={fishingSceneImage}
+                          alt="釣り"
+                          className="h-full w-full object-cover opacity-100 transition-opacity duration-700"
+                          onError={(event) => {
+                             event.currentTarget.src = FISHING_SCENE_ESCAPE_SRC;
+                          }}
+                       />
+                    )}
                     <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_48%,rgba(0,0,0,0.28)_100%)]" />
                     {fishingMiniGameStage === 'bite' && (
                        <div className="absolute inset-0 z-20">
@@ -7477,32 +7697,44 @@ export default function App() {
                              <div className="flex justify-center gap-6 px-8">
                                 <button
                                    type="button"
-                                   onMouseEnter={() => setSelectedFishingResultAction('retry')}
+                                   disabled={isFishingResultInputLocked}
+                                   onMouseEnter={() => {
+                                      if (!isFishingResultInputLocked) setSelectedFishingResultAction('retry');
+                                   }}
                                    onPointerDown={(event) => event.stopPropagation()}
-                                   onClick={(event) => { event.stopPropagation(); retryFishingTutorial(); }}
-                                   className={`relative flex h-12 w-60 items-center justify-center rounded-lg border-2 px-8 text-sm font-black leading-none transition-all whitespace-nowrap ${
-                                      selectedFishingResultAction === 'retry'
+                                   onClick={(event) => {
+                                      event.stopPropagation();
+                                      if (!isFishingResultInputLocked) retryFishingTutorial();
+                                   }}
+                                   className={`relative flex h-12 w-60 items-center justify-center rounded-lg border-2 px-8 text-sm font-black leading-none transition-all whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-55 ${
+                                      selectedFishingResultAction === 'retry' && !isFishingResultInputLocked
                                          ? 'border-[#fdf6e3] bg-[#0e7490] text-white shadow-[0_0_18px_rgba(103,232,249,0.85)] ring-2 ring-[#67e8f9]'
                                          : 'border-[#67e8f9] bg-[#164e63] text-[#fdf6e3] hover:bg-[#0e7490]'
                                    }`}
                                 >
-                                   {selectedFishingResultAction === 'retry' && (
+                                   {selectedFishingResultAction === 'retry' && !isFishingResultInputLocked && (
                                       <span className="absolute left-5 text-[#ffd166]">▶</span>
                                    )}
                                    もう一度挑戦！
                                 </button>
                                 <button
                                    type="button"
-                                   onMouseEnter={() => setSelectedFishingResultAction('complete')}
+                                   disabled={isFishingResultInputLocked}
+                                   onMouseEnter={() => {
+                                      if (!isFishingResultInputLocked) setSelectedFishingResultAction('complete');
+                                   }}
                                    onPointerDown={(event) => event.stopPropagation()}
-                                   onClick={(event) => { event.stopPropagation(); completeFishingTutorial(); }}
-                                   className={`relative flex h-12 w-60 items-center justify-center rounded-lg border-2 px-8 text-sm font-black leading-none transition-all whitespace-nowrap ${
-                                      selectedFishingResultAction === 'complete'
+                                   onClick={(event) => {
+                                      event.stopPropagation();
+                                      if (!isFishingResultInputLocked) completeFishingTutorial();
+                                   }}
+                                   className={`relative flex h-12 w-60 items-center justify-center rounded-lg border-2 px-8 text-sm font-black leading-none transition-all whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-55 ${
+                                      selectedFishingResultAction === 'complete' && !isFishingResultInputLocked
                                          ? 'border-[#fdf6e3] bg-[#b45309] text-white shadow-[0_0_18px_rgba(255,209,102,0.85)] ring-2 ring-[#ffd166]'
                                          : 'border-[#ffd166] bg-[#7a4317] text-[#fdf6e3] hover:bg-[#8d4f1b]'
                                    }`}
                                 >
-                                   {selectedFishingResultAction === 'complete' && (
+                                   {selectedFishingResultAction === 'complete' && !isFishingResultInputLocked && (
                                       <span className="absolute left-5 text-[#67e8f9]">▶</span>
                                    )}
                                    チュートリアルを終わる
@@ -7645,12 +7877,12 @@ export default function App() {
         {kurumiIntroOpen && (
            <div className={`absolute inset-0 z-[89] flex items-center justify-center bg-black/55 transition-opacity duration-[650ms] ${kurumiIntroClosing ? 'pointer-events-none opacity-0' : 'pointer-events-auto opacity-100'}`}>
               <div className="grid h-[720px] w-[1120px] grid-cols-[1fr_430px] overflow-hidden rounded-2xl border-[4px] border-[#dda15e] bg-[#1a100d]/96 text-[#fdf6e3] shadow-2xl">
-                 <div className="flex min-h-0 min-w-0 flex-col gap-4 p-8">
+                 <div className="flex min-h-0 min-w-0 flex-col gap-3 p-8">
                     <div>
                        <div className="text-sm font-bold tracking-[0.28em] text-[#67e8f9]">KURUMI</div>
                        <div className="mt-2 text-3xl font-black">くるみ</div>
                     </div>
-                    <div className="h-[218px] overflow-hidden whitespace-pre-line rounded-xl border-2 border-[#bc6c25]/70 bg-[#2d1b15]/80 p-5 text-[20px] font-bold leading-[1.42]">
+                    <div className="h-[244px] overflow-y-auto whitespace-pre-line rounded-xl border-2 border-[#bc6c25]/70 bg-[#2d1b15]/80 p-5 pr-6 text-[17px] font-bold leading-[1.45]">
                        {kurumiIntroMessage}
                     </div>
                     <div className="grid gap-2">
@@ -7667,7 +7899,7 @@ export default function App() {
                                   setKurumiIntroSelectedIndex(index);
                                 }}
                                 onClick={() => handleKurumiIntroChoice(index)}
-                                className={`flex h-[52px] items-center justify-between rounded-lg border-2 px-5 text-left text-[20px] font-bold transition-colors ${
+                                className={`flex h-[48px] items-center justify-between rounded-lg border-2 px-5 text-left text-[18px] font-bold transition-colors ${
                                   isSelected ? 'border-white bg-[#bc6c25]/70' : 'border-[#5a3010] bg-[#2d1b15]/75 hover:bg-[#3a2418]'
                                 } ${canClose ? 'text-[#fdf6e3]' : 'text-[#8a7060]'}`}
                              >

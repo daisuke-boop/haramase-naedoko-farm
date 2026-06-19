@@ -1,9 +1,9 @@
 {
   "turn": 4,
-  "gold": 5000,
+  "gold": 5567,
   "debt": 5000000,
   "difficulty": "easy",
-  "currentMap": "doukutsu",
+  "currentMap": "farm",
   "zones": [
     {
       "id": "1781485855659",
@@ -44338,6 +44338,18 @@
       "autoTrigger": true,
       "imageSrc": "/img/cave.jpg",
       "seSrc": "/se/cave.mp3"
+    },
+    {
+      "id": "auto_event_1781838468002",
+      "map": "farm",
+      "x": 260,
+      "y": 550,
+      "w": 50,
+      "h": 40,
+      "label": "ポスト",
+      "text": "ポストを調べた！",
+      "autoTrigger": true,
+      "imageSrc": "post.jpg"
     }
   ],
   "plantedCrops": {},
@@ -44394,7 +44406,7 @@
     "携帯おにぎり": 5,
     "気付け水": 0,
     "小さな釣り餌": 0,
-    "ウグイ": 0,
+    "ウグイ": 1,
     "木材": 2,
     "石材": 2,
     "薬草の葉": 3,
@@ -44418,24 +44430,59 @@
     "丈夫なつるはし": 1,
     "高級つるはし": 1,
     "農神の指輪": 1,
-    "枝": 0
+    "枝": 8,
+    "オイカワ": 2,
+    "フナ": 0,
+    "どじょう": 2,
+    "使用済みコンドーム": 2
   },
   "equippedItems": {
     "主人公-slot1": "竹の釣竿",
-    "主人公-slot2": "のこぎり",
+    "主人公-slot2": "",
     "主人公-slot3": "つるはし",
     "主人公-slot4": "農神の指輪",
     "ちびいち-slot1": "小さな鈴",
     "ちびいち-slot2": ""
   },
   "caughtFishIds": [
-    "eda"
+    "eda",
+    "oikawa",
+    "funa",
+    "dojo",
+    "gomu",
+    "ugui"
   ],
   "fishBestSizes": {
-    "eda": 13.3
+    "eda": 13.1,
+    "oikawa": 13.4,
+    "funa": 17.6,
+    "dojo": 12,
+    "gomu": 16.5,
+    "ugui": 21.7
   },
   "fishInventorySizes": {
-    "枝": []
+    "枝": [
+      8.2,
+      10.4,
+      13.1,
+      6.2
+    ],
+    "オイカワ": [
+      10.5,
+      10.7
+    ],
+    "フナ": [],
+    "どじょう": [
+      10.5,
+      12
+    ],
+    "使用済みコンドーム": [
+      12.2,
+      16.5
+    ],
+    "ウグイ": [
+      21.7
+    ]
   },
   "fishingTutorialCompleted": true,
   "kurumiIntroAskedTopics": [

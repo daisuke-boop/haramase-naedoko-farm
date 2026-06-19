@@ -351,6 +351,44 @@ canvas {
   animation: farmTutorialKeepMarker 2.5s ease-in-out infinite;
 }
 
+.farm-fishing-dissolve-a {
+  animation: farmFishingDissolveA 4.8s ease-in-out infinite;
+}
+
+.farm-fishing-dissolve-b {
+  animation: farmFishingDissolveB 4.8s ease-in-out infinite;
+}
+
+@keyframes farmFishingDissolveA {
+  0%, 38% {
+    opacity: 1;
+    filter: brightness(1) saturate(1);
+  }
+  50%, 88% {
+    opacity: 0;
+    filter: brightness(1.08) saturate(1.12);
+  }
+  100% {
+    opacity: 1;
+    filter: brightness(1) saturate(1);
+  }
+}
+
+@keyframes farmFishingDissolveB {
+  0%, 38% {
+    opacity: 0;
+    filter: brightness(1.08) saturate(1.12);
+  }
+  50%, 88% {
+    opacity: 1;
+    filter: brightness(1) saturate(1);
+  }
+  100% {
+    opacity: 0;
+    filter: brightness(1.08) saturate(1.12);
+  }
+}
+
 @keyframes farmTutorialFanNeedle {
   0% {
     transform: rotate(-28deg);
