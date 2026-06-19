@@ -1,5 +1,5 @@
 {
-  "turn": 4,
+  "turn": 0,
   "gold": 5000,
   "debt": 5000000,
   "difficulty": "easy",
@@ -230,70 +230,70 @@
       "id": "door_to_house",
       "map": "farm",
       "targetMap": "house",
-      "x": 530,
-      "y": 520,
+      "x": 420,
+      "y": 320,
       "w": 60,
-      "h": 50,
-      "spawnX": 850,
-      "spawnY": 750
+      "h": 60,
+      "spawnX": 960,
+      "spawnY": 770
+    },
+    {
+      "id": "door_to_shed",
+      "map": "farm",
+      "targetMap": "shed",
+      "x": 1560,
+      "y": 640,
+      "w": 60,
+      "h": 60,
+      "spawnX": 960,
+      "spawnY": 650
     },
     {
       "id": "door_house_exit",
       "map": "house",
       "targetMap": "farm",
-      "x": 800,
-      "y": 750,
-      "w": 110,
+      "x": 930,
+      "y": 1000,
+      "w": 100,
       "h": 60,
-      "spawnX": 560,
-      "spawnY": 630
+      "spawnX": 450,
+      "spawnY": 380
     },
     {
       "id": "door_shed_exit",
       "map": "shed",
       "targetMap": "farm",
-      "x": 910,
-      "y": 650,
-      "w": 70,
-      "h": 30,
-      "spawnX": 840,
-      "spawnY": 600
+      "x": 930,
+      "y": 1000,
+      "w": 100,
+      "h": 60,
+      "spawnX": 1560,
+      "spawnY": 700
     },
     {
       "id": "door_to_doukutsu",
       "map": "farm",
-      "targetMap": "shed",
-      "x": 810,
-      "y": 500,
-      "w": 50,
-      "h": 50,
-      "spawnX": 950,
-      "spawnY": 640
-    },
-    {
-      "id": "door_1781485591085",
-      "map": "farm",
-      "targetMap": "kawa",
-      "x": 920,
-      "y": 1040,
+      "targetMap": "doukutsu",
+      "x": 1000,
+      "y": 100,
       "w": 60,
       "h": 60,
-      "spawnX": 940,
-      "spawnY": 90
+      "spawnX": 960,
+      "spawnY": 900
     },
     {
-      "id": "door_1781485617403",
-      "map": "kawa",
+      "id": "door_doukutsu_exit",
+      "map": "doukutsu",
       "targetMap": "farm",
-      "x": 870,
-      "y": 0,
-      "w": 140,
-      "h": 40,
-      "spawnX": 950,
-      "spawnY": 1040
+      "x": 930,
+      "y": 1000,
+      "w": 100,
+      "h": 60,
+      "spawnX": 1000,
+      "spawnY": 200
     },
     {
-      "id": "door_1781485670144",
+      "id": "door_to_waterfall",
       "map": "farm",
       "targetMap": "waterfall",
       "x": 940,
@@ -304,7 +304,7 @@
       "spawnY": 1020
     },
     {
-      "id": "door_1781485699502",
+      "id": "door_waterfall_exit",
       "map": "waterfall",
       "targetMap": "farm",
       "x": 890,
@@ -313,77 +313,15 @@
       "h": 60,
       "spawnX": 970,
       "spawnY": 420
-    },
-    {
-      "id": "door_1781489949346",
-      "map": "waterfall",
-      "targetMap": "doukutsu",
-      "x": 1360,
-      "y": 440,
-      "w": 70,
-      "h": 90,
-      "spawnX": 1330,
-      "spawnY": 980
-    },
-    {
-      "id": "door_1781489977042",
-      "map": "doukutsu",
-      "targetMap": "waterfall",
-      "x": 1150,
-      "y": 990,
-      "w": 540,
-      "h": 80,
-      "spawnX": 1390,
-      "spawnY": 570
-    },
-    {
-      "id": "door_1781490078997",
-      "map": "doukutsu",
-      "targetMap": "takiura",
-      "x": 310,
-      "y": 60,
-      "w": 100,
-      "h": 100,
-      "spawnX": 470,
-      "spawnY": 960
-    },
-    {
-      "id": "door_1781490104483",
-      "map": "takiura",
-      "targetMap": "doukutsu",
-      "x": 350,
-      "y": 960,
-      "w": 160,
-      "h": 100,
-      "spawnX": 370,
-      "spawnY": 210
     }
   ],
   "bgmVolume": 0.2,
   "seVolume": 0.2,
-  "voiceVolume": 0.15,
+  "voiceVolume": 0.8,
   "audioGains": {
-    "/bgm/ie.mp3": 0.2,
+    "/bgm/ie.mp3": 1.8,
     "/se/Fireplace.mp3": 1,
-    "/voice/kurumi.wav": 1,
-    "/se/kurumi.wav": 0.5,
-    "/bgm/farmbgm.wav": 0.09,
-    "/se/soil.mp3": 0.33,
-    "/se/grass.mp3": 0.3,
-    "/se/don.mp3": 0.2,
-    "/se/door.mp3": 0.3,
-    "/bgm/yado.mp3": 0.2,
-    "/se/rock.mp3": 0.97,
-    "/se/foot.mp3": 1.51,
-    "/se/jutan.mp3": 1.8,
-    "/se/suzume.mp3": 0.5,
-    "/se/zoon2.wav": 0.1,
-    "/semi.mp3": 0.4,
-    "/taki.mp3": 0.48,
-    "/se/taki.mp3": 0.48,
-    "/se/semi.mp3": 0.4,
-    "/se/Water-splash.mp3": 0.2,
-    "/se/bird.wav": 0.23
+    "/voice/kurumi.wav": 1
   },
   "mapBgmSources": {
     "farm": "/bgm/farmbgm.wav",
@@ -44403,13 +44341,13 @@
   },
   "inventoryCounts": {
     "薬草": 0,
-    "携帯おにぎり": 5,
+    "携帯おにぎり": 0,
     "気付け水": 0,
     "小さな釣り餌": 0,
     "ウグイ": 0,
-    "木材": 0,
-    "川魚の鱗": 0,
-    "竹の釣竿": 1,
+    "木材": 20,
+    "川魚の鱗": 3,
+    "竹の釣竿": 0,
     "丈夫な釣竿": 1,
     "高級釣竿": 1,
     "伝説の釣り竿": 1,
@@ -44419,59 +44357,20 @@
     "つるはし": 1,
     "丈夫なつるはし": 1,
     "高級つるはし": 1,
-    "農神の指輪": 1,
-    "釣神の指輪": 1,
-    "石材": 2,
-    "薬草の葉": 3,
-    "小さな宝石": 1,
-    "古びた硬貨": 2,
-    "乾いたハーブ": 3,
-    "余った作物": 4,
-    "古い鍵": 1,
-    "農場契約書": 1,
-    "母屋の地図": 1,
-    "娘管理台帳": 1,
-    "枝": 4,
-    "オイカワ": 0,
-    "フナ": 1,
-    "どじょう": 0,
-    "使用済みコンドーム": 0
+    "農神の指輪": 1
   },
   "equippedItems": {
-    "主人公-slot1": "竹の釣竿",
-    "主人公-slot2": "",
+    "主人公-slot1": "",
+    "主人公-slot2": "のこぎり",
     "主人公-slot3": "つるはし",
-    "主人公-slot4": "釣神の指輪",
+    "主人公-slot4": "農神の指輪",
     "ちびいち-slot1": "小さな鈴",
     "ちびいち-slot2": ""
   },
-  "caughtFishIds": [
-    "eda",
-    "oikawa",
-    "funa",
-    "dojo",
-    "gomu",
-    "ugui"
-  ],
-  "fishBestSizes": {
-    "eda": 13.1,
-    "oikawa": 13.4,
-    "funa": 21.4,
-    "dojo": 12,
-    "gomu": 16.5,
-    "ugui": 21.7
-  },
-  "fishInventorySizes": {
-    "枝": [],
-    "オイカワ": [],
-    "フナ": [
-      21.4
-    ],
-    "どじょう": [],
-    "使用済みコンドーム": [],
-    "ウグイ": []
-  },
-  "fishingTutorialCompleted": true,
+  "caughtFishIds": [],
+  "fishBestSizes": {},
+  "fishInventorySizes": {},
+  "fishingTutorialCompleted": false,
   "kurumiIntroAskedTopics": [
     "village",
     "debt",
@@ -44480,9 +44379,9 @@
   ],
   "kurumiIntroCompletedDay": 1,
   "bathTubMaskZone": {
-    "x": 1260,
-    "y": 380,
-    "w": 50,
-    "h": 20
+    "x": 1218,
+    "y": 372,
+    "w": 118,
+    "h": 58
   }
 }

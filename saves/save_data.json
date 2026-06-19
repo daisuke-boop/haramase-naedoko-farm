@@ -1,5 +1,5 @@
 {
-  "turn": 4,
+  "turn": 8,
   "gold": 5000,
   "debt": 5000000,
   "difficulty": "easy",
@@ -359,31 +359,14 @@
       "spawnY": 210
     }
   ],
-  "bgmVolume": 0.2,
+  "bgmVolume": 0.1,
   "seVolume": 0.2,
-  "voiceVolume": 0.15,
+  "voiceVolume": 0.8,
   "audioGains": {
-    "/bgm/ie.mp3": 0.2,
+    "/bgm/ie.mp3": 1.8,
+    "/bgm/fishking.mp3": 2.5,
     "/se/Fireplace.mp3": 1,
-    "/voice/kurumi.wav": 1,
-    "/se/kurumi.wav": 0.5,
-    "/bgm/farmbgm.wav": 0.09,
-    "/se/soil.mp3": 0.33,
-    "/se/grass.mp3": 0.3,
-    "/se/don.mp3": 0.2,
-    "/se/door.mp3": 0.3,
-    "/bgm/yado.mp3": 0.2,
-    "/se/rock.mp3": 0.97,
-    "/se/foot.mp3": 1.51,
-    "/se/jutan.mp3": 1.8,
-    "/se/suzume.mp3": 0.5,
-    "/se/zoon2.wav": 0.1,
-    "/semi.mp3": 0.4,
-    "/taki.mp3": 0.48,
-    "/se/taki.mp3": 0.48,
-    "/se/semi.mp3": 0.4,
-    "/se/Water-splash.mp3": 0.2,
-    "/se/bird.wav": 0.23
+    "/voice/kurumi.wav": 1
   },
   "mapBgmSources": {
     "farm": "/bgm/farmbgm.wav",
@@ -3421,7 +3404,6 @@
     "farm_58,31": true,
     "farm_57,32": true,
     "farm_58,32": true,
-    "farm_57,33": true,
     "farm_58,33": true,
     "farm_59,31": true,
     "farm_59,32": true,
@@ -3430,14 +3412,8 @@
     "farm_59,34": true,
     "farm_58,35": true,
     "farm_59,35": true,
-    "farm_57,36": true,
     "farm_58,36": true,
     "farm_59,36": true,
-    "farm_56,35": true,
-    "farm_55,34": true,
-    "farm_55,35": true,
-    "farm_54,34": true,
-    "farm_54,35": true,
     "farm_52,34": true,
     "farm_52,35": true,
     "farm_52,33": true,
@@ -27388,7 +27364,12 @@
     "doukutsu_110,51": true,
     "doukutsu_107,53": true,
     "doukutsu_107,54": true,
-    "doukutsu_107,55": true
+    "doukutsu_107,55": true,
+    "farm_53,33": true,
+    "farm_53,34": true,
+    "farm_53,35": true,
+    "farm_55,32": true,
+    "farm_56,32": true
   },
   "hideAreaTiles": {
     "farm_1,27": true,
@@ -44276,7 +44257,8 @@
     "farm_91,28": true,
     "farm_98,43": true,
     "farm_99,43": true,
-    "farm_99,44": true
+    "farm_99,44": true,
+    "farm_98,44": true
   },
   "inspectSpots": [
     {
@@ -44403,12 +44385,12 @@
   },
   "inventoryCounts": {
     "薬草": 0,
-    "携帯おにぎり": 5,
+    "携帯おにぎり": 0,
     "気付け水": 0,
     "小さな釣り餌": 0,
-    "ウグイ": 0,
-    "木材": 0,
-    "川魚の鱗": 0,
+    "ウグイ": 7,
+    "木材": 20,
+    "川魚の鱗": 3,
     "竹の釣竿": 1,
     "丈夫な釣竿": 1,
     "高級釣竿": 1,
@@ -44421,25 +44403,16 @@
     "高級つるはし": 1,
     "農神の指輪": 1,
     "釣神の指輪": 1,
-    "石材": 2,
-    "薬草の葉": 3,
-    "小さな宝石": 1,
-    "古びた硬貨": 2,
-    "乾いたハーブ": 3,
-    "余った作物": 4,
-    "古い鍵": 1,
-    "農場契約書": 1,
-    "母屋の地図": 1,
-    "娘管理台帳": 1,
-    "枝": 4,
-    "オイカワ": 0,
-    "フナ": 1,
-    "どじょう": 0,
-    "使用済みコンドーム": 0
+    "釣神の指輪（デバッグ用）": 1,
+    "枝": 3,
+    "使用済みコンドーム": 2,
+    "どじょう": 4,
+    "フナ": 2,
+    "オイカワ": 3
   },
   "equippedItems": {
     "主人公-slot1": "竹の釣竿",
-    "主人公-slot2": "",
+    "主人公-slot2": "のこぎり",
     "主人公-slot3": "つるはし",
     "主人公-slot4": "釣神の指輪",
     "ちびいち-slot1": "小さな鈴",
@@ -44447,42 +44420,67 @@
   },
   "caughtFishIds": [
     "eda",
-    "oikawa",
-    "funa",
-    "dojo",
     "gomu",
-    "ugui"
+    "ugui",
+    "dojo",
+    "funa",
+    "oikawa"
   ],
   "fishBestSizes": {
-    "eda": 13.1,
-    "oikawa": 13.4,
-    "funa": 21.4,
-    "dojo": 12,
-    "gomu": 16.5,
-    "ugui": 21.7
+    "eda": 13,
+    "gomu": 12.2,
+    "ugui": 34.1,
+    "dojo": 13.1,
+    "funa": 30,
+    "oikawa": 15
   },
   "fishInventorySizes": {
-    "枝": [],
-    "オイカワ": [],
-    "フナ": [
-      21.4
+    "枝": [
+      7.5,
+      9,
+      13
     ],
-    "どじょう": [],
-    "使用済みコンドーム": [],
-    "ウグイ": []
+    "使用済みコンドーム": [
+      12.2,
+      11.9
+    ],
+    "ウグイ": [
+      27.6,
+      23.5,
+      34.1,
+      30.9,
+      32.7,
+      25,
+      22.7
+    ],
+    "どじょう": [
+      10.9,
+      13,
+      10.7,
+      13.1
+    ],
+    "フナ": [
+      21.4,
+      30
+    ],
+    "オイカワ": [
+      14.1,
+      11.6,
+      15
+    ]
   },
   "fishingTutorialCompleted": true,
   "kurumiIntroAskedTopics": [
     "village",
     "debt",
-    "naedoko",
-    "pantsu"
+    "pantsu",
+    "naedoko"
   ],
-  "kurumiIntroCompletedDay": 1,
+  "kurumiIntroCompletedDay": 2,
   "bathTubMaskZone": {
-    "x": 1260,
-    "y": 380,
-    "w": 50,
-    "h": 20
+    "x": 1218,
+    "y": 372,
+    "w": 118,
+    "h": 58
   }
 }

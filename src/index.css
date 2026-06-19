@@ -359,6 +359,55 @@ canvas {
   animation: farmFishingDissolveB 4.8s ease-in-out infinite;
 }
 
+.farm-fishing-nushi-burst {
+  animation:
+    farmFishingNushiBurst 1.45s cubic-bezier(0.16, 1.18, 0.25, 1) both,
+    farmFishingNushiPulse 1.8s ease-in-out 1.45s infinite;
+  filter: drop-shadow(0 0 18px rgba(255, 241, 118, 0.95)) drop-shadow(0 0 36px rgba(245, 158, 11, 0.7));
+  transform-origin: center;
+}
+
+@keyframes farmFishingNushiBurst {
+  0% {
+    opacity: 0;
+    transform: scale(0.22) rotate(-18deg);
+    filter: brightness(3.2) saturate(1.8) blur(10px) drop-shadow(0 0 42px rgba(255, 255, 255, 1));
+  }
+  18% {
+    opacity: 1;
+    transform: scale(1.42) rotate(8deg);
+    filter: brightness(2.7) saturate(1.6) blur(0) drop-shadow(0 0 58px rgba(255, 241, 118, 1));
+  }
+  34% {
+    transform: scale(0.88) rotate(-5deg);
+    filter: brightness(1.7) saturate(1.35) drop-shadow(0 0 44px rgba(251, 191, 36, 0.95));
+  }
+  52% {
+    transform: scale(1.12) rotate(3deg);
+    filter: brightness(1.45) saturate(1.25) drop-shadow(0 0 38px rgba(251, 191, 36, 0.85));
+  }
+  72% {
+    transform: scale(0.97) rotate(-1deg);
+    filter: brightness(1.22) saturate(1.14) drop-shadow(0 0 32px rgba(255, 209, 102, 0.85));
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) rotate(0deg);
+    filter: brightness(1.08) saturate(1.08) drop-shadow(0 0 26px rgba(255, 209, 102, 0.85));
+  }
+}
+
+@keyframes farmFishingNushiPulse {
+  0%, 100% {
+    transform: scale(1) rotate(0deg);
+    filter: brightness(1.08) saturate(1.08) drop-shadow(0 0 24px rgba(255, 209, 102, 0.82));
+  }
+  50% {
+    transform: scale(1.035) rotate(0.7deg);
+    filter: brightness(1.24) saturate(1.18) drop-shadow(0 0 40px rgba(255, 241, 118, 0.95));
+  }
+}
+
 @keyframes farmFishingDissolveA {
   0%, 38% {
     opacity: 1;

@@ -65,6 +65,35 @@ var countObstacleMaps = (obstacles) => {
   });
   return counts;
 };
+var countRecordEntries = (value) => value && typeof value === "object" && !Array.isArray(value) ? Object.keys(value).length : 0;
+var countArrayEntries = (value) => Array.isArray(value) ? value.length : 0;
+var getMapSettingsFootprint = (data) => ({
+  doors: countArrayEntries(data.doors),
+  zones: countArrayEntries(data.zones),
+  obstacles: countRecordEntries(data.obstacles),
+  hideAreaTiles: countRecordEntries(data.hideAreaTiles),
+  bedTiles: countRecordEntries(data.bedTiles),
+  workbenchTiles: countRecordEntries(data.workbenchTiles),
+  fishingTiles: countRecordEntries(data.fishingTiles),
+  inspectSpots: countArrayEntries(data.inspectSpots),
+  fieldCorners: countRecordEntries(data.fieldCorners),
+  fieldGridSizes: countRecordEntries(data.fieldGridSizes)
+});
+var hasRichMapSettings = (data) => {
+  const footprint = getMapSettingsFootprint(data);
+  return footprint.doors >= 8 || footprint.zones >= 8 || footprint.obstacles >= 100 || footprint.hideAreaTiles >= 100 || footprint.bedTiles >= 10 || footprint.workbenchTiles >= 5 || footprint.fishingTiles >= 3 || footprint.inspectSpots >= 3;
+};
+var hasSuspiciousMapSettingsLoss = (currentData, nextData) => {
+  if (!hasRichMapSettings(currentData)) return false;
+  const current = getMapSettingsFootprint(currentData);
+  const next = getMapSettingsFootprint(nextData);
+  const lostLargeRecord = current.obstacles >= 100 && next.obstacles < current.obstacles * 0.65 || current.hideAreaTiles >= 100 && next.hideAreaTiles < current.hideAreaTiles * 0.65;
+  const looksLikeInitialMapState = next.zones <= 5 && next.doors <= 8 && next.obstacles === 0 && next.hideAreaTiles === 0 && next.workbenchTiles === 0 && next.fishingTiles === 0;
+  const lostSetupTiles = current.bedTiles >= 10 && next.bedTiles < current.bedTiles * 0.65 || current.workbenchTiles >= 5 && next.workbenchTiles < current.workbenchTiles * 0.65 || current.fishingTiles >= 3 && next.fishingTiles < current.fishingTiles * 0.65;
+  const lostZones = current.zones >= 8 && next.zones < current.zones * 0.65;
+  const lostDoors = current.doors >= 8 && next.doors < current.doors * 0.75;
+  return lostLargeRecord || looksLikeInitialMapState || lostSetupTiles || lostZones || lostDoors;
+};
 var getSaveSlot = (rawSlot) => {
   const slot = Number(rawSlot ?? 1);
   return Number.isInteger(slot) && slot >= 1 && slot <= SAVE_SLOT_COUNT ? slot : 1;
@@ -157,9 +186,10 @@ app.post("/api/save", (req, res) => {
     if (!fs.existsSync(SAVE_DIR)) {
       fs.mkdirSync(SAVE_DIR, { recursive: true });
     }
-    if (fs.existsSync(saveFile)) {
-      const currentData = JSON.parse(fs.readFileSync(saveFile, "utf8"));
-      const currentObstacleCount = Object.keys(currentData.obstacles ?? {}).length;
+    const baselineSaveFile = fs.existsSync(saveFile) ? saveFile : fs.existsSync(previousSaveFile) ? previousSaveFile : null;
+    if (baselineSaveFile) {
+      const currentData = JSON.parse(fs.readFileSync(baselineSaveFile, "utf8"));
+      const currentObstacleCount = countRecordEntries(currentData.obstacles);
       const nextObstacleCount = Object.keys(sanitizedBody.obstacles ?? {}).length;
       const currentDoorCount = Array.isArray(currentData.doors) ? currentData.doors.length : 0;
       const nextDoorCount = Array.isArray(sanitizedBody.doors) ? sanitizedBody.doors.length : 0;
@@ -167,11 +197,14 @@ app.post("/api/save", (req, res) => {
       const nextZoneCount = Array.isArray(sanitizedBody.zones) ? sanitizedBody.zones.length : 0;
       const looksLikeInitialReset = currentObstacleCount > 100 && currentDoorCount > 8 && currentZoneCount > 8 && nextObstacleCount === 0 && nextDoorCount <= 6 && nextZoneCount <= 4;
       const looksLikeMapObstacleLoss = hasSuspiciousObstacleLoss(currentData, sanitizedBody);
-      if (looksLikeInitialReset || looksLikeMapObstacleLoss) {
-        console.warn("\u885D\u7A81\u8A2D\u5B9A\u304C\u5927\u304D\u304F\u6B20\u3051\u308B\u30BB\u30FC\u30D6\u4E0A\u66F8\u304D\u3092\u62D2\u5426\u3057\u307E\u3057\u305F\u3002");
-        return res.status(409).json({ error: "\u885D\u7A81\u8A2D\u5B9A\u304C\u5927\u304D\u304F\u6B20\u3051\u308B\u30BB\u30FC\u30D6\u4E0A\u66F8\u304D\u3092\u62D2\u5426\u3057\u307E\u3057\u305F\u3002" });
+      const looksLikeMapSettingsLoss = hasSuspiciousMapSettingsLoss(currentData, sanitizedBody);
+      if (looksLikeInitialReset || looksLikeMapObstacleLoss || looksLikeMapSettingsLoss) {
+        console.warn("\u30DE\u30C3\u30D7\u8A2D\u5B9A\u304C\u5927\u304D\u304F\u6B20\u3051\u308B\u30BB\u30FC\u30D6\u4E0A\u66F8\u304D\u3092\u62D2\u5426\u3057\u307E\u3057\u305F\u3002");
+        return res.status(409).json({ error: "\u30DE\u30C3\u30D7\u8A2D\u5B9A\u304C\u5927\u304D\u304F\u6B20\u3051\u308B\u30BB\u30FC\u30D6\u4E0A\u66F8\u304D\u3092\u62D2\u5426\u3057\u307E\u3057\u305F\u3002" });
       }
-      fs.copyFileSync(saveFile, previousSaveFile);
+      if (fs.existsSync(saveFile)) {
+        fs.copyFileSync(saveFile, previousSaveFile);
+      }
     }
     fs.writeFileSync(saveFile, JSON.stringify(sanitizedBody, null, 2), "utf8");
     return res.json({ success: true });

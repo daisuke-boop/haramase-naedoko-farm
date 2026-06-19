@@ -347,7 +347,8 @@ const FISHING_SCENE_ESCAPE_SRC = '/img/fishing4.jpg';
 const FISHING_BITE_SPARKLE_WEBM_SRC = '/video/sparkle.webm';
 const FISHING_CAST_SOUND_SRC = '/se/fishing.wav';
 const FISHING_REEL_SOUND_SRC = '/se/reel.mp3';
-const FISHING_NUSHI_SOUND_SRC = '/se/nushi.mp3';
+const FISHING_NUSHI_SOUND_SRC = '/voice/kawanushi.wav';
+const FISHING_NUSHI_COUNTDOWN_DELAY_MS = 1200;
 const FISHING_BGM_SRC = '/bgm/fishking.mp3';
 
 type KurumiTradeReward = {
@@ -460,12 +461,14 @@ const FISH_ZUKAN_ENTRIES: FishZukanEntry[] = [
   { id: 'pinkningyo', level: 24, no: 24, name: 'ピンクの人魚', imageSrc: '/img/24pinkningyo.jpg', sizeMin: 162, sizeMax: 162, priceMin: 750000, priceMax: 750000, nushiPrice: 3750000, unlockDifficulty: 'hard', fixedSize: 162, note: 'ファンタジー枠' },
 ];
 const FISH_ITEM_NAMES = new Set(FISH_ZUKAN_ENTRIES.map(fish => fish.name));
+const FISHING_NUSHI_RING_NAME = '釣神の指輪';
+const FISHING_NUSHI_DEBUG_RING_NAME = '釣神の指輪（デバッグ用）';
 const ITEM_MENU_BASE_ITEMS: Record<string, string[]> = {
-  '消耗品': ['薬草', '携帯おにぎり', '気付け水', '小さな釣り餌'],
-  '素材': ['木材', '石材', '薬草の葉', '川魚の鱗'],
-  '装備品': ['竹の釣竿', '丈夫な釣竿', '高級釣竿', '伝説の釣り竿', 'のこぎり', '丈夫なのこぎり', '高級のこぎり', 'つるはし', '丈夫なつるはし', '高級つるはし', '農神の指輪'],
-  '売却品': ['小さな宝石', '古びた硬貨', '乾いたハーブ', '余った作物'],
-  'だいじなもの': ['古い鍵', '農場契約書', '母屋の地図', '娘管理台帳'],
+  '消耗品': ['薬草', '気付け水', '小さな釣り餌'],
+  '素材': ['木材', '川魚の鱗'],
+  '装備品': ['竹の釣竿', '丈夫な釣竿', '高級釣竿', '伝説の釣り竿', 'のこぎり', '丈夫なのこぎり', '高級のこぎり', 'つるはし', '丈夫なつるはし', '高級つるはし', '農神の指輪', FISHING_NUSHI_RING_NAME, FISHING_NUSHI_DEBUG_RING_NAME],
+  '売却品': [],
+  'だいじなもの': [],
 };
 const createItemMenuItems = (inventoryCounts: Record<string, number>) => {
   const ownedFishNames = FISH_ZUKAN_ENTRIES
@@ -563,6 +566,15 @@ const getFishSizeRatio = (fish: FishZukanEntry, size: number) => {
   return clampNumber((size - fish.sizeMin) / (fish.sizeMax - fish.sizeMin), 0, 1);
 };
 const isNushiSize = (fish: FishZukanEntry, size: number) => size >= fish.sizeMax;
+const getFishingBiteMultiplier = (biteCombo: number) => 1 + Math.min(1, biteCombo / FISHING_BITE_ROUNDS);
+const getFishingNushiBaseRate = () => 0.01 + Math.random() * 0.03;
+const FISHING_NUSHI_RING_RATE_MULTIPLIER = 3;
+const FISHING_NUSHI_RING_DEBUG_RATE = 0.5;
+const rollFishingNushi = (fish: FishZukanEntry, biteCombo: number, rateMultiplier = 1, debugRate: number | null = null) => {
+  const baseRate = debugRate ?? getFishingNushiBaseRate() * rateMultiplier;
+  const finalRate = clampNumber(baseRate * getFishingBiteMultiplier(biteCombo), 0, 1);
+  return Math.random() < finalRate;
+};
 const getFishSellPrice = (fish: FishZukanEntry, size: number) => {
   if (fish.sellable === false || typeof fish.priceMin !== 'number' || typeof fish.priceMax !== 'number') return null;
   if (isNushiSize(fish, size)) return fish.nushiPrice ?? fish.priceMax * 5;
@@ -709,6 +721,7 @@ export default function App() {
     'ちびいち-slot1': '小さな鈴',
     'ちびいち-slot2': '',
   });
+  const equippedItemsRef = useRef(equippedItems);
   const [selectedSkillName, setSelectedSkillName] = useState('農具の扱い');
   const selectedSkillNameRef = useRef('農具の扱い');
   const [selectedStatusGirlIndex, setSelectedStatusGirlIndex] = useState(0);
@@ -740,18 +753,8 @@ export default function App() {
     '気付け水': 0,
     '小さな釣り餌': 0,
     'ウグイ': 0,
-    '木材': 20,
-    '石材': 2,
-    '薬草の葉': 3,
-    '川魚の鱗': 3,
-    '小さな宝石': 1,
-    '古びた硬貨': 2,
-    '乾いたハーブ': 3,
-    '余った作物': 4,
-    '古い鍵': 1,
-    '農場契約書': 1,
-    '母屋の地図': 1,
-    '娘管理台帳': 1,
+    '木材': 0,
+    '川魚の鱗': 0,
     '竹の釣竿': 0,
     '丈夫な釣竿': 1,
     '高級釣竿': 1,
@@ -763,6 +766,8 @@ export default function App() {
     '丈夫なつるはし': 1,
     '高級つるはし': 1,
     '農神の指輪': 1,
+    [FISHING_NUSHI_RING_NAME]: 1,
+    [FISHING_NUSHI_DEBUG_RING_NAME]: 1,
   });
   const heroLevel = 1;
   const actionCountMax = 5 + Math.max(0, heroLevel - 1);
@@ -805,7 +810,7 @@ export default function App() {
   const shopItemsForDisplay = [
     ...shopItems.filter(item => item.type === '買う'),
     ...fishShopItems,
-    ...shopItems.filter(item => item.type === '売る'),
+    ...shopItems.filter(item => item.type === '売る' && (inventoryCounts[item.name] ?? 0) > 0),
   ];
   const renderMenuDetail = (id: MenuItemId) => {
     const tabs = ['消耗品', '素材', '装備品', '売却品', 'だいじなもの'];
@@ -934,7 +939,7 @@ export default function App() {
       const equipmentOptionsBySlot: Record<string, string[]> = {
         '釣具系': ['竹の釣竿', '丈夫な釣竿', '高級釣竿', '伝説の釣り竿'],
         '採取道具系': ['のこぎり', '丈夫なのこぎり', '高級のこぎり', 'つるはし', '丈夫なつるはし', '高級つるはし'],
-        'アクセサリー': ['農神の指輪'],
+        'アクセサリー': ['農神の指輪', FISHING_NUSHI_RING_NAME, FISHING_NUSHI_DEBUG_RING_NAME],
         'slot1': ['小さな鈴'],
         'slot2': [],
       };
@@ -1328,6 +1333,7 @@ export default function App() {
       const selectedFishSizeHistory = selectedFish ? fishInventorySizes[selectedFish.name] ?? [] : [];
       const selectedFishBestSizeFromHistory = selectedFishSizeHistory.length > 0 ? Math.max(...selectedFishSizeHistory) : undefined;
       const selectedFishBestSize = selectedFish ? fishBestSizes[selectedFish.id] ?? selectedFishBestSizeFromHistory : undefined;
+      const selectedFishIsNushiCaught = !!selectedFish && selectedFishBestSize !== undefined && isNushiSize(selectedFish, selectedFishBestSize);
       const selectedFishHasUpdate = !!selectedFish && fishSizeUpdatedIds.includes(selectedFish.id);
       const fishProgress = Math.round((caughtFishIds.length / FISH_ZUKAN_ENTRIES.length) * 100);
 
@@ -1357,6 +1363,10 @@ export default function App() {
             {isFishZukan ? FISH_ZUKAN_ENTRIES.map((fish, index) => {
               const caught = caughtFishIds.includes(fish.id);
               const hasSizeUpdate = fishSizeUpdatedIds.includes(fish.id);
+              const sizeHistory = fishInventorySizes[fish.name] ?? [];
+              const bestSizeFromHistory = sizeHistory.length > 0 ? Math.max(...sizeHistory) : undefined;
+              const bestSize = fishBestSizes[fish.id] ?? bestSizeFromHistory;
+              const isNushiCaught = caught && bestSize !== undefined && isNushiSize(fish, bestSize);
               return (
                 <button
                   key={fish.id}
@@ -1373,6 +1383,11 @@ export default function App() {
                         {caught ? '釣果済' : '未発見'}
                       </span>
                     </div>
+                    {isNushiCaught && (
+                      <div className="absolute right-2 top-8 z-20 rounded-full border border-[#fff7ad] bg-[linear-gradient(135deg,#fff7ad,#ffd166_42%,#67e8f9)] px-2.5 py-1 text-[10px] font-black text-[#2d1b15] shadow-[0_0_16px_rgba(255,209,102,0.85),0_0_26px_rgba(103,232,249,0.45)]">
+                        ✨ ヌシ
+                      </div>
+                    )}
                     <div className="relative aspect-[4/3] overflow-hidden rounded border border-[#5a3010]/80 bg-[#140c09]">
                       {caught ? (
                         <img src={fish.imageSrc} alt={fish.name} className="h-full w-full object-cover" />
@@ -1421,6 +1436,11 @@ export default function App() {
                 {selectedFishHasUpdate && (
                   <div className="rounded-full border border-[#67e8f9]/80 bg-[linear-gradient(135deg,#67e8f9,#ffd166)] px-4 py-1 text-sm font-black text-[#21110b] shadow-[0_0_18px_rgba(103,232,249,0.62),inset_0_1px_0_rgba(255,255,255,0.45)]">
                     NEW RECORD
+                  </div>
+                )}
+                {selectedFishIsNushiCaught && (
+                  <div className="rounded-full border border-[#fff7ad] bg-[linear-gradient(135deg,#fff7ad,#ffd166_42%,#67e8f9)] px-4 py-1 text-sm font-black text-[#2d1b15] shadow-[0_0_18px_rgba(255,209,102,0.82),0_0_26px_rgba(103,232,249,0.48),inset_0_1px_0_rgba(255,255,255,0.55)]">
+                    ✨ ヌシ
                   </div>
                 )}
               </div>
@@ -1560,6 +1580,7 @@ export default function App() {
   useEffect(() => { selectedZukanIndexRef.current = selectedZukanIndex; }, [selectedZukanIndex]);
   useEffect(() => { systemNoticeRef.current = systemNotice; }, [systemNotice]);
   useEffect(() => { selectedSystemActionIndexRef.current = selectedSystemActionIndex; }, [selectedSystemActionIndex]);
+  useEffect(() => { equippedItemsRef.current = equippedItems; }, [equippedItems]);
 
   const [sleepPromptVisible, setSleepPromptVisible] = useState(false);
   const [craftPromptVisible, setCraftPromptVisible] = useState(false);
@@ -1602,12 +1623,16 @@ export default function App() {
   const [fishingBiteRound, setFishingBiteRound] = useState(1);
   const [fishingBiteScore, setFishingBiteScore] = useState(0);
   const [fishingBiteCombo, setFishingBiteCombo] = useState(0);
+  const fishingBiteScoreRef = useRef(0);
+  const fishingBiteComboRef = useRef(0);
   const [fishingBiteCircle, setFishingBiteCircle] = useState<FishingBiteCircle>({
     x: 50,
     y: 50,
     outerSize: FISHING_BITE_START_SIZE,
   });
   const [fishingBiteSparkle, setFishingBiteSparkle] = useState<FishingBiteSparkle | null>(null);
+  useEffect(() => { fishingBiteScoreRef.current = fishingBiteScore; }, [fishingBiteScore]);
+  useEffect(() => { fishingBiteComboRef.current = fishingBiteCombo; }, [fishingBiteCombo]);
   const [fishingKeepSeconds, setFishingKeepSeconds] = useState(3);
   const [fishingKeepMissSeconds, setFishingKeepMissSeconds] = useState(0);
   const [fishingFishHp, setFishingFishHp] = useState(FISHING_FISH_MAX_HP);
@@ -1628,6 +1653,7 @@ export default function App() {
   const [fishingResultIsNewRecord, setFishingResultIsNewRecord] = useState(false);
   const [isFishingHitSplashActive, setIsFishingHitSplashActive] = useState(false);
   const [isFishingHitIntroActive, setIsFishingHitIntroActive] = useState(false);
+  const [isFishingNushiIntroActive, setIsFishingNushiIntroActive] = useState(false);
   const [fishingTutorialCompleted, setFishingTutorialCompleted] = useState(false);
   const [fishingTutorialOpen, setFishingTutorialOpen] = useState(false);
   const [fishingTutorialStepIndex, setFishingTutorialStepIndex] = useState(0);
@@ -1666,6 +1692,7 @@ export default function App() {
   const fishingHitSplashTimerRef = useRef<number | null>(null);
   const fishingHitIntroTimerRef = useRef<number | null>(null);
   const fishingHitCountdownTimerRef = useRef<number | null>(null);
+  const fishingNushiVoiceRef = useRef<HTMLAudioElement | null>(null);
   const fishingResultLockTimerRef = useRef<number | null>(null);
   const fishingBiteSparkleTimerRef = useRef<number | null>(null);
   const fishingRiverAudioRef = useRef<HTMLAudioElement | null>(null);
@@ -1940,7 +1967,7 @@ export default function App() {
         }
         setFishingBiteRound(prev => {
            if (prev >= FISHING_BITE_ROUNDS) {
-              beginFishingHitStage(fishingBiteScore, fishingBiteCombo);
+              beginFishingHitStage(fishingBiteScoreRef.current, fishingBiteComboRef.current);
               return prev;
            }
            setFishingBiteCircle({
@@ -2023,8 +2050,11 @@ export default function App() {
         setFishingResultSizeCm(sizeCm);
         setFishingResultImageSrc(caughtFish.imageSrc);
         setFishingResultIsNewRecord(isNewRecord);
-        setFishingResultText(`お見事！${caughtFish.name}を釣り上げた。`);
-        setDialogMessage(`お見事！${caughtFish.name}を釣り上げた。`);
+        const catchResultText = isNushiSize(caughtFish, sizeValue)
+          ? `なんとヌシが釣れた！${caughtFish.name}を釣り上げた。`
+          : `お見事！${caughtFish.name}を釣り上げた。`;
+        setFishingResultText(catchResultText);
+        setDialogMessage(catchResultText);
         if (isFishingTutorialRun) setFishingTutorialResult('success');
         playUiSound(IWANA_SPLASH_SOUND_SRC);
         playVoiceSound(FISH_RESULT_SOUND_SRC);
@@ -2286,7 +2316,8 @@ export default function App() {
             setEquippedItems(prev => ({
               ...prev,
               ...Object.fromEntries(
-                Object.entries(parsedEquippedItems).filter(([, item]) => typeof item === 'string')
+                Object.entries(parsedEquippedItems)
+                  .filter(([, item]) => typeof item === 'string')
               ) as Record<string, string>,
             }));
           }
@@ -3037,6 +3068,10 @@ export default function App() {
            fishingTutorialVoiceRef.current.pause();
            fishingTutorialVoiceRef.current = null;
         }
+        if (fishingNushiVoiceRef.current) {
+           fishingNushiVoiceRef.current.pause();
+           fishingNushiVoiceRef.current = null;
+        }
         if (fishingBiteTimerRef.current !== null) {
            window.clearInterval(fishingBiteTimerRef.current);
         }
@@ -3512,16 +3547,22 @@ export default function App() {
   };
 
   const beginFishingHitStage = (biteScore: number, biteCombo: number) => {
-    const targetSize = createFishingTargetSize(fishingTargetFish, biteScore, biteCombo);
+    const equippedAccessory = equippedItemsRef.current['主人公-slot4']?.trim() ?? '';
+    const nushiRateMultiplier = equippedAccessory === FISHING_NUSHI_RING_NAME
+      ? FISHING_NUSHI_RING_RATE_MULTIPLIER
+      : 1;
+    const nushiDebugRate = equippedAccessory === FISHING_NUSHI_DEBUG_RING_NAME
+      ? FISHING_NUSHI_RING_DEBUG_RATE
+      : null;
+    const targetSize = rollFishingNushi(fishingTargetFish, biteCombo, nushiRateMultiplier, nushiDebugRate)
+      ? fishingTargetFish.sizeMax
+      : createFishingTargetSize(fishingTargetFish, biteScore, biteCombo);
     const sizeRatio = getFishSizeRatio(fishingTargetFish, targetSize);
     const levelRatio = clampNumber(fishingTargetFish.level / 24, 0, 1);
     const hitDifficultyScale = Math.max(0.42, 1 - levelRatio * 0.22 - sizeRatio * 0.24);
     const keepDifficultyScale = Math.max(0.36, 1 - levelRatio * 0.2 - sizeRatio * 0.36);
 
     setFishingTargetSizeValue(targetSize);
-    if (isNushiSize(fishingTargetFish, targetSize)) {
-      playUiSound(FISHING_NUSHI_SOUND_SRC);
-    }
     setFishingHitGreenWidth(prev => Math.max(4, prev * hitDifficultyScale));
     setFishingKeepGreenWidth(prev => Math.max(4, prev * keepDifficultyScale));
     setFishingMiniGameStage('hit');
@@ -3565,6 +3606,7 @@ export default function App() {
     setFishingResultIsNewRecord(false);
     setFishingResultImageSrc(FISHING_SCENE_RESULT_SRC);
     setIsFishingHitSplashActive(false);
+    setIsFishingNushiIntroActive(false);
     setFishingHitCountdown(3);
     setFishingHitLimitSeconds(10);
     setIsFishingKeepPressed(false);
@@ -3603,10 +3645,15 @@ export default function App() {
       window.clearTimeout(fishingResultLockTimerRef.current);
       fishingResultLockTimerRef.current = null;
     }
+    if (fishingNushiVoiceRef.current) {
+      fishingNushiVoiceRef.current.pause();
+      fishingNushiVoiceRef.current = null;
+    }
     setFishingMiniGameOpen(false);
     setFishingMiniGameStage('direction');
     setIsFishingHitSplashActive(false);
     setIsFishingHitIntroActive(false);
+    setIsFishingNushiIntroActive(false);
     setIsFishingResultInputLocked(false);
     setFishingHitCountdown(3);
     setFishingHitLimitSeconds(10);
@@ -3719,12 +3766,12 @@ export default function App() {
       const hitGauge = fishingGaugeRef.current;
       const success = hitGauge >= fishingHitGreenMin && hitGauge <= fishingHitGreenMax;
       if (success) {
+        const isNushiHit = fishingTargetSizeValue !== null && isNushiSize(fishingTargetFish, fishingTargetSizeValue);
 	        setIsFishingHitSplashActive(true);
 	        setIsFishingHitIntroActive(true);
 	        setFishingHitCountdown(3);
 	        setDialogMessage('HIT！');
 	        playUiSound(IWANA_SPLASH_SOUND_SRC);
-	        playVoiceSound('/voice/3.wav');
         if (fishingHitSplashTimerRef.current !== null) {
           window.clearTimeout(fishingHitSplashTimerRef.current);
         }
@@ -3734,20 +3781,18 @@ export default function App() {
         if (fishingHitCountdownTimerRef.current !== null) {
           window.clearInterval(fishingHitCountdownTimerRef.current);
         }
+        if (fishingNushiVoiceRef.current) {
+          fishingNushiVoiceRef.current.pause();
+          fishingNushiVoiceRef.current = null;
+        }
         fishingHitIntroTimerRef.current = window.setTimeout(() => {
           setIsFishingHitIntroActive(false);
           fishingHitIntroTimerRef.current = null;
 	        }, 700);
-	        fishingHitCountdownTimerRef.current = window.setInterval(() => {
-	          setFishingHitCountdown(prev => {
-	            const next = Math.max(1, prev - 1);
-	            if (next !== prev) playVoiceSound(`/voice/${next}.wav`);
-	            return next;
-	          });
-	        }, 1000);
-        fishingHitSplashTimerRef.current = window.setTimeout(() => {
+        const startFishingKeepStage = () => {
           setIsFishingHitSplashActive(false);
           setIsFishingHitIntroActive(false);
+          setIsFishingNushiIntroActive(false);
           if (fishingHitIntroTimerRef.current !== null) {
             window.clearTimeout(fishingHitIntroTimerRef.current);
             fishingHitIntroTimerRef.current = null;
@@ -3764,7 +3809,38 @@ export default function App() {
           setFishingTension(0);
           setDialogMessage('HIT！長押しで緑ゾーンをキープ！');
           fishingHitSplashTimerRef.current = null;
-        }, 3000);
+        };
+        const startFishingHitCountdown = () => {
+          setIsFishingNushiIntroActive(false);
+          setIsFishingHitIntroActive(false);
+          setFishingHitCountdown(3);
+          playVoiceSound('/voice/3.wav');
+          fishingHitCountdownTimerRef.current = window.setInterval(() => {
+            setFishingHitCountdown(prev => {
+              const next = Math.max(1, prev - 1);
+              if (next !== prev) playVoiceSound(`/voice/${next}.wav`);
+              return next;
+            });
+          }, 1000);
+          fishingHitSplashTimerRef.current = window.setTimeout(startFishingKeepStage, 3000);
+        };
+        if (isNushiHit) {
+          setIsFishingNushiIntroActive(true);
+          const nushiVoice = playVoiceSound(FISHING_NUSHI_SOUND_SRC);
+          fishingNushiVoiceRef.current = nushiVoice ?? null;
+          if (nushiVoice) {
+            nushiVoice.addEventListener('ended', () => {
+              if (fishingNushiVoiceRef.current === nushiVoice) {
+                fishingNushiVoiceRef.current = null;
+              }
+              startFishingHitCountdown();
+            }, { once: true });
+          } else {
+            fishingHitCountdownTimerRef.current = window.setTimeout(startFishingHitCountdown, FISHING_NUSHI_COUNTDOWN_DELAY_MS);
+          }
+        } else {
+          fishingHitCountdownTimerRef.current = window.setTimeout(startFishingHitCountdown, 0);
+        }
         return;
       }
       setFishingResultImageSrc(FISHING_SCENE_ESCAPE_SRC);
@@ -4793,7 +4869,7 @@ export default function App() {
             const optionsBySlot: Record<string, string[]> = {
               '釣具系': ['竹の釣竿', '丈夫な釣竿', '高級釣竿', '伝説の釣り竿'],
               '採取道具系': ['のこぎり', '丈夫なのこぎり', '高級のこぎり', 'つるはし', '丈夫なつるはし', '高級つるはし'],
-              'アクセサリー': ['農神の指輪'],
+              'アクセサリー': ['農神の指輪', FISHING_NUSHI_RING_NAME, FISHING_NUSHI_DEBUG_RING_NAME],
               'slot1': ['小さな鈴'],
               'slot2': [],
             };
@@ -4980,7 +5056,7 @@ export default function App() {
             const optionsBySlot: Record<string, string[]> = {
               '釣具系': ['竹の釣竿', '丈夫な釣竿', '高級釣竿', '伝説の釣り竿'],
               '採取道具系': ['のこぎり', '丈夫なのこぎり', '高級のこぎり', 'つるはし', '丈夫なつるはし', '高級つるはし'],
-              'アクセサリー': ['農神の指輪'],
+              'アクセサリー': ['農神の指輪', FISHING_NUSHI_RING_NAME, FISHING_NUSHI_DEBUG_RING_NAME],
               'slot1': ['小さな鈴'],
               'slot2': [],
             };
@@ -7447,12 +7523,17 @@ export default function App() {
         )}
 
         {fishingMiniGameOpen && fishingMiniGameStage !== 'direction' && (() => {
+           const isFishingNushiTarget = fishingTargetSizeValue !== null && isNushiSize(fishingTargetFish, fishingTargetSizeValue);
+           const isFishingNushiScene = isFishingNushiTarget && (
+              isFishingNushiIntroActive ||
+              (fishingMiniGameStage === 'hit' && !isFishingHitSplashActive)
+           );
            const fishingSceneImage = fishingMiniGameStage === 'result'
               ? fishingResultImageSrc
               : fishingMiniGameStage === 'power'
                  ? FISHING_SCENE_CAST_SRC
               : (fishingMiniGameStage === 'hit' || fishingMiniGameStage === 'keep')
-                 ? (fishingTargetSizeValue !== null && isNushiSize(fishingTargetFish, fishingTargetSizeValue) ? FISHING_SCENE_NUSHI_SRC : FISHING_SCENE_HIT_SRC)
+                 ? FISHING_SCENE_HIT_SRC
                  : FISHING_SCENE_UKI_SRC;
            const useFishingDissolveScene = (fishingMiniGameStage === 'hit' || fishingMiniGameStage === 'keep') && fishingSceneImage === FISHING_SCENE_HIT_SRC;
            const stageTitle = fishingMiniGameStage === 'power'
@@ -7516,6 +7597,16 @@ export default function App() {
                           }}
                        />
                     )}
+                    {isFishingNushiScene && (
+                       <img
+                          src={FISHING_SCENE_NUSHI_SRC}
+                          alt="ヌシ"
+                          className="farm-fishing-nushi-burst pointer-events-none absolute inset-0 z-[18] h-full w-full object-contain"
+                          onError={(event) => {
+                             event.currentTarget.style.display = 'none';
+                          }}
+                       />
+                    )}
                     <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_48%,rgba(0,0,0,0.28)_100%)]" />
                     {fishingMiniGameStage === 'bite' && (
                        <div className="absolute inset-0 z-20">
@@ -7558,13 +7649,13 @@ export default function App() {
                              </div>
                           )}
                           <div className="absolute left-4 top-4 rounded-full border border-[#67e8f9]/70 bg-black/65 px-4 py-2 text-sm font-black text-[#fdf6e3] shadow-[0_0_12px_rgba(103,232,249,0.35)]">
-                             {fishingBiteRound}/{FISHING_BITE_ROUNDS}　成功 {fishingBiteScore}　コンボ {fishingBiteCombo}連 x{(1 + Math.min(1, fishingBiteCombo / FISHING_BITE_ROUNDS)).toFixed(1)}
+                             {fishingBiteRound}/{FISHING_BITE_ROUNDS}　成功 {fishingBiteScore}　コンボ {fishingBiteCombo}連 x{getFishingBiteMultiplier(fishingBiteCombo).toFixed(1)}
                           </div>
                        </div>
                     )}
                     {(fishingMiniGameStage === 'hit' || isFishingHitSplashActive) && (
                        <>
-                          {!isFishingHitSplashActive && (
+                          {!isFishingHitSplashActive && !isFishingNushiScene && (
                              <img
                                 key={isFishingHitIntroActive ? 'hit-intro' : 'hit-gauge'}
                                 src={FISHING_SCENE_HIT_OVERLAY_SRC}
@@ -7572,7 +7663,7 @@ export default function App() {
                                 className="absolute inset-0 z-20 h-full w-full object-cover animate-[farmHitFrameBurst_0.62s_cubic-bezier(0.16,1.18,0.28,1)_both] drop-shadow-[0_0_26px_rgba(255,209,102,0.95)]"
                              />
                           )}
-                          {isFishingHitSplashActive && (
+                          {isFishingHitSplashActive && !isFishingNushiIntroActive && (
                              <div className="absolute inset-0 bg-black/10">
                                <img
                                    key={fishingHitCountdown}

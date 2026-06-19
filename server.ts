@@ -81,6 +81,69 @@ const countObstacleMaps = (obstacles: unknown) => {
   return counts;
 };
 
+const countRecordEntries = (value: unknown) => (
+  value && typeof value === 'object' && !Array.isArray(value)
+    ? Object.keys(value as Record<string, unknown>).length
+    : 0
+);
+
+const countArrayEntries = (value: unknown) => Array.isArray(value) ? value.length : 0;
+
+const getMapSettingsFootprint = (data: Record<string, unknown>) => ({
+  doors: countArrayEntries(data.doors),
+  zones: countArrayEntries(data.zones),
+  obstacles: countRecordEntries(data.obstacles),
+  hideAreaTiles: countRecordEntries(data.hideAreaTiles),
+  bedTiles: countRecordEntries(data.bedTiles),
+  workbenchTiles: countRecordEntries(data.workbenchTiles),
+  fishingTiles: countRecordEntries(data.fishingTiles),
+  inspectSpots: countArrayEntries(data.inspectSpots),
+  fieldCorners: countRecordEntries(data.fieldCorners),
+  fieldGridSizes: countRecordEntries(data.fieldGridSizes),
+});
+
+const hasRichMapSettings = (data: Record<string, unknown>) => {
+  const footprint = getMapSettingsFootprint(data);
+  return (
+    footprint.doors >= 8 ||
+    footprint.zones >= 8 ||
+    footprint.obstacles >= 100 ||
+    footprint.hideAreaTiles >= 100 ||
+    footprint.bedTiles >= 10 ||
+    footprint.workbenchTiles >= 5 ||
+    footprint.fishingTiles >= 3 ||
+    footprint.inspectSpots >= 3
+  );
+};
+
+const hasSuspiciousMapSettingsLoss = (currentData: Record<string, unknown>, nextData: Record<string, unknown>) => {
+  if (!hasRichMapSettings(currentData)) return false;
+
+  const current = getMapSettingsFootprint(currentData);
+  const next = getMapSettingsFootprint(nextData);
+  const lostLargeRecord = (
+    (current.obstacles >= 100 && next.obstacles < current.obstacles * 0.65) ||
+    (current.hideAreaTiles >= 100 && next.hideAreaTiles < current.hideAreaTiles * 0.65)
+  );
+  const looksLikeInitialMapState = (
+    next.zones <= 5 &&
+    next.doors <= 8 &&
+    next.obstacles === 0 &&
+    next.hideAreaTiles === 0 &&
+    next.workbenchTiles === 0 &&
+    next.fishingTiles === 0
+  );
+  const lostSetupTiles = (
+    (current.bedTiles >= 10 && next.bedTiles < current.bedTiles * 0.65) ||
+    (current.workbenchTiles >= 5 && next.workbenchTiles < current.workbenchTiles * 0.65) ||
+    (current.fishingTiles >= 3 && next.fishingTiles < current.fishingTiles * 0.65)
+  );
+  const lostZones = current.zones >= 8 && next.zones < current.zones * 0.65;
+  const lostDoors = current.doors >= 8 && next.doors < current.doors * 0.75;
+
+  return lostLargeRecord || looksLikeInitialMapState || lostSetupTiles || lostZones || lostDoors;
+};
+
 const getSaveSlot = (rawSlot: unknown) => {
   const slot = Number(rawSlot ?? 1);
   return Number.isInteger(slot) && slot >= 1 && slot <= SAVE_SLOT_COUNT ? slot : 1;
@@ -199,9 +262,15 @@ app.post('/api/save', (req, res) => {
       fs.mkdirSync(SAVE_DIR, { recursive: true });
     }
 
-    if (fs.existsSync(saveFile)) {
-      const currentData = JSON.parse(fs.readFileSync(saveFile, 'utf8'));
-      const currentObstacleCount = Object.keys(currentData.obstacles ?? {}).length;
+    const baselineSaveFile = fs.existsSync(saveFile)
+      ? saveFile
+      : fs.existsSync(previousSaveFile)
+        ? previousSaveFile
+        : null;
+
+    if (baselineSaveFile) {
+      const currentData = JSON.parse(fs.readFileSync(baselineSaveFile, 'utf8'));
+      const currentObstacleCount = countRecordEntries(currentData.obstacles);
       const nextObstacleCount = Object.keys(sanitizedBody.obstacles ?? {}).length;
       const currentDoorCount = Array.isArray(currentData.doors) ? currentData.doors.length : 0;
       const nextDoorCount = Array.isArray(sanitizedBody.doors) ? sanitizedBody.doors.length : 0;
@@ -212,16 +281,19 @@ app.post('/api/save', (req, res) => {
         currentDoorCount > 8 &&
         currentZoneCount > 8 &&
         nextObstacleCount === 0 &&
-        nextDoorCount <= 6 &&
+            nextDoorCount <= 6 &&
         nextZoneCount <= 4;
       const looksLikeMapObstacleLoss = hasSuspiciousObstacleLoss(currentData, sanitizedBody);
+      const looksLikeMapSettingsLoss = hasSuspiciousMapSettingsLoss(currentData, sanitizedBody);
 
-      if (looksLikeInitialReset || looksLikeMapObstacleLoss) {
-        console.warn('衝突設定が大きく欠けるセーブ上書きを拒否しました。');
-        return res.status(409).json({ error: '衝突設定が大きく欠けるセーブ上書きを拒否しました。' });
+      if (looksLikeInitialReset || looksLikeMapObstacleLoss || looksLikeMapSettingsLoss) {
+        console.warn('マップ設定が大きく欠けるセーブ上書きを拒否しました。');
+        return res.status(409).json({ error: 'マップ設定が大きく欠けるセーブ上書きを拒否しました。' });
       }
 
-      fs.copyFileSync(saveFile, previousSaveFile);
+      if (fs.existsSync(saveFile)) {
+        fs.copyFileSync(saveFile, previousSaveFile);
+      }
     }
 
     fs.writeFileSync(saveFile, JSON.stringify(sanitizedBody, null, 2), 'utf8');

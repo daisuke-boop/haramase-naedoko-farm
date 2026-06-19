@@ -278,6 +278,7 @@ export const DEFAULT_MAP_BGM_SOURCES: Record<GameMap, string> = {
 
 export const DEFAULT_AUDIO_GAINS: Record<string, number> = {
   '/bgm/ie.mp3': 1.8,
+  '/bgm/fishking.mp3': 2.5,
   [FIREPLACE_SOUND_SRC]: 1,
   [KURUMI_SHOP_SOUND_SRC]: 1,
 };
