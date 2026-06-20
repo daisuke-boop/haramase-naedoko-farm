@@ -30,9 +30,16 @@ export type BeastBattleData = BattleStats & {
   difficulty: GameDifficulty;
 };
 
+export type BeastDropItem = {
+  dropItemId: string;
+  dropItemName: string;
+  dropCountMin: number;
+  dropCountMax: number;
+};
+
 export type BeastDropData = {
   beastId: BeastId;
-  drops: readonly string[];
+  drops: readonly BeastDropItem[];
 };
 
 export type SpSkillCategory =
@@ -94,14 +101,46 @@ export const BEAST_BATTLE_DATA: readonly BeastBattleData[] = [
 ] as const;
 
 export const BEAST_DROP_DATA: readonly BeastDropData[] = [
-  { beastId: 'mole', drops: ['モグラの爪', 'モグラの肉', '小石'] },
-  { beastId: 'rabbit', drops: ['鋭い前歯', 'ウサギの靭帯', '綺麗な小石'] },
-  { beastId: 'monkey', drops: ['猿の牙', '猿の肉', '光る木の実'] },
-  { beastId: 'boar', drops: ['猪の牙', '猪の肉', '猪の硬皮'] },
-  { beastId: 'bear', drops: ['熊の爪', '熊の剛糸', '熊の胆石'] },
-  { beastId: 'great_fang_beast', drops: ['鋭い牙', '獣の丈夫な筋', '鋭い爪'] },
-  { beastId: 'giant_bear', drops: ['巨獣の鋼角', '巨獣の強剛糸', '聖域の結晶'] },
-  { beastId: 'mountain_lord', drops: ['神獣の角', '神獣の絹糸', '伝説の雫'] },
+  { beastId: 'mole', drops: [
+    { dropItemId: 'mole_claw', dropItemName: 'モグラの爪', dropCountMin: 1, dropCountMax: 2 },
+    { dropItemId: 'mole_meat', dropItemName: 'モグラの肉', dropCountMin: 1, dropCountMax: 1 },
+    { dropItemId: 'pebble', dropItemName: '小石', dropCountMin: 1, dropCountMax: 2 },
+  ] },
+  { beastId: 'rabbit', drops: [
+    { dropItemId: 'sharp_front_tooth', dropItemName: '鋭い前歯', dropCountMin: 1, dropCountMax: 2 },
+    { dropItemId: 'rabbit_ligament', dropItemName: 'ウサギの靭帯', dropCountMin: 1, dropCountMax: 2 },
+    { dropItemId: 'pretty_pebble', dropItemName: '綺麗な小石', dropCountMin: 1, dropCountMax: 1 },
+  ] },
+  { beastId: 'monkey', drops: [
+    { dropItemId: 'monkey_fang', dropItemName: '猿の牙', dropCountMin: 1, dropCountMax: 2 },
+    { dropItemId: 'monkey_meat', dropItemName: '猿の肉', dropCountMin: 1, dropCountMax: 1 },
+    { dropItemId: 'glowing_nut', dropItemName: '光る木の実', dropCountMin: 1, dropCountMax: 1 },
+  ] },
+  { beastId: 'boar', drops: [
+    { dropItemId: 'boar_fang', dropItemName: '猪の牙', dropCountMin: 1, dropCountMax: 2 },
+    { dropItemId: 'boar_meat', dropItemName: '猪の肉', dropCountMin: 1, dropCountMax: 1 },
+    { dropItemId: 'boar_hard_hide', dropItemName: '猪の硬皮', dropCountMin: 1, dropCountMax: 1 },
+  ] },
+  { beastId: 'bear', drops: [
+    { dropItemId: 'bear_claw', dropItemName: '熊の爪', dropCountMin: 1, dropCountMax: 2 },
+    { dropItemId: 'bear_strong_thread', dropItemName: '熊の剛糸', dropCountMin: 1, dropCountMax: 2 },
+    { dropItemId: 'bear_gallstone', dropItemName: '熊の胆石', dropCountMin: 1, dropCountMax: 1 },
+  ] },
+  { beastId: 'great_fang_beast', drops: [
+    { dropItemId: 'sharp_fang', dropItemName: '鋭い牙', dropCountMin: 1, dropCountMax: 2 },
+    { dropItemId: 'beast_tough_sinew', dropItemName: '獣の丈夫な筋', dropCountMin: 1, dropCountMax: 2 },
+    { dropItemId: 'sharp_claw', dropItemName: '鋭い爪', dropCountMin: 1, dropCountMax: 1 },
+  ] },
+  { beastId: 'giant_bear', drops: [
+    { dropItemId: 'giant_beast_steel_horn', dropItemName: '巨獣の鋼角', dropCountMin: 1, dropCountMax: 2 },
+    { dropItemId: 'giant_beast_strong_thread', dropItemName: '巨獣の強剛糸', dropCountMin: 1, dropCountMax: 1 },
+    { dropItemId: 'sanctuary_crystal', dropItemName: '聖域の結晶', dropCountMin: 1, dropCountMax: 1 },
+  ] },
+  { beastId: 'mountain_lord', drops: [
+    { dropItemId: 'divine_beast_horn', dropItemName: '神獣の角', dropCountMin: 1, dropCountMax: 1 },
+    { dropItemId: 'divine_beast_silk_thread', dropItemName: '神獣の絹糸', dropCountMin: 1, dropCountMax: 1 },
+    { dropItemId: 'legendary_drop', dropItemName: '伝説の雫', dropCountMin: 1, dropCountMax: 1 },
+  ] },
 ] as const;
 
 export const BATTLE_EQUIPMENT_DATA: readonly BattleEquipmentData[] = [

@@ -76,6 +76,7 @@ import {
   type FishingRodName,
   type GameDifficulty,
 } from './data/fishingData';
+import { BATTLE_EQUIPMENT_DATA, BEAST_BATTLE_DATA, BEAST_DROP_DATA, HERO_BATTLE_STATS_BY_LEVEL, type BattleStats, type BeastId } from './data/battleData';
 import {
   LUMBER_DATA,
   SAW_RANKS,
@@ -506,6 +507,41 @@ type FarmFieldSlotState = {
   girlId: string | null;
   state: Extract<FarmGirlState, 'none' | 'growing' | 'appeared'>;
   plantedDay: number | null;
+};
+
+type BattleUnitState = BattleStats & {
+  id: string;
+  name: string;
+  maxHp: number;
+  hp: number;
+  criticalRate?: number;
+  beastDamageMultiplier?: number;
+  beastDamageReduction?: number;
+  statusResistance?: boolean;
+};
+
+type BattleLootEntry = {
+  itemId: string;
+  itemName: string;
+  count: number;
+};
+
+type BattlePreviewResult = 'ongoing' | 'victory' | 'defeat' | 'escaped';
+
+type BattlePreviewState = {
+  hero: BattleUnitState & { level: number; defending: boolean };
+  allies: (BattleUnitState | null)[];
+  beasts: (BattleUnitState | null)[];
+  logs: string[];
+  result: BattlePreviewResult;
+  loot: BattleLootEntry[];
+  lootGranted: boolean;
+};
+
+const DIFFICULTY_ORDER: Readonly<Record<GameDifficulty, number>> = {
+  easy: 0,
+  normal: 1,
+  hard: 2,
 };
 
 const FARM_GIRL_CARD_BACK_SRC = '/img/card.png';
@@ -991,6 +1027,151 @@ const INITIAL_DEBT_BY_DIFFICULTY: Readonly<Record<GameDifficulty, number>> = {
 const DEFAULT_REPAYMENT_CYCLE_DAYS = 7;
 const EXHAUSTED_ACTION_MESSAGE = '疲れてこれ以上行動できない。自宅のベッドで休もう。';
 const TRUST_GAIN_ON_HARVEST = 3;
+const FARM_TRUST_BONUS_TIERS = [
+  { minTrust: 100, harvestMultiplier: 1.5, sellMultiplier: 1.25 },
+  { minTrust: 80, harvestMultiplier: 1.4, sellMultiplier: 1.15 },
+  { minTrust: 60, harvestMultiplier: 1.3, sellMultiplier: 1.1 },
+  { minTrust: 40, harvestMultiplier: 1.2, sellMultiplier: 1.05 },
+  { minTrust: 20, harvestMultiplier: 1.1, sellMultiplier: 1.0 },
+  { minTrust: 0, harvestMultiplier: 1.0, sellMultiplier: 1.0 },
+] as const;
+const getFarmTrustBonus = (trust: number) => (
+  FARM_TRUST_BONUS_TIERS.find(tier => trust >= tier.minTrust) ?? FARM_TRUST_BONUS_TIERS[FARM_TRUST_BONUS_TIERS.length - 1]
+);
+const getFarmHarvestAmount = (baseAmount: number, trust: number) => (
+  Math.max(1, Math.round(baseAmount * getFarmTrustBonus(trust).harvestMultiplier))
+);
+const BEAST_PREMONITION_RATE_BY_DIFFICULTY: Readonly<Record<GameDifficulty, number>> = {
+  easy: 0.12,
+  normal: 0.18,
+  hard: 0.25,
+};
+const getScheduledBeastAttackDay = (difficulty: GameDifficulty, currentDay: number) => (
+  difficulty === 'easy'
+    ? currentDay + 1 + Math.floor(Math.random() * 2)
+    : currentDay + 1
+);
+const getHeroBattleEquipmentBonus = (equippedItems: Record<string, string>) => {
+  const equippedNames = Object.entries(equippedItems)
+    .filter(([slotId, name]) => slotId.startsWith('主人公-') && Boolean(name))
+    .map(([, name]) => name);
+  return BATTLE_EQUIPMENT_DATA
+    .filter(equipment => equippedNames.includes(equipment.name))
+    .reduce(
+      (bonus, equipment) => ({
+        attack: bonus.attack + (equipment.bonus.attack ?? 0),
+        defense: bonus.defense + (equipment.bonus.defense ?? 0),
+        hp: bonus.hp + (equipment.bonus.hp ?? 0),
+        criticalRate: bonus.criticalRate + (equipment.bonus.criticalRate ?? 0),
+        beastDamageMultiplier: bonus.beastDamageMultiplier * (1 + (equipment.bonus.beastDamageBonus ?? 0) / 100),
+        beastDamageReduction: bonus.beastDamageReduction + (equipment.bonus.beastDamageReduction ?? 0),
+        statusResistance: bonus.statusResistance || Boolean(equipment.bonus.statusAilmentResistance),
+        equippedNames: [...bonus.equippedNames, equipment.name],
+      }),
+      {
+        attack: 0,
+        defense: 0,
+        hp: 0,
+        criticalRate: 0,
+        beastDamageMultiplier: 1,
+        beastDamageReduction: 0,
+        statusResistance: false,
+        equippedNames: [] as string[],
+      }
+    );
+};
+const createBattleUnitFromBeast = (beast: (typeof BEAST_BATTLE_DATA)[number]): BattleUnitState => ({
+  id: beast.id,
+  name: beast.name,
+  maxHp: beast.hp,
+  hp: beast.hp,
+  attack: beast.attack,
+  defense: beast.defense,
+  speed: beast.speed,
+});
+const createRandomBeastUnits = (difficulty: GameDifficulty): (BattleUnitState | null)[] => {
+  const count = difficulty === 'easy' ? 1 : difficulty === 'normal' ? 1 + Math.floor(Math.random() * 2) : 2 + Math.floor(Math.random() * 2);
+  const candidates = BEAST_BATTLE_DATA.filter(beast => DIFFICULTY_ORDER[beast.difficulty] <= DIFFICULTY_ORDER[difficulty]);
+  const beasts = Array.from({ length: count }, () => createBattleUnitFromBeast(candidates[Math.floor(Math.random() * candidates.length)]));
+  return [...beasts, ...Array.from({ length: Math.max(0, 3 - beasts.length) }, () => null)];
+};
+const createInitialBattlePreviewState = (
+  equippedItems: Record<string, string> = {},
+  beastUnits: (BattleUnitState | null)[] | null = null,
+): BattlePreviewState => {
+  const heroStats = HERO_BATTLE_STATS_BY_LEVEL[1];
+  const equipmentBonus = getHeroBattleEquipmentBonus(equippedItems);
+  const mole = BEAST_BATTLE_DATA.find(beast => beast.id === 'mole') ?? BEAST_BATTLE_DATA[0];
+  const initialBeasts = beastUnits ?? [createBattleUnitFromBeast(mole), null, null];
+  const heroMaxHp = heroStats.hp + equipmentBonus.hp;
+  return {
+    hero: {
+      id: 'hero',
+      name: '主人公',
+      level: heroStats.level,
+      maxHp: heroMaxHp,
+      hp: heroMaxHp,
+      attack: heroStats.attack + equipmentBonus.attack,
+      defense: heroStats.defense + equipmentBonus.defense,
+      speed: heroStats.speed,
+      criticalRate: equipmentBonus.criticalRate,
+      beastDamageMultiplier: equipmentBonus.beastDamageMultiplier,
+      beastDamageReduction: equipmentBonus.beastDamageReduction,
+      statusResistance: equipmentBonus.statusResistance,
+      defending: false,
+    },
+    allies: [
+      { id: 'chibiichi', name: 'ちびいち', maxHp: 80, hp: 80, attack: 7, defense: 3, speed: 6 },
+      null,
+      null,
+    ],
+    beasts: initialBeasts,
+    logs: [
+      `野生の${initialBeasts.filter(Boolean).map(beast => beast?.name).join('、')}が現れた！`,
+      '主人公は身構えている。',
+      'ちびいちは後ろから応援している。',
+      equipmentBonus.equippedNames.length > 0
+        ? `装備補正：${equipmentBonus.equippedNames.join('、')}を反映。`
+        : '装備補正：戦闘用装備なし。',
+    ],
+    result: 'ongoing',
+    loot: [],
+    lootGranted: false,
+  };
+};
+const calculateBattleDamage = (
+  attacker: Pick<BattleUnitState, 'attack' | 'criticalRate' | 'beastDamageMultiplier'>,
+  target: Pick<BattleUnitState, 'defense' | 'beastDamageReduction'>,
+  options: { isBeastTarget?: boolean; isBeastAttacker?: boolean } = {},
+) => {
+  const baseDamage = Math.max(1, attacker.attack - target.defense);
+  const variance = 0.9 + Math.random() * 0.2;
+  const critical = Math.random() * 100 < (attacker.criticalRate ?? 0);
+  const beastMultiplier = options.isBeastTarget ? (attacker.beastDamageMultiplier ?? 1) : 1;
+  const reductionMultiplier = options.isBeastAttacker ? Math.max(0, 1 - (target.beastDamageReduction ?? 0) / 100) : 1;
+  const damage = Math.max(1, Math.round(baseDamage * variance * (critical ? 2 : 1) * beastMultiplier * reductionMultiplier));
+  return { damage, critical };
+};
+const rollBattleLoot = (beasts: readonly (BattleUnitState | null)[]): BattleLootEntry[] => {
+  const lootMap = new Map<string, BattleLootEntry>();
+  beasts.filter((beast): beast is BattleUnitState => Boolean(beast)).forEach(beast => {
+    const dropData = BEAST_DROP_DATA.find(drop => drop.beastId === beast.id as BeastId);
+    dropData?.drops.forEach(drop => {
+      const min = Math.max(0, Math.floor(drop.dropCountMin));
+      const max = Math.max(min, Math.floor(drop.dropCountMax));
+      const count = min + Math.floor(Math.random() * (max - min + 1));
+      if (count <= 0) return;
+      const current = lootMap.get(drop.dropItemName) ?? {
+        itemId: drop.dropItemId,
+        itemName: drop.dropItemName,
+        count: 0,
+      };
+      current.count += count;
+      lootMap.set(drop.dropItemName, current);
+    });
+  });
+  return Array.from(lootMap.values());
+};
 const FARM_GIRL_ACTIVE_STATES: readonly FarmGirlState[] = ['planted', 'growing', 'appeared', 'companion', 'lover'];
 const isFarmGirlState = (value: unknown): value is FarmGirlState => (
   value === 'none' ||
@@ -1169,6 +1350,8 @@ export default function App() {
 
   // RPGメニュー状態
   const [menuOpen, setMenuOpen] = useState(true);
+  const [battlePreviewOpen, setBattlePreviewOpen] = useState(false);
+  const [battlePreviewState, setBattlePreviewState] = useState<BattlePreviewState>(createInitialBattlePreviewState);
   const menuOpenRef = useRef(false);
   const [menuSelectedIndex, setMenuSelectedIndex] = useState(3);
   const menuSelectedIndexRef = useRef(3);
@@ -1295,6 +1478,11 @@ export default function App() {
   const [repaymentCycleDays, setRepaymentCycleDays] = useState(DEFAULT_REPAYMENT_CYCLE_DAYS);
   const [farmCredit, setFarmCredit] = useState(0);
   const [missedRepaymentCount, setMissedRepaymentCount] = useState(0);
+  const [hasBeastPremonition, setHasBeastPremonition] = useState(false);
+  const [premonitionDay, setPremonitionDay] = useState<number | null>(null);
+  const [scheduledBeastAttackDay, setScheduledBeastAttackDay] = useState<number | null>(null);
+  const [beastAttackPending, setBeastAttackPending] = useState(false);
+  const [companionGirlId, setCompanionGirlId] = useState<string | null>(null);
   const [currentWeeklyInterestRate, setCurrentWeeklyInterestRate] = useState(() => createWeeklyInterestRate('hard', 0, 0));
   const [interestRateCycleIndex, setInterestRateCycleIndex] = useState(0);
   const [currentAP, setCurrentAP] = useState(5);
@@ -1303,6 +1491,9 @@ export default function App() {
   const heroLevel = 1;
   const maxAPPerTimeSlot = 5 + Math.max(0, heroLevel - 1);
   const actionCountLabel = `${currentAP}/${maxAPPerTimeSlot}`;
+  const companionGirlName = companionGirlId
+    ? GIRL_DATA.find(girl => girl.id === companionGirlId)?.girlName ?? companionGirlId
+    : null;
   const [shopItems, setShopItems] = useState<ShopItem[]>([
     { name: '薬草', price: 120, stock: 8, type: '買う', desc: '体力を少し回復する定番の薬草です。' },
     { name: '携帯おにぎり', price: 260, stock: 5, type: '買う', desc: '探索前の腹ごしらえに便利です。' },
@@ -1385,7 +1576,8 @@ export default function App() {
   const farmHarvestShopItems = FARM_GIRL_CROP_DATA.flatMap<ShopItem>(crop => {
     const stock = inventoryCounts[crop.harvestItemName] ?? 0;
     if (stock <= 0) return [];
-    const price = getFarmHarvestSellPrice(crop);
+    const farmGirl = farmGirls.find(girl => girl.girlId === crop.girlId);
+    const price = getFarmHarvestSellPrice(crop, getFarmTrustBonus(farmGirl?.trust ?? 0).sellMultiplier);
     return [{
       name: crop.harvestItemName,
       price,
@@ -1538,7 +1730,7 @@ export default function App() {
           level: 1,
           role: '農具・探索',
           affinity: 1,
-          slotLabels: ['釣具系', '採取道具系', '採取道具系', 'アクセサリー'],
+          slotLabels: ['釣具・武器系', '採取道具系', '採取道具系', 'アクセサリー・防具'],
           slots: [
             equippedItems['主人公-slot1'] || '未装備',
             equippedItems['主人公-slot2'] || '未装備',
@@ -1569,9 +1761,9 @@ export default function App() {
       const selectedEquipmentSlotLabel = selectedEquipmentCharacter.slotLabels[selectedEquipmentSlotIndex] ?? `slot${selectedEquipmentSlotIndex + 1}`;
       const selectedEquippedItem = equippedItems[selectedEquipmentSlot] || '';
       const equipmentOptionsBySlot: Record<string, string[]> = {
-        '釣具系': ['竹の釣竿', '丈夫な釣竿', '高級釣竿', '伝説の釣り竿'],
+        '釣具・武器系': ['竹の釣竿', '丈夫な釣竿', '高級釣竿', '伝説の釣り竿', '木剣', '獣殺し', '天の裁き'],
         '採取道具系': ['のこぎり', '丈夫なのこぎり', '高級のこぎり', '伝説ののこぎり', 'つるはし', '丈夫なつるはし', '高級つるはし', '伝説のつるはし'],
-        'アクセサリー': ['農神の指輪', FISHING_NUSHI_RING_NAME, FISHING_NUSHI_DEBUG_RING_NAME],
+        'アクセサリー・防具': ['農神の指輪', FISHING_NUSHI_RING_NAME, FISHING_NUSHI_DEBUG_RING_NAME, '毛皮の服', '剛牙の鎧', '神域の加護'],
         'slot1': ['小さな鈴'],
         'slot2': [],
       };
@@ -1804,6 +1996,13 @@ export default function App() {
       const selectedNextTrustEvent = selectedGirlData && selectedFarmGirlState
         ? selectedGirlData.trustEvents.find(event => !selectedFarmGirlState.unlockedTrustEventIds.includes(event.eventId))
         : undefined;
+      const selectedTrustBonus = getFarmTrustBonus(selectedFarmGirlState?.trust ?? 0);
+      const selectedGirlCanBecomeCompanion = Boolean(
+        selectedGirlData &&
+        selectedFarmGirlState?.state === 'appeared' &&
+        selectedFarmGirlState.trust >= 20
+      );
+      const selectedGirlIsCompanion = Boolean(selectedGirlData && companionGirlId === selectedGirlData.id);
       const plantingSeedData = plantingSeedId
         ? GIRL_SEED_ACQUISITION_DATA.find(seed => seed.seedId === plantingSeedId)
         : undefined;
@@ -1835,6 +2034,7 @@ export default function App() {
         const farmGirl = farmGirls.find(entry => entry.girlId === seedData.girlId);
         const canPlant = (farmGirl?.state ?? 'none') === 'none' && !isFarmGirlDuplicateBlocked(farmGirls, seedData.girlId);
         const harvestInfo = getFarmGirlHarvestInfo(seedData.girlId);
+        const trustBonus = getFarmTrustBonus(farmGirl?.trust ?? 0);
         return [{
           seedId,
           girlId: seedData.girlId,
@@ -1847,8 +2047,10 @@ export default function App() {
           canHarvest: harvestInfo.canHarvest,
           daysUntilHarvest: harvestInfo.daysUntilHarvest,
           harvestItemName: crop?.harvestItemName ?? '未設定',
-          harvestAmount: crop?.baseHarvestAmount ?? 0,
-          harvestPrice: crop ? getFarmHarvestSellPrice(crop) : 0,
+          harvestAmount: crop ? getFarmHarvestAmount(crop.baseHarvestAmount, farmGirl?.trust ?? 0) : 0,
+          harvestPrice: crop ? getFarmHarvestSellPrice(crop, trustBonus.sellMultiplier) : 0,
+          harvestMultiplier: trustBonus.harvestMultiplier,
+          sellMultiplier: trustBonus.sellMultiplier,
           plantAvailability: canPlant
             ? '植え付け可'
             : '重複不可',
@@ -1896,6 +2098,11 @@ export default function App() {
               </div>
               <div className="text-[#d7b98a] text-sm font-bold">{menuGirls.length} / {menuGirls.length}</div>
             </div>
+            {hasBeastPremonition && (
+              <div className="rounded-lg border border-[#ffd166]/65 bg-[#3a2508]/80 px-3 py-2 text-sm font-black text-[#ffd166] shadow-[0_0_18px_rgba(255,209,102,0.18)]">
+                ⚠ 警戒中
+              </div>
+            )}
             <div className="grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_270px] gap-3 overflow-hidden">
               <div className="farm-girl-card-grid grid min-h-0 grid-cols-3 gap-3 overflow-hidden">
                 {menuGirls.map((girl, index) => (
@@ -2036,6 +2243,50 @@ export default function App() {
                 </div>
                 {selectedGirlData && selectedFarmGirlState && (
                   <div className="col-span-2 rounded bg-black/25 px-2 py-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <div>
+                        <div className="text-[#c8a87a] text-xs">同行</div>
+                        <div className={`mt-1 text-sm font-bold ${selectedGirlIsCompanion ? 'text-[#ffd166]' : 'text-[#fdf6e3]'}`}>
+                          {selectedGirlIsCompanion ? '⚔ 同行中' : '同行していません'}
+                        </div>
+                      </div>
+                      {selectedGirlIsCompanion ? (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            playFixSound();
+                            setCompanionGirlId(null);
+                            setDialogMessage(`${selectedGirlData.girlName}との同行を解除しました。`);
+                          }}
+                          className="rounded border border-[#a66a36] bg-[#4b2818] px-3 py-1.5 text-xs font-bold text-[#ffe2ad] transition hover:bg-[#63351d]"
+                        >
+                          同行解除
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          disabled={!selectedGirlCanBecomeCompanion}
+                          onClick={() => {
+                            if (!selectedGirlCanBecomeCompanion) return;
+                            playFixSound();
+                            setCompanionGirlId(selectedGirlData.id);
+                            setDialogMessage(`${selectedGirlData.girlName}と同行することにしました。`);
+                          }}
+                          className="rounded border border-[#50785d] bg-[#27472d] px-3 py-1.5 text-xs font-bold text-[#dbffe2] transition hover:bg-[#345f3b] disabled:cursor-not-allowed disabled:border-[#4d4d4d] disabled:bg-[#292929] disabled:text-[#8d8d8d]"
+                        >
+                          同行する
+                        </button>
+                      )}
+                    </div>
+                    {!selectedGirlIsCompanion && !selectedGirlCanBecomeCompanion && (
+                      <div className="mt-2 text-[11px] text-[#c8a87a]">
+                        同行には「出現中」かつ信頼度20以上が必要です。
+                      </div>
+                    )}
+                  </div>
+                )}
+                {selectedGirlData && selectedFarmGirlState && (
+                  <div className="col-span-2 rounded bg-black/25 px-2 py-2">
                     <div className="text-[#c8a87a] text-xs">信頼度</div>
                     <div className="mt-1 text-sm font-bold text-[#fdf6e3]">
                       信頼度 {selectedFarmGirlState.trust} / 100
@@ -2045,6 +2296,14 @@ export default function App() {
                         ? `次のイベント：${selectedNextTrustEvent.trust}まであと${Math.max(0, selectedNextTrustEvent.trust - selectedFarmGirlState.trust)}`
                         : '信頼イベントはすべて解放済み'}
                     </div>
+                    <div className="mt-2 grid grid-cols-2 gap-2 text-xs font-bold">
+                      <div className="rounded bg-black/25 px-2 py-1 text-[#a3b18a]">
+                        収穫量補正：×{selectedTrustBonus.harvestMultiplier}
+                      </div>
+                      <div className="rounded bg-black/25 px-2 py-1 text-[#ffd166]">
+                        売値補正：×{selectedTrustBonus.sellMultiplier}
+                      </div>
+                    </div>
                   </div>
                 )}
                 {selectedGirlData && selectedHarvestInfo?.crop && selectedFarmGirlState?.state === 'appeared' && (
@@ -2053,7 +2312,7 @@ export default function App() {
                     <div className="mt-1 flex items-center justify-between gap-2">
                       <div className="min-w-0 text-sm font-bold text-[#fdf6e3]">
                         {selectedHarvestInfo.canHarvest
-                          ? `${selectedHarvestInfo.crop.harvestItemName} x${selectedHarvestInfo.crop.baseHarvestAmount}`
+                          ? `${selectedHarvestInfo.crop.harvestItemName} x${getFarmHarvestAmount(selectedHarvestInfo.crop.baseHarvestAmount, selectedFarmGirlState.trust)}`
                           : `次回収穫まであと${selectedHarvestInfo.daysUntilHarvest ?? 0}日`}
                       </div>
                       <button
@@ -2799,8 +3058,8 @@ export default function App() {
   }, [debugDialogueOverrides]);
 
   useEffect(() => {
-     movementLockedRef.current = sleepPromptVisible || craftPromptVisible || fishingPromptVisible || loggingPromptVisible || fishingMiniGameOpen || craftMiniGameOpen || fishingTutorialOpen || fishingTutorialEndingOpen || sawCraftTutorialIntroOpen || sawCraftTutorialShedDialogueOpen || gatheringTutorialOpen || kurumiShopOpen || kurumiIntroOpen || isSleepSequenceActive;
-  }, [sleepPromptVisible, craftPromptVisible, fishingPromptVisible, loggingPromptVisible, fishingMiniGameOpen, craftMiniGameOpen, fishingTutorialOpen, fishingTutorialEndingOpen, sawCraftTutorialIntroOpen, sawCraftTutorialShedDialogueOpen, gatheringTutorialOpen, kurumiShopOpen, kurumiIntroOpen, isSleepSequenceActive]);
+     movementLockedRef.current = sleepPromptVisible || craftPromptVisible || fishingPromptVisible || loggingPromptVisible || fishingMiniGameOpen || craftMiniGameOpen || fishingTutorialOpen || fishingTutorialEndingOpen || sawCraftTutorialIntroOpen || sawCraftTutorialShedDialogueOpen || gatheringTutorialOpen || kurumiShopOpen || kurumiIntroOpen || isSleepSequenceActive || beastAttackPending || battlePreviewOpen;
+  }, [sleepPromptVisible, craftPromptVisible, fishingPromptVisible, loggingPromptVisible, fishingMiniGameOpen, craftMiniGameOpen, fishingTutorialOpen, fishingTutorialEndingOpen, sawCraftTutorialIntroOpen, sawCraftTutorialShedDialogueOpen, gatheringTutorialOpen, kurumiShopOpen, kurumiIntroOpen, isSleepSequenceActive, beastAttackPending, battlePreviewOpen]);
 
   useEffect(() => {
      if (sleepPromptVisible || craftPromptVisible || fishingPromptVisible || loggingPromptVisible) {
@@ -3428,6 +3687,11 @@ export default function App() {
 	          const loadedInterestCycleIndex = Math.floor((loadedCurrentDay - 1) / loadedRepaymentCycleDays);
 	          setFarmCredit(loadedFarmCredit);
 	          setMissedRepaymentCount(loadedMissedRepaymentCount);
+	          setHasBeastPremonition(typeof data.hasBeastPremonition === 'boolean' ? data.hasBeastPremonition : false);
+	          setPremonitionDay(typeof data.premonitionDay === 'number' && Number.isInteger(data.premonitionDay) && data.premonitionDay > 0 ? data.premonitionDay : null);
+	          setScheduledBeastAttackDay(typeof data.scheduledBeastAttackDay === 'number' && Number.isInteger(data.scheduledBeastAttackDay) && data.scheduledBeastAttackDay > 0 ? data.scheduledBeastAttackDay : null);
+	          setBeastAttackPending(typeof data.beastAttackPending === 'boolean' ? data.beastAttackPending : false);
+	          setCompanionGirlId(typeof data.companionGirlId === 'string' && GIRL_DATA.some(girl => girl.id === data.companionGirlId) ? data.companionGirlId : null);
 	          setCurrentWeeklyInterestRate(
 	            typeof data.currentWeeklyInterestRate === 'number' && Number.isFinite(data.currentWeeklyInterestRate)
 	              ? clampNumber(data.currentWeeklyInterestRate, MIN_INTEREST_RATE, MAX_INTEREST_RATE)
@@ -3662,6 +3926,11 @@ export default function App() {
           setRepaymentCycleDays(DEFAULT_REPAYMENT_CYCLE_DAYS);
           setFarmCredit(0);
           setMissedRepaymentCount(0);
+          setHasBeastPremonition(false);
+          setPremonitionDay(null);
+          setScheduledBeastAttackDay(null);
+          setBeastAttackPending(false);
+          setCompanionGirlId(null);
           setCurrentWeeklyInterestRate(createWeeklyInterestRate(difficultyOption.id, 0, 0));
           setInterestRateCycleIndex(0);
           setCurrentAP(maxAPPerTimeSlot);
@@ -3728,6 +3997,11 @@ export default function App() {
     repaymentCycleDays,
     farmCredit,
     missedRepaymentCount,
+    hasBeastPremonition,
+    premonitionDay,
+    scheduledBeastAttackDay,
+    beastAttackPending,
+    companionGirlId,
     currentWeeklyInterestRate,
     interestRateCycleIndex,
     farmGirls,
@@ -3911,6 +4185,11 @@ export default function App() {
     repaymentCycleDays,
     farmCredit,
     missedRepaymentCount,
+    hasBeastPremonition,
+    premonitionDay,
+    scheduledBeastAttackDay,
+    beastAttackPending,
+    companionGirlId,
     currentWeeklyInterestRate,
     interestRateCycleIndex,
     farmGirls,
@@ -4084,6 +4363,206 @@ export default function App() {
     setPlantedCrops({});
   };
 
+  const openBattlePreview = () => {
+    playFixSound();
+    setBattlePreviewState(createInitialBattlePreviewState(equippedItems));
+    setBattlePreviewOpen(true);
+  };
+
+  const getBattleResult = (hero: BattlePreviewState['hero'], allies: BattlePreviewState['allies'], beasts: BattlePreviewState['beasts']): BattlePreviewResult => {
+    const partyAlive = hero.hp > 0 || allies.some(ally => (ally?.hp ?? 0) > 0);
+    const beastsAlive = beasts.some(beast => (beast?.hp ?? 0) > 0);
+    if (!partyAlive) return 'defeat';
+    if (!beastsAlive) return 'victory';
+    return 'ongoing';
+  };
+
+  const openBattlePreviewWithBeasts = (beasts: (BattleUnitState | null)[]) => {
+    playFixSound();
+    setBattlePreviewState(createInitialBattlePreviewState(equippedItems, beasts));
+    setBattlePreviewOpen(true);
+  };
+
+  const handleBeastAttackFight = () => {
+    const beasts = createRandomBeastUnits(difficulty);
+    setBeastAttackPending(false);
+    setHasBeastPremonition(false);
+    setScheduledBeastAttackDay(null);
+    setPremonitionDay(null);
+    openBattlePreviewWithBeasts(beasts);
+  };
+
+  const proceedToNextDay = () => {
+    const completedGirlIds = farmGirls.flatMap(girl => {
+      if (girl.state !== 'growing') return [];
+      const crop = FARM_GIRL_CROP_DATA.find(entry => entry.girlId === girl.girlId);
+      if (!crop) return [];
+      return girl.growthProgress + 1 >= crop.growthDays ? [girl.girlId] : [];
+    });
+    const completedGirlNames = completedGirlIds.map(girlId => (
+      GIRL_DATA.find(girl => girl.id === girlId)?.girlName ?? girlId
+    ));
+
+    setTurn(t => (Math.floor(t / 4) + 1) * 4);
+    setCurrentAP(maxAPPerTimeSlot);
+    setDepletedMiningPointIds({});
+    setDepletedLoggingPointIds({});
+    setFarmGirls(prev => prev.map(girl => {
+      if (girl.state !== 'growing') return girl;
+      const crop = FARM_GIRL_CROP_DATA.find(entry => entry.girlId === girl.girlId);
+      if (!crop) return girl;
+      const nextGrowthProgress = girl.growthProgress + 1;
+      return {
+        ...girl,
+        growthProgress: nextGrowthProgress,
+        state: nextGrowthProgress >= crop.growthDays ? 'appeared' : 'growing',
+      };
+    }));
+    setFarmFieldSlots(prev => prev.map(slot => (
+      slot.girlId && completedGirlIds.includes(slot.girlId)
+        ? { ...slot, state: 'appeared' }
+        : slot
+    )));
+    if (completedGirlNames.length > 0) {
+      setDialogMessage(`${completedGirlNames.join('、')}が畑に現れた！`);
+    }
+  };
+
+  const handleBeastAttackWatch = () => {
+    setDialogMessage('畑の様子を見守ることにした……');
+    setBeastAttackPending(false);
+    setHasBeastPremonition(false);
+    setPremonitionDay(null);
+    setScheduledBeastAttackDay(null);
+    proceedToNextDay();
+  };
+
+  const handleBattlePreviewCommand = (command: string) => {
+    playFixSound();
+    setBattlePreviewState(prev => {
+      if (prev.result !== 'ongoing') return prev;
+      const hero = { ...prev.hero };
+      const allies = prev.allies.map(ally => ally ? { ...ally } : null);
+      const beasts = prev.beasts.map(beast => beast ? { ...beast } : null);
+      const turnLogs: string[] = [];
+      const damageTarget = (
+        target: BattleUnitState,
+        attacker: BattleUnitState,
+        options: { isHeroTarget?: boolean; isBeastTarget?: boolean; isBeastAttacker?: boolean } = {},
+      ) => {
+        const result = calculateBattleDamage(attacker, target, options);
+        let damage = result.damage;
+        if (options.isHeroTarget && hero.defending) {
+          damage = Math.max(1, Math.round(damage * 0.5));
+          hero.defending = false;
+          turnLogs.push('主人公は防御してダメージを半減した！');
+        }
+        target.hp = Math.max(0, target.hp - damage);
+        return { damage, critical: result.critical };
+      };
+
+      if (command === '逃げる') {
+        return { ...prev, logs: [...prev.logs, '主人公たちは戦闘から離脱した。'].slice(-12), result: 'escaped' };
+      }
+
+      if (command === 'スキル' || command === 'アイテム') {
+        return { ...prev, logs: [...prev.logs, `${command}はまだ未実装です。`].slice(-12) };
+      }
+
+      if (command === '防御') {
+        hero.defending = true;
+        turnLogs.push('主人公は防御の構えを取った！');
+      }
+
+      if (command === '攻撃') {
+        const target = beasts.find(beast => beast && beast.hp > 0);
+        if (!target) {
+          const result = getBattleResult(hero, allies, beasts);
+          return { ...prev, hero, allies, beasts, result };
+        }
+        turnLogs.push('主人公の攻撃！');
+        const { damage, critical } = damageTarget(target, hero, { isBeastTarget: true });
+        if (critical) turnLogs.push('クリティカル！');
+        turnLogs.push(`${target.name}に${damage}ダメージ！`);
+        if (target.hp <= 0) turnLogs.push(`${target.name}を倒した！`);
+      }
+
+      let result = getBattleResult(hero, allies, beasts);
+      if (result !== 'ongoing') {
+        turnLogs.push(result === 'victory' ? '勝利！' : '敗北...');
+        const loot = result === 'victory' ? rollBattleLoot(beasts) : [];
+        loot.forEach(item => turnLogs.push(`${item.itemName} ×${item.count} を手に入れた！`));
+        return { hero, allies, beasts, logs: [...prev.logs, ...turnLogs].slice(-12), result, loot, lootGranted: false };
+      }
+
+      allies.forEach(ally => {
+        if (!ally || ally.hp <= 0) return;
+        const aliveBeasts = beasts.filter((beast): beast is BattleUnitState => Boolean(beast && beast.hp > 0));
+        if (aliveBeasts.length === 0) return;
+        const target = aliveBeasts[Math.floor(Math.random() * aliveBeasts.length)];
+        turnLogs.push(`${ally.name}の攻撃！`);
+        const { damage, critical } = damageTarget(target, ally, { isBeastTarget: true });
+        if (critical) turnLogs.push('クリティカル！');
+        turnLogs.push(`${target.name}に${damage}ダメージ！`);
+        if (target.hp <= 0) turnLogs.push(`${target.name}を倒した！`);
+      });
+
+      result = getBattleResult(hero, allies, beasts);
+      if (result !== 'ongoing') {
+        turnLogs.push(result === 'victory' ? '勝利！' : '敗北...');
+        const loot = result === 'victory' ? rollBattleLoot(beasts) : [];
+        loot.forEach(item => turnLogs.push(`${item.itemName} ×${item.count} を手に入れた！`));
+        return { hero, allies, beasts, logs: [...prev.logs, ...turnLogs].slice(-12), result, loot, lootGranted: false };
+      }
+
+      beasts.forEach(beast => {
+        if (!beast || beast.hp <= 0) return;
+        const aliveAllies = allies.filter((ally): ally is BattleUnitState => Boolean(ally && ally.hp > 0));
+        const targetHero = hero.hp > 0 && (aliveAllies.length === 0 || Math.random() < 0.7);
+        turnLogs.push(`${beast.name}の攻撃！`);
+        if (targetHero) {
+          const { damage, critical } = damageTarget(hero, beast, { isHeroTarget: true, isBeastAttacker: true });
+          if (critical) turnLogs.push('クリティカル！');
+          turnLogs.push(`主人公に${damage}ダメージ！`);
+          if (hero.hp <= 0) turnLogs.push('主人公は倒れた！');
+          return;
+        }
+        const target = aliveAllies[Math.floor(Math.random() * aliveAllies.length)];
+        const { damage, critical } = damageTarget(target, beast, { isBeastAttacker: true });
+        if (critical) turnLogs.push('クリティカル！');
+        turnLogs.push(`${target.name}に${damage}ダメージ！`);
+        if (target.hp <= 0) turnLogs.push(`${target.name}は倒れた！`);
+      });
+
+      result = getBattleResult(hero, allies, beasts);
+      const loot = result === 'victory' ? rollBattleLoot(beasts) : [];
+      if (result === 'victory') {
+        turnLogs.push('勝利！');
+        loot.forEach(item => turnLogs.push(`${item.itemName} ×${item.count} を手に入れた！`));
+      }
+      if (result === 'defeat') turnLogs.push('敗北...');
+      return { hero, allies, beasts, logs: [...prev.logs, ...turnLogs].slice(-12), result, loot, lootGranted: false };
+    });
+  };
+
+  useEffect(() => {
+    if (battlePreviewState.result !== 'victory') return;
+    if (battlePreviewState.lootGranted) return;
+    if (battlePreviewState.loot.length === 0) {
+      setBattlePreviewState(prev => prev.result === 'victory' ? { ...prev, lootGranted: true } : prev);
+      return;
+    }
+
+    setInventoryCounts(prev => {
+      const next = { ...prev };
+      battlePreviewState.loot.forEach(item => {
+        next[item.itemName] = (next[item.itemName] ?? 0) + item.count;
+      });
+      return next;
+    });
+    setBattlePreviewState(prev => prev.result === 'victory' ? { ...prev, lootGranted: true } : prev);
+  }, [battlePreviewState.result, battlePreviewState.loot, battlePreviewState.lootGranted]);
+
   const playSleepSound = (src: string) => {
     try {
       const audio = new Audio(src);
@@ -4200,16 +4679,18 @@ export default function App() {
     }
     if (!canHarvest) {
       setDialogMessage(`次回収穫まであと${daysUntilHarvest ?? crop.harvestIntervalDays}日です。`);
-        return;
+      return;
     }
 
+    const trustBeforeHarvest = farmGirl?.trust ?? girl?.initialTrust ?? 0;
+    const harvestAmount = getFarmHarvestAmount(crop.baseHarvestAmount, trustBeforeHarvest);
     const nextTrust = Math.min(100, (farmGirl?.trust ?? girl?.initialTrust ?? 0) + TRUST_GAIN_ON_HARVEST);
     const newlyUnlockedTrustEvents = girl?.trustEvents.filter(event => (
       nextTrust >= event.trust && !(farmGirl?.unlockedTrustEventIds ?? []).includes(event.eventId)
     )) ?? [];
     setInventoryCounts(prev => ({
       ...prev,
-      [crop.harvestItemName]: (prev[crop.harvestItemName] ?? 0) + crop.baseHarvestAmount,
+      [crop.harvestItemName]: (prev[crop.harvestItemName] ?? 0) + harvestAmount,
     }));
     setFarmGirls(prev => prev.map(entry => (
       entry.girlId === girlId
@@ -4227,7 +4708,7 @@ export default function App() {
     setDialogMessage(
       newlyUnlockedTrustEvents.length > 0
         ? `${girl?.girlName ?? crop.seedName}との信頼イベントが解放された！`
-        : `${girl?.girlName ?? crop.seedName}から${crop.harvestItemName}を${crop.baseHarvestAmount}個収穫しました。信頼度 +${TRUST_GAIN_ON_HARVEST}`
+        : `${girl?.girlName ?? crop.seedName}から${crop.harvestItemName}を${harvestAmount}個収穫しました。信頼度 +${TRUST_GAIN_ON_HARVEST}`
     );
   };
   const plantGirlSeedToSlot = (seedId: string, fieldId: FieldId, slotIndex: number) => {
@@ -4285,38 +4766,30 @@ export default function App() {
     setInterestRateCycleIndex(currentRepaymentCycleIndex);
   }, [bootMode, currentRepaymentCycleIndex, difficulty, farmCredit, interestRateCycleIndex, missedRepaymentCount]);
   const advanceToNextDay = () => {
-    const completedGirlIds = farmGirls.flatMap(girl => {
-      if (girl.state !== 'growing') return [];
-      const crop = FARM_GIRL_CROP_DATA.find(entry => entry.girlId === girl.girlId);
-      if (!crop) return [];
-      return girl.growthProgress + 1 >= crop.growthDays ? [girl.girlId] : [];
-    });
-    const completedGirlNames = completedGirlIds.map(girlId => (
-      GIRL_DATA.find(girl => girl.id === girlId)?.girlName ?? girlId
-    ));
+    const nextDay = currentDay + 1;
+    if (
+      hasBeastPremonition &&
+      scheduledBeastAttackDay !== null &&
+      nextDay >= scheduledBeastAttackDay
+    ) {
+      setHasBeastPremonition(false);
+      setBeastAttackPending(true);
+      setDialogMessage('畑の方から物音がする……');
+      return;
+    }
 
-    setTurn(t => (Math.floor(t / 4) + 1) * 4);
-    setCurrentAP(maxAPPerTimeSlot);
-    setDepletedMiningPointIds({});
-    setDepletedLoggingPointIds({});
-    setFarmGirls(prev => prev.map(girl => {
-      if (girl.state !== 'growing') return girl;
-      const crop = FARM_GIRL_CROP_DATA.find(entry => entry.girlId === girl.girlId);
-      if (!crop) return girl;
-      const nextGrowthProgress = girl.growthProgress + 1;
-      return {
-        ...girl,
-        growthProgress: nextGrowthProgress,
-        state: nextGrowthProgress >= crop.growthDays ? 'appeared' : 'growing',
-      };
-    }));
-    setFarmFieldSlots(prev => prev.map(slot => (
-      slot.girlId && completedGirlIds.includes(slot.girlId)
-        ? { ...slot, state: 'appeared' }
-        : slot
-    )));
-    if (completedGirlNames.length > 0) {
-      setDialogMessage(`${completedGirlNames.join('、')}が畑に現れた！`);
+    proceedToNextDay();
+
+    if (
+      timeOfDay === 'night' &&
+      !hasBeastPremonition &&
+      scheduledBeastAttackDay === null &&
+      Math.random() < BEAST_PREMONITION_RATE_BY_DIFFICULTY[difficulty]
+    ) {
+      setHasBeastPremonition(true);
+      setPremonitionDay(currentDay);
+      setScheduledBeastAttackDay(getScheduledBeastAttackDay(difficulty, currentDay));
+      setDialogMessage('なんだか嫌な予感がする……');
     }
   };
   const advanceToNextTimeSlot = () => {
@@ -9679,6 +10152,12 @@ export default function App() {
             <div className="flex flex-wrap items-center gap-x-8 gap-y-1 text-sm font-bold">
               <span className="text-[#ffdd99]">借金：¥{debtAmount.toLocaleString()}</span>
               <span className="text-[#fdf6e3]">返済まで：あと{daysUntilRepayment}日</span>
+              <span className="text-[#a5d8ff]">同行：{companionGirlName ?? 'なし'}</span>
+              {hasBeastPremonition && (
+                <span className="text-[#ffd166] drop-shadow-[0_0_8px_rgba(255,209,102,0.45)]">
+                  ⚠ 獣が近くにいる気配がする
+                </span>
+              )}
             </div>
           </div>
           <div className="flex gap-3">
@@ -9687,6 +10166,12 @@ export default function App() {
                className="px-3 py-1 text-sm border-2 bg-[#dda15e] border-[#bc6c25] text-[#2d1b15] hover:bg-[#e9b872] shadow-sm font-bold cursor-pointer"
              >
                🕒 ターン進む
+             </button>
+             <button
+               onClick={openBattlePreview}
+               className="px-3 py-1 text-sm border-2 bg-[#5a3010] border-[#dda15e] text-[#fdf6e3] hover:bg-[#7a4317] shadow-sm font-bold cursor-pointer"
+             >
+               ⚔️ 戦闘テスト
              </button>
              <button onClick={() => setSetupMode(setupMode === 'animation' ? 'none' : 'animation')} className={`px-3 py-1 text-sm border-2 ${setupMode === 'animation' ? 'bg-[#bc6c25] border-white' : 'bg-[#4a5823] border-[#a3b18a]'} shadow-sm`}>
                🎬 アニメ領域設定
@@ -10432,6 +10917,184 @@ export default function App() {
              />
           )}
 
+          {battlePreviewOpen && (() => {
+            const { hero, allies, beasts, logs, result } = battlePreviewState;
+            const actionButtons = ['攻撃', 'スキル', '防御', 'アイテム', '逃げる'];
+            const renderHpBar = (hp: number, maxHp: number, colorClass = 'bg-[#4ade80]') => (
+              <div className="mt-2 h-3 overflow-hidden rounded-full border border-white/20 bg-black/45">
+                <div
+                  className={`h-full rounded-full transition-[width] ${colorClass}`}
+                  style={{ width: `${Math.max(0, Math.min(100, (hp / maxHp) * 100))}%` }}
+                />
+              </div>
+            );
+            const resultLabel = result === 'victory'
+              ? '勝利'
+              : result === 'defeat'
+                ? '敗北'
+                : result === 'escaped'
+                  ? '離脱'
+                  : '戦闘中';
+
+            return (
+              <div className="absolute inset-0 z-[115] flex items-center justify-center bg-black/65 p-8">
+                <div className="relative grid h-[820px] w-[1320px] grid-rows-[auto_minmax(0,1fr)_110px] overflow-hidden rounded-2xl border-4 border-[#dda15e] bg-[#140d0b]/97 text-[#fdf6e3] shadow-[0_28px_80px_rgba(0,0,0,0.78)]">
+                  <div className="flex items-center justify-between border-b border-[#dda15e]/35 bg-[#2d1b15]/95 px-6 py-4">
+                    <div>
+                      <div className="text-xs font-black tracking-[0.28em] text-[#ffd166]">BATTLE PREVIEW</div>
+                      <div className="mt-1 text-3xl font-black">戦闘画面 仮UI</div>
+                    </div>
+                    <div className={`rounded-full border px-4 py-2 text-sm font-black ${
+                      result === 'ongoing'
+                        ? 'border-[#ffd166]/60 bg-black/35 text-[#ffd166]'
+                        : result === 'victory'
+                          ? 'border-[#86efac]/70 bg-[#14532d]/70 text-[#f0fdf4]'
+                          : result === 'defeat'
+                            ? 'border-[#fca5a5]/70 bg-[#450a0a]/70 text-[#fee2e2]'
+                            : 'border-[#c8a87a]/70 bg-black/45 text-[#fdf6e3]'
+                    }`}>
+                      {resultLabel}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => { playFixSound(); setBattlePreviewOpen(false); }}
+                      className="rounded-lg border-2 border-[#fdf6e3]/70 bg-black/45 px-5 py-2 text-lg font-black hover:bg-[#5a3010]"
+                    >
+                      閉じる
+                    </button>
+                  </div>
+
+                  <div className="grid min-h-0 grid-cols-[330px_minmax(0,1fr)_330px] gap-5 p-6">
+                    <div className="flex min-h-0 flex-col gap-4">
+                      <div className="rounded-xl border-2 border-[#67e8f9]/70 bg-[#102333]/88 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
+                        <div className="text-xs font-black tracking-[0.18em] text-[#67e8f9]">HERO</div>
+                        <div className="mt-2 text-2xl font-black">主人公 Lv{hero.level}</div>
+                        <div className="mt-1 text-sm font-bold text-[#bbf7d0]">HP {hero.hp} / {hero.maxHp}{hero.defending ? ' / 防御中' : ''}</div>
+                        {renderHpBar(hero.hp, hero.maxHp, 'bg-[#22c55e]')}
+                        <div className="mt-3 grid grid-cols-2 gap-2 text-sm font-bold">
+                          <div className="rounded bg-black/30 px-3 py-2">HP {hero.hp}</div>
+                          <div className="rounded bg-black/30 px-3 py-2">攻撃 {hero.attack}</div>
+                          <div className="rounded bg-black/30 px-3 py-2">防御 {hero.defense}</div>
+                          <div className="rounded bg-black/30 px-3 py-2">素早さ {hero.speed}</div>
+                        </div>
+                        <div className="mt-2 grid grid-cols-2 gap-2 text-[11px] font-bold text-[#d7b98a]">
+                          <div className="rounded bg-black/25 px-2 py-1">会心 {hero.criticalRate ?? 0}%</div>
+                          <div className="rounded bg-black/25 px-2 py-1">獣特効 ×{(hero.beastDamageMultiplier ?? 1).toFixed(2)}</div>
+                          <div className="rounded bg-black/25 px-2 py-1">獣軽減 {hero.beastDamageReduction ?? 0}%</div>
+                          <div className="rounded bg-black/25 px-2 py-1">耐性 {hero.statusResistance ? 'あり' : 'なし'}</div>
+                        </div>
+                      </div>
+                      <div className="flex min-h-0 flex-1 flex-col gap-3 rounded-xl border border-[#76502c]/80 bg-black/25 p-4">
+                        <div className="text-xs font-black tracking-[0.18em] text-[#ffd166]">同行娘 最大3枠</div>
+                        {allies.map((ally, index) => (
+                          <div
+                            key={index}
+                            className={`min-h-[92px] rounded-lg border px-4 py-3 ${
+                              ally
+                                ? 'border-[#f1c27d]/80 bg-[#3a2418]/88'
+                                : 'border-[#5a3010]/70 bg-black/28 text-[#8f7b63]'
+                            }`}
+                          >
+                            {ally ? (
+                              <>
+                                <div className="text-xl font-black">{ally.name}</div>
+                                <div className="mt-1 text-sm font-bold text-[#d7b98a]">同行娘 / HP {ally.hp} / {ally.maxHp}</div>
+                                {renderHpBar(ally.hp, ally.maxHp, 'bg-[#f59e0b]')}
+                                <div className="mt-1 text-xs font-bold text-[#a3b18a]">{ally.hp > 0 ? '待機' : '戦闘不能'}</div>
+                              </>
+                            ) : (
+                              <div className="flex h-full items-center justify-center text-sm font-bold">空き枠 {index + 1}</div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="flex min-h-0 flex-col rounded-xl border-2 border-[#5a3010] bg-[#1d120f]/88 p-5">
+                      <div className="mb-3 flex items-center justify-between">
+                        <div>
+                          <div className="text-xs font-black tracking-[0.18em] text-[#dda15e]">BATTLE LOG</div>
+                          <div className="mt-1 text-xl font-black">戦闘ログ</div>
+                        </div>
+                        <div className="rounded-full border border-[#ffd166]/50 bg-black/35 px-3 py-1 text-xs font-black text-[#ffd166]">仮表示</div>
+                      </div>
+                      <div className="min-h-0 flex-1 space-y-2 overflow-hidden rounded-lg border border-[#76502c]/60 bg-black/35 p-4 text-base font-bold leading-relaxed text-[#fdf6e3]">
+                        {logs.map((log, index) => (
+                          <p key={`${index}-${log}`} className={index >= logs.length - 1 ? 'text-[#ffd166]' : undefined}>{log}</p>
+                        ))}
+                        <p className="text-[#c8a87a]">※素材ドロップ・襲撃イベント・SPスキルはまだ未接続です。</p>
+                      </div>
+                      {result === 'victory' && (
+                        <div className="mt-4 rounded-xl border-2 border-[#86efac]/70 bg-[#10251a]/90 p-4">
+                          <div className="text-lg font-black text-[#bbf7d0]">戦利品</div>
+                          {battlePreviewState.loot.length > 0 ? (
+                            <ul className="mt-2 space-y-1 text-sm font-bold text-[#fdf6e3]">
+                              {battlePreviewState.loot.map(item => (
+                                <li key={item.itemId}>・{item.itemName} ×{item.count}</li>
+                              ))}
+                            </ul>
+                          ) : (
+                            <div className="mt-2 text-sm font-bold text-[#c8a87a]">戦利品はありません。</div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="flex min-h-0 flex-col gap-3">
+                      <div className="rounded-xl border border-[#bc4749]/80 bg-[#341416]/88 p-4">
+                        <div className="text-xs font-black tracking-[0.18em] text-[#ffb4a2]">獣 最大3枠</div>
+                      </div>
+                      {beasts.map((beast, index) => (
+                        <div
+                          key={index}
+                          className={`min-h-[136px] rounded-xl border px-4 py-3 ${
+                            beast
+                              ? 'border-[#ef4444]/75 bg-[#3a1010]/90'
+                              : 'border-[#5a3010]/70 bg-black/25 text-[#8f7b63]'
+                          }`}
+                        >
+                          {beast ? (
+                            <>
+                              <div className="text-2xl font-black">{beast.name}</div>
+                              <div className="mt-1 text-sm font-bold text-[#fecaca]">HP {beast.hp} / {beast.maxHp}</div>
+                              {renderHpBar(beast.hp, beast.maxHp, 'bg-[#ef4444]')}
+                              <div className="mt-2 grid grid-cols-2 gap-2 text-sm font-bold">
+                                <div className="rounded bg-black/30 px-2 py-1">HP {beast.hp}</div>
+                                <div className="rounded bg-black/30 px-2 py-1">攻撃 {beast.attack}</div>
+                                <div className="rounded bg-black/30 px-2 py-1">防御 {beast.defense}</div>
+                                <div className="rounded bg-black/30 px-2 py-1">素早さ {beast.speed}</div>
+                              </div>
+                            </>
+                          ) : (
+                            <div className="flex h-full items-center justify-center text-sm font-bold">空き枠 {index + 1}</div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-5 gap-4 border-t border-[#dda15e]/35 bg-[#2d1b15]/95 p-5">
+                    {actionButtons.map(label => (
+                      <button
+                        key={label}
+                        type="button"
+                        disabled={result !== 'ongoing'}
+                        onClick={() => handleBattlePreviewCommand(label)}
+                        className={`rounded-xl border-2 px-4 py-4 text-xl font-black text-[#fdf6e3] shadow-[0_4px_0_rgba(0,0,0,0.35)] ${
+                          result === 'ongoing'
+                            ? 'border-[#a3b18a] bg-[#4a5823] hover:border-white hover:bg-[#60732d]'
+                            : 'cursor-not-allowed border-[#5a3010] bg-black/35 text-[#8f7b63]'
+                        }`}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
+
           {/* RPGメニューボックス */}
           {setupMode === 'none' && (
             <div
@@ -10574,6 +11237,39 @@ export default function App() {
           )}
 
         </div>
+
+        {beastAttackPending && (
+           <div className="absolute inset-0 z-[120] flex items-center justify-center bg-black/65">
+              <div className="w-[520px] rounded-2xl border-[4px] border-[#bc4749] bg-[#1a100d]/97 p-7 text-center text-[#fdf6e3] shadow-[0_24px_70px_rgba(0,0,0,0.72)]">
+                 <div className="text-4xl font-black tracking-wide text-[#ffd166]">🐾 獣襲撃！</div>
+                 <div className="mt-5 rounded-xl border border-[#76502c]/75 bg-black/35 px-5 py-4 text-lg font-bold leading-relaxed text-[#fdf6e3]">
+                    畑の方から物音がする……<br />
+                    獣が作物を狙っているようだ！
+                 </div>
+                 <div className="mt-6 flex justify-center gap-4">
+                    <button
+                       type="button"
+                       onClick={handleBeastAttackFight}
+                       onMouseEnter={playCursorSound}
+                       className="h-[56px] w-[150px] rounded-lg border-2 border-[#ffd166] bg-[#7a2718] text-lg font-black text-[#fff7dc] shadow-[0_4px_0_rgba(0,0,0,0.45)] hover:bg-[#9b3320]"
+                    >
+                       迎え撃つ
+                    </button>
+                    <button
+                       type="button"
+                       onClick={handleBeastAttackWatch}
+                       onMouseEnter={playCursorSound}
+                       className="h-[56px] w-[150px] rounded-lg border-2 border-[#a3b18a] bg-[#4a5823] text-lg font-black text-[#fff7dc] shadow-[0_4px_0_rgba(0,0,0,0.45)] hover:bg-[#60732d]"
+                    >
+                       様子を見る
+                    </button>
+                 </div>
+                 <div className="mt-4 text-xs font-bold text-[#c8a87a]">
+                    ※今回は農場被害・娘被害・イベント分岐はまだ発生しません。
+                 </div>
+              </div>
+           </div>
+        )}
 
         {sleepPromptVisible && (
            <div className="absolute inset-0 z-[70] flex items-center justify-center bg-black/20">

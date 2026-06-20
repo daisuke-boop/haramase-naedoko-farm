@@ -544,7 +544,7 @@
     }
   ],
   "bgmVolume": 0.03,
-  "seVolume": 0.1,
+  "seVolume": 0.03,
   "voiceVolume": 0.3,
   "audioGains": {
     "/bgm/ie.mp3": 1.8,
