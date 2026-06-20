@@ -1,8 +1,158 @@
 {
   "turn": 4,
-  "gold": 2460,
-  "debt": 5000000,
-  "difficulty": "easy",
+  "gold": 5000,
+  "debt": 20000000,
+  "debtAmount": 20000000,
+  "repaymentCycleDays": 7,
+  "farmCredit": 0,
+  "missedRepaymentCount": 0,
+  "currentWeeklyInterestRate": 2.8,
+  "interestRateCycleIndex": 0,
+  "farmGirls": [
+    {
+      "girlId": "chibiichi",
+      "state": "none",
+      "plantedDay": null,
+      "growthProgress": 0,
+      "lastHarvestDay": null,
+      "trust": 0,
+      "unlockedTrustEventIds": []
+    },
+    {
+      "girlId": "mel",
+      "state": "none",
+      "plantedDay": null,
+      "growthProgress": 0,
+      "lastHarvestDay": null,
+      "trust": 0,
+      "unlockedTrustEventIds": []
+    },
+    {
+      "girlId": "ruby",
+      "state": "none",
+      "plantedDay": null,
+      "growthProgress": 0,
+      "lastHarvestDay": null,
+      "trust": 0,
+      "unlockedTrustEventIds": []
+    },
+    {
+      "girlId": "viola",
+      "state": "none",
+      "plantedDay": null,
+      "growthProgress": 0,
+      "lastHarvestDay": null,
+      "trust": 0,
+      "unlockedTrustEventIds": []
+    },
+    {
+      "girlId": "nazuna",
+      "state": "none",
+      "plantedDay": null,
+      "growthProgress": 0,
+      "lastHarvestDay": null,
+      "trust": 0,
+      "unlockedTrustEventIds": []
+    },
+    {
+      "girlId": "kabune",
+      "state": "none",
+      "plantedDay": null,
+      "growthProgress": 0,
+      "lastHarvestDay": null,
+      "trust": 0,
+      "unlockedTrustEventIds": []
+    },
+    {
+      "girlId": "caro",
+      "state": "none",
+      "plantedDay": null,
+      "growthProgress": 0,
+      "lastHarvestDay": null,
+      "trust": 0,
+      "unlockedTrustEventIds": []
+    },
+    {
+      "girlId": "theta",
+      "state": "none",
+      "plantedDay": null,
+      "growthProgress": 0,
+      "lastHarvestDay": null,
+      "trust": 0,
+      "unlockedTrustEventIds": []
+    },
+    {
+      "girlId": "cure",
+      "state": "none",
+      "plantedDay": null,
+      "growthProgress": 0,
+      "lastHarvestDay": null,
+      "trust": 0,
+      "unlockedTrustEventIds": []
+    },
+    {
+      "girlId": "shiro",
+      "state": "none",
+      "plantedDay": null,
+      "growthProgress": 0,
+      "lastHarvestDay": null,
+      "trust": 0,
+      "unlockedTrustEventIds": []
+    },
+    {
+      "girlId": "momona",
+      "state": "none",
+      "plantedDay": null,
+      "growthProgress": 0,
+      "lastHarvestDay": null,
+      "trust": 0,
+      "unlockedTrustEventIds": []
+    },
+    {
+      "girlId": "pan",
+      "state": "none",
+      "plantedDay": null,
+      "growthProgress": 0,
+      "lastHarvestDay": null,
+      "trust": 0,
+      "unlockedTrustEventIds": []
+    },
+    {
+      "girlId": "puti",
+      "state": "none",
+      "plantedDay": null,
+      "growthProgress": 0,
+      "lastHarvestDay": null,
+      "trust": 0,
+      "unlockedTrustEventIds": []
+    },
+    {
+      "girlId": "roma",
+      "state": "none",
+      "plantedDay": null,
+      "growthProgress": 0,
+      "lastHarvestDay": null,
+      "trust": 0,
+      "unlockedTrustEventIds": []
+    },
+    {
+      "girlId": "saffy",
+      "state": "none",
+      "plantedDay": null,
+      "growthProgress": 0,
+      "lastHarvestDay": null,
+      "trust": 0,
+      "unlockedTrustEventIds": []
+    }
+  ],
+  "ownedGirlSeeds": [
+    "ichigo",
+    "melon",
+    "tomato"
+  ],
+  "currentAP": 5,
+  "maxAPPerTimeSlot": 5,
+  "difficulty": "normal",
   "currentMap": "farm",
   "zones": [
     {
@@ -363,45 +513,45 @@
       "spawnY": 210
     }
   ],
-  "bgmVolume": 0.2,
+  "bgmVolume": 0.06,
   "seVolume": 0.2,
-  "voiceVolume": 0.1,
+  "voiceVolume": 0.15,
   "audioGains": {
-    "/bgm/ie.mp3": 0.1,
+    "/bgm/ie.mp3": 0.2,
     "/bgm/fishking.mp3": 2.5,
-    "/se/Fireplace.mp3": 0.1,
-    "/voice/kurumi.wav": 0.1,
-    "/bgm/title.mp3": 0.1,
-    "/bgm/farmbgm.wav": 0.1,
-    "/bgm/yado.mp3": 0.1,
-    "/bgm/shop.mp3": 0.1,
-    "/se/zoon2.wav": 0.1,
-    "/se/taki.mp3": 0.1,
-    "/se/river.mp3": 0.1,
-    "/se/semi.mp3": 0.1,
-    "/se/soil.mp3": 0.1,
-    "/se/grass.mp3": 0.1,
-    "/se/foot.mp3": 0.1,
-    "/se/rainw.mp3": 0.1,
-    "/se/rock.mp3": 0.1,
-    "/se/jutan.mp3": 0.1,
-    "/se/don.mp3": 0.1,
-    "/se/door.mp3": 0.1,
-    "/se/suzume.mp3": 0.1,
-    "/se/bird.wav": 0.1,
-    "/se/Water-splash.mp3": 0.1,
-    "/se/cursor.mp3": 0.1,
-    "/se/fix.mp3": 0.1,
-    "/se/success.mp3": 0.1,
-    "/se/cloak.mp3": 0.1,
-    "/se/chapon.mp3": 0.1,
-    "/voice/fish-result.wav": 0.1,
-    "/voice/fish-lose.wav": 0.1,
-    "/voice/kurumi-start.wav": 0.1,
-    "/voice/kurumi-start2.wav": 0.1,
-    "/voice/kurumi-start3.wav": 0.1,
-    "/voice/kurumi-start4.wav": 0.1,
-    "/voice/kurumi-start5.wav": 0.1
+    "/se/Fireplace.mp3": 0.2,
+    "/voice/kurumi.wav": 0.2,
+    "/bgm/title.mp3": 0.2,
+    "/bgm/farmbgm.wav": 0.2,
+    "/bgm/yado.mp3": 0.2,
+    "/bgm/shop.mp3": 0.2,
+    "/se/zoon2.wav": 0.2,
+    "/se/taki.mp3": 0.2,
+    "/se/river.mp3": 0.2,
+    "/se/semi.mp3": 0.2,
+    "/se/soil.mp3": 0.2,
+    "/se/grass.mp3": 0.2,
+    "/se/foot.mp3": 0.2,
+    "/se/rainw.mp3": 0.2,
+    "/se/rock.mp3": 0.2,
+    "/se/jutan.mp3": 0.2,
+    "/se/don.mp3": 0.2,
+    "/se/door.mp3": 0.2,
+    "/se/suzume.mp3": 0.2,
+    "/se/bird.wav": 0.2,
+    "/se/Water-splash.mp3": 0.2,
+    "/se/cursor.mp3": 0.2,
+    "/se/fix.mp3": 0.2,
+    "/se/success.mp3": 0.2,
+    "/se/cloak.mp3": 0.2,
+    "/se/chapon.mp3": 0.2,
+    "/voice/fish-result.wav": 0.2,
+    "/voice/fish-lose.wav": 0.2,
+    "/voice/kurumi-start.wav": 0.2,
+    "/voice/kurumi-start2.wav": 0.2,
+    "/voice/kurumi-start3.wav": 0.2,
+    "/voice/kurumi-start4.wav": 0.2,
+    "/voice/kurumi-start5.wav": 0.2
   },
   "mapBgmSources": {
     "farm": "/bgm/farmbgm.wav",
@@ -44434,67 +44584,42 @@
     }
   },
   "inventoryCounts": {
-    "丈夫な釣竿": 1,
-    "高級釣竿": 1,
-    "伝説の釣り竿": 1,
-    "のこぎり": 2,
-    "丈夫なのこぎり": 1,
-    "高級のこぎり": 1,
-    "つるはし": 2,
-    "丈夫なつるはし": 1,
-    "高級つるはし": 1,
+    "【レシピ】丈夫な釣竿": 1,
+    "【レシピ】高級釣竿": 1,
+    "【レシピ】伝説の釣り竿": 1,
+    "のこぎり": 1,
+    "つるはし": 1,
     "農神の指輪": 1,
     "釣神の指輪": 1,
-    "釣神の指輪（デバッグ用）": 1,
-    "枝": 1,
-    "竹の釣竿": 1,
-    "【レシピ】つるはし": 1,
-    "モグラの爪": 0,
-    "ウサギの靭帯": 0,
-    "泥混じりの鉄鉱石": 0,
-    "柔らかな若枝": 0,
-    "携帯おにぎり": 5,
-    "薬草": 2,
-    "【レシピ】のこぎり": 1,
-    "軟らかい銅鉱石": 0
+    "釣神の指輪（デバッグ用）": 1
   },
   "equippedItems": {
-    "主人公-slot1": "竹の釣竿",
+    "主人公-slot1": "",
     "主人公-slot2": "のこぎり",
     "主人公-slot3": "つるはし",
     "主人公-slot4": "農神の指輪",
     "ちびいち-slot1": "小さな鈴",
     "ちびいち-slot2": ""
   },
-  "caughtFishIds": [
-    "eda"
-  ],
+  "caughtFishIds": [],
   "nushiCaughtFishIds": [],
-  "fishBestSizes": {
-    "eda": 8.8
-  },
-  "fishInventorySizes": {
-    "枝": [
-      8.8
-    ]
-  },
-  "fishingTutorialCompleted": true,
+  "fishBestSizes": {},
+  "fishInventorySizes": {},
+  "lumberInventorySizes": {},
+  "oreInventoryWeights": {},
+  "depletedMiningPointIds": {},
+  "fishingTutorialCompleted": false,
   "craftTutorialRecipeName": "【レシピ】のこぎり",
   "sawCraftTutorialReady": false,
   "sawCraftTutorialWorkbenchReady": false,
-  "sawCraftTutorialCompleted": true,
+  "sawCraftTutorialCompleted": false,
   "craftedRecipeIds": [
     "【レシピ】つるはし",
     "【レシピ】のこぎり"
   ],
   "gatheringTutorialCompleted": true,
-  "kurumiIntroAskedTopics": [
-    "village",
-    "naedoko",
-    "pantsu",
-    "debt"
-  ],
-  "kurumiIntroCompletedDay": 1,
+  "kurumiIntroAskedTopics": [],
+  "kurumiIntroCompletedDay": null,
   "bathTubMaskZone": {
     "x": 1260,
     "y": 380,

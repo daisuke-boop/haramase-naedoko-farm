@@ -8,6 +8,8 @@ type ShopItem = {
   desc: string;
   fishName?: string;
   fishPrice?: number;
+  sizedInventoryName?: string;
+  sizedInventoryPrice?: number;
 };
 
 type ShopOverlayProps = {
@@ -55,7 +57,9 @@ const ShopOverlay = ({
   const selectedItem = shopItems[selectedShopItemIndex] ?? shopItems[0];
   const activeTradeType = selectedItem?.type === '売る' ? '売る' : '買う';
   const visibleItems = activeTradeType === '売る' ? sellItems : buyItems;
-  const getDisplayStock = (item: ShopItem) => item.type === '売る' ? (item.fishName ? item.stock : (inventoryCounts[item.name] ?? 0)) : item.stock;
+  const getDisplayStock = (item: ShopItem) => item.type === '売る'
+    ? (item.fishName || item.sizedInventoryName ? item.stock : (inventoryCounts[item.name] ?? 0))
+    : item.stock;
   const selectTradeType = (type: '買う' | '売る') => {
     const next = type === '売る' ? sellItems[0] : buyItems[0];
     if (!next) return;

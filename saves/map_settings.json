@@ -44332,49 +44332,49 @@
   "fieldCorners": {
     "left": {
       "topLeft": {
-        "x": 308,
-        "y": 691
+        "x": 309,
+        "y": 682
       },
       "topRight": {
-        "x": 884,
-        "y": 693
+        "x": 887,
+        "y": 686
       },
       "bottomRight": {
         "x": 884,
         "y": 939
       },
       "bottomLeft": {
-        "x": 306,
-        "y": 944
+        "x": 308,
+        "y": 937
       }
     },
     "right": {
       "topLeft": {
-        "x": 1006,
-        "y": 692
+        "x": 1003,
+        "y": 687
       },
       "topRight": {
-        "x": 1352,
-        "y": 692
+        "x": 1354,
+        "y": 688
       },
       "bottomRight": {
         "x": 1353,
-        "y": 945
+        "y": 934
       },
       "bottomLeft": {
-        "x": 1001,
-        "y": 941
+        "x": 997,
+        "y": 933
       }
     }
   },
   "fieldGridSizes": {
     "left": {
-      "cols": 10,
-      "rows": 6
+      "cols": 3,
+      "rows": 2
     },
     "right": {
-      "cols": 6,
-      "rows": 6
+      "cols": 2,
+      "rows": 2
     }
   },
   "mapBgmSources": {

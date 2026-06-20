@@ -63,6 +63,41 @@ import {
   playerSpriteUrls,
   playerWalkSprites,
 } from './constants';
+import {
+  DEFAULT_FISHING_ROD,
+  FISH_ZUKAN_ENTRIES,
+  getFishSellPrice,
+  getFishingRodName,
+  isFishBossSize,
+  isFishingRodName,
+  selectFishingTargetFish,
+  shouldEquipCraftedFishingRod,
+  type FishZukanEntry,
+  type FishingRodName,
+  type GameDifficulty,
+} from './data/fishingData';
+import {
+  LUMBER_DATA,
+  SAW_RANKS,
+  createLumberRewards,
+  getHighestOwnedSaw,
+  getLumberSellPrice,
+  isSawName,
+} from './data/lumberData';
+import {
+  ORE_DATA,
+  PICKAXE_RANKS,
+  TEMP_MINING_LIMIT_PER_TIME_SLOT,
+  createOreWeight,
+  getHighestOwnedPickaxe,
+  getOreSellPrice,
+  isPickaxeName,
+  selectOreReward,
+} from './data/miningData';
+import { FARM_GIRL_CROP_DATA, getFarmHarvestSellPrice } from './data/farmData';
+import { getFarmFieldConfig, getInitiallyUnlockedFarmFieldConfigs, isFarmFieldInitiallyUnlocked } from './data/farmFieldData';
+import { GIRL_DATA } from './data/girlData';
+import { GIRL_SEED_ACQUISITION_DATA, INITIAL_OWNED_GIRL_SEEDS } from './data/girlSeedAcquisitionData';
 import type {
   AnimZone,
   AnimZoneTime,
@@ -321,7 +356,6 @@ type FishingFanConfig = {
   opacity: number;
 };
 
-type FishingRodName = '竹の釣竿' | '丈夫な釣竿' | '高級釣竿' | '伝説の釣り竿';
 
 const DEFAULT_FISHING_FAN_CONFIG: FishingFanConfig = {
   width: 420,
@@ -385,23 +419,6 @@ type KurumiTradeReward = {
   voiceSrc: string;
 };
 
-type FishZukanEntry = {
-  id: string;
-  level: number;
-  no: number;
-  name: string;
-  imageSrc: string;
-  sizeMin: number;
-  sizeMax: number;
-  priceMin?: number;
-  priceMax?: number;
-  nushiPrice?: number;
-  unlockDifficulty: GameDifficulty;
-  sellable?: boolean;
-  oneTime?: boolean;
-  fixedSize?: number;
-  note: string;
-};
 
 type ShopItem = {
   name: string;
@@ -411,6 +428,8 @@ type ShopItem = {
   desc: string;
   fishName?: string;
   fishPrice?: number;
+  sizedInventoryName?: string;
+  sizedInventoryPrice?: number;
 };
 
 type FishingBiteCircle = {
@@ -435,7 +454,18 @@ type DebugDialogueStep = {
 type FishingTutorialStep = 'intro' | 'rod' | 'direction' | 'power' | 'bite' | 'hit' | 'result';
 type FishingTutorialResult = 'success' | 'fail' | null;
 type CraftCircle = { id: number; x: number; y: number; size: number; expiresAt: number; durationMs: number };
-type CraftRecipeId = '【レシピ】のこぎり' | '【レシピ】つるはし';
+type CraftRecipeId =
+  | '【レシピ】のこぎり'
+  | '【レシピ】つるはし'
+  | '【レシピ】丈夫なつるはし'
+  | '【レシピ】丈夫なのこぎり'
+  | '【レシピ】高級つるはし'
+  | '【レシピ】高級のこぎり'
+  | '【レシピ】伝説のつるはし'
+  | '【レシピ】伝説ののこぎり'
+  | '【レシピ】丈夫な釣竿'
+  | '【レシピ】高級釣竿'
+  | '【レシピ】伝説の釣り竿';
 const isRecipeItemName = (name: string) => name.startsWith('【レシピ】');
 type GatheringTutorialChoice = 'logging' | 'mining';
 type CraftRecipeConfig = {
@@ -457,7 +487,26 @@ type SaveSlotSummary = {
   ownedGirlCount?: number;
   caughtFishCount?: number;
 };
-type GameDifficulty = 'easy' | 'normal' | 'hard';
+
+type FarmGirlState = 'none' | 'planted' | 'growing' | 'appeared' | 'companion' | 'lover';
+
+type FarmGirlSaveState = {
+  girlId: string;
+  state: FarmGirlState;
+  plantedDay: number | null;
+  growthProgress: number;
+  lastHarvestDay: number | null;
+  trust: number;
+  unlockedTrustEventIds: string[];
+};
+
+type FarmFieldSlotState = {
+  fieldId: FieldId;
+  slotIndex: number;
+  girlId: string | null;
+  state: Extract<FarmGirlState, 'none' | 'growing' | 'appeared'>;
+  plantedDay: number | null;
+};
 
 const FARM_GIRL_CARD_BACK_SRC = '/img/card.png';
 const FARM_GIRL_CARD_IMAGES = ['/img/chibiichi-card.jpg', '/img/ruby-card.jpg', '/img/mel-card.jpg'];
@@ -478,47 +527,40 @@ const KURUMI_INTRO_TOPICS: { id: KurumiIntroTopicId; label: string; answer: stri
 const KURUMI_INTRO_TOPIC_IDS = KURUMI_INTRO_TOPICS.map(topic => topic.id);
 const KURUMI_INTRO_CLOSE_FADE_MS = 650;
 
-const FISH_ZUKAN_ENTRIES: FishZukanEntry[] = [
-  { id: 'eda', level: 0, no: 0, name: '枝', imageSrc: '/img/0eda.jpg', sizeMin: 5, sizeMax: 15, priceMin: 3, priceMax: 3, nushiPrice: 3, unlockDifficulty: 'easy', note: 'ゴミ・流木' },
-  { id: 'gomu', level: 1, no: 1, name: '使用済みコンドーム', imageSrc: '/img/1kondom.jpg', sizeMin: 10, sizeMax: 20, priceMin: 20, priceMax: 100, nushiPrice: 500, unlockDifficulty: 'easy', note: 'ゴミ・長靴の破片など' },
-  { id: 'funa', level: 2, no: 2, name: 'フナ', imageSrc: '/img/2funa.jpg', sizeMin: 15, sizeMax: 30, priceMin: 100, priceMax: 500, nushiPrice: 2500, unlockDifficulty: 'easy', note: '実在・中型' },
-  { id: 'oikawa', level: 3, no: 3, name: 'オイカワ', imageSrc: '/img/3oikawa.jpg', sizeMin: 10, sizeMax: 15, priceMin: 60, priceMax: 300, nushiPrice: 1500, unlockDifficulty: 'easy', note: '実在・小型' },
-  { id: 'ugui', level: 4, no: 4, name: 'ウグイ', imageSrc: '/img/4ugui.jpg', sizeMin: 20, sizeMax: 40, priceMin: 160, priceMax: 800, nushiPrice: 4000, unlockDifficulty: 'easy', note: '実在・中型' },
-  { id: 'dojo', level: 5, no: 5, name: 'どじょう', imageSrc: '/img/5dojo.jpg', sizeMin: 10, sizeMax: 15, priceMin: 40, priceMax: 200, nushiPrice: 1000, unlockDifficulty: 'easy', note: '実在・小型' },
-  { id: 'haze', level: 6, no: 6, name: 'ハゼ', imageSrc: '/img/6haze.jpg', sizeMin: 10, sizeMax: 20, priceMin: 50, priceMax: 250, nushiPrice: 1250, unlockDifficulty: 'easy', note: '実在・小型' },
-  { id: 'pantsu', level: 7, no: 7, name: 'パンツ', imageSrc: '/img/7usagi.jpg', sizeMin: 20, sizeMax: 20, priceMin: 50, priceMax: 100, nushiPrice: 100, unlockDifficulty: 'easy', fixedSize: 20, oneTime: true, note: 'ゲーム的ジョーク枠' },
-  { id: 'nijimasu', level: 8, no: 8, name: 'ニジマス', imageSrc: '/img/8nijimasu.jpg', sizeMin: 30, sizeMax: 40, priceMin: 600, priceMax: 3000, nushiPrice: 15000, unlockDifficulty: 'easy', note: '実在・大型' },
-  { id: 'yamame', level: 9, no: 9, name: 'ヤマメ', imageSrc: '/img/9yamame.jpg', sizeMin: 20, sizeMax: 40, priceMin: 240, priceMax: 2000, nushiPrice: 8000, unlockDifficulty: 'easy', note: '実在・中型' },
-  { id: 'uroko', level: 10, no: 10, name: '人魚の鱗', imageSrc: '/img/10uroko.jpg', sizeMin: 8, sizeMax: 8, priceMin: 3000, priceMax: 3000, nushiPrice: 15000, unlockDifficulty: 'normal', fixedSize: 8, note: 'レアアイテム' },
-  { id: 'iwana', level: 11, no: 11, name: 'イワナ', imageSrc: '/img/11iwana.jpg', sizeMin: 30, sizeMax: 50, priceMin: 800, priceMax: 4000, nushiPrice: 20000, unlockDifficulty: 'normal', note: '実在・大型' },
-  { id: 'ayu', level: 12, no: 12, name: '鮎', imageSrc: '/img/12ayu.jpg', sizeMin: 20, sizeMax: 30, priceMin: 300, priceMax: 1500, nushiPrice: 7500, unlockDifficulty: 'normal', note: '実在・中型' },
-  { id: 'shakuiwana', level: 13, no: 13, name: '尺イワナ', imageSrc: '/img/13shakuiwana.jpg', sizeMin: 50, sizeMax: 70, priceMin: 1600, priceMax: 8000, nushiPrice: 40000, unlockDifficulty: 'normal', note: '尺を基準とした個体' },
-  { id: 'sakuramasu', level: 14, no: 14, name: 'サクラマス', imageSrc: '/img/14sakuramasu.jpg', sizeMin: 60, sizeMax: 100, priceMin: 2000, priceMax: 10000, nushiPrice: 50000, unlockDifficulty: 'normal', note: '実在・大型' },
-  { id: 'sake', level: 15, no: 15, name: 'サケ', imageSrc: '/img/15sake.jpg', sizeMin: 100, sizeMax: 120, priceMin: 3000, priceMax: 15000, nushiPrice: 75000, unlockDifficulty: 'normal', note: '実在・特大' },
-  { id: 'raigyo', level: 16, no: 16, name: 'ライギョ', imageSrc: '/img/16raigyo.jpg', sizeMin: 100, sizeMax: 150, priceMin: 2400, priceMax: 12000, nushiPrice: 60000, unlockDifficulty: 'normal', note: '実在・大型' },
-  { id: 'mozukugani', level: 17, no: 17, name: 'モズクガニ', imageSrc: '/img/17mozukugani.jpg', sizeMin: 50, sizeMax: 80, priceMin: 400, priceMax: 2000, nushiPrice: 10000, unlockDifficulty: 'normal', note: '実在・甲殻類' },
-  { id: 'itou', level: 18, no: 18, name: 'イトウ', imageSrc: '/img/18itou.jpg', sizeMin: 60, sizeMax: 150, priceMin: 6000, priceMax: 30000, nushiPrice: 150000, unlockDifficulty: 'normal', note: '実在・幻の巨大魚' },
-  { id: 'akibin', level: 19, no: 19, name: '手紙の入った空き瓶', imageSrc: '/img/19akibin.jpg', sizeMin: 26, sizeMax: 26, unlockDifficulty: 'hard', fixedSize: 26, sellable: false, oneTime: true, note: 'レアアイテム' },
-  { id: 'oonamazu', level: 20, no: 20, name: 'オオナマズ', imageSrc: '/img/20oonamazu.jpg', sizeMin: 80, sizeMax: 150, priceMin: 10000, priceMax: 50000, nushiPrice: 250000, unlockDifficulty: 'hard', note: '実在・巨大' },
-  { id: 'nishikigoi', level: 21, no: 21, name: '錦鯉', imageSrc: '/img/21nishikigoi.jpg', sizeMin: 100, sizeMax: 200, priceMin: 4000, priceMax: 20000, nushiPrice: 100000, unlockDifficulty: 'hard', note: '実在・特大' },
-  { id: 'aoningyo', level: 22, no: 22, name: '青い人魚', imageSrc: '/img/22aoningyo.jpg', sizeMin: 165, sizeMax: 165, priceMin: 1000000, priceMax: 1000000, nushiPrice: 5000000, unlockDifficulty: 'hard', fixedSize: 165, note: 'ファンタジー枠' },
-  { id: 'kiironingyo', level: 23, no: 23, name: '黄色い人魚', imageSrc: '/img/23kiironingyo.jpg', sizeMin: 145, sizeMax: 145, priceMin: 500000, priceMax: 500000, nushiPrice: 2500000, unlockDifficulty: 'hard', fixedSize: 145, note: 'ファンタジー枠' },
-  { id: 'pinkningyo', level: 24, no: 24, name: 'ピンクの人魚', imageSrc: '/img/24pinkningyo.jpg', sizeMin: 162, sizeMax: 162, priceMin: 750000, priceMax: 750000, nushiPrice: 3750000, unlockDifficulty: 'hard', fixedSize: 162, note: 'ファンタジー枠' },
-];
 const FISH_ITEM_NAMES = new Set(FISH_ZUKAN_ENTRIES.map(fish => fish.name));
+const LUMBER_ITEM_NAMES = new Set(LUMBER_DATA.map(lumber => lumber.name));
+const ORE_ITEM_NAMES = new Set(ORE_DATA.map(ore => ore.name));
+const FARM_HARVEST_ITEM_NAMES = new Set(FARM_GIRL_CROP_DATA.map(crop => crop.harvestItemName));
 const FISHING_NUSHI_RING_NAME = '釣神の指輪';
 const FISHING_NUSHI_DEBUG_RING_NAME = '釣神の指輪（デバッグ用）';
 const ITEM_MENU_BASE_ITEMS: Record<string, string[]> = {
   '消耗品': ['薬草', '気付け水', '小さな釣り餌'],
-  '素材': ['木材', '川魚の鱗', 'モグラの爪', 'ウサギの靭帯', '軟らかい銅鉱石', '泥混じりの鉄鉱石', '柔らかな若枝'],
-  '装備品': ['竹の釣竿', '丈夫な釣竿', '高級釣竿', '伝説の釣り竿', 'のこぎり', '丈夫なのこぎり', '高級のこぎり', 'つるはし', '丈夫なつるはし', '高級つるはし', '農神の指輪', FISHING_NUSHI_RING_NAME, FISHING_NUSHI_DEBUG_RING_NAME],
+  '素材': [
+    '木材', '川魚の鱗', 'モグラの爪', 'ウサギの靭帯', '軟らかい銅鉱石', '泥混じりの鉄鉱石', '柔らかな若枝',
+    '軽石炭', 'しなやかな軟木', '猪の牙', '熊の剛糸', '良質な鉄鉱石', '堅実な中木',
+    '巨獣の鋼角', '神獣の絹糸', '金鉱石', '不朽の鉄木', '脆い鉛鉱石', '錫鉱石', '銀鉱石', '鋼鉄石', '聖域の輝石',
+    '猪の硬皮', '巨獣の強剛糸', '古代の神木',
+  ],
+  '装備品': ['竹の釣竿', '丈夫な釣竿', '高級釣竿', '伝説の釣り竿', 'のこぎり', '丈夫なのこぎり', '高級のこぎり', '伝説ののこぎり', 'つるはし', '丈夫なつるはし', '高級つるはし', '伝説のつるはし', '農神の指輪', FISHING_NUSHI_RING_NAME, FISHING_NUSHI_DEBUG_RING_NAME],
   '売却品': [],
-  'だいじなもの': ['【レシピ】のこぎり', '【レシピ】つるはし'],
+  'だいじなもの': [
+    '【レシピ】のこぎり',
+    '【レシピ】つるはし',
+    '【レシピ】丈夫なつるはし',
+    '【レシピ】丈夫なのこぎり',
+    '【レシピ】高級つるはし',
+    '【レシピ】高級のこぎり',
+    '【レシピ】伝説のつるはし',
+    '【レシピ】伝説ののこぎり',
+    '【レシピ】丈夫な釣竿',
+    '【レシピ】高級釣竿',
+    '【レシピ】伝説の釣り竿',
+  ],
 };
 const INITIAL_INVENTORY_COUNTS: Record<string, number> = {
-  '丈夫な釣竿': 1, '高級釣竿': 1, '伝説の釣り竿': 1,
-  'のこぎり': 1, '丈夫なのこぎり': 1, '高級のこぎり': 1,
-  'つるはし': 1, '丈夫なつるはし': 1, '高級つるはし': 1,
+  '【レシピ】丈夫な釣竿': 1, '【レシピ】高級釣竿': 1, '【レシピ】伝説の釣り竿': 1,
+  'のこぎり': 1,
+  'つるはし': 1,
   '農神の指輪': 1,
   [FISHING_NUSHI_RING_NAME]: 1,
   [FISHING_NUSHI_DEBUG_RING_NAME]: 1,
@@ -543,10 +585,13 @@ const createItemMenuItems = (inventoryCounts: Record<string, number>) => {
     const fish = FISH_ZUKAN_ENTRIES.find(entry => entry.name === name);
     return fish?.sellable === false;
   });
+  const ownedFarmHarvestNames = FARM_GIRL_CROP_DATA
+    .filter(crop => (inventoryCounts[crop.harvestItemName] ?? 0) > 0)
+    .map(crop => crop.harvestItemName);
 
   return {
     ...ITEM_MENU_BASE_ITEMS,
-    '売却品': [...sellableFishNames, ...ITEM_MENU_BASE_ITEMS['売却品']],
+    '売却品': [...sellableFishNames, ...ownedFarmHarvestNames, ...ITEM_MENU_BASE_ITEMS['売却品']],
     'だいじなもの': [...keyFishNames, ...ITEM_MENU_BASE_ITEMS['だいじなもの']],
   };
 };
@@ -562,6 +607,60 @@ const RECIPE_DETAILS: Record<string, { title: string; materials: string[]; steps
     materials: ['モグラの爪（5）', 'ウサギの靭帯（2）', '泥混じりの鉄鉱石（1）', '柔らかな若枝（2）'],
     steps: ['鉄鉱石に爪を刺し、靭帯で固定する。', '枝を十字に組み、柄を作る。'],
     note: '注意：岩を叩くとすぐ鈍る。小石掘りから始めよ。',
+  },
+  '【レシピ】丈夫なつるはし': {
+    title: 'レシピ：丈夫なつるはし',
+    materials: ['モグラの爪（10）', 'ウサギの靭帯（5）', '泥混じりの鉄鉱石（3）', '柔らかな若枝（5）'],
+    steps: ['鉄鉱石を束ねて先端を厚くする。', '若枝の柄を靭帯で締め、モグラの爪で掘削力を補強する。'],
+    note: '錫鉱石や鋼鉄石を低確率で狙える中級つるはし。',
+  },
+  '【レシピ】丈夫なのこぎり': {
+    title: 'レシピ：丈夫なのこぎり',
+    materials: ['モグラの爪（10）', 'ウサギの靭帯（5）', '軟らかい銅鉱石（3）', '柔らかな若枝（5）'],
+    steps: ['銅鉱石を薄く伸ばし、爪を刃として並べる。', '若枝の柄へ靭帯できつく固定する。'],
+    note: 'しなやかな軟木と堅実な中木を狙える中級のこぎり。',
+  },
+  '【レシピ】高級つるはし': {
+    title: 'レシピ：高級つるはし',
+    materials: ['猪の牙（5）', '猪の硬皮（2）', '錫鉱石（3）', '堅実な中木（5）', 'モグラの爪（20）', 'ウサギの靭帯（10）'],
+    steps: ['堅実な中木を芯にして錫鉱石で先端を固める。', '猪の牙と硬皮で衝撃に強い掘削具へ仕上げる。'],
+    note: '中盤以降の鉱石を安定して掘り出せる上位つるはし。',
+  },
+  '【レシピ】高級のこぎり': {
+    title: 'レシピ：高級のこぎり',
+    materials: ['猪の牙（5）', '猪の硬皮（2）', '錫鉱石（3）', '堅実な中木（5）', 'モグラの爪（20）', 'ウサギの靭帯（10）'],
+    steps: ['堅実な中木でしならない柄を作る。', '錫鉱石と猪の牙を刃に組み込み、硬皮で握りを補強する。'],
+    note: '不朽の鉄木と古代の神木を低確率で狙える上位のこぎり。',
+  },
+  '【レシピ】伝説のつるはし': {
+    title: 'レシピ：伝説のつるはし',
+    materials: ['巨獣の鋼角（5）', '巨獣の強剛糸（2）', '鋼鉄石（5）', '古代の神木（3）', '猪の牙（10）', '猪の硬皮（5）'],
+    steps: ['古代の神木に鋼鉄石を打ち込み、折れない芯を作る。', '巨獣の鋼角と強剛糸で、岩盤を砕く先端へ仕上げる。'],
+    note: '最上位鉱石を狙える伝説級のつるはし。',
+  },
+  '【レシピ】伝説ののこぎり': {
+    title: 'レシピ：伝説ののこぎり',
+    materials: ['巨獣の鋼角（5）', '巨獣の強剛糸（2）', '鋼鉄石（5）', '古代の神木（3）', '猪の牙（10）', '猪の硬皮（5）'],
+    steps: ['古代の神木を柄にして鋼鉄石で刃の土台を作る。', '巨獣の鋼角を刃先に並べ、強剛糸で締め上げる。'],
+    note: '古代の神木まで安定して狙える伝説級ののこぎり。',
+  },
+  '【レシピ】丈夫な釣竿': {
+    title: 'レシピ：丈夫な釣竿',
+    materials: ['モグラの爪（5）', 'ウサギの靭帯（10）', '軽石炭（2）', 'しなやかな軟木（3）'],
+    steps: ['軟木をしならせ、爪で継ぎ目を固定する。', '靭帯を撚って糸を作り、軽石炭で接合部を補強する。'],
+    note: '竹の釣竿より遠くへ投げられ、釣れる魚の種類が増える。',
+  },
+  '【レシピ】高級釣竿': {
+    title: 'レシピ：高級釣竿',
+    materials: ['猪の牙（5）', '熊の剛糸（10）', '良質な鉄鉱石（5）', '堅実な中木（5）', '丈夫な釣竿（1）'],
+    steps: ['丈夫な釣竿を芯にして中木と鉄鉱石で補強する。', '猪の牙を留め具に加工し、熊の剛糸を張る。'],
+    note: '丈夫な釣竿を素材として消費する上位装備。',
+  },
+  '【レシピ】伝説の釣り竿': {
+    title: 'レシピ：伝説の釣り竿',
+    materials: ['巨獣の鋼角（5）', '神獣の絹糸（5）', '金鉱石（5）', '不朽の鉄木（3）', '高級釣竿（1）', '熊の剛糸（20）'],
+    steps: ['高級釣竿へ鉄木と鋼角を組み込み、金鉱石で接合する。', '神獣の絹糸と熊の剛糸を重ね、折れない釣り糸に仕上げる。'],
+    note: 'すべての魚を狙える最高ランクの釣竿。',
   },
 };
 const CRAFT_RECIPE_CONFIGS: Record<CraftRecipeId, CraftRecipeConfig> = {
@@ -579,14 +678,71 @@ const CRAFT_RECIPE_CONFIGS: Record<CraftRecipeId, CraftRecipeConfig> = {
     circleDurationRangeMs: [1200, 1800],
     scorePerCircle: 9,
   },
+  '【レシピ】丈夫なつるはし': {
+    output: '丈夫なつるはし',
+    materials: { 'モグラの爪': 10, 'ウサギの靭帯': 5, '泥混じりの鉄鉱石': 3, '柔らかな若枝': 5 },
+    circleCountRange: [8, 10],
+    circleDurationRangeMs: [1500, 2200],
+    scorePerCircle: 12,
+  },
+  '【レシピ】丈夫なのこぎり': {
+    output: '丈夫なのこぎり',
+    materials: { 'モグラの爪': 10, 'ウサギの靭帯': 5, '軟らかい銅鉱石': 3, '柔らかな若枝': 5 },
+    circleCountRange: [8, 10],
+    circleDurationRangeMs: [1500, 2200],
+    scorePerCircle: 12,
+  },
+  '【レシピ】高級つるはし': {
+    output: '高級つるはし',
+    materials: { '猪の牙': 5, '猪の硬皮': 2, '錫鉱石': 3, '堅実な中木': 5, 'モグラの爪': 20, 'ウサギの靭帯': 10 },
+    circleCountRange: [10, 13],
+    circleDurationRangeMs: [1300, 2000],
+    scorePerCircle: 10,
+  },
+  '【レシピ】高級のこぎり': {
+    output: '高級のこぎり',
+    materials: { '猪の牙': 5, '猪の硬皮': 2, '錫鉱石': 3, '堅実な中木': 5, 'モグラの爪': 20, 'ウサギの靭帯': 10 },
+    circleCountRange: [10, 13],
+    circleDurationRangeMs: [1300, 2000],
+    scorePerCircle: 10,
+  },
+  '【レシピ】伝説のつるはし': {
+    output: '伝説のつるはし',
+    materials: { '巨獣の鋼角': 5, '巨獣の強剛糸': 2, '鋼鉄石': 5, '古代の神木': 3, '猪の牙': 10, '猪の硬皮': 5 },
+    circleCountRange: [12, 15],
+    circleDurationRangeMs: [1100, 1800],
+    scorePerCircle: 8,
+  },
+  '【レシピ】伝説ののこぎり': {
+    output: '伝説ののこぎり',
+    materials: { '巨獣の鋼角': 5, '巨獣の強剛糸': 2, '鋼鉄石': 5, '古代の神木': 3, '猪の牙': 10, '猪の硬皮': 5 },
+    circleCountRange: [12, 15],
+    circleDurationRangeMs: [1100, 1800],
+    scorePerCircle: 8,
+  },
+  '【レシピ】丈夫な釣竿': {
+    output: '丈夫な釣竿',
+    materials: { 'モグラの爪': 5, 'ウサギの靭帯': 10, '軽石炭': 2, 'しなやかな軟木': 3 },
+    circleCountRange: [7, 9],
+    circleDurationRangeMs: [1700, 2400],
+    scorePerCircle: 13,
+  },
+  '【レシピ】高級釣竿': {
+    output: '高級釣竿',
+    materials: { '猪の牙': 5, '熊の剛糸': 10, '良質な鉄鉱石': 5, '堅実な中木': 5, '丈夫な釣竿': 1 },
+    circleCountRange: [9, 12],
+    circleDurationRangeMs: [1400, 2100],
+    scorePerCircle: 11,
+  },
+  '【レシピ】伝説の釣り竿': {
+    output: '伝説の釣り竿',
+    materials: { '巨獣の鋼角': 5, '神獣の絹糸': 5, '金鉱石': 5, '不朽の鉄木': 3, '高級釣竿': 1, '熊の剛糸': 20 },
+    circleCountRange: [12, 15],
+    circleDurationRangeMs: [1100, 1800],
+    scorePerCircle: 8,
+  },
 };
-const FISHING_ROD_FISH_LEVELS: Record<FishingRodName, number[]> = {
-  '竹の釣竿': [0, 1, 2, 3, 4, 5],
-  '丈夫な釣竿': [6, 7, 8, 9, 10],
-  '高級釣竿': [11, 12, 13, 14, 15, 16, 17, 18, 19],
-  '伝説の釣り竿': [20, 21, 22, 23, 24],
-};
-const DEFAULT_FISHING_ROD: FishingRodName = '竹の釣竿';
+const CRAFT_RECIPE_IDS = Object.keys(CRAFT_RECIPE_CONFIGS) as CraftRecipeId[];
 const FISHING_TUTORIAL_KURUMI_ZONE = { x: 1366, y: 636, w: 44, h: 62 };
 const FISHING_TUTORIAL_KURUMI_LABEL_W = 210;
 const FISHING_TUTORIAL_KURUMI_LABEL_H = 54;
@@ -659,6 +815,57 @@ const SAW_CRAFT_TUTORIAL_STEPS: DebugDialogueStep[] = [
     voiceSrc: '/voice/craft2.wav',
   },
 ];
+const LOGGING_TUTORIAL_STEPS: (DebugDialogueStep & { id: string })[] = [
+  {
+    id: 'intro',
+    debugKey: 'gathering_tutorial_logging_intro',
+    message: 'すごーい♪伐採できる木を見つけたね！\nじゃあ、ここからはどうやって木材を切り出すのか\nくるみが手取り足取り腰取り教えちゃうね♡',
+    voiceSrc: '/voice/tree1.wav',
+  },
+  {
+    id: 'direction',
+    debugKey: 'gathering_tutorial_logging_direction',
+    message: 'まずは、こんな感じでのこぎりを入れる角度を決めてね！\n一番伐採しやすい角度が黄色い範囲で出てるから、\nそこを狙って決定ボタンを押してみよう！',
+    voiceSrc: '/voice/tree2.wav',
+  },
+  {
+    id: 'action',
+    debugKey: 'gathering_tutorial_logging_action',
+    message: '次は実際にのこぎりで切っていくよ！\n下にバーが表示されてカーソルが動いてるから黄色い部分で\nタイミングよくクリックしてねっ♪\n連続で黄色い範囲にカーソルを止めるとコンボが繋がって\n早く伐採できるようになるよ！\n何度か繰り返して100％になったら伐採成功ーっ！',
+    voiceSrc: '/voice/tree3.wav',
+  },
+  {
+    id: 'fail_explain',
+    debugKey: 'gathering_tutorial_logging_fail_explain',
+    message: '逆に黄色い範囲以外でクリックしちゃうと\n伐採率が減っていっちゃうから注意！0％を下回ると\n失敗しちゃうから、気をつけてねっ♪\nものは試しっ、早速やってみよー！',
+    voiceSrc: '/voice/tree4.wav',
+  },
+];
+const LOGGING_MINIGAME_CONFIG = {
+  tickMs: 50,
+  directionSpeed: 4,
+  actionSpeedBySaw: {
+    'のこぎり': 4,
+    '丈夫なのこぎり': 3,
+    '高級のこぎり': 2,
+  },
+  directionSweetMin: 40,
+  directionSweetMax: 60,
+  actionSweetWidth: {
+    goodAngle: 30,
+    badAngle: 15,
+  },
+  progressPerCut: {
+    min: 3,
+    max: 8,
+  },
+  comboProgressMultiplier: 1.1,
+  comboSpeedMultiplier: 1.2,
+  missPenalty: {
+    tutorial: 10,
+    normal: 15,
+  },
+} as const;
 const PICKAXE_CRAFT_TUTORIAL_STEPS: DebugDialogueStep[] = [
   {
     debugKey: 'pickaxe_craft_tutorial_1',
@@ -727,10 +934,21 @@ const CRAFT_TUTORIAL_KURUMI_LABEL_W = 210;
 const CRAFT_TUTORIAL_KURUMI_LABEL_H = 54;
 const WARP_COOLDOWN_MS = 450;
 const CRAFT_SUCCESS_SOUND_SRC = '/se/craft.mp3';
+const LOGGING_SUCCESS_SOUND_SRC = '/se/success.mp3';
+const LOGGING_CUT_SOUND_SRC = '/se/saw.wav';
+const LOGGING_BGM_SRC = '/bgm/tree.mp3';
+const LOGGING_RESULT_SOUND_SRC = '/se/nushi.mp3';
 
 const clampNumber = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
-const isFishingRodName = (name: string): name is FishingRodName => name in FISHING_ROD_FISH_LEVELS;
-const getFishingRodName = (name: string): FishingRodName => isFishingRodName(name) ? name : DEFAULT_FISHING_ROD;
+const shouldEquipCraftedGatheringTool = (currentTool: string, craftedTool: string) => {
+  if (isSawName(craftedTool)) {
+    return !isSawName(currentTool) || SAW_RANKS.indexOf(craftedTool) > SAW_RANKS.indexOf(currentTool);
+  }
+  if (isPickaxeName(craftedTool)) {
+    return !isPickaxeName(currentTool) || PICKAXE_RANKS.indexOf(craftedTool) > PICKAXE_RANKS.indexOf(currentTool);
+  }
+  return false;
+};
 const getFishingFanSweetWidth = (fishLevel: number) => {
   if (fishLevel >= 22) return 5;
   return Number((80 - (75 * clampNumber(fishLevel, 0, 22)) / 22).toFixed(1));
@@ -743,19 +961,11 @@ const createFishingFanSweetRange = (fish: FishZukanEntry) => {
     max: Number((start + width).toFixed(1)),
   };
 };
-const selectFishingTargetFish = (rodName: string, caughtIds: string[]) => {
-  const levels = FISHING_ROD_FISH_LEVELS[getFishingRodName(rodName)];
-  const candidates = FISH_ZUKAN_ENTRIES.filter(fish => (
-    levels.includes(fish.level) &&
-    (!fish.oneTime || !caughtIds.includes(fish.id))
-  ));
-  return candidates[Math.floor(Math.random() * candidates.length)] ?? FISH_ZUKAN_ENTRIES[0];
-};
 const getFishSizeRatio = (fish: FishZukanEntry, size: number) => {
   if (fish.sizeMax <= fish.sizeMin) return 1;
   return clampNumber((size - fish.sizeMin) / (fish.sizeMax - fish.sizeMin), 0, 1);
 };
-const isNushiSize = (fish: FishZukanEntry, size: number) => size >= fish.sizeMax;
+const isNushiSize = (fish: FishZukanEntry, size: number) => isFishBossSize(fish, size);
 const getFishingBiteMultiplier = (biteCombo: number) => 1 + Math.min(1, biteCombo / FISHING_BITE_ROUNDS);
 const getFishingNushiBaseRate = () => 0.01 + Math.random() * 0.03;
 const FISHING_NUSHI_RING_RATE_MULTIPLIER = 3;
@@ -765,12 +975,6 @@ const rollFishingNushi = (fish: FishZukanEntry, biteCombo: number, rateMultiplie
   const finalRate = clampNumber(baseRate * getFishingBiteMultiplier(biteCombo), 0, 1);
   return Math.random() < finalRate;
 };
-const getFishSellPrice = (fish: FishZukanEntry, size: number) => {
-  if (fish.sellable === false || typeof fish.priceMin !== 'number' || typeof fish.priceMax !== 'number') return null;
-  if (isNushiSize(fish, size)) return fish.nushiPrice ?? fish.priceMax * 5;
-  if (fish.priceMin === fish.priceMax || fish.sizeMax <= fish.sizeMin) return fish.priceMin;
-  return Math.round(fish.priceMin + (fish.priceMax - fish.priceMin) * getFishSizeRatio(fish, size));
-};
 const createFishingTargetSize = (fish: FishZukanEntry, biteScore: number, biteCombo: number) => {
   if (typeof fish.fixedSize === 'number') return fish.fixedSize;
   const quality = clampNumber((biteScore / FISHING_BITE_ROUNDS) * 0.72 + (biteCombo / FISHING_BITE_ROUNDS) * 0.28, 0, 1);
@@ -779,12 +983,148 @@ const createFishingTargetSize = (fish: FishZukanEntry, biteScore: number, biteCo
   const sizeRatio = clampNumber(lowRoll + highBonus, 0, 1);
   return Number((fish.sizeMin + (fish.sizeMax - fish.sizeMin) * sizeRatio).toFixed(1));
 };
+const INITIAL_DEBT_BY_DIFFICULTY: Readonly<Record<GameDifficulty, number>> = {
+  easy: 5_000_000,
+  normal: 20_000_000,
+  hard: 100_000_000,
+};
+const DEFAULT_REPAYMENT_CYCLE_DAYS = 7;
+const EXHAUSTED_ACTION_MESSAGE = '疲れてこれ以上行動できない。自宅のベッドで休もう。';
+const TRUST_GAIN_ON_HARVEST = 3;
+const FARM_GIRL_ACTIVE_STATES: readonly FarmGirlState[] = ['planted', 'growing', 'appeared', 'companion', 'lover'];
+const isFarmGirlState = (value: unknown): value is FarmGirlState => (
+  value === 'none' ||
+  value === 'planted' ||
+  value === 'growing' ||
+  value === 'appeared' ||
+  value === 'companion' ||
+  value === 'lover'
+);
+const createInitialFarmGirls = (): FarmGirlSaveState[] => GIRL_DATA.map(girl => ({
+  girlId: girl.id,
+  state: 'none',
+  plantedDay: null,
+  growthProgress: 0,
+  lastHarvestDay: null,
+  trust: girl.initialTrust,
+  unlockedTrustEventIds: [],
+}));
+const normalizeFarmGirls = (raw: unknown): FarmGirlSaveState[] => {
+  const rawEntries = Array.isArray(raw) ? raw : [];
+  const rawByGirlId = new Map<string, unknown>(
+    rawEntries
+      .filter(entry => entry && typeof entry === 'object' && !Array.isArray(entry))
+      .map(entry => [(entry as { girlId?: unknown }).girlId, entry])
+      .filter((entry): entry is [string, unknown] => typeof entry[0] === 'string')
+  );
+
+  return GIRL_DATA.map(girl => {
+    const rawEntry = rawByGirlId.get(girl.id);
+    if (!rawEntry || typeof rawEntry !== 'object' || Array.isArray(rawEntry)) {
+      return createInitialFarmGirls().find(state => state.girlId === girl.id)!;
+    }
+    const entry = rawEntry as Record<string, unknown>;
+    return {
+      girlId: girl.id,
+      state: isFarmGirlState(entry.state) ? entry.state : 'none',
+      plantedDay: typeof entry.plantedDay === 'number' && Number.isInteger(entry.plantedDay) && entry.plantedDay > 0 ? entry.plantedDay : null,
+      growthProgress: typeof entry.growthProgress === 'number' && Number.isFinite(entry.growthProgress) ? clampNumber(entry.growthProgress, 0, 100) : 0,
+      lastHarvestDay: typeof entry.lastHarvestDay === 'number' && Number.isInteger(entry.lastHarvestDay) && entry.lastHarvestDay > 0 ? entry.lastHarvestDay : null,
+      trust: typeof entry.trust === 'number' && Number.isFinite(entry.trust) ? clampNumber(entry.trust, 0, 100) : girl.initialTrust,
+      unlockedTrustEventIds: Array.isArray(entry.unlockedTrustEventIds)
+        ? entry.unlockedTrustEventIds.filter((id): id is string => typeof id === 'string')
+        : [],
+    };
+  });
+};
+const normalizeOwnedGirlSeeds = (raw: unknown): string[] => {
+  const savedSeeds = Array.isArray(raw)
+    ? raw.filter((seedId): seedId is string => typeof seedId === 'string')
+    : [];
+  return Array.from(new Set([...INITIAL_OWNED_GIRL_SEEDS, ...savedSeeds]));
+};
+const createInitialFarmFieldSlots = (difficultyId: GameDifficulty): FarmFieldSlotState[] => (
+  getInitiallyUnlockedFarmFieldConfigs(difficultyId).flatMap(config => (
+    Array.from({ length: config.slotCount }, (_, index) => ({
+      fieldId: config.fieldId,
+      slotIndex: index + 1,
+      girlId: null,
+      state: 'none',
+      plantedDay: null,
+    }))
+  ))
+);
+const normalizeFarmFieldSlots = (raw: unknown, difficultyId: GameDifficulty): FarmFieldSlotState[] => {
+  const rawEntries = Array.isArray(raw) ? raw : [];
+  const rawBySlotKey = new Map<string, unknown>(
+    rawEntries
+      .filter(entry => entry && typeof entry === 'object' && !Array.isArray(entry))
+      .map(entry => {
+        const slot = entry as { fieldId?: unknown; slotIndex?: unknown };
+        return [`${slot.fieldId}_${slot.slotIndex}`, entry] as const;
+      })
+  );
+
+  return createInitialFarmFieldSlots(difficultyId).map(slot => {
+    const rawSlot = rawBySlotKey.get(`${slot.fieldId}_${slot.slotIndex}`);
+    if (!rawSlot || typeof rawSlot !== 'object' || Array.isArray(rawSlot)) return slot;
+
+    const entry = rawSlot as Record<string, unknown>;
+    const girlId = typeof entry.girlId === 'string' && GIRL_DATA.some(girl => girl.id === entry.girlId)
+      ? entry.girlId
+      : null;
+    return {
+      ...slot,
+      girlId,
+      state: girlId && entry.state === 'appeared' ? 'appeared' : girlId ? 'growing' : 'none',
+      plantedDay: typeof entry.plantedDay === 'number' && Number.isInteger(entry.plantedDay) && entry.plantedDay > 0
+        ? entry.plantedDay
+        : null,
+    };
+  });
+};
+const isFarmGirlDuplicateBlocked = (farmGirls: readonly FarmGirlSaveState[], girlId: string): boolean => {
+  const cropData = FARM_GIRL_CROP_DATA.find(data => data.girlId === girlId);
+  if (!cropData?.uniquePerGirl || cropData.canHaveMultiple) return false;
+  return farmGirls.some(girl => girl.girlId === girlId && FARM_GIRL_ACTIVE_STATES.includes(girl.state));
+};
+const INTEREST_RATE_RANGE_BY_DIFFICULTY: Readonly<Record<GameDifficulty, { min: number; max: number }>> = {
+  easy: { min: 1.0, max: 3.2 },
+  normal: { min: 1.5, max: 4.2 },
+  hard: { min: 2.0, max: 5.0 },
+};
+const FARM_CREDIT_INTEREST_DISCOUNTS = [
+  { min: 80, discount: 1.2 },
+  { min: 60, discount: 0.8 },
+  { min: 40, discount: 0.5 },
+  { min: 20, discount: 0.2 },
+  { min: 0, discount: 0 },
+] as const;
+const MISSED_REPAYMENT_PENALTY_RATE = 0.5;
+const MIN_INTEREST_RATE = 0.5;
+const MAX_INTEREST_RATE = 8.0;
+const getInitialDebtAmount = (difficultyId: GameDifficulty) => INITIAL_DEBT_BY_DIFFICULTY[difficultyId];
+const getFarmCreditInterestDiscount = (farmCredit: number) => (
+  FARM_CREDIT_INTEREST_DISCOUNTS.find(entry => farmCredit >= entry.min)?.discount ?? 0
+);
+const getMissedRepaymentPenalty = (missedRepaymentCount: number) => Math.max(0, missedRepaymentCount) * MISSED_REPAYMENT_PENALTY_RATE;
+const createWeeklyInterestRate = (
+  difficultyId: GameDifficulty,
+  farmCredit: number,
+  missedRepaymentCount: number,
+  random = Math.random,
+) => {
+  const range = INTEREST_RATE_RANGE_BY_DIFFICULTY[difficultyId];
+  const baseRate = range.min + (range.max - range.min) * random();
+  const rate = baseRate - getFarmCreditInterestDiscount(farmCredit) + getMissedRepaymentPenalty(missedRepaymentCount);
+  return Number(clampNumber(rate, MIN_INTEREST_RATE, MAX_INTEREST_RATE).toFixed(1));
+};
 const DIFFICULTY_OPTIONS: { id: GameDifficulty; label: string; debt: number; desc: string }[] = [
-  { id: 'easy', label: 'イージー', debt: 5000000, desc: '借金額 500万円' },
-  { id: 'normal', label: 'ノーマル', debt: 20000000, desc: '借金額 2000万円' },
-  { id: 'hard', label: 'ハード', debt: 100000000, desc: '借金額 1億円' },
+  { id: 'easy', label: 'イージー', debt: INITIAL_DEBT_BY_DIFFICULTY.easy, desc: '借金額 500万円' },
+  { id: 'normal', label: 'ノーマル', debt: INITIAL_DEBT_BY_DIFFICULTY.normal, desc: '借金額 2000万円' },
+  { id: 'hard', label: 'ハード', debt: INITIAL_DEBT_BY_DIFFICULTY.hard, desc: '借金額 1億円' },
 ];
-const DEFAULT_DEBT = DIFFICULTY_OPTIONS.find(option => option.id === 'hard')?.debt ?? 100000000;
+const DEFAULT_DEBT = getInitialDebtAmount('hard');
 
 const loadFishingFanConfigs = (): Record<string, FishingFanConfig> => {
   try {
@@ -914,6 +1254,10 @@ export default function App() {
   const [selectedFarmGirlIndex, setSelectedFarmGirlIndex] = useState(0);
   const selectedFarmGirlIndexRef = useRef(0);
   const [farmGirlDetailOpen, setFarmGirlDetailOpen] = useState(false);
+  const [farmGirls, setFarmGirls] = useState<FarmGirlSaveState[]>(createInitialFarmGirls);
+  const [ownedGirlSeeds, setOwnedGirlSeeds] = useState<string[]>(() => [...INITIAL_OWNED_GIRL_SEEDS]);
+  const [farmFieldSlots, setFarmFieldSlots] = useState<FarmFieldSlotState[]>(() => createInitialFarmFieldSlots('hard'));
+  const [plantingSeedId, setPlantingSeedId] = useState<string | null>(null);
   const [recipeDetailOpen, setRecipeDetailOpen] = useState(false);
   const [selectedRecipeName, setSelectedRecipeName] = useState('');
   const [craftRecipeSelectMode, setCraftRecipeSelectMode] = useState(false);
@@ -937,19 +1281,28 @@ export default function App() {
   const [fishBestSizes, setFishBestSizes] = useState<Record<string, number>>({});
   const [fishSizeUpdatedIds, setFishSizeUpdatedIds] = useState<string[]>([]);
   const [fishInventorySizes, setFishInventorySizes] = useState<Record<string, number[]>>({});
+  const [lumberInventorySizes, setLumberInventorySizes] = useState<Record<string, number[]>>({});
+  const [oreInventoryWeights, setOreInventoryWeights] = useState<Record<string, number[]>>({});
+  const [depletedMiningPointIds, setDepletedMiningPointIds] = useState<Record<string, boolean>>({});
+  const [activeMiningPointId, setActiveMiningPointId] = useState<string | null>(null);
   const [systemNotice, setSystemNotice] = useState('システム項目を選択してください。');
   const systemNoticeRef = useRef('システム項目を選択してください。');
   const [selectedSystemActionIndex, setSelectedSystemActionIndex] = useState(0);
   const selectedSystemActionIndexRef = useRef(0);
   const [gold, setGold] = useState(5000);
-  const [debt, setDebt] = useState(DEFAULT_DEBT);
   const [difficulty, setDifficulty] = useState<GameDifficulty>('hard');
+  const [debtAmount, setDebtAmount] = useState(() => getInitialDebtAmount('hard'));
+  const [repaymentCycleDays, setRepaymentCycleDays] = useState(DEFAULT_REPAYMENT_CYCLE_DAYS);
+  const [farmCredit, setFarmCredit] = useState(0);
+  const [missedRepaymentCount, setMissedRepaymentCount] = useState(0);
+  const [currentWeeklyInterestRate, setCurrentWeeklyInterestRate] = useState(() => createWeeklyInterestRate('hard', 0, 0));
+  const [interestRateCycleIndex, setInterestRateCycleIndex] = useState(0);
+  const [currentAP, setCurrentAP] = useState(5);
   const [kurumiTradeTotal, setKurumiTradeTotal] = useState(0);
   const [inventoryCounts, setInventoryCounts] = useState<Record<string, number>>(() => ({ ...INITIAL_INVENTORY_COUNTS }));
   const heroLevel = 1;
-  const actionCountMax = 5 + Math.max(0, heroLevel - 1);
-  const actionCountCurrent = actionCountMax;
-  const actionCountLabel = `${actionCountCurrent}/${actionCountMax}`;
+  const maxAPPerTimeSlot = 5 + Math.max(0, heroLevel - 1);
+  const actionCountLabel = `${currentAP}/${maxAPPerTimeSlot}`;
   const [shopItems, setShopItems] = useState<ShopItem[]>([
     { name: '薬草', price: 120, stock: 8, type: '買う', desc: '体力を少し回復する定番の薬草です。' },
     { name: '携帯おにぎり', price: 260, stock: 5, type: '買う', desc: '探索前の腹ごしらえに便利です。' },
@@ -986,6 +1339,61 @@ export default function App() {
         };
       });
   });
+  const lumberShopItems = LUMBER_DATA.flatMap<ShopItem>(lumber => {
+    const priceCounts = new Map<number, { count: number; sizes: number[] }>();
+    (lumberInventorySizes[lumber.name] ?? []).forEach(size => {
+      const price = getLumberSellPrice(lumber, size);
+      const current = priceCounts.get(price) ?? { count: 0, sizes: [] };
+      current.count += 1;
+      current.sizes.push(size);
+      priceCounts.set(price, current);
+    });
+    return Array.from(priceCounts.entries())
+      .sort(([priceA], [priceB]) => priceB - priceA)
+      .map(([price, { count, sizes }]) => {
+        const maxSize = Math.max(...sizes);
+        return {
+          name: `${lumber.name} ${maxSize.toFixed(1)}cm`,
+          sizedInventoryName: lumber.name,
+          sizedInventoryPrice: price,
+          price,
+          stock: count,
+          type: '売る',
+          desc: `${lumber.name} ${maxSize.toFixed(1)}cm。サイズに応じた価格で買い取ります。`,
+        };
+      });
+  });
+  const oreShopItems = ORE_DATA.flatMap<ShopItem>(ore => {
+    const priceCounts = new Map<number, { count: number; weights: number[] }>();
+    (oreInventoryWeights[ore.name] ?? []).forEach(weight => {
+      const price = getOreSellPrice(ore, weight);
+      const current = priceCounts.get(price) ?? { count: 0, weights: [] };
+      current.count += 1;
+      current.weights.push(weight);
+      priceCounts.set(price, current);
+    });
+    return Array.from(priceCounts.entries()).sort(([a], [b]) => b - a).map(([price, { count, weights }]) => ({
+      name: `${ore.name} ${Math.max(...weights).toLocaleString()}g`,
+      sizedInventoryName: ore.name,
+      sizedInventoryPrice: price,
+      price,
+      stock: count,
+      type: '売る',
+      desc: `${ore.name}。重量に応じた価格で買い取ります。`,
+    }));
+  });
+  const farmHarvestShopItems = FARM_GIRL_CROP_DATA.flatMap<ShopItem>(crop => {
+    const stock = inventoryCounts[crop.harvestItemName] ?? 0;
+    if (stock <= 0) return [];
+    const price = getFarmHarvestSellPrice(crop);
+    return [{
+      name: crop.harvestItemName,
+      price,
+      stock,
+      type: '売る',
+      desc: `${crop.harvestItemName}。農場で収穫した作物です。`,
+    }];
+  });
   const shopItemsForDisplay = [
     ...shopItems.filter(item => (
       item.type === '買う' &&
@@ -993,6 +1401,9 @@ export default function App() {
       (!isRecipeItemName(item.name) || (inventoryCounts[item.name] ?? 0) === 0)
     )),
     ...fishShopItems,
+    ...lumberShopItems,
+    ...oreShopItems,
+    ...farmHarvestShopItems,
     ...shopItems.filter(item => item.type === '売る' && (inventoryCounts[item.name] ?? 0) > 0),
   ];
   const renderMenuDetail = (id: MenuItemId) => {
@@ -1159,7 +1570,7 @@ export default function App() {
       const selectedEquippedItem = equippedItems[selectedEquipmentSlot] || '';
       const equipmentOptionsBySlot: Record<string, string[]> = {
         '釣具系': ['竹の釣竿', '丈夫な釣竿', '高級釣竿', '伝説の釣り竿'],
-        '採取道具系': ['のこぎり', '丈夫なのこぎり', '高級のこぎり', 'つるはし', '丈夫なつるはし', '高級つるはし'],
+        '採取道具系': ['のこぎり', '丈夫なのこぎり', '高級のこぎり', '伝説ののこぎり', 'つるはし', '丈夫なつるはし', '高級つるはし', '伝説のつるはし'],
         'アクセサリー': ['農神の指輪', FISHING_NUSHI_RING_NAME, FISHING_NUSHI_DEBUG_RING_NAME],
         'slot1': ['小さな鈴'],
         'slot2': [],
@@ -1381,14 +1792,75 @@ export default function App() {
 
     if (id === 'farm') {
       const selectedFarmGirl = menuGirls[selectedFarmGirlIndex] ?? menuGirls[0];
-      const currentDay = Math.floor(turn / 4) + 1;
-      const repaymentCycleDays = 7;
-      const daysUntilRepayment = repaymentCycleDays - ((currentDay - 1) % repaymentCycleDays);
+      const selectedGirlData = GIRL_DATA.find(girl => girl.girlName === selectedFarmGirl.name);
+      const selectedGirlSeed = selectedGirlData
+        ? GIRL_SEED_ACQUISITION_DATA.find(seed => seed.girlId === selectedGirlData.id)
+        : undefined;
+      const selectedFarmGirlState = selectedGirlData
+        ? farmGirls.find(girl => girl.girlId === selectedGirlData.id)
+        : undefined;
+      const selectedGirlSeedOwned = selectedGirlSeed ? ownedGirlSeeds.includes(selectedGirlSeed.seedId) : false;
+      const selectedHarvestInfo = selectedGirlData ? getFarmGirlHarvestInfo(selectedGirlData.id) : null;
+      const selectedNextTrustEvent = selectedGirlData && selectedFarmGirlState
+        ? selectedGirlData.trustEvents.find(event => !selectedFarmGirlState.unlockedTrustEventIds.includes(event.eventId))
+        : undefined;
+      const plantingSeedData = plantingSeedId
+        ? GIRL_SEED_ACQUISITION_DATA.find(seed => seed.seedId === plantingSeedId)
+        : undefined;
+      const plantableFarmFieldSlots = getPlantableFarmFieldSlots();
+      const unlockTierLabels = { initial: '初期解放', mid: '中盤解放', final: '終盤解放' } as const;
+      const farmGirlStateLabels: Record<FarmGirlState, string> = {
+        none: '未出現',
+        planted: '植え付け中',
+        growing: '成長中',
+        appeared: '出現中',
+        companion: '仲間',
+        lover: '恋人',
+      };
+      const getFarmGirlStateDisplay = (girlId: string, fallbackState: FarmGirlState = 'none') => {
+        const farmGirl = farmGirls.find(entry => entry.girlId === girlId);
+        const crop = FARM_GIRL_CROP_DATA.find(entry => entry.girlId === girlId);
+        const state = farmGirl?.state ?? fallbackState;
+        if (state === 'growing') {
+          return `成長中 ${farmGirl?.growthProgress ?? 0} / ${crop?.growthDays ?? '?'} 日`;
+        }
+        return farmGirlStateLabels[state];
+      };
+      const ownedSeedIds = Array.from(new Set(ownedGirlSeeds));
+      const ownedGirlSeedRows = ownedSeedIds.flatMap(seedId => {
+        const seedData = GIRL_SEED_ACQUISITION_DATA.find(seed => seed.seedId === seedId);
+        if (!seedData) return [];
+        const girl = GIRL_DATA.find(entry => entry.id === seedData.girlId);
+        const crop = FARM_GIRL_CROP_DATA.find(entry => entry.girlId === seedData.girlId);
+        const farmGirl = farmGirls.find(entry => entry.girlId === seedData.girlId);
+        const canPlant = (farmGirl?.state ?? 'none') === 'none' && !isFarmGirlDuplicateBlocked(farmGirls, seedData.girlId);
+        const harvestInfo = getFarmGirlHarvestInfo(seedData.girlId);
+        return [{
+          seedId,
+          girlId: seedData.girlId,
+          seedName: seedData.seedName,
+          girlName: girl?.girlName ?? seedData.girlId,
+          cropName: girl?.cropName ?? crop?.harvestItemName ?? '未設定',
+          unlockTier: unlockTierLabels[girl?.unlockTier ?? crop?.unlockTier ?? 'initial'],
+          state: getFarmGirlStateDisplay(seedData.girlId, farmGirl?.state ?? 'none'),
+          canPlant,
+          canHarvest: harvestInfo.canHarvest,
+          daysUntilHarvest: harvestInfo.daysUntilHarvest,
+          harvestItemName: crop?.harvestItemName ?? '未設定',
+          harvestAmount: crop?.baseHarvestAmount ?? 0,
+          harvestPrice: crop ? getFarmHarvestSellPrice(crop) : 0,
+          plantAvailability: canPlant
+            ? '植え付け可'
+            : '重複不可',
+        }];
+      });
       const farmOverviewItems = [
-        ['信用度', '35 / 100'],
-        ['次の返済日', `残り ${daysUntilRepayment} 日`],
-        ['借入金', `${debt.toLocaleString()} G`],
-        ['金利', '3.2%'],
+        ['現在金利', formatInterestRate(currentWeeklyInterestRate)],
+        ['農場信用度', `${farmCredit}`],
+        ['信用補正', `-${formatInterestRate(farmCreditInterestDiscount)}`],
+        ['返済遅延補正', `+${formatInterestRate(missedRepaymentPenalty)}`],
+        ['次回返済まで', `あと${daysUntilRepayment}日`],
+        ['借金残額', `¥${debtAmount.toLocaleString()}`],
         ['経過日数', `${currentDay} 日`],
         ['行動回数', actionCountLabel],
       ];
@@ -1424,24 +1896,98 @@ export default function App() {
               </div>
               <div className="text-[#d7b98a] text-sm font-bold">{menuGirls.length} / {menuGirls.length}</div>
             </div>
-            <div className="farm-girl-card-grid grid min-h-0 flex-1 grid-cols-6 gap-3 overflow-hidden">
-              {menuGirls.map((girl, index) => (
-                <button
-                  key={girl.name}
-                  type="button"
-                  onPointerDown={() => { setMenuFocusArea('content'); setMenuContentFocus('secondary'); setSelectedFarmGirlIndex(index); setFarmGirlDetailOpen(true); }}
-                  onMouseEnter={() => { if (selectedFarmGirlIndex !== index) playCursorSound(); }}
-                  onClick={() => { playFixSound(); setMenuFocusArea('content'); setMenuContentFocus('secondary'); setSelectedFarmGirlIndex(index); setFarmGirlDetailOpen(true); setDialogMessage(`${girl.name}の詳細情報を表示しました。`); }}
-                  className={`farm-girl-card-button relative overflow-hidden border rounded cursor-pointer text-left ${selectedFarmGirlIndex === index ? 'is-selected border-white' : 'border-[#6b3b2f]'}`}
-                >
-                  <img src={girl.cardImg} alt={girl.name} className="absolute inset-0 h-full w-full object-cover" />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/12 to-transparent" />
-                  <div className="absolute left-2 right-2 bottom-2 rounded bg-black/55 border border-white/10 px-2 py-1.5">
-                    <div className="text-[#fff7dc] font-bold text-sm leading-tight">{girl.name}</div>
-                    <div className="text-[10px] text-[#ffd45a] leading-none">{renderStars(girl.affinity)}</div>
+            <div className="grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_270px] gap-3 overflow-hidden">
+              <div className="farm-girl-card-grid grid min-h-0 grid-cols-3 gap-3 overflow-hidden">
+                {menuGirls.map((girl, index) => (
+                  <button
+                    key={girl.name}
+                    type="button"
+                    onMouseEnter={() => { if (selectedFarmGirlIndex !== index) playCursorSound(); }}
+                    onClick={() => { playFixSound(); setMenuFocusArea('content'); setMenuContentFocus('secondary'); setSelectedFarmGirlIndex(index); setFarmGirlDetailOpen(true); setDialogMessage(`${girl.name}の詳細情報を表示しました。`); }}
+                    className={`farm-girl-card-button relative overflow-hidden border rounded cursor-pointer text-left ${selectedFarmGirlIndex === index ? 'is-selected border-white' : 'border-[#6b3b2f]'}`}
+                  >
+                    <img src={girl.cardImg} alt={girl.name} className="absolute inset-0 h-full w-full object-contain p-1.5" />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/82 via-black/8 to-transparent" />
+                    <div className="absolute left-2 right-2 bottom-2 rounded bg-black/58 border border-white/10 px-2 py-1">
+                      <div className="text-[#fff7dc] font-bold text-xs leading-tight">{girl.name}</div>
+                      <div className="text-[9px] text-[#ffd45a] leading-none">{renderStars(girl.affinity)}</div>
+                    </div>
+                  </button>
+                ))}
+              </div>
+              <div className="min-h-0 rounded border border-[#5a3010]/80 bg-black/25 p-3">
+                <div className="mb-2 flex items-center justify-between gap-3">
+                  <div>
+                    <div style={menuTinyLabelStyle}>所持している娘苗</div>
+                    <div className="text-[#fdf6e3] text-xs font-bold">解放済み畑へ植え付け可能</div>
                   </div>
-                </button>
-              ))}
+                  <div className="rounded border border-[#ffd166]/55 bg-black/35 px-2 py-1 text-xs font-bold text-[#ffd166]">
+                    {ownedGirlSeedRows.length} 種
+                  </div>
+                </div>
+                <div className="grid gap-2">
+                  {ownedGirlSeedRows.map(seed => (
+                    <div
+                      key={seed.seedId}
+                      className="rounded border border-[#76502c]/70 bg-[#1d120f]/75 px-3 py-2"
+                    >
+                      <div className="min-w-0">
+                        <div className="truncate text-sm font-black text-[#fff7dc]">{seed.seedName}</div>
+                        <div className="mt-1 text-xs font-bold text-[#d7b98a]">
+                          {seed.girlName} / {seed.cropName}
+                        </div>
+                      </div>
+                      <div className="mt-2 grid grid-cols-2 gap-2 text-[11px] font-bold leading-relaxed">
+                        <div className="rounded bg-black/25 px-2 py-1 text-[#ffd166]">{seed.unlockTier}</div>
+                        <div className="rounded bg-black/25 px-2 py-1 text-[#a3b18a]">状態: {seed.state}</div>
+                      </div>
+                      <button
+                        type="button"
+                        disabled={!seed.canPlant}
+                        onMouseEnter={() => { if (seed.canPlant) playCursorSound(); }}
+                        onClick={() => {
+                          if (!seed.canPlant) return;
+                          playFixSound();
+                          setPlantingSeedId(seed.seedId);
+                        }}
+                        className={`mt-2 w-full rounded border px-3 py-1 text-[11px] font-black transition-colors ${
+                          seed.canPlant
+                            ? 'border-[#ffd166]/75 bg-[#4a5823]/80 text-[#fff7dc] hover:bg-[#60732d]'
+                            : 'border-[#76502c]/70 bg-black/40 text-[#8f7b63] disabled:cursor-not-allowed'
+                        }`}
+                      >
+                        {seed.plantAvailability}
+                      </button>
+                      {seed.state === '出現中' && (
+                        <button
+                          type="button"
+                          disabled={!seed.canHarvest}
+                          onMouseEnter={() => { if (seed.canHarvest) playCursorSound(); }}
+                          onClick={() => {
+                            if (!seed.canHarvest) return;
+                            playFixSound();
+                            harvestFarmGirl(seed.girlId);
+                          }}
+                          className={`mt-2 w-full rounded border px-3 py-1 text-[11px] font-black transition-colors ${
+                            seed.canHarvest
+                              ? 'border-[#86efac]/80 bg-[#14532d]/85 text-[#f0fdf4] hover:bg-[#166534]'
+                              : 'border-[#76502c]/70 bg-black/40 text-[#8f7b63] disabled:cursor-not-allowed'
+                          }`}
+                        >
+                          {seed.canHarvest
+                            ? `収穫 ${seed.harvestItemName} x${seed.harvestAmount}`
+                            : `次回収穫まであと${seed.daysUntilHarvest ?? 0}日`}
+                        </button>
+                      )}
+                      {seed.state === '出現中' && (
+                        <div className="mt-1 text-[10px] font-bold text-[#c8a87a]">
+                          売却目安: {seed.harvestPrice.toLocaleString()}G / 個
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
           </div>
           <div style={menuPanelBaseStyle} className="flex flex-col gap-3">
@@ -1450,7 +1996,7 @@ export default function App() {
               onClick={() => { playFixSound(); setFarmGirlDetailOpen(true); setDialogMessage(`${selectedFarmGirl.name}の詳細情報を表示しました。`); }}
               className="farm-girl-card-preview relative overflow-hidden rounded border border-[#f1c27d]/70 cursor-pointer"
             >
-              <img src={selectedFarmGirl.cardImg} alt={selectedFarmGirl.name} className="absolute inset-0 h-full w-full object-cover" />
+              <img src={selectedFarmGirl.cardImg} alt={selectedFarmGirl.name} className="absolute inset-0 h-full w-full object-contain p-2" />
               <div className="absolute inset-0 bg-gradient-to-t from-black/82 via-black/10 to-transparent" />
               <div className="absolute left-3 right-3 bottom-3 rounded bg-black/58 border border-white/10 px-3 py-2">
                 <div className="text-[#fff7dc] text-2xl font-bold leading-tight">{selectedFarmGirl.name}</div>
@@ -1476,6 +2022,59 @@ export default function App() {
                   <div className="text-[#c8a87a] text-xs">状態</div>
                   <div className="text-[#fdf6e3] font-bold">{selectedFarmGirl.stage}</div>
                 </div>
+                <div className="rounded bg-black/25 px-2 py-2">
+                  <div className="text-[#c8a87a] text-xs">娘苗所持</div>
+                  <div className="text-[#fdf6e3] font-bold">{selectedGirlSeedOwned ? 'あり' : 'なし'}</div>
+                </div>
+                <div className="rounded bg-black/25 px-2 py-2">
+                  <div className="text-[#c8a87a] text-xs">現在状態</div>
+                  <div className="text-[#fdf6e3] font-bold">
+                    {selectedGirlData
+                      ? getFarmGirlStateDisplay(selectedGirlData.id, selectedFarmGirlState?.state ?? 'none')
+                      : farmGirlStateLabels[selectedFarmGirlState?.state ?? 'none']}
+                  </div>
+                </div>
+                {selectedGirlData && selectedFarmGirlState && (
+                  <div className="col-span-2 rounded bg-black/25 px-2 py-2">
+                    <div className="text-[#c8a87a] text-xs">信頼度</div>
+                    <div className="mt-1 text-sm font-bold text-[#fdf6e3]">
+                      信頼度 {selectedFarmGirlState.trust} / 100
+                    </div>
+                    <div className="mt-1 text-xs font-bold text-[#ffd166]">
+                      {selectedNextTrustEvent
+                        ? `次のイベント：${selectedNextTrustEvent.trust}まであと${Math.max(0, selectedNextTrustEvent.trust - selectedFarmGirlState.trust)}`
+                        : '信頼イベントはすべて解放済み'}
+                    </div>
+                  </div>
+                )}
+                {selectedGirlData && selectedHarvestInfo?.crop && selectedFarmGirlState?.state === 'appeared' && (
+                  <div className="col-span-2 rounded bg-black/25 px-2 py-2">
+                    <div className="text-[#c8a87a] text-xs">収穫</div>
+                    <div className="mt-1 flex items-center justify-between gap-2">
+                      <div className="min-w-0 text-sm font-bold text-[#fdf6e3]">
+                        {selectedHarvestInfo.canHarvest
+                          ? `${selectedHarvestInfo.crop.harvestItemName} x${selectedHarvestInfo.crop.baseHarvestAmount}`
+                          : `次回収穫まであと${selectedHarvestInfo.daysUntilHarvest ?? 0}日`}
+                      </div>
+                      <button
+                        type="button"
+                        disabled={!selectedHarvestInfo.canHarvest}
+                        onClick={() => {
+                          if (!selectedGirlData || !selectedHarvestInfo.canHarvest) return;
+                          playFixSound();
+                          harvestFarmGirl(selectedGirlData.id);
+                        }}
+                        className={`shrink-0 rounded border px-3 py-1 text-xs font-black ${
+                          selectedHarvestInfo.canHarvest
+                            ? 'border-[#86efac]/80 bg-[#14532d]/85 text-[#f0fdf4] hover:bg-[#166534]'
+                            : 'border-[#76502c]/70 bg-black/40 text-[#8f7b63] disabled:cursor-not-allowed'
+                        }`}
+                      >
+                        収穫
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
             <div className="grid grid-cols-1 gap-2">
@@ -1498,27 +2097,81 @@ export default function App() {
               <div className="mt-1 text-[#fdf6e3] font-bold">{farmInfoItems[selectedFarmFacilityIndex]?.[0]}: {farmInfoItems[selectedFarmFacilityIndex]?.[1]}</div>
             </div>
           </div>
+          {plantingSeedData && (
+            <div
+              className="absolute inset-0 z-[90] flex items-center justify-center rounded bg-black/55 px-8 py-6"
+              onPointerDown={() => { playFixSound(); setPlantingSeedId(null); }}
+            >
+              <div
+                className="w-[440px] rounded-xl border-2 border-[#ffd166]/80 bg-[#1a100d]/96 p-5 text-[#fdf6e3] shadow-[0_18px_48px_rgba(0,0,0,0.68)]"
+                onPointerDown={(event) => event.stopPropagation()}
+              >
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <div style={menuTinyLabelStyle}>植え付け先を選択</div>
+                    <div className="mt-1 text-xl font-black">{plantingSeedData.seedName}</div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => { playFixSound(); setPlantingSeedId(null); }}
+                    className="flex h-8 w-8 items-center justify-center rounded border border-white/30 bg-black/45 text-lg font-black hover:bg-[#4a241b]"
+                    aria-label="植え付け先選択を閉じる"
+                  >
+                    ×
+                  </button>
+                </div>
+                {plantableFarmFieldSlots.length > 0 ? (
+                  <div className="mt-4 grid grid-cols-2 gap-2">
+                    {plantableFarmFieldSlots.map(slot => (
+                      <button
+                        key={`${slot.fieldId}_${slot.slotIndex}`}
+                        type="button"
+                        onMouseEnter={playCursorSound}
+                        onClick={() => {
+                          playFixSound();
+                          plantGirlSeedToSlot(plantingSeedData.seedId, slot.fieldId, slot.slotIndex);
+                        }}
+                        className="rounded-lg border border-[#a3b18a]/80 bg-[#243a1f]/90 px-3 py-3 text-left font-black text-[#fff7dc] transition-colors hover:border-white hover:bg-[#36572d]"
+                      >
+                        {getFarmFieldLabel(slot.fieldId)} {slot.slotIndex}
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="mt-4 rounded-lg border border-[#76502c]/80 bg-black/35 px-4 py-5 text-center font-bold text-[#ffd166]">
+                    空いている畑がありません
+                  </div>
+                )}
+                <div className="mt-4 text-xs font-bold leading-relaxed text-[#c8a87a]">
+                  ※植え付け後も娘苗は恒久アンロックとして所持したままです。APは消費しません。
+                </div>
+              </div>
+            </div>
+          )}
           {farmGirlDetailOpen && (
             <div
               className="fixed inset-0 z-[120] flex items-center justify-center bg-black/58 px-8 py-6"
-              onClick={() => { playFixSound(); setMenuFocusArea('content'); setMenuContentFocus('secondary'); setFarmGirlDetailOpen(false); }}
+              onPointerDown={() => { playFixSound(); setMenuFocusArea('content'); setMenuContentFocus('secondary'); setFarmGirlDetailOpen(false); }}
             >
               <div className="farm-girl-detail-modal relative grid h-full max-h-[740px] w-full max-w-[980px] grid-cols-[minmax(0,1fr)_260px] overflow-hidden rounded border border-[#f1c27d]/80 bg-[#160d12] shadow-[0_26px_70px_rgba(0,0,0,0.72)]">
                 <button
                   type="button"
-                  onClick={(event) => { event.stopPropagation(); playFixSound(); setFarmGirlDetailOpen(false); }}
+                  onPointerDown={(event) => { event.stopPropagation(); playFixSound(); setFarmGirlDetailOpen(false); }}
                   className="absolute right-3 top-3 z-20 flex h-10 w-10 items-center justify-center rounded border border-white/35 bg-black/65 text-xl font-bold text-[#fff7dc] hover:bg-[#4a241b]"
                   aria-label="詳細を閉じる"
                 >
                   ×
                 </button>
-                <div className="relative min-h-0 bg-black">
+                <div
+                  className="relative min-h-0 bg-black"
+                  onPointerDown={(event) => event.stopPropagation()}
+                >
                   <img src={selectedFarmGirl.detailImg} alt={`${selectedFarmGirl.name} 詳細`} className="absolute inset-0 h-full w-full object-contain" />
                 </div>
                 <div className="flex flex-col gap-3 border-l border-[#76502c]/70 bg-[#24140f] p-4 pr-5">
                   <div style={menuTinyLabelStyle}>詳細カード</div>
                   <div className="farm-girl-card-preview relative overflow-hidden rounded border border-[#f1c27d]/70">
-                    <img src={selectedFarmGirl.cardImg} alt={selectedFarmGirl.name} className="absolute inset-0 h-full w-full object-cover" />
+                    <img src={selectedFarmGirl.cardImg} alt={selectedFarmGirl.name} className="absolute inset-0 h-full w-full object-contain p-2" />
                     <div className="absolute inset-0 bg-gradient-to-t from-black/82 via-black/10 to-transparent" />
                     <div className="absolute left-3 right-3 bottom-3 rounded bg-black/58 border border-white/10 px-3 py-2">
                       <div className="text-[#fff7dc] text-xl font-bold leading-tight">{selectedFarmGirl.name}</div>
@@ -1902,6 +2555,36 @@ export default function App() {
   const [sawCraftTutorialShedDialogueOpen, setSawCraftTutorialShedDialogueOpen] = useState(false);
   const [sawCraftTutorialShedStepIndex, setSawCraftTutorialShedStepIndex] = useState(0);
   const [sawCraftTutorialWorkbenchReady, setSawCraftTutorialWorkbenchReady] = useState(false);
+
+  const [loggingMiniGameOpen, setLoggingMiniGameOpen] = useState(false);
+  const [loggingMiniGameStage, setLoggingMiniGameStage] = useState<'direction' | 'action' | 'result'>('direction');
+  const [loggingGauge, setLoggingGauge] = useState(0);
+  const loggingGaugeRef = useRef(0);
+  useEffect(() => {
+    loggingGaugeRef.current = loggingGauge;
+  }, [loggingGauge]);
+  const [loggingProgress, setLoggingProgress] = useState(0);
+  const [loggingCombo, setLoggingCombo] = useState(0);
+  const [loggingComboEffectKey, setLoggingComboEffectKey] = useState(0);
+  const loggingComboEffectTimerRef = useRef<number | null>(null);
+  useEffect(() => () => {
+    if (loggingComboEffectTimerRef.current !== null) {
+      window.clearTimeout(loggingComboEffectTimerRef.current);
+    }
+  }, []);
+  const [loggingSelectedResultAction, setLoggingSelectedResultAction] = useState<'retry' | 'complete'>('retry');
+  const [isLoggingResultInputLocked, setIsLoggingResultInputLocked] = useState(false);
+  const [loggingTutorialCompleted, setLoggingTutorialCompleted] = useState(false);
+  const [loggingTutorialOpen, setLoggingTutorialOpen] = useState(false);
+  const [loggingTutorialStepIndex, setLoggingTutorialStepIndex] = useState(0);
+  const [selectedLoggingTutorialAction, setSelectedLoggingTutorialAction] = useState<'later' | 'next'>('next');
+  const [isLoggingTutorialRun, setIsLoggingTutorialRun] = useState(false);
+  const [loggingTutorialResult, setLoggingTutorialResult] = useState<'success' | 'fail' | null>(null);
+  const [loggingAngleSuccess, setLoggingAngleSuccess] = useState(false);
+  
+  const equippedSaw = (equippedItems['主人公-slot2']?.includes('のこぎり') ? equippedItems['主人公-slot2'] : null) ||
+                     (equippedItems['主人公-slot3']?.includes('のこぎり') ? equippedItems['主人公-slot3'] : null) ||
+                     'のこぎり';
   const [sawCraftTutorialCompleted, setSawCraftTutorialCompleted] = useState(false);
   const [craftedRecipeIds, setCraftedRecipeIds] = useState<CraftRecipeId[]>([]);
   const [gatheringTutorialOpen, setGatheringTutorialOpen] = useState(false);
@@ -2044,6 +2727,7 @@ export default function App() {
   const bgmFadingRef = useRef(false);
   const autoEventBgmMutedRef = useRef(false);
   const wasFishingBgmActiveRef = useRef(false);
+  const wasLoggingBgmActiveRef = useRef(false);
   const walkSoundRef = useRef<HTMLAudioElement | null>(null);
   const wasPlayerInBathRef = useRef(false);
   const wasPlayerInBathTubRef = useRef(false);
@@ -2233,6 +2917,77 @@ export default function App() {
      return () => window.clearInterval(timerId);
 	  }, [fishingKeepGreenMax, fishingKeepGreenMin, fishingMiniGameOpen, fishingMiniGameStage, fishingGauge, isFishingHitSplashActive, fishingTargetFish, fishingTargetSizeValue]);
 
+  const loggingGaugeDirectionRef = useRef(1);
+  useEffect(() => {
+    if (!loggingMiniGameOpen || loggingMiniGameStage === 'result') return;
+    
+    const baseActionSpeed = equippedSaw.includes('高級')
+      ? LOGGING_MINIGAME_CONFIG.actionSpeedBySaw['高級のこぎり']
+      : equippedSaw.includes('丈夫な')
+        ? LOGGING_MINIGAME_CONFIG.actionSpeedBySaw['丈夫なのこぎり']
+        : LOGGING_MINIGAME_CONFIG.actionSpeedBySaw['のこぎり'];
+    const actionSpeed = baseActionSpeed * Math.pow(LOGGING_MINIGAME_CONFIG.comboSpeedMultiplier, loggingCombo);
+
+    const timerId = window.setInterval(() => {
+      if (loggingMiniGameStage === 'direction') {
+        setLoggingGauge(prev => {
+          let next = prev + loggingGaugeDirectionRef.current * LOGGING_MINIGAME_CONFIG.directionSpeed;
+          if (next >= 100) {
+            next = 100;
+            loggingGaugeDirectionRef.current = -1;
+          }
+          if (next <= 0) {
+            next = 0;
+            loggingGaugeDirectionRef.current = 1;
+          }
+          return next;
+        });
+      } else if (loggingMiniGameStage === 'action') {
+        setLoggingGauge(prev => {
+          let next = prev + loggingGaugeDirectionRef.current * actionSpeed;
+          if (next >= 100) {
+            next = 100;
+            loggingGaugeDirectionRef.current = -1;
+          }
+          if (next <= 0) {
+            next = 0;
+            loggingGaugeDirectionRef.current = 1;
+          }
+          return next;
+        });
+      }
+    }, LOGGING_MINIGAME_CONFIG.tickMs);
+    return () => window.clearInterval(timerId);
+  }, [loggingMiniGameOpen, loggingMiniGameStage, equippedSaw, loggingCombo]);
+
+  useEffect(() => {
+    if (!loggingMiniGameOpen || loggingMiniGameStage !== 'result') return;
+    setIsLoggingResultInputLocked(true);
+    const timerId = window.setTimeout(() => {
+      setIsLoggingResultInputLocked(false);
+    }, isLoggingTutorialRun ? 1000 : 2000);
+    return () => window.clearTimeout(timerId);
+  }, [loggingMiniGameOpen, loggingMiniGameStage, isLoggingTutorialRun]);
+
+  const loggingTutorialVoiceRef = useRef<HTMLAudioElement | null>(null);
+  const playLoggingTutorialVoice = (stepIndex: number) => {
+    stopLoggingTutorialVoice();
+    const step = LOGGING_TUTORIAL_STEPS[stepIndex];
+    if (step && step.voiceSrc) {
+      const audio = new Audio(step.voiceSrc);
+      audio.volume = getEffectiveVolume(step.voiceSrc, voiceVolumeRef.current, audioGainsRef.current);
+      loggingTutorialVoiceRef.current = audio;
+      audio.play().catch(err => console.log('Logging voice blocked', err));
+    }
+  };
+  const stopLoggingTutorialVoice = () => {
+    if (loggingTutorialVoiceRef.current) {
+      loggingTutorialVoiceRef.current.pause();
+      loggingTutorialVoiceRef.current.currentTime = 0;
+      loggingTutorialVoiceRef.current = null;
+    }
+  };
+
   useEffect(() => {
      isFishingKeepPressedRef.current = isFishingKeepPressed;
   }, [isFishingKeepPressed]);
@@ -2354,6 +3109,7 @@ export default function App() {
         setFishingResultText(catchResultText);
         setDialogMessage(catchResultText);
         if (isFishingTutorialRun) setFishingTutorialResult('success');
+        if (!isFishingTutorialRun) consumeAPForAction();
         playUiSound(IWANA_SPLASH_SOUND_SRC);
         playVoiceSound(FISH_RESULT_SOUND_SRC);
         setIsFishingResultInputLocked(true);
@@ -2377,7 +3133,7 @@ export default function App() {
         playVoiceSound(FISH_LOSE_SOUND_SRC);
         setFishingMiniGameStage('result');
      }
-  }, [caughtFishIds, fishBestSizes, fishingBiteCombo, fishingBiteScore, fishingFishHp, fishingTargetFish, fishingTargetIsNushi, fishingTargetSizeValue, fishingTension, fishingMiniGameOpen, fishingMiniGameStage]);
+  }, [caughtFishIds, currentAP, fishBestSizes, fishingBiteCombo, fishingBiteScore, fishingFishHp, fishingTargetFish, fishingTargetIsNushi, fishingTargetSizeValue, fishingTension, fishingMiniGameOpen, fishingMiniGameStage, isFishingTutorialRun, maxAPPerTimeSlot, timeOfDay]);
 
   const TILE_SIZE = 15;
   const GRID_COLS = 128; // 1920 / 15
@@ -2643,12 +3399,53 @@ export default function App() {
 	          if (typeof data.bgmVolume === 'number') setBgmVolume(data.bgmVolume);
 	          if (typeof data.seVolume === 'number') setSeVolume(data.seVolume);
 	          if (typeof data.voiceVolume === 'number') setVoiceVolume(data.voiceVolume);
-	          if (typeof data.debt === 'number' && Number.isFinite(data.debt) && data.debt >= 0) {
-	            setDebt(data.debt);
-	          }
-	          if (typeof data.difficulty === 'string' && DIFFICULTY_OPTIONS.some(option => option.id === data.difficulty)) {
-	            setDifficulty(data.difficulty as GameDifficulty);
-	          }
+	          const loadedDifficulty = typeof data.difficulty === 'string' && DIFFICULTY_OPTIONS.some(option => option.id === data.difficulty)
+	            ? data.difficulty as GameDifficulty
+	            : 'hard';
+	          setDifficulty(loadedDifficulty);
+	          const loadedDebtAmount = typeof data.debtAmount === 'number' && Number.isFinite(data.debtAmount) && data.debtAmount >= 0
+	            ? data.debtAmount
+	            : typeof data.debt === 'number' && Number.isFinite(data.debt) && data.debt >= 0
+	              ? data.debt
+	              : getInitialDebtAmount(loadedDifficulty);
+	          setDebtAmount(loadedDebtAmount);
+	          setRepaymentCycleDays(
+	            typeof data.repaymentCycleDays === 'number' && Number.isInteger(data.repaymentCycleDays) && data.repaymentCycleDays > 0
+	              ? data.repaymentCycleDays
+	              : DEFAULT_REPAYMENT_CYCLE_DAYS
+	          );
+	          const loadedFarmCredit = typeof data.farmCredit === 'number' && Number.isFinite(data.farmCredit)
+	            ? clampNumber(data.farmCredit, 0, 100)
+	            : 0;
+	          const loadedMissedRepaymentCount = typeof data.missedRepaymentCount === 'number' && Number.isInteger(data.missedRepaymentCount) && data.missedRepaymentCount >= 0
+	            ? data.missedRepaymentCount
+	            : 0;
+	          const loadedRepaymentCycleDays = typeof data.repaymentCycleDays === 'number' && Number.isInteger(data.repaymentCycleDays) && data.repaymentCycleDays > 0
+	            ? data.repaymentCycleDays
+	            : DEFAULT_REPAYMENT_CYCLE_DAYS;
+	          const loadedTurn = typeof data.turn === 'number' && Number.isInteger(data.turn) && data.turn >= 0 ? data.turn : 0;
+	          const loadedCurrentDay = Math.floor(loadedTurn / 4) + 1;
+	          const loadedInterestCycleIndex = Math.floor((loadedCurrentDay - 1) / loadedRepaymentCycleDays);
+	          setFarmCredit(loadedFarmCredit);
+	          setMissedRepaymentCount(loadedMissedRepaymentCount);
+	          setCurrentWeeklyInterestRate(
+	            typeof data.currentWeeklyInterestRate === 'number' && Number.isFinite(data.currentWeeklyInterestRate)
+	              ? clampNumber(data.currentWeeklyInterestRate, MIN_INTEREST_RATE, MAX_INTEREST_RATE)
+	              : createWeeklyInterestRate(loadedDifficulty, loadedFarmCredit, loadedMissedRepaymentCount)
+	          );
+	          setInterestRateCycleIndex(
+	            typeof data.interestRateCycleIndex === 'number' && Number.isInteger(data.interestRateCycleIndex) && data.interestRateCycleIndex >= 0
+	              ? data.interestRateCycleIndex
+	              : loadedInterestCycleIndex
+	          );
+	          setFarmGirls(normalizeFarmGirls(data.farmGirls));
+	          setOwnedGirlSeeds(normalizeOwnedGirlSeeds(data.ownedGirlSeeds));
+	          setFarmFieldSlots(normalizeFarmFieldSlots(data.farmFieldSlots, loadedDifficulty));
+	          setCurrentAP(
+	            typeof data.currentAP === 'number' && Number.isInteger(data.currentAP) && data.currentAP >= 0
+	              ? Math.min(data.currentAP, maxAPPerTimeSlot)
+	              : maxAPPerTimeSlot
+	          );
           if (data.audioGains) {
             const migratedAudioGains = { ...data.audioGains };
             if (typeof migratedAudioGains['/taki.mp3'] === 'number' && typeof migratedAudioGains[WATERFALL_SOUND_SRC] !== 'number') {
@@ -2767,6 +3564,37 @@ export default function App() {
                 ])
             ) as Record<string, number[]>);
           }
+          if (data.lumberInventorySizes && typeof data.lumberInventorySizes === 'object') {
+            const parsedLumberInventorySizes = data.lumberInventorySizes as Record<string, unknown>;
+            setLumberInventorySizes(Object.fromEntries(
+              Object.entries(parsedLumberInventorySizes)
+                .filter(([name, sizes]) => LUMBER_ITEM_NAMES.has(name) && Array.isArray(sizes))
+                .map(([name, sizes]) => [
+                  name,
+                  (sizes as unknown[]).filter((size): size is number => (
+                    typeof size === 'number' &&
+                    Number.isFinite(size) &&
+                    size > 0
+                  )),
+                ])
+            ) as Record<string, number[]>);
+          }
+          if (data.oreInventoryWeights && typeof data.oreInventoryWeights === 'object') {
+            const parsedOreWeights = data.oreInventoryWeights as Record<string, unknown>;
+            setOreInventoryWeights(Object.fromEntries(
+              Object.entries(parsedOreWeights)
+                .filter(([name, weights]) => ORE_ITEM_NAMES.has(name) && Array.isArray(weights))
+                .map(([name, weights]) => [
+                  name,
+                  (weights as unknown[]).filter((weight): weight is number => (
+                    typeof weight === 'number' && Number.isFinite(weight) && weight > 0
+                  )),
+                ])
+            ) as Record<string, number[]>);
+          }
+          if (data.depletedMiningPointIds && typeof data.depletedMiningPointIds === 'object') {
+            setDepletedMiningPointIds(normalizeTileRecord(data.depletedMiningPointIds, isEnabledTileValue));
+          }
           if (typeof data.fishingTutorialCompleted === 'boolean') {
             setFishingTutorialCompleted(data.fishingTutorialCompleted);
           }
@@ -2830,9 +3658,19 @@ export default function App() {
           setGold(5000);
           const difficultyOption = DIFFICULTY_OPTIONS.find(option => option.id === pendingNewGameDifficulty) ?? DIFFICULTY_OPTIONS[2];
           setDifficulty(difficultyOption.id);
-          setDebt(difficultyOption.debt);
+          setDebtAmount(getInitialDebtAmount(difficultyOption.id));
+          setRepaymentCycleDays(DEFAULT_REPAYMENT_CYCLE_DAYS);
+          setFarmCredit(0);
+          setMissedRepaymentCount(0);
+          setCurrentWeeklyInterestRate(createWeeklyInterestRate(difficultyOption.id, 0, 0));
+          setInterestRateCycleIndex(0);
+          setCurrentAP(maxAPPerTimeSlot);
           setKurumiTradeTotal(0);
           setShownKurumiTradeRewardThresholds([]);
+          setFarmGirls(createInitialFarmGirls());
+          setOwnedGirlSeeds([...INITIAL_OWNED_GIRL_SEEDS]);
+          setFarmFieldSlots(createInitialFarmFieldSlots(difficultyOption.id));
+          setPlantingSeedId(null);
           setKurumiIntroAskedTopics([]);
           setKurumiIntroCompletedDay(null);
           setCaughtFishIds([]);
@@ -2840,6 +3678,9 @@ export default function App() {
           setFishBestSizes({});
           setFishSizeUpdatedIds([]);
           setFishInventorySizes({});
+          setLumberInventorySizes({});
+          setOreInventoryWeights({});
+          setDepletedMiningPointIds({});
           setFishingTutorialCompleted(false);
           setFishingTutorialOpen(false);
           setSawCraftTutorialIntroOpen(false);
@@ -2882,7 +3723,18 @@ export default function App() {
   const createSaveData = () => ({
     turn,
     gold,
-    debt,
+    debt: debtAmount,
+    debtAmount,
+    repaymentCycleDays,
+    farmCredit,
+    missedRepaymentCount,
+    currentWeeklyInterestRate,
+    interestRateCycleIndex,
+    farmGirls,
+    ownedGirlSeeds,
+    farmFieldSlots,
+    currentAP,
+    maxAPPerTimeSlot,
     difficulty,
     currentMap,
     zones,
@@ -2912,6 +3764,9 @@ export default function App() {
     nushiCaughtFishIds,
     fishBestSizes,
     fishInventorySizes,
+    lumberInventorySizes,
+    oreInventoryWeights,
+    depletedMiningPointIds,
     fishingTutorialCompleted,
     craftTutorialRecipeName,
     sawCraftTutorialReady,
@@ -3049,8 +3904,18 @@ export default function App() {
     pendingDeleteSaveSlot,
     currentSaveSlot,
     turn,
+    currentAP,
+    maxAPPerTimeSlot,
     currentMap,
-    debt,
+    debtAmount,
+    repaymentCycleDays,
+    farmCredit,
+    missedRepaymentCount,
+    currentWeeklyInterestRate,
+    interestRateCycleIndex,
+    farmGirls,
+    ownedGirlSeeds,
+    farmFieldSlots,
     difficulty,
     zones,
     doors,
@@ -3079,6 +3944,9 @@ export default function App() {
     nushiCaughtFishIds,
     fishBestSizes,
     fishInventorySizes,
+    lumberInventorySizes,
+    oreInventoryWeights,
+    depletedMiningPointIds,
     fishingTutorialCompleted,
     craftTutorialRecipeName,
     sawCraftTutorialReady,
@@ -3196,6 +4064,17 @@ export default function App() {
     });
   };
 
+  const getFarmFieldSlotPoint = (slot: FarmFieldSlotState): Point => {
+    const corners = fieldCorners[slot.fieldId];
+    const slotCount = getFarmFieldConfig(difficulty, slot.fieldId).slotCount;
+    const u = (slot.slotIndex - 0.5) / slotCount;
+    const v = 0.5;
+    return {
+      x: (1 - u) * (1 - v) * corners.topLeft.x + u * (1 - v) * corners.topRight.x + u * v * corners.bottomRight.x + (1 - u) * v * corners.bottomLeft.x,
+      y: (1 - u) * (1 - v) * corners.topLeft.y + u * (1 - v) * corners.topRight.y + u * v * corners.bottomRight.y + (1 - u) * v * corners.bottomLeft.y,
+    };
+  };
+
   const resetFieldCorners = () => {
     setFieldCorners(DEFAULT_FIELD_CORNERS);
   };
@@ -3289,6 +4168,191 @@ export default function App() {
   const playCursorSound = () => playUiSound(UI_CURSOR_SOUND_SRC);
   const playFixSound = () => playUiSound(UI_FIX_SOUND_SRC);
   const currentDay = Math.floor(turn / 4) + 1;
+  const daysUntilRepayment = repaymentCycleDays - ((currentDay - 1) % repaymentCycleDays);
+  const currentRepaymentCycleIndex = Math.floor((currentDay - 1) / repaymentCycleDays);
+  const farmCreditInterestDiscount = getFarmCreditInterestDiscount(farmCredit);
+  const missedRepaymentPenalty = getMissedRepaymentPenalty(missedRepaymentCount);
+  const formatInterestRate = (rate: number) => `${rate.toFixed(1)}%`;
+  const addOwnedGirlSeed = (seedId: string) => {
+    setOwnedGirlSeeds(prev => prev.includes(seedId) ? prev : [...prev, seedId]);
+  };
+  const getFarmFieldLabel = (fieldId: FieldId) => fieldId === 'left' ? '左畑' : '右畑';
+  const getPlantableFarmFieldSlots = () => farmFieldSlots.filter(slot => slot.girlId === null && slot.state === 'none');
+  const getFarmGirlHarvestInfo = (girlId: string) => {
+    const farmGirl = farmGirls.find(girl => girl.girlId === girlId);
+    const crop = FARM_GIRL_CROP_DATA.find(entry => entry.girlId === girlId);
+    if (!farmGirl || !crop || farmGirl.state !== 'appeared') {
+      return { canHarvest: false, daysUntilHarvest: null, crop, farmGirl };
+    }
+    if (farmGirl.lastHarvestDay === null) {
+      return { canHarvest: true, daysUntilHarvest: 0, crop, farmGirl };
+    }
+    const daysSinceHarvest = currentDay - farmGirl.lastHarvestDay;
+    const daysUntilHarvest = Math.max(0, crop.harvestIntervalDays - daysSinceHarvest);
+    return { canHarvest: daysUntilHarvest <= 0, daysUntilHarvest, crop, farmGirl };
+  };
+  const harvestFarmGirl = (girlId: string) => {
+    const girl = GIRL_DATA.find(entry => entry.id === girlId);
+    const { canHarvest, daysUntilHarvest, crop, farmGirl } = getFarmGirlHarvestInfo(girlId);
+    if (!crop) {
+      setDialogMessage('収穫データが見つかりません。');
+      return;
+    }
+    if (!canHarvest) {
+      setDialogMessage(`次回収穫まであと${daysUntilHarvest ?? crop.harvestIntervalDays}日です。`);
+        return;
+    }
+
+    const nextTrust = Math.min(100, (farmGirl?.trust ?? girl?.initialTrust ?? 0) + TRUST_GAIN_ON_HARVEST);
+    const newlyUnlockedTrustEvents = girl?.trustEvents.filter(event => (
+      nextTrust >= event.trust && !(farmGirl?.unlockedTrustEventIds ?? []).includes(event.eventId)
+    )) ?? [];
+    setInventoryCounts(prev => ({
+      ...prev,
+      [crop.harvestItemName]: (prev[crop.harvestItemName] ?? 0) + crop.baseHarvestAmount,
+    }));
+    setFarmGirls(prev => prev.map(entry => (
+      entry.girlId === girlId
+        ? {
+          ...entry,
+          lastHarvestDay: currentDay,
+          trust: Math.min(100, entry.trust + TRUST_GAIN_ON_HARVEST),
+          unlockedTrustEventIds: Array.from(new Set([
+            ...entry.unlockedTrustEventIds,
+            ...newlyUnlockedTrustEvents.map(event => event.eventId),
+          ])),
+        }
+        : entry
+    )));
+    setDialogMessage(
+      newlyUnlockedTrustEvents.length > 0
+        ? `${girl?.girlName ?? crop.seedName}との信頼イベントが解放された！`
+        : `${girl?.girlName ?? crop.seedName}から${crop.harvestItemName}を${crop.baseHarvestAmount}個収穫しました。信頼度 +${TRUST_GAIN_ON_HARVEST}`
+    );
+  };
+  const plantGirlSeedToSlot = (seedId: string, fieldId: FieldId, slotIndex: number) => {
+    const seedData = GIRL_SEED_ACQUISITION_DATA.find(seed => seed.seedId === seedId);
+    if (!seedData || !ownedGirlSeeds.includes(seedId)) {
+      setDialogMessage('この娘苗はまだ所持していません。');
+      return;
+    }
+
+    const farmGirl = farmGirls.find(girl => girl.girlId === seedData.girlId);
+    if (!farmGirl || farmGirl.state !== 'none' || isFarmGirlDuplicateBlocked(farmGirls, seedData.girlId)) {
+      setDialogMessage('同じ娘はすでに存在しているため、植え付けできません。');
+      return;
+    }
+
+    const targetSlot = farmFieldSlots.find(slot => (
+      slot.fieldId === fieldId &&
+      slot.slotIndex === slotIndex &&
+      slot.girlId === null &&
+      slot.state === 'none'
+    ));
+    if (!targetSlot) {
+      setDialogMessage('その畑スロットには植え付けできません。');
+      return;
+    }
+
+    setFarmGirls(prev => prev.map(girl => (
+      girl.girlId === seedData.girlId
+        ? {
+          ...girl,
+          state: 'growing',
+          plantedDay: currentDay,
+          growthProgress: 0,
+          lastHarvestDay: null,
+        }
+        : girl
+    )));
+    setFarmFieldSlots(prev => prev.map(slot => (
+      slot.fieldId === fieldId && slot.slotIndex === slotIndex
+        ? {
+          ...slot,
+          girlId: seedData.girlId,
+          state: 'growing',
+          plantedDay: currentDay,
+        }
+        : slot
+    )));
+    setPlantingSeedId(null);
+    setDialogMessage(`${seedData.seedName}を${getFarmFieldLabel(fieldId)} ${slotIndex}に植えました。`);
+  };
+  useEffect(() => {
+    if (bootMode !== 'playing') return;
+    if (currentRepaymentCycleIndex <= interestRateCycleIndex) return;
+    setCurrentWeeklyInterestRate(createWeeklyInterestRate(difficulty, farmCredit, missedRepaymentCount));
+    setInterestRateCycleIndex(currentRepaymentCycleIndex);
+  }, [bootMode, currentRepaymentCycleIndex, difficulty, farmCredit, interestRateCycleIndex, missedRepaymentCount]);
+  const advanceToNextDay = () => {
+    const completedGirlIds = farmGirls.flatMap(girl => {
+      if (girl.state !== 'growing') return [];
+      const crop = FARM_GIRL_CROP_DATA.find(entry => entry.girlId === girl.girlId);
+      if (!crop) return [];
+      return girl.growthProgress + 1 >= crop.growthDays ? [girl.girlId] : [];
+    });
+    const completedGirlNames = completedGirlIds.map(girlId => (
+      GIRL_DATA.find(girl => girl.id === girlId)?.girlName ?? girlId
+    ));
+
+    setTurn(t => (Math.floor(t / 4) + 1) * 4);
+    setCurrentAP(maxAPPerTimeSlot);
+    setDepletedMiningPointIds({});
+    setDepletedLoggingPointIds({});
+    setFarmGirls(prev => prev.map(girl => {
+      if (girl.state !== 'growing') return girl;
+      const crop = FARM_GIRL_CROP_DATA.find(entry => entry.girlId === girl.girlId);
+      if (!crop) return girl;
+      const nextGrowthProgress = girl.growthProgress + 1;
+      return {
+        ...girl,
+        growthProgress: nextGrowthProgress,
+        state: nextGrowthProgress >= crop.growthDays ? 'appeared' : 'growing',
+      };
+    }));
+    setFarmFieldSlots(prev => prev.map(slot => (
+      slot.girlId && completedGirlIds.includes(slot.girlId)
+        ? { ...slot, state: 'appeared' }
+        : slot
+    )));
+    if (completedGirlNames.length > 0) {
+      setDialogMessage(`${completedGirlNames.join('、')}が畑に現れた！`);
+    }
+  };
+  const advanceToNextTimeSlot = () => {
+    if (timeOfDay === 'night') {
+      setCurrentAP(0);
+      setDialogMessage(EXHAUSTED_ACTION_MESSAGE);
+      return;
+    }
+    setTurn(t => t + 1);
+    setCurrentAP(maxAPPerTimeSlot);
+  };
+  const canStartAPAction = () => {
+    if (currentAP > 0) return true;
+    if (timeOfDay === 'night') {
+      setDialogMessage(EXHAUSTED_ACTION_MESSAGE);
+      return false;
+    }
+    advanceToNextTimeSlot();
+    return false;
+  };
+  const consumeAPForAction = () => {
+    if (currentAP <= 0) return canStartAPAction();
+    const nextAP = currentAP - 1;
+    if (nextAP > 0) {
+      setCurrentAP(nextAP);
+      return true;
+    }
+    if (timeOfDay === 'night') {
+      setCurrentAP(0);
+      setDialogMessage(EXHAUSTED_ACTION_MESSAGE);
+      return true;
+    }
+    setTurn(t => t + 1);
+    setCurrentAP(maxAPPerTimeSlot);
+    return true;
+  };
   const getDebugDialogueMessage = (debugKey: string, defaultMessage: string) => debugDialogueOverrides[debugKey] ?? defaultMessage;
   const saveDebugDialogueOverride = (debugKey: string, message: string) => {
     setDebugDialogueOverrides(prev => ({ ...prev, [debugKey]: message }));
@@ -3323,6 +4387,7 @@ export default function App() {
   const shouldShowFishingTutorialKurumi = bootMode === 'playing' && currentMap === 'farm' && currentDay === 2 && !fishingTutorialCompleted;
   const currentFishingTutorialStep = FISHING_TUTORIAL_STEPS[fishingTutorialStepIndex] ?? FISHING_TUTORIAL_STEPS[0];
   const currentFishingTutorialEndingStep = FISHING_TUTORIAL_END_STEPS[fishingTutorialEndingStepIndex] ?? FISHING_TUTORIAL_END_STEPS[0];
+  const currentLoggingTutorialStep = LOGGING_TUTORIAL_STEPS[loggingTutorialStepIndex] ?? LOGGING_TUTORIAL_STEPS[0];
   const currentCraftTutorialSteps = craftTutorialRecipeName === '【レシピ】つるはし'
     ? PICKAXE_CRAFT_TUTORIAL_STEPS
     : SAW_CRAFT_TUTORIAL_STEPS;
@@ -3666,6 +4731,65 @@ export default function App() {
     );
   };
 
+  const renderLoggingTutorialVisual = () => {
+    if (currentLoggingTutorialStep.id === 'direction') {
+      return (
+        <div className="absolute inset-x-7 bottom-10 h-[440px] overflow-hidden rounded-xl border-2 border-[#86efac]/60 bg-black shadow-[inset_0_0_28px_rgba(0,0,0,0.65)]">
+          <img src="/img/tree.jpg" alt="伐採する木" className="absolute inset-0 h-full w-full object-cover" />
+          <div className="absolute inset-0 bg-black/15" />
+          <div className="absolute left-[43%] top-[38%] h-[210px] w-[300px] -translate-y-1/2 rotate-90">
+            <svg viewBox="0 0 300 210" className="h-full w-full overflow-visible drop-shadow-[0_8px_14px_rgba(0,0,0,0.7)]">
+              <path d="M150 198 L38 42 A140 140 0 0 1 262 42 Z" fill="rgba(253,246,227,0.28)" stroke="rgba(253,246,227,0.82)" strokeWidth="3" />
+              <path d="M150 198 L116 35 A140 140 0 0 1 184 35 Z" fill="rgba(255,209,102,0.78)" />
+              <line x1="150" y1="198" x2="150" y2="25" stroke="#ffd166" strokeWidth="6" strokeLinecap="round" className="farm-logging-tutorial-fan-needle" />
+              <circle cx="150" cy="198" r="8" fill="#fdf6e3" stroke="#ffd166" strokeWidth="3" />
+            </svg>
+          </div>
+          <div className="absolute bottom-5 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full border border-[#ffd166]/75 bg-black/65 px-5 py-2 text-sm font-black text-[#ffd166]">
+            黄色い範囲で角度を決定！
+          </div>
+        </div>
+      );
+    }
+
+    if (currentLoggingTutorialStep.id === 'action' || currentLoggingTutorialStep.id === 'fail_explain') {
+      const isFailDemo = currentLoggingTutorialStep.id === 'fail_explain';
+      return (
+        <div className="absolute inset-x-7 bottom-10 h-[440px] overflow-hidden rounded-xl border-2 border-[#86efac]/60 bg-black shadow-[inset_0_0_28px_rgba(0,0,0,0.65)]">
+          <img src="/img/noko1.jpg" alt="" className="farm-logging-dissolve-a absolute inset-0 h-full w-full object-cover" />
+          <img src="/img/noko2.jpg" alt="" className="farm-logging-dissolve-b absolute inset-0 h-full w-full object-cover" />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/5 to-black/10" />
+          <div className="absolute inset-x-5 bottom-5 rounded-xl border border-[#86efac]/45 bg-[#102116]/92 p-4">
+            <div className="mb-2 flex items-center justify-between text-sm font-black">
+              <span className="text-[#bbf7d0]">伐採進行率</span>
+              <span className={isFailDemo ? 'text-[#fecaca]' : 'text-[#fdf6e3]'}>
+                {isFailDemo ? '0%' : '100%'}
+              </span>
+            </div>
+            <div className="mb-4 h-5 overflow-hidden rounded-full border border-white/70 bg-black/70">
+              <div className={`h-full ${isFailDemo ? 'farm-logging-tutorial-fail-progress bg-[#ef4444]' : 'farm-logging-tutorial-success-progress bg-[#4ade80]'}`} />
+            </div>
+            <div className="relative h-10 overflow-hidden rounded-full border-2 border-[#fdf6e3]/85 bg-black/75">
+              <div className="absolute left-[42%] top-0 h-full w-[22%] bg-[#eab308]/85 shadow-[0_0_16px_rgba(234,179,8,0.6)]" />
+              <div className={`absolute top-1/2 h-[135%] w-3 -translate-x-1/2 -translate-y-1/2 rounded-full bg-[#ffd166] shadow-[0_0_14px_rgba(255,209,102,0.95)] ${isFailDemo ? 'farm-logging-tutorial-fail-marker' : 'farm-logging-tutorial-action-marker'}`} />
+            </div>
+            <div className={`mt-3 text-center text-xl font-black ${isFailDemo ? 'farm-logging-tutorial-fail-text text-[#fca5a5]' : 'farm-logging-tutorial-success-text text-[#ffd166]'}`}>
+              {isFailDemo ? '伐採失敗！' : 'COMBO！ 伐採成功！'}
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <img
+        src="/img/kurumi.png"
+        alt="くるみ"
+        className="absolute inset-x-0 bottom-0 mx-auto h-[560px] w-[430px] object-contain object-bottom drop-shadow-[0_28px_32px_rgba(0,0,0,0.6)]"
+      />
+    );
+  };
+
   const retryFishingTutorial = () => {
     finishFishingMiniGame();
     window.setTimeout(() => {
@@ -3936,7 +5060,7 @@ export default function App() {
      setMenuContentFocus('secondary');
      setItemMenuTab('だいじなもの');
      itemMenuTabRef.current = 'だいじなもの';
-     const firstOwnedRecipe = (['【レシピ】のこぎり', '【レシピ】つるはし'] as CraftRecipeId[]).find(name => (inventoryCounts[name] ?? 0) > 0);
+     const firstOwnedRecipe = CRAFT_RECIPE_IDS.find(name => (inventoryCounts[name] ?? 0) > 0);
      const selectedRecipe = firstOwnedRecipe ?? '';
      setSelectedItemName(selectedRecipe);
      selectedItemNameRef.current = selectedRecipe;
@@ -4008,8 +5132,121 @@ export default function App() {
      spawnNextCraftCircle(recipeName, 0, targetCount);
   };
 
+  const openLoggingTutorial = () => {
+    playFixSound();
+    setLoggingTutorialOpen(true);
+    setLoggingTutorialStepIndex(0);
+    setSelectedLoggingTutorialAction('next');
+    setLoggingTutorialResult(null);
+    playLoggingTutorialVoice(0);
+    setMenuOpen(false);
+    clickTargetRef.current = null;
+    setClickTargetMarker(null);
+  };
+
+  const startLoggingTutorialChallenge = () => {
+    playFixSound();
+    stopLoggingTutorialVoice();
+    setLoggingTutorialOpen(false);
+    setLoggingTutorialResult(null);
+    setIsLoggingTutorialRun(true);
+    
+    setLoggingMiniGameOpen(true);
+    setLoggingMiniGameStage('direction');
+    setLoggingGauge(50);
+    setLoggingProgress(0);
+    setLoggingCombo(0);
+    loggingGaugeDirectionRef.current = 1;
+    setDialogMessage('伐採チュートリアル：のこぎりを引く角度を決めましょう。');
+  };
+
+  const advanceLoggingTutorial = () => {
+    playFixSound();
+    if (loggingTutorialStepIndex >= LOGGING_TUTORIAL_STEPS.length - 1) {
+      startLoggingTutorialChallenge();
+      return;
+    }
+    const nextStepIndex = loggingTutorialStepIndex + 1;
+    setLoggingTutorialStepIndex(nextStepIndex);
+    playLoggingTutorialVoice(nextStepIndex);
+  };
+
+  const retryLoggingTutorial = () => {
+    finishLoggingMiniGame();
+    window.setTimeout(() => {
+      setIsLoggingTutorialRun(true);
+      startLoggingTutorialChallenge();
+    }, 0);
+  };
+
+  const completeLoggingTutorial = () => {
+    playFixSound();
+    stopLoggingTutorialVoice();
+    setLoggingTutorialCompleted(true);
+    setLoggingTutorialOpen(false);
+    setLoggingTutorialResult(null);
+    setIsLoggingTutorialRun(false);
+    finishLoggingMiniGame();
+    setDialogMessage('くるみ「これで完璧だねっ♪ どんどん木を切ってね！」');
+  };
+
+  const finishLoggingMiniGame = () => {
+    if (loggingComboEffectTimerRef.current !== null) {
+      window.clearTimeout(loggingComboEffectTimerRef.current);
+      loggingComboEffectTimerRef.current = null;
+    }
+    setLoggingMiniGameOpen(false);
+    setLoggingProgress(0);
+    setLoggingCombo(0);
+    setLoggingComboEffectKey(0);
+    setIsLoggingResultInputLocked(false);
+    loggingPromptBlockedRef.current = true;
+  };
+
+  const grantLoggingRewards = () => {
+    const rewardSaw = getHighestOwnedSaw(equippedItemsRef.current, inventoryCounts);
+    const rewards = createLumberRewards(rewardSaw, LOGGING_REWARD_WOOD);
+    setInventoryCounts(prev => {
+      const next = { ...prev };
+      rewards.forEach(({ lumber }) => {
+        next[lumber.name] = (next[lumber.name] ?? 0) + 1;
+      });
+      return next;
+    });
+    setLumberInventorySizes(prev => {
+      const next = { ...prev };
+      rewards.forEach(({ lumber, size }) => {
+        next[lumber.name] = [...(next[lumber.name] ?? []), size];
+      });
+      return next;
+    });
+    const rewardSummary = Array.from(new Set(rewards.map(({ lumber }) => lumber.name)))
+      .map(name => `${name}×${rewards.filter(({ lumber }) => lumber.name === name).length}`)
+      .join('、');
+    setDialogMessage(`${rewardSummary}を切り出しました！`);
+    consumeAPForAction();
+  };
+
+  const grantMiningReward = (pointId: string) => {
+    if (!canStartAPAction()) return;
+    const pickaxe = getHighestOwnedPickaxe(equippedItemsRef.current, inventoryCounts);
+    const ore = selectOreReward(pickaxe);
+    const weight = createOreWeight(ore);
+    setInventoryCounts(prev => ({ ...prev, [ore.name]: (prev[ore.name] ?? 0) + 1 }));
+    setOreInventoryWeights(prev => ({ ...prev, [ore.name]: [...(prev[ore.name] ?? []), weight] }));
+    setDepletedMiningPointIds(prev => ({ ...prev, [`${timeOfDay}_${pointId}`]: true }));
+    setDialogMessage(`${ore.name} ${weight.toLocaleString()}gを採掘しました！`);
+    playFixSound();
+    consumeAPForAction();
+  };
+
   const startLoggingMiniGame = () => {
      if (!activeLoggingPointId) return;
+     if (!canStartAPAction()) {
+        setLoggingPromptVisible(false);
+        loggingPromptBlockedRef.current = true;
+        return;
+     }
      const hasSaw = ['主人公-slot2', '主人公-slot3'].some(slotId => (
        equippedItemsRef.current[slotId]?.includes('のこぎり')
      ));
@@ -4020,17 +5257,135 @@ export default function App() {
         setDialogMessage('伐採にはのこぎりを装備してください。');
         return;
      }
+
+     if (!loggingTutorialCompleted) {
+        setLoggingPromptVisible(false);
+        loggingPromptBlockedRef.current = true;
+        openLoggingTutorial();
+        return;
+     }
+
      setLoggingPromptVisible(false);
      loggingPromptBlockedRef.current = true;
      setMenuOpen(false);
      menuOpenRef.current = false;
-     setCraftMiniGameOpen(true);
-     setCraftMiniGameRecipeName(null);
-     setCraftMiniGameScore(0);
-     setCraftMiniGameTargetCount(8);
-     setCraftMiniGameSpawnedCount(0);
-     setCraftMiniGameResult(null);
-     spawnNextCraftCircle(null, 0, 8);
+     
+     setLoggingMiniGameOpen(true);
+     setLoggingMiniGameStage('direction');
+     setLoggingGauge(50);
+     setLoggingProgress(0);
+     setLoggingCombo(0);
+     setIsLoggingTutorialRun(false);
+     setLoggingTutorialResult(null);
+     loggingGaugeDirectionRef.current = 1;
+     setDialogMessage('のこぎりを引く角度を決めましょう。');
+  };
+
+  const handleLoggingMiniGameAction = () => {
+    if (loggingMiniGameStage === 'result') {
+      if (isLoggingTutorialRun) return;
+      if (isLoggingResultInputLocked) return;
+      playFixSound();
+      finishLoggingMiniGame();
+      return;
+    }
+    playFixSound();
+
+    if (loggingMiniGameStage === 'direction') {
+      const sweetMin = LOGGING_MINIGAME_CONFIG.directionSweetMin;
+      const sweetMax = LOGGING_MINIGAME_CONFIG.directionSweetMax;
+      const fanSuccess = loggingGaugeRef.current >= sweetMin && loggingGaugeRef.current <= sweetMax;
+      setLoggingAngleSuccess(fanSuccess);
+      setLoggingMiniGameStage('action');
+      setLoggingGauge(0);
+      loggingGaugeDirectionRef.current = 1;
+      setDialogMessage(fanSuccess ? '角度成功！タイミングよく切り込みを入れましょう！' : '角度失敗...タイミングよく切り込みを入れましょう！');
+      return;
+    }
+
+    if (loggingMiniGameStage === 'action') {
+      const targetWidth = loggingAngleSuccess
+        ? LOGGING_MINIGAME_CONFIG.actionSweetWidth.goodAngle
+        : LOGGING_MINIGAME_CONFIG.actionSweetWidth.badAngle;
+      const minSweet = 50 - targetWidth / 2;
+      const maxSweet = 50 + targetWidth / 2;
+      const timingSuccess = loggingGaugeRef.current >= minSweet && loggingGaugeRef.current <= maxSweet;
+
+      if (timingSuccess) {
+        playUiSound(LOGGING_CUT_SOUND_SRC);
+        const nextCombo = loggingCombo + 1;
+        setLoggingCombo(nextCombo);
+        if (nextCombo >= 2) {
+          playUiSound(LOGGING_SUCCESS_SOUND_SRC);
+          setLoggingComboEffectKey(prev => prev + 1);
+          if (loggingComboEffectTimerRef.current !== null) {
+            window.clearTimeout(loggingComboEffectTimerRef.current);
+          }
+          loggingComboEffectTimerRef.current = window.setTimeout(() => {
+            setLoggingComboEffectKey(0);
+            loggingComboEffectTimerRef.current = null;
+          }, 850);
+        }
+        
+        const baseIncrease = randomInt(
+          LOGGING_MINIGAME_CONFIG.progressPerCut.min,
+          LOGGING_MINIGAME_CONFIG.progressPerCut.max,
+        );
+        let sawBonus = 0;
+        if (equippedSaw.includes('丈夫な')) sawBonus = 2;
+        else if (equippedSaw.includes('高級')) sawBonus = 4;
+        
+        const multiplier = Math.pow(LOGGING_MINIGAME_CONFIG.comboProgressMultiplier, nextCombo);
+        const increase = Math.round((baseIncrease + sawBonus) * multiplier);
+        
+        setLoggingProgress(prev => {
+          const next = Math.min(100, prev + increase);
+          if (next >= 100) {
+            setLoggingMiniGameStage('result');
+            fadeBgmTo(0, 700, () => {
+              playUiSound(LOGGING_RESULT_SOUND_SRC);
+            });
+            if (nextCombo < 2) {
+              playUiSound(LOGGING_SUCCESS_SOUND_SRC);
+            }
+            if (isLoggingTutorialRun) {
+              setLoggingTutorialResult('success');
+              setDialogMessage('木の伐採に成功しました！お見事！');
+            } else {
+              grantLoggingRewards();
+              if (activeLoggingPointId) {
+                setDepletedLoggingPointIds(prevDepleted => ({ ...prevDepleted, [`${timeOfDay}_${activeLoggingPointId}`]: true }));
+              }
+            }
+          }
+          return next;
+        });
+      } else {
+        setLoggingCombo(0);
+        setLoggingComboEffectKey(0);
+        if (loggingComboEffectTimerRef.current !== null) {
+          window.clearTimeout(loggingComboEffectTimerRef.current);
+          loggingComboEffectTimerRef.current = null;
+        }
+        const decrease = isLoggingTutorialRun
+          ? LOGGING_MINIGAME_CONFIG.missPenalty.tutorial
+          : LOGGING_MINIGAME_CONFIG.missPenalty.normal;
+        setLoggingProgress(prev => {
+          const next = prev - decrease;
+          if (next <= 0) {
+            setLoggingMiniGameStage('result');
+            if (isLoggingTutorialRun) {
+              setLoggingTutorialResult('fail');
+              setDialogMessage('のこぎりの刃が挟まり、失敗しました。');
+            } else {
+              setDialogMessage('伐採に失敗しました。');
+            }
+            return 0;
+          }
+          return next;
+        });
+      }
+    }
   };
 
   const finishCraftMiniGame = (result: 'success' | 'fail') => {
@@ -4038,9 +5393,8 @@ export default function App() {
      setCraftMiniGameResult(result);
      if (!craftMiniGameRecipeName) {
         if (result === 'success' && activeLoggingPointId) {
-           setInventoryCounts(prev => ({ ...prev, 木材: (prev['木材'] ?? 0) + LOGGING_REWARD_WOOD }));
+           grantLoggingRewards();
            setDepletedLoggingPointIds(prev => ({ ...prev, [`${timeOfDay}_${activeLoggingPointId}`]: true }));
-           setDialogMessage(`木材を${LOGGING_REWARD_WOOD}個切り出しました！`);
         } else {
            setDialogMessage('伐採に失敗しました。');
         }
@@ -4057,6 +5411,25 @@ export default function App() {
            next[config.output] = (next[config.output] ?? 0) + 1;
            return next;
         });
+        if (isFishingRodName(config.output)) {
+           setEquippedItems(prev => (
+             shouldEquipCraftedFishingRod(prev['主人公-slot1'] ?? '', config.output)
+               ? { ...prev, '主人公-slot1': config.output }
+               : prev
+           ));
+        } else if (isSawName(config.output)) {
+           setEquippedItems(prev => (
+             shouldEquipCraftedGatheringTool(prev['主人公-slot2'] ?? '', config.output)
+               ? { ...prev, '主人公-slot2': config.output }
+               : prev
+           ));
+        } else if (isPickaxeName(config.output)) {
+           setEquippedItems(prev => (
+             shouldEquipCraftedGatheringTool(prev['主人公-slot3'] ?? '', config.output)
+               ? { ...prev, '主人公-slot3': config.output }
+               : prev
+           ));
+        }
         if (sawCraftTutorialWorkbenchReady && craftMiniGameRecipeName === craftTutorialRecipeName) {
            setSawCraftTutorialWorkbenchReady(false);
            setSawCraftTutorialCompleted(true);
@@ -4131,7 +5504,7 @@ export default function App() {
   const handleShopActionClick = () => {
      const item = shopItemsForDisplay[selectedShopItemIndex] ?? shopItemsForDisplay[0];
      const itemStock = item.type === '売る'
-        ? (item.fishName ? item.stock : (inventoryCounts[item.name] ?? 0))
+        ? (item.fishName || item.sizedInventoryName ? item.stock : (inventoryCounts[item.name] ?? 0))
         : item.stock;
      const tradePrice = item.price;
      if (itemStock <= 0) {
@@ -4161,7 +5534,7 @@ export default function App() {
              : shopItem
         )));
      }
-     const inventoryName = item.fishName ?? item.name;
+     const inventoryName = item.fishName ?? item.sizedInventoryName ?? item.name;
      setInventoryCounts(prev => {
         const next = {
            ...prev,
@@ -4185,6 +5558,32 @@ export default function App() {
               return price !== item.fishPrice || index !== firstMatchingIndex;
            }),
         }));
+     }
+     if (item.type === '売る' && item.sizedInventoryName && typeof item.sizedInventoryPrice === 'number') {
+        const lumber = LUMBER_DATA.find(entry => entry.name === item.sizedInventoryName);
+        if (lumber) {
+          setLumberInventorySizes(prev => ({
+            ...prev,
+            [item.sizedInventoryName!]: (prev[item.sizedInventoryName!] ?? []).filter((size, index, sizes) => {
+              const firstMatchingIndex = sizes.findIndex(candidateSize => (
+                getLumberSellPrice(lumber, candidateSize) === item.sizedInventoryPrice
+              ));
+              return getLumberSellPrice(lumber, size) !== item.sizedInventoryPrice || index !== firstMatchingIndex;
+            }),
+          }));
+        }
+        const ore = ORE_DATA.find(entry => entry.name === item.sizedInventoryName);
+        if (ore) {
+          setOreInventoryWeights(prev => ({
+            ...prev,
+            [item.sizedInventoryName!]: (prev[item.sizedInventoryName!] ?? []).filter((weight, index, weights) => {
+              const firstMatchingIndex = weights.findIndex(candidateWeight => (
+                getOreSellPrice(ore, candidateWeight) === item.sizedInventoryPrice
+              ));
+              return getOreSellPrice(ore, weight) !== item.sizedInventoryPrice || index !== firstMatchingIndex;
+            }),
+          }));
+        }
      }
      setDialogMessage(`${item.name}を${item.type === '買う' ? '購入' : '売却'}しました。`);
      setIsShopTradePose(true);
@@ -4482,6 +5881,41 @@ export default function App() {
     }
   }, [fishingMiniGameOpen, bgmVolume, audioGains]);
 
+  useEffect(() => {
+    const audio = bgmRef.current;
+    if (!audio || fishingMiniGameOpen) return;
+
+    if (loggingMiniGameOpen) {
+      wasLoggingBgmActiveRef.current = true;
+      cancelBgmFade();
+      if (bgmSourceRef.current !== LOGGING_BGM_SRC) {
+        bgmSourceRef.current = LOGGING_BGM_SRC;
+        audio.pause();
+        audio.src = LOGGING_BGM_SRC;
+        audio.loop = true;
+        audio.currentTime = 0;
+      }
+      audio.volume = getEffectiveVolume(LOGGING_BGM_SRC, bgmVolume, audioGainsRef.current);
+      audio.play().then(() => {
+        bgmStartedRef.current = true;
+      }).catch((err) => {
+        console.log("Logging BGM autoplay blocked", err);
+      });
+      return;
+    }
+
+    if (wasLoggingBgmActiveRef.current) {
+      fadeBgmTo(0, 500, () => {
+        switchToCurrentBgm(0);
+        const currentSource = bgmSourceRef.current;
+        const targetVolume = getEffectiveVolume(currentSource, bgmVolume, audioGainsRef.current);
+        fadeBgmTo(targetVolume, 700, () => {
+          wasLoggingBgmActiveRef.current = false;
+        });
+      });
+    }
+  }, [loggingMiniGameOpen, fishingMiniGameOpen, bgmVolume, audioGains]);
+
   const startSleepSequence = () => {
     setSleepPromptVisible(false);
     setIsSleepSequenceActive(true);
@@ -4499,7 +5933,7 @@ export default function App() {
     });
 
     window.setTimeout(() => {
-      setTurn(t => (Math.floor(t / 4) + 1) * 4);
+      advanceToNextDay();
       playSleepFadeOutSound('/se/suzume.mp3', 3000);
       setSleepFadeOpacity(0);
       resumeCurrentBgm();
@@ -4568,7 +6002,17 @@ export default function App() {
   };
 
   const startFishingPrompt = () => {
-    const targetFish = selectFishingTargetFish(equippedFishingRod, caughtFishIds);
+    if (!canStartAPAction()) {
+      setFishingPromptVisible(false);
+      fishingPromptBlockedRef.current = true;
+      return;
+    }
+    const targetFish = selectFishingTargetFish({
+      difficulty,
+      rodName: equippedFishingRod,
+      timeOfDay,
+      caughtIds: caughtFishIds,
+    });
     const sweetRange = createFishingFanSweetRange(targetFish);
 
     setFishingPromptVisible(false);
@@ -5340,7 +6784,7 @@ export default function App() {
   useEffect(() => {
     const audio = bgmRef.current;
     if (!audio) return;
-    if (fishingMiniGameOpen || wasFishingBgmActiveRef.current) return;
+    if (fishingMiniGameOpen || wasFishingBgmActiveRef.current || loggingMiniGameOpen || wasLoggingBgmActiveRef.current) return;
     if (activeAutoEventSpot) return;
 
     const isKurumiConversationOpen =
@@ -5371,16 +6815,16 @@ export default function App() {
         console.log("BGM switch autoplay blocked", err);
       });
     }
-  }, [bootMode, currentMap, bgmVolume, audioGains, mapBgmSources, kurumiShopOpen, kurumiIntroOpen, fishingTutorialOpen, fishingTutorialEndingOpen, sawCraftTutorialIntroOpen, sawCraftTutorialShedDialogueOpen, gatheringTutorialOpen, fishingMiniGameOpen, activeAutoEventSpot]);
+  }, [bootMode, currentMap, bgmVolume, audioGains, mapBgmSources, kurumiShopOpen, kurumiIntroOpen, fishingTutorialOpen, fishingTutorialEndingOpen, sawCraftTutorialIntroOpen, sawCraftTutorialShedDialogueOpen, gatheringTutorialOpen, fishingMiniGameOpen, loggingMiniGameOpen, activeAutoEventSpot]);
 
   // BGM音量変更時の反映
   useEffect(() => {
-    if (fishingMiniGameOpen || wasFishingBgmActiveRef.current) return;
+    if (fishingMiniGameOpen || wasFishingBgmActiveRef.current || loggingMiniGameOpen || wasLoggingBgmActiveRef.current) return;
     if (activeAutoEventSpot) return;
     if (bgmRef.current && !bgmFadingRef.current) {
       bgmRef.current.volume = getEffectiveVolume(bgmSourceRef.current, bgmVolume, audioGainsRef.current);
     }
-  }, [bgmVolume, audioGains, fishingMiniGameOpen, activeAutoEventSpot]);
+  }, [bgmVolume, audioGains, fishingMiniGameOpen, loggingMiniGameOpen, activeAutoEventSpot]);
 
   // マップ専用の環境音
   useEffect(() => {
@@ -5739,6 +7183,35 @@ export default function App() {
         return;
       }
 
+      if (loggingTutorialOpen) {
+        if (e.repeat) return;
+        if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+          e.preventDefault();
+          playCursorSound();
+          setSelectedLoggingTutorialAction(e.key === 'ArrowLeft' ? 'later' : 'next');
+          return;
+        }
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          if (selectedLoggingTutorialAction === 'later') {
+            playFixSound();
+            stopLoggingTutorialVoice();
+            setLoggingTutorialOpen(false);
+          } else {
+            advanceLoggingTutorial();
+          }
+          return;
+        }
+        if (e.key === 'Escape') {
+          e.preventDefault();
+          playFixSound();
+          stopLoggingTutorialVoice();
+          setLoggingTutorialOpen(false);
+          return;
+        }
+        return;
+      }
+
       if (fishingTutorialOpen) {
         if (e.repeat) return;
         if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
@@ -6006,6 +7479,21 @@ export default function App() {
 
       if (!menuOpenRef.current && setupMode === 'none' && (e.key === 'Enter' || e.key === ' ')) {
         const playerPos = posRef.current;
+        if (activeMiningPointId) {
+          e.preventDefault();
+          const depletedKey = `${timeOfDay}_${activeMiningPointId}`;
+          const minedCountThisTimeSlot = Object.keys(depletedMiningPointIds).filter(key => (
+            key.startsWith(`${timeOfDay}_`) && depletedMiningPointIds[key]
+          )).length;
+          if (depletedMiningPointIds[depletedKey]) {
+            setDialogMessage('この採掘ポイントは、この時間帯にはもう採掘済みです。');
+          } else if (minedCountThisTimeSlot >= TEMP_MINING_LIMIT_PER_TIME_SLOT) {
+            setDialogMessage(`この時間帯に採掘できるのは${TEMP_MINING_LIMIT_PER_TIME_SLOT}回までです。`);
+          } else {
+            grantMiningReward(activeMiningPointId);
+          }
+          return;
+        }
         if (shouldShowFishingTutorialKurumi) {
           if (isNearFishingTutorialKurumi(playerPos)) {
             e.preventDefault();
@@ -6215,7 +7703,7 @@ export default function App() {
             };
             const optionsBySlot: Record<string, string[]> = {
               '釣具系': ['竹の釣竿', '丈夫な釣竿', '高級釣竿', '伝説の釣り竿'],
-              '採取道具系': ['のこぎり', '丈夫なのこぎり', '高級のこぎり', 'つるはし', '丈夫なつるはし', '高級つるはし'],
+              '採取道具系': ['のこぎり', '丈夫なのこぎり', '高級のこぎり', '伝説ののこぎり', 'つるはし', '丈夫なつるはし', '高級つるはし', '伝説のつるはし'],
               'アクセサリー': ['農神の指輪', FISHING_NUSHI_RING_NAME, FISHING_NUSHI_DEBUG_RING_NAME],
               'slot1': ['小さな鈴'],
               'slot2': [],
@@ -6370,14 +7858,13 @@ export default function App() {
           playFixSound();
           if (currentMenuItem.id === 'farm') {
             if (menuContentFocusRef.current === 'primary') {
-              const currentDay = Math.floor(turn / 4) + 1;
-              const repaymentCycleDays = 7;
-              const daysUntilRepayment = repaymentCycleDays - ((currentDay - 1) % repaymentCycleDays);
               const farmInfoItems = [
-                ['信用度', '35 / 100'],
-                ['次の返済日', `残り ${daysUntilRepayment} 日`],
-                ['借入金', `${debt.toLocaleString()} G`],
-                ['金利', '3.2%'],
+                ['現在金利', formatInterestRate(currentWeeklyInterestRate)],
+                ['農場信用度', `${farmCredit}`],
+                ['信用補正', `-${formatInterestRate(farmCreditInterestDiscount)}`],
+                ['返済遅延補正', `+${formatInterestRate(missedRepaymentPenalty)}`],
+                ['次回返済まで', `あと${daysUntilRepayment}日`],
+                ['借金残額', `¥${debtAmount.toLocaleString()}`],
                 ['経過日数', `${currentDay} 日`],
                 ['設備', '柵 Lv1'],
                 ['設備', '電気柵 未設置'],
@@ -6413,7 +7900,7 @@ export default function App() {
             };
             const optionsBySlot: Record<string, string[]> = {
               '釣具系': ['竹の釣竿', '丈夫な釣竿', '高級釣竿', '伝説の釣り竿'],
-              '採取道具系': ['のこぎり', '丈夫なのこぎり', '高級のこぎり', 'つるはし', '丈夫なつるはし', '高級つるはし'],
+              '採取道具系': ['のこぎり', '丈夫なのこぎり', '高級のこぎり', '伝説ののこぎり', 'つるはし', '丈夫なつるはし', '高級つるはし', '伝説のつるはし'],
               'アクセサリー': ['農神の指輪', FISHING_NUSHI_RING_NAME, FISHING_NUSHI_DEBUG_RING_NAME],
               'slot1': ['小さな鈴'],
               'slot2': [],
@@ -6727,6 +8214,20 @@ export default function App() {
       return false;
     };
 
+    const getTouchingMiningPointId = (x: number, y: number) => {
+      const minGridX = Math.floor((x - 15) / TILE_SIZE);
+      const maxGridX = Math.floor((x + 15) / TILE_SIZE);
+      const minGridY = Math.floor((y - 10) / TILE_SIZE);
+      const maxGridY = Math.floor(y / TILE_SIZE);
+      for (let gx = minGridX; gx <= maxGridX; gx++) {
+        for (let gy = minGridY; gy <= maxGridY; gy++) {
+          const pointId = `${currentMapRef.current}_${gx},${gy}`;
+          if (miningTiles[pointId]) return pointId;
+        }
+      }
+      return null;
+    };
+
     const gameLoop = () => {
       if (setupMode !== 'none') return; // Pause movement in setup menu
 
@@ -6898,17 +8399,28 @@ export default function App() {
         movementLockedRef.current = true;
       }
 
+      const isAPActionExhausted = timeOfDay === 'night' && currentAP <= 0;
       const isInFishingPoint = isTouchingFishingPoint(currentX, currentY);
       const hasEquippedFishingRod = Boolean(equippedItems['主人公-slot1'] && equippedItems['主人公-slot1'].includes('釣竿'));
       if (!isInFishingPoint) {
         fishingPromptBlockedRef.current = false;
-      } else if (!fishingPromptBlockedRef.current && !isInBed && !isInWorkbench && hasEquippedFishingRod) {
+      } else if (!fishingPromptBlockedRef.current && !isInBed && !isInWorkbench && hasEquippedFishingRod && !isAPActionExhausted) {
         moved = false;
         clickTargetRef.current = null;
         setClickTargetMarker(null);
         setFishingPromptVisible(true);
         movementLockedRef.current = true;
       }
+
+      const miningPointId = getTouchingMiningPointId(currentX, currentY);
+      const canInspectMiningPoint = Boolean(
+        miningPointId &&
+        !isInBed &&
+        !isInWorkbench &&
+        !isInFishingPoint &&
+        !isAPActionExhausted
+      );
+      setActiveMiningPointId(canInspectMiningPoint ? miningPointId : null);
 
       const touchedLoggingPoint = activeLoggingPoints.find(point => (
         point.map === currentMapRef.current &&
@@ -6920,7 +8432,7 @@ export default function App() {
       if (!touchedLoggingPoint) {
         setActiveLoggingPointId(null);
         loggingPromptBlockedRef.current = false;
-      } else if (!loggingPromptBlockedRef.current && !loggingPromptVisible && !isInBed && !isInWorkbench && !isInFishingPoint) {
+      } else if (!loggingPromptBlockedRef.current && !loggingPromptVisible && !isInBed && !isInWorkbench && !isInFishingPoint && !isAPActionExhausted) {
         moved = false;
         clickTargetRef.current = null;
         setClickTargetMarker(null);
@@ -6961,7 +8473,7 @@ export default function App() {
       window.removeEventListener('keydown', handleKeyDown); window.removeEventListener('keyup', handleKeyUp);
       cancelAnimationFrame(animationFrameId);
     };
-  }, [setupMode, bedTiles, workbenchTiles, fishingTiles, miningTiles, loggingTiles, activeLoggingPoints, activeLoggingPointId, sleepPromptVisible, craftPromptVisible, fishingPromptVisible, loggingPromptVisible, confirmPromptChoice, pendingDeleteSaveSlot, pendingOverwriteSaveSlot, activeAutoEventSpot, activeAutoEventMessage, activeAutoEventMessageIndex, activeAutoEventMessages, displayedAutoEventMessage, turn, kurumiShopOpen, kurumiIntroOpen, kurumiIntroSelectedIndex, kurumiIntroAskedTopics, kurumiIntroCompletedDay, selectedShopControl, selectedShopItemIndex, shopItems, gold, equipmentActionOpen, equippedItems, inventoryCounts, caughtFishIds, fishingMiniGameOpen, fishingMiniGameStage, isFishingResultInputLocked, fishingTutorialOpen, fishingTutorialEndingOpen, fishingTutorialEndingStepIndex, sawCraftTutorialIntroOpen, sawCraftTutorialIntroStepIndex, sawCraftTutorialReady, sawCraftTutorialShedDialogueOpen, sawCraftTutorialWorkbenchReady, selectedFishingTutorialAction, selectedFishingResultAction, recipeDetailOpen, farmGirlDetailOpen, bootMode]);
+  }, [setupMode, bedTiles, workbenchTiles, fishingTiles, miningTiles, depletedMiningPointIds, activeMiningPointId, loggingTiles, activeLoggingPoints, activeLoggingPointId, sleepPromptVisible, craftPromptVisible, fishingPromptVisible, loggingPromptVisible, confirmPromptChoice, pendingDeleteSaveSlot, pendingOverwriteSaveSlot, activeAutoEventSpot, activeAutoEventMessage, activeAutoEventMessageIndex, activeAutoEventMessages, displayedAutoEventMessage, turn, currentAP, kurumiShopOpen, kurumiIntroOpen, kurumiIntroSelectedIndex, kurumiIntroAskedTopics, kurumiIntroCompletedDay, selectedShopControl, selectedShopItemIndex, shopItems, gold, equipmentActionOpen, equippedItems, inventoryCounts, caughtFishIds, fishingMiniGameOpen, fishingMiniGameStage, isFishingResultInputLocked, fishingTutorialOpen, fishingTutorialEndingOpen, fishingTutorialEndingStepIndex, sawCraftTutorialIntroOpen, sawCraftTutorialIntroStepIndex, sawCraftTutorialReady, sawCraftTutorialShedDialogueOpen, sawCraftTutorialWorkbenchReady, selectedFishingTutorialAction, selectedFishingResultAction, recipeDetailOpen, farmGirlDetailOpen, bootMode, timeOfDay]);
 
   // Zone creation states
   const [dragStart, setDragStart] = useState<{ x: number, y: number } | null>(null);
@@ -8146,26 +9658,32 @@ export default function App() {
           )}
 	          
 	        {/* Header UI */}
-        <div className="h-[60px] bg-[#2d1b15] border-b-[4px] border-[#bc6c25] flex items-center justify-between px-6 z-40 text-[#fdf6e3]">
-          <div className="flex gap-10 text-lg">
-            <span className="flex items-center gap-2">
-              <span className="text-[#a3b18a] text-sm mt-1">DAY</span> 
-              {String(Math.floor(turn / 4) + 1).padStart(3, '0')}
-            </span>
-            <span className="flex items-center gap-2 text-[#f4a261]">
-              <span className="text-[#fdf6e3] text-sm mt-1">TIME</span> 
-              {timeLabels[timeOfDay]}
-            </span>
-            <span className="flex items-center gap-2 text-[#dda15e]">
-              <span className="text-[#fdf6e3] text-sm mt-1">GOLD</span> {gold.toLocaleString()} G
-            </span>
-            <span className="flex items-center gap-2 text-[#a3b18a]">
-              <span className="text-[#fdf6e3] text-sm mt-1">行動回数</span> {actionCountLabel}
-            </span>
+        <div className="h-[74px] bg-[#2d1b15] border-b-[4px] border-[#bc6c25] flex items-center justify-between px-6 z-40 text-[#fdf6e3]">
+          <div className="flex flex-col gap-1">
+            <div className="flex flex-wrap items-center gap-x-8 gap-y-1 text-lg">
+              <span className="flex items-center gap-2">
+                <span className="text-[#a3b18a] text-sm mt-1">DAY</span> 
+                {currentDay}日目
+              </span>
+              <span className="flex items-center gap-2 text-[#f4a261]">
+                <span className="text-[#fdf6e3] text-sm mt-1">TIME</span> 
+                {timeLabels[timeOfDay]}
+              </span>
+              <span className="flex items-center gap-2 text-[#a3b18a]">
+                <span className="text-[#fdf6e3] text-sm mt-1">AP</span> {actionCountLabel}
+              </span>
+              <span className="flex items-center gap-2 text-[#dda15e]">
+                <span className="text-[#fdf6e3] text-sm mt-1">GOLD</span> {gold.toLocaleString()} G
+              </span>
+            </div>
+            <div className="flex flex-wrap items-center gap-x-8 gap-y-1 text-sm font-bold">
+              <span className="text-[#ffdd99]">借金：¥{debtAmount.toLocaleString()}</span>
+              <span className="text-[#fdf6e3]">返済まで：あと{daysUntilRepayment}日</span>
+            </div>
           </div>
           <div className="flex gap-3">
              <button 
-               onClick={() => setTurn(t => t + 1)} 
+               onClick={advanceToNextTimeSlot} 
                className="px-3 py-1 text-sm border-2 bg-[#dda15e] border-[#bc6c25] text-[#2d1b15] hover:bg-[#e9b872] shadow-sm font-bold cursor-pointer"
              >
                🕒 ターン進む
@@ -8227,31 +9745,62 @@ export default function App() {
            {currentMap === 'farm' && (
               <>
                  {/* 左の畑 (21列 x 10行, 1マス30px) */}
-                 <FieldGrid
-                    fieldId="left"
-                    topLeft={fieldCorners.left.topLeft}
-                    topRight={fieldCorners.left.topRight}
-                    bottomRight={fieldCorners.left.bottomRight}
-                    bottomLeft={fieldCorners.left.bottomLeft}
-                    cols={fieldGridSizes.left.cols}
-                    rows={fieldGridSizes.left.rows}
-                    plantedCells={plantedCrops}
-                    isPlantMode={setupMode === 'crops'}
-                    onCellClick={handleCropCellClick}
-                 />
-                 {/* 右 of 畑 (26列 x 10行, 1マス30px) */}
-                 <FieldGrid
-                    fieldId="right"
-                    topLeft={fieldCorners.right.topLeft}
-                    topRight={fieldCorners.right.topRight}
-                    bottomRight={fieldCorners.right.bottomRight}
-                    bottomLeft={fieldCorners.right.bottomLeft}
-                    cols={fieldGridSizes.right.cols}
-                    rows={fieldGridSizes.right.rows}
-                    plantedCells={plantedCrops}
-                    isPlantMode={setupMode === 'crops'}
-                    onCellClick={handleCropCellClick}
-                 />
+                 {isFarmFieldInitiallyUnlocked(difficulty, 'left') && (
+                    <FieldGrid
+                       fieldId="left"
+                       topLeft={fieldCorners.left.topLeft}
+                       topRight={fieldCorners.left.topRight}
+                       bottomRight={fieldCorners.left.bottomRight}
+                       bottomLeft={fieldCorners.left.bottomLeft}
+                       cols={fieldGridSizes.left.cols}
+                       rows={fieldGridSizes.left.rows}
+                       plantedCells={plantedCrops}
+                       isPlantMode={setupMode === 'crops'}
+                       onCellClick={handleCropCellClick}
+                    />
+                 )}
+                 {/* 右の畑 (26列 x 10行, 1マス30px) */}
+                 {isFarmFieldInitiallyUnlocked(difficulty, 'right') && (
+                    <FieldGrid
+                       fieldId="right"
+                       topLeft={fieldCorners.right.topLeft}
+                       topRight={fieldCorners.right.topRight}
+                       bottomRight={fieldCorners.right.bottomRight}
+                       bottomLeft={fieldCorners.right.bottomLeft}
+                       cols={fieldGridSizes.right.cols}
+                       rows={fieldGridSizes.right.rows}
+                       plantedCells={plantedCrops}
+                       isPlantMode={setupMode === 'crops'}
+                       onCellClick={handleCropCellClick}
+                    />
+                 )}
+                 {farmFieldSlots.filter(slot => slot.girlId).map(slot => {
+                    const point = getFarmFieldSlotPoint(slot);
+                    const girl = GIRL_DATA.find(entry => entry.id === slot.girlId);
+                    const seed = GIRL_SEED_ACQUISITION_DATA.find(entry => entry.girlId === slot.girlId);
+                    const farmGirl = farmGirls.find(entry => entry.girlId === slot.girlId);
+                    const crop = FARM_GIRL_CROP_DATA.find(entry => entry.girlId === slot.girlId);
+                    const harvestInfo = slot.girlId ? getFarmGirlHarvestInfo(slot.girlId) : null;
+                    const slotStatus = slot.state === 'appeared'
+                       ? harvestInfo?.canHarvest
+                          ? '出現中・収穫可'
+                          : `出現中・あと${harvestInfo?.daysUntilHarvest ?? 0}日`
+                       : `成長中 ${farmGirl?.growthProgress ?? 0}/${crop?.growthDays ?? '?'}日`;
+                    return (
+                       <div
+                          key={`${slot.fieldId}_${slot.slotIndex}_${slot.girlId}`}
+                          className={`pointer-events-none absolute z-20 -translate-x-1/2 -translate-y-1/2 rounded-xl border-2 px-3 py-1 text-center text-[12px] font-black text-[#fff7dc] shadow-[0_4px_12px_rgba(0,0,0,0.55)] ${
+                             slot.state === 'appeared'
+                                ? 'border-[#86efac]/90 bg-[#14532d]/88'
+                                : 'border-[#ffd166]/85 bg-[#1a100d]/82'
+                          }`}
+                          style={{ left: point.x, top: point.y }}
+                       >
+                          <div>{girl?.girlName ?? seed?.seedName ?? '娘苗'}</div>
+                          <div className="text-[10px] leading-tight text-[#ffe8a3]">{slotStatus}</div>
+                       </div>
+                    );
+                 })}
                  {setupMode === 'crops' && (Object.entries(fieldCorners) as [FieldId, FieldCorners][]).map(([fieldId, corners]) => (
                     (Object.entries(corners) as [FieldCornerKey, Point][]).map(([corner, point]) => (
                        <div
@@ -9468,6 +11017,276 @@ export default function App() {
            );
         })()}
 
+         {loggingMiniGameOpen && (() => {
+            const isDirection = loggingMiniGameStage === 'direction';
+            const isAction = loggingMiniGameStage === 'action';
+            const isResult = loggingMiniGameStage === 'result';
+
+            const stageTitle = isDirection
+               ? 'のこぎりを入れる角度を決めよう'
+               : isAction
+                  ? 'タイミングよくのこぎりを挽こう！'
+                  : '伐採結果';
+
+            const needleAngle = (loggingGauge - 50) * 1.2;
+
+            return (
+               <div
+                  className="absolute inset-0 z-[80] flex items-center justify-center bg-black/45 pointer-events-auto"
+                  onPointerDown={(e) => {
+                     e.preventDefault();
+                     handleLoggingMiniGameAction();
+                  }}
+               >
+                  <div className="w-[820px] max-w-[calc(100%-32px)] rounded-2xl border-[4px] border-[#86efac] bg-[linear-gradient(180deg,rgba(22,39,26,0.98),rgba(8,14,9,0.98))] p-5 text-center text-[#fdf6e3] shadow-[0_18px_48px_rgba(0,0,0,0.72),inset_0_0_24px_rgba(134,239,172,0.08)]">
+                     <div className="mb-2 text-sm font-bold tracking-[0.22em] text-[#86efac] drop-shadow-[0_0_10px_rgba(134,239,172,0.7)]">FORESTRY</div>
+                     <div className="mb-3 text-2xl font-bold drop-shadow-[0_2px_0_rgba(0,0,0,0.8)]">
+                        {stageTitle}
+                     </div>
+                     
+                     <div className="relative mb-4 aspect-[16/9] overflow-hidden rounded-xl border-2 border-[#fdf6e3]/70 bg-black shadow-[inset_0_0_24px_rgba(0,0,0,0.72),0_10px_28px_rgba(0,0,0,0.55)]">
+                        {/* 背景画像 */}
+                        {isAction ? (
+                           <>
+                              <img
+                                 src="/img/noko1.jpg"
+                                 alt="のこぎり1"
+                                 className="farm-logging-dissolve-a absolute inset-0 h-full w-full object-cover"
+                                 onError={(event) => {
+                                    event.currentTarget.src = '/img/tree.jpg';
+                                 }}
+                              />
+                              <img
+                                 src="/img/noko2.jpg"
+                                 alt="のこぎり2"
+                                 className="farm-logging-dissolve-b absolute inset-0 h-full w-full object-cover"
+                                 onError={(event) => {
+                                    event.currentTarget.src = '/img/tree.jpg';
+                                 }}
+                              />
+                           </>
+                        ) : isResult ? (
+                           <img
+                              src={loggingProgress >= 100 ? '/img/treeok.jpg' : '/img/treeng.jpg'}
+                              alt={loggingProgress >= 100 ? '伐採成功' : '伐採失敗'}
+                              className="h-full w-full object-cover object-top"
+                              onError={(event) => {
+                                 event.currentTarget.src = '/img/tree.jpg';
+                              }}
+                           />
+                        ) : (
+                           <img
+                              src="/img/tree.jpg"
+                              alt="木"
+                              className="h-full w-full object-cover"
+                           />
+                        )}
+                        <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_48%,rgba(0,0,0,0.28)_100%)]" />
+
+                        {/* 方向決定フェーズのSVG扇型ゲージ（木に重ねて表示するため回転させて右側に配置） */}
+                        {isDirection && (() => {
+                           const radiusX = 130;
+                           const radiusY = 130;
+                           const width = 360;
+                           const height = 300;
+                           const centerX = width / 2;
+                           const baseY = height - 24;
+                           
+                           const leftX = centerX - radiusX;
+                           const rightX = centerX + radiusX;
+                           const topY = baseY - radiusY;
+                           const fanPath = `M${centerX} ${baseY} L${leftX} ${topY} A${radiusX} ${radiusY} 0 0 1 ${rightX} ${topY} Z`;
+                           
+                           const sweetSpotLeftAngle = (LOGGING_MINIGAME_CONFIG.directionSweetMin - 50) * 1.2 * Math.PI / 180;
+                           const sweetSpotRightAngle = (LOGGING_MINIGAME_CONFIG.directionSweetMax - 50) * 1.2 * Math.PI / 180;
+                           const sweetLeftX = centerX + Math.sin(sweetSpotLeftAngle) * radiusX;
+                           const sweetLeftY = baseY - Math.cos(sweetSpotLeftAngle) * radiusY;
+                           const sweetRightX = centerX + Math.sin(sweetSpotRightAngle) * radiusX;
+                           const sweetRightY = baseY - Math.cos(sweetSpotRightAngle) * radiusY;
+                           const sweetSpotPath = `M${centerX} ${baseY} L${sweetLeftX} ${sweetLeftY} A${radiusX} ${radiusY} 0 0 1 ${sweetRightX} ${sweetRightY} Z`;
+
+                           const angleRad = needleAngle * Math.PI / 180;
+                           const needleX = centerX + Math.sin(angleRad) * radiusX;
+                           const needleY = baseY - Math.cos(angleRad) * radiusY;
+
+                           return (
+                              <div 
+                                 className="absolute pointer-events-none" 
+                                 style={{
+                                    left: '50%',
+                                    top: '50%',
+                                    width,
+                                    height,
+                                    transform: 'translate(-50%, -50%) rotate(-90deg)',
+                                    transformOrigin: 'center'
+                                 }}
+                              >
+                                 <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-full drop-shadow-[0_8px_16px_rgba(0,0,0,0.6)]">
+                                    <defs>
+                                       <clipPath id="logging-direction-clip"><path d={fanPath} /></clipPath>
+                                    </defs>
+                                    <path d={fanPath} fill="rgba(253, 246, 227, 0.4)" />
+                                    <path d={sweetSpotPath} clipPath="url(#logging-direction-clip)" fill="rgba(255, 209, 102, 0.5)" stroke="rgba(255,247,173,0.8)" strokeWidth="1.25" />
+                                    <line
+                                       x1={centerX}
+                                       y1={baseY}
+                                       x2={needleX}
+                                       y2={needleY}
+                                       clipPath="url(#logging-direction-clip)"
+                                       stroke="#ffd166"
+                                       strokeWidth="5"
+                                       strokeLinecap="round"
+                                    />
+                                    <line
+                                       x1={centerX}
+                                       y1={baseY}
+                                       x2={needleX}
+                                       y2={needleY}
+                                       clipPath="url(#logging-direction-clip)"
+                                       stroke="rgba(255,255,255,0.4)"
+                                       strokeWidth="1.5"
+                                       strokeLinecap="round"
+                                    />
+                                 </svg>
+                              </div>
+                           );
+                        })()}
+                     </div>
+
+                     {/* 進行中（角度・挽き）のゲージコントロール */}
+                     {!isResult ? (
+                        <>
+                           {isAction && (() => {
+                              const targetWidth = loggingAngleSuccess ? 30 : 15;
+                              const minSweet = 50 - targetWidth / 2;
+                              const maxSweet = 50 + targetWidth / 2;
+
+                              return (
+                                 <div className="relative h-10 overflow-hidden rounded-full border-2 border-[#fdf6e3]/90 bg-[linear-gradient(180deg,rgba(0,0,0,0.72),rgba(21,45,27,0.72))] shadow-[inset_0_3px_8px_rgba(0,0,0,0.75),0_6px_18px_rgba(0,0,0,0.35)]">
+                                    {/* 黄色成功エリア */}
+                                    <div 
+                                       className="absolute top-0 h-full bg-[linear-gradient(180deg,rgba(254,240,138,0.92),rgba(234,179,8,0.72))] shadow-[0_0_18px_rgba(234,179,8,0.55)]"
+                                       style={{ left: `${minSweet}%`, width: `${targetWidth}%` }}
+                                    />
+                                    {/* 往復針 */}
+                                    <div 
+                                       className="absolute top-1/2 h-[130%] w-3 -translate-x-1/2 -translate-y-1/2 rounded-full bg-[#ffd166] shadow-[0_0_16px_rgba(255,209,102,0.95),0_0_0_2px_rgba(255,255,255,0.4)]"
+                                       style={{ left: `${loggingGauge}%` }}
+                                    />
+                                 </div>
+                              );
+                           })()}
+                           
+                           <div className="mt-4 text-sm text-[#c8a87a]">
+                              {isDirection 
+                                 ? 'クリック / Enter / Space でのこぎりを入れる角度を決定' 
+                                 : '黄色い範囲でタイミングよく決定！ 外れると伐採率が低下します'}
+                           </div>
+                           
+                           {isAction && (
+                              <div className="mt-5 grid gap-4 text-left">
+                                 {/* 伐採進行率 */}
+                                 <div className="rounded-2xl border border-[#86efac]/35 bg-[#0f2516]/72 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
+                                    <div className="mb-2 flex items-center justify-between text-[14px] font-black text-[#bbf7d0]">
+                                       <span>伐採進行率</span>
+                                       <span className="rounded-full bg-black/35 px-3 py-0.5 text-[#fdf6e3]">{loggingProgress}%</span>
+                                    </div>
+                                    <div className="relative h-7 overflow-hidden rounded-full border-2 border-[#bbf7d0]/70 bg-black/60 shadow-[inset_0_3px_8px_rgba(0,0,0,0.75)]">
+                                       <div 
+                                          className="h-full rounded-full bg-[linear-gradient(90deg,#16a34a,#4ade80,#bbf7d0)] shadow-[0_0_18px_rgba(74,222,128,0.55)] transition-[width]"
+                                          style={{ width: `${loggingProgress}%` }}
+                                       />
+                                       <div className="pointer-events-none absolute inset-x-2 top-1 h-2 rounded-full bg-white/20" />
+                                    </div>
+                                 </div>
+                                 <div className="text-center text-sm font-bold text-[#ffd166]">
+                                    現在 {loggingCombo}連コンボ中！(挽き増加量UP)
+                                 </div>
+                              </div>
+                           )}
+                        </>
+                     ) : (
+                        /* 結果フェーズ */
+                        <div className="rounded-2xl border border-[#86efac]/55 bg-black/35 p-4">
+                           <div className="text-2xl font-black text-[#86efac]">{loggingProgress >= 100 ? '伐採成功！' : '伐採失敗...'}</div>
+                           {isLoggingTutorialRun ? (
+                              <div className="mt-4 grid gap-3">
+                                 <div className="whitespace-pre-line rounded-xl border border-[#86efac]/45 bg-[#16251b]/72 px-4 py-3 text-left text-sm font-bold leading-relaxed text-[#fdf6e3]">
+                                    {loggingTutorialResult === 'success'
+                                       ? 'くるみ\n「やったぁー！\nお兄さん初めてなのに上手〜！\nこれで立派なのこぎり使いデビューだね♪」'
+                                       : 'くるみ\n「あーっ、刃が挟まっちゃったね！\nでも大丈夫！\nのこぎりは焦らずゆっくり挽くのがコツだよ、もう一回やってみよう！」'}
+                                 </div>
+                                 <div className="flex justify-center gap-6 px-8">
+                                    <button
+                                       type="button"
+                                       disabled={isLoggingResultInputLocked}
+                                       onMouseEnter={() => {
+                                          if (!isLoggingResultInputLocked) setLoggingSelectedResultAction('retry');
+                                       }}
+                                       onPointerDown={(event) => event.stopPropagation()}
+                                       onClick={(event) => {
+                                          event.stopPropagation();
+                                          if (!isLoggingResultInputLocked) retryLoggingTutorial();
+                                       }}
+                                       className={`relative flex h-12 w-60 items-center justify-center rounded-lg border-2 px-8 text-sm font-black leading-none transition-all whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-55 ${
+                                          loggingSelectedResultAction === 'retry' && !isLoggingResultInputLocked
+                                             ? 'border-[#fdf6e3] bg-[#0e7490] text-white shadow-[0_0_18px_rgba(103,232,249,0.85)] ring-2 ring-[#67e8f9]'
+                                             : 'border-[#67e8f9] bg-[#164e63] text-[#fdf6e3] hover:bg-[#0e7490]'
+                                       }`}
+                                    >
+                                       {loggingSelectedResultAction === 'retry' && !isLoggingResultInputLocked && (
+                                          <span className="absolute left-5 text-[#ffd166]">▶</span>
+                                       )}
+                                       もう一度挑戦！
+                                    </button>
+                                    <button
+                                       type="button"
+                                       disabled={isLoggingResultInputLocked}
+                                       onMouseEnter={() => {
+                                          if (!isLoggingResultInputLocked) setLoggingSelectedResultAction('complete');
+                                       }}
+                                       onPointerDown={(event) => event.stopPropagation()}
+                                       onClick={(event) => {
+                                          event.stopPropagation();
+                                          if (!isLoggingResultInputLocked) completeLoggingTutorial();
+                                       }}
+                                       className={`relative flex h-12 w-60 items-center justify-center rounded-lg border-2 px-8 text-sm font-black leading-none transition-all whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-55 ${
+                                          loggingSelectedResultAction === 'complete' && !isLoggingResultInputLocked
+                                             ? 'border-[#fdf6e3] bg-[#b45309] text-white shadow-[0_0_18px_rgba(255,209,102,0.85)] ring-2 ring-[#ffd166]'
+                                             : 'border-[#ffd166] bg-[#7a4317] text-[#fdf6e3] hover:bg-[#8d4f1b]'
+                                       }`}
+                                    >
+                                       {loggingSelectedResultAction === 'complete' && !isLoggingResultInputLocked && (
+                                          <span className="absolute left-5 text-[#67e8f9]">▶</span>
+                                       )}
+                                       チュートリアルを終わる
+                                    </button>
+                                 </div>
+                              </div>
+                           ) : (
+                              <div className="mt-3 text-sm text-[#c8a87a]">
+                                 {!isLoggingResultInputLocked && 'クリック / Enter / Space で閉じる'}
+                              </div>
+                           )}
+                        </div>
+                     )}
+                  </div>
+                  {loggingComboEffectKey > 0 && (
+                     <div
+                        key={loggingComboEffectKey}
+                        className="farm-logging-combo-effect pointer-events-none absolute left-[calc(50%_-_300px)] top-1/2 z-20 w-[360px] max-w-[42vw] -translate-x-1/2 -translate-y-1/2"
+                     >
+                        <img
+                           src="/img/combo.png"
+                           alt=""
+                           className="h-auto w-full drop-shadow-[0_0_28px_rgba(255,90,0,0.95)]"
+                        />
+                     </div>
+                  )}
+               </div>
+            );
+         })()}
+
         {isSleepSequenceActive && (
            <div
               className="absolute inset-0 z-[90] bg-black pointer-events-auto"
@@ -9609,6 +11428,65 @@ export default function App() {
                        alt="くるみ"
                        className="absolute inset-x-0 bottom-0 mx-auto h-[540px] w-[410px] object-contain object-bottom drop-shadow-[0_28px_32px_rgba(0,0,0,0.6)]"
                     />
+                 </div>
+              </div>
+           </div>
+        )}
+
+        {loggingTutorialOpen && (
+           <div className="absolute inset-0 z-[88] flex items-center justify-center bg-black/55 px-8">
+              <div className="grid h-[690px] w-[1120px] grid-cols-[1fr_390px] overflow-hidden rounded-2xl border-[4px] border-[#86efac] bg-[#1a100d]/96 text-[#fdf6e3] shadow-2xl">
+                 <div className="flex min-h-0 flex-col gap-4 p-8">
+                    <div>
+                       <div className="text-sm font-bold tracking-[0.28em] text-[#86efac]">FORESTRY LESSON</div>
+                       <div className="mt-2 text-3xl font-black">伐採のチュートリアル</div>
+                    </div>
+                    <div className="min-h-[260px] flex-1 whitespace-pre-line rounded-xl border-2 border-[#bc6c25]/70 bg-[#2d1b15]/85 p-5 text-[21px] font-bold leading-[1.48]">
+                       くるみ
+                       {'\n'}「{getDebugDialogueMessage(currentLoggingTutorialStep.debugKey, currentLoggingTutorialStep.message)}」
+                    </div>
+                    <div className="flex items-center justify-between gap-4">
+                       <div className="text-sm font-bold text-[#a3b18a]">
+                          {loggingTutorialStepIndex + 1} / {LOGGING_TUTORIAL_STEPS.length}
+                       </div>
+                       <div className="flex gap-3">
+                          <button
+                             type="button"
+                             onMouseEnter={() => setSelectedLoggingTutorialAction('later')}
+                             onClick={() => {
+                                playFixSound();
+                                stopLoggingTutorialVoice();
+                                setLoggingTutorialOpen(false);
+                             }}
+                             className={`rounded-lg border-2 px-5 py-2 text-sm font-black transition-all ${
+                                selectedLoggingTutorialAction === 'later'
+                                   ? 'scale-105 border-[#ffd166] bg-[#5a3010] text-[#fdf6e3] shadow-[0_0_16px_rgba(255,209,102,0.45)]'
+                                   : 'border-[#5a3010] bg-black/45 text-[#dda15e] hover:bg-[#3a2418]'
+                             }`}
+                          >
+                             あとで
+                          </button>
+                          <button
+                             type="button"
+                             onMouseEnter={() => setSelectedLoggingTutorialAction('next')}
+                             onClick={advanceLoggingTutorial}
+                             className={`rounded-lg border-2 px-6 py-2 text-sm font-black transition-all ${
+                                selectedLoggingTutorialAction === 'next'
+                                   ? 'scale-105 border-[#f0fdf4] bg-[#15803d] text-white shadow-[0_0_18px_rgba(134,239,172,0.55)]'
+                                   : 'border-[#166534] bg-[#14532d] text-[#bbf7d0] hover:bg-[#15803d] hover:text-white'
+                             }`}
+                          >
+                             {loggingTutorialStepIndex >= LOGGING_TUTORIAL_STEPS.length - 1 ? '伐採してみる！' : '次へ'}
+                          </button>
+                       </div>
+                    </div>
+                 </div>
+                 <div className="relative border-l border-[#86efac]/45 bg-gradient-to-b from-[#17351f] to-[#160d0a]">
+                    <div className="absolute left-8 right-8 top-8 z-10 rounded-xl border-2 border-[#f1c27d]/80 bg-[#fdf6e3]/95 px-6 py-4 text-[#2d1b15] shadow-xl">
+                       <div className="text-2xl font-black tracking-wide">くるみ</div>
+                       <div className="mt-1 text-[19px] font-bold leading-snug">木材の切り出し方を覚えよっ！</div>
+                    </div>
+                    {renderLoggingTutorialVisual()}
                  </div>
               </div>
            </div>
