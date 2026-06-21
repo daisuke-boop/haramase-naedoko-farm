@@ -106,6 +106,7 @@ import { GIRL_DATA } from './data/girlData';
 import { GIRL_SEED_ACQUISITION_DATA, INITIAL_OWNED_GIRL_SEEDS } from './data/girlSeedAcquisitionData';
 import {
   createDebugInventoryCounts,
+  getItemCountIncludingDebug,
   toBaseItemName,
   toDebugItemName,
 } from './data/debugItemData';
@@ -653,8 +654,21 @@ type BattlePreviewState = {
   partnerSkillUses: number;
   partnerSkillMaxUses: number;
   partnerDropRateBonus: number;
+  healingItemUses: number;
+  reviveItemUses: number;
 };
 type BattlePartnerSkillDisplay = { partnerId: string; text: string; key: number } | null;
+type BattleItemKind = 'heal' | 'revive';
+type BattleItemSelectionStep = 'item' | 'target';
+type BattleConsumableItem = {
+  name: string;
+  kind: BattleItemKind;
+  price: number;
+  desc: string;
+  unlockRepaymentCount: number;
+  healAmount?: number;
+  reviveHpRate?: number;
+};
 
 const DIFFICULTY_ORDER: Readonly<Record<GameDifficulty, number>> = {
   easy: 0,
@@ -683,7 +697,62 @@ const BATTLE_SE_SOURCES = {
   lose: '/se/battle-lose.wav',
   skill: '/se/battle-skill.mp3',
 } as const;
-const PARTNER_SUPPORT_SKILL_IDS = new Set(['viola', 'kabune', 'cure', 'saffy']);
+const PARTNER_SUPPORT_SKILL_IDS = new Set(['viola', 'kabune', 'caro', 'cure', 'shiro', 'momona', 'pan', 'puti', 'roma', 'saffy']);
+const BATTLE_HEALING_ITEM_USE_LIMIT = 2;
+const BATTLE_REVIVE_ITEM_USE_LIMIT = 1;
+const BATTLE_CONSUMABLE_ITEMS: readonly BattleConsumableItem[] = [
+  {
+    name: 'いやし草もち',
+    kind: 'heal',
+    healAmount: 30,
+    price: 4_800,
+    unlockRepaymentCount: 0,
+    desc: '味方1人のHPを30回復する。戦闘中の回復アイテムは1バトル合計2回まで使えます。',
+  },
+  {
+    name: '生命ミルク',
+    kind: 'heal',
+    healAmount: 60,
+    price: 12_000,
+    unlockRepaymentCount: 1,
+    desc: '味方1人のHPを60回復する。初回返済後に入荷します。',
+  },
+  {
+    name: '女神の蜜薬',
+    kind: 'heal',
+    healAmount: 120,
+    price: 32_000,
+    unlockRepaymentCount: 2,
+    desc: '味方1人のHPを120回復する高級薬。中盤以降の切り札です。',
+  },
+  {
+    name: 'めざめの鈴',
+    kind: 'revive',
+    reviveHpRate: 0.25,
+    price: 58_000,
+    unlockRepaymentCount: 1,
+    desc: '戦闘不能の味方1人をHP25%で復活させる。蘇生アイテムは1バトル合計1回まで使えます。',
+  },
+  {
+    name: '生命の種火',
+    kind: 'revive',
+    reviveHpRate: 0.5,
+    price: 120_000,
+    unlockRepaymentCount: 2,
+    desc: '戦闘不能の味方1人をHP50%で復活させる。強敵戦の保険です。',
+  },
+  {
+    name: '天命の雫',
+    kind: 'revive',
+    reviveHpRate: 0.8,
+    price: 300_000,
+    unlockRepaymentCount: 3,
+    desc: '戦闘不能の味方1人をHP80%で復活させる究極の雫。終盤の切り札です。',
+  },
+];
+const getBattleConsumableItem = (name: string): BattleConsumableItem | undefined => (
+  BATTLE_CONSUMABLE_ITEMS.find(item => item.name === name)
+);
 const BATTLE_BEAST_SPRITE_SOURCES: Readonly<Record<string, string>> = {
   mole: '/img/battle/teki-mogura.png',
   rabbit: '/img/battle/teki-usagi.png',
@@ -740,7 +809,7 @@ const PARTNER_SKILL_PREVIEWS: Readonly<Record<string, PartnerSkillPreview>> = {
   chibiichi: { name: '固有スキルなし', description: '基本能力で戦闘を支える。', effectLabel: 'なし', maxUses: 0 },
   mel: { name: '固有スキルなし', description: '基本能力で戦闘を支える。', effectLabel: 'なし', maxUses: 0 },
   ruby: { name: '固有スキルなし', description: '基本能力で戦闘を支える。', effectLabel: 'なし', maxUses: 0 },
-  viola: { name: '静謐の集中', description: '戦闘SPを回復する。', effectLabel: 'SP+1', maxUses: 1 },
+  viola: { name: '静謐の集中', description: '戦闘SPを回復する。', effectLabel: 'SP+2', maxUses: 1 },
   nazuna: { name: '崩し打ち', description: '敵の防御を一時的に下げる。', effectLabel: '敵防御-2', maxUses: 1 },
   kabune: { name: 'やさしい手当て', description: 'HPが減った味方を回復する。', effectLabel: 'HP+10', maxUses: 2 },
   caro: { name: '疾風の号令', description: '主人公の素早さを高める。', effectLabel: '素早さ+3', maxUses: 1 },
@@ -915,8 +984,10 @@ const FISHING_NUSHI_DEBUG_RING_NAME = '釣神の指輪（デバッグ用）';
 const withDebugItemVariants = (itemNames: readonly string[]): string[] => (
   itemNames.flatMap(itemName => [itemName, toDebugItemName(itemName)])
 );
+const REMOVED_LEGACY_ITEM_NAMES = ['薬草', '携帯おにぎり', '小さな釣り餌'] as const;
+const REMOVED_LEGACY_ITEM_VARIANTS = withDebugItemVariants(REMOVED_LEGACY_ITEM_NAMES);
 const ITEM_MENU_NORMAL_ITEMS: Record<string, string[]> = {
-  '消耗品': ['薬草', '気付け水', '小さな釣り餌'],
+  '消耗品': ['気付け水', ...BATTLE_CONSUMABLE_ITEMS.map(item => item.name)],
   '素材': Array.from(new Set([
     '木材', '川魚の鱗', 'モグラの爪', 'ウサギの靭帯', '軟らかい銅鉱石', '泥混じりの鉄鉱石', '柔らかな若枝',
     '軽石炭', 'しなやかな軟木', '猪の牙', '熊の剛糸', '良質な鉄鉱石', '堅実な中木',
@@ -1607,6 +1678,8 @@ const createInitialBattlePreviewState = (
     partnerSkillUses: 0,
     partnerSkillMaxUses: partnerSkillUses,
     partnerDropRateBonus: 0,
+    healingItemUses: 0,
+    reviveItemUses: 0,
   };
 };
 const calculateBattleDamage = (
@@ -1892,6 +1965,11 @@ export default function App() {
   const [battleHitEffect, setBattleHitEffect] = useState<BattleHitEffectState>(null);
   const [battleSupportEffect, setBattleSupportEffect] = useState<BattleSupportEffectState>(null);
   const battleLoseSoundPlayedRef = useRef(false);
+  const [battleItemPanelOpen, setBattleItemPanelOpen] = useState(false);
+  const [battleItemSelectionStep, setBattleItemSelectionStep] = useState<BattleItemSelectionStep>('item');
+  const [selectedBattleCommandIndex, setSelectedBattleCommandIndex] = useState(0);
+  const [selectedBattleItemIndex, setSelectedBattleItemIndex] = useState(0);
+  const [selectedBattleItemTargetIndex, setSelectedBattleItemTargetIndex] = useState(0);
   const [battleTestBeastId, setBattleTestBeastId] = useState<BeastId>('mole');
   const [battleTestPartnerId, setBattleTestPartnerId] = useState<string>('');
   const menuOpenRef = useRef(false);
@@ -1964,8 +2042,8 @@ export default function App() {
   }));
   const [itemMenuTab, setItemMenuTab] = useState('消耗品');
   const itemMenuTabRef = useRef('消耗品');
-  const [selectedItemName, setSelectedItemName] = useState('薬草');
-  const selectedItemNameRef = useRef('薬草');
+  const [selectedItemName, setSelectedItemName] = useState('いやし草もち');
+  const selectedItemNameRef = useRef('いやし草もち');
   const [selectedEquipmentSlot, setSelectedEquipmentSlot] = useState('主人公-slot1');
   const selectedEquipmentSlotRef = useRef('主人公-slot1');
   const [equipmentActionOpen, setEquipmentActionOpen] = useState(false);
@@ -2123,9 +2201,14 @@ export default function App() {
     setDialogMessage(`${skill.name}を習得した！`);
   };
   const [shopItems, setShopItems] = useState<ShopItem[]>([
-    { name: '薬草', price: 120, stock: 8, type: '買う', desc: '体力を少し回復する定番の薬草です。' },
-    { name: '携帯おにぎり', price: 260, stock: 5, type: '買う', desc: '探索前の腹ごしらえに便利です。' },
-    { name: '小さな釣り餌', price: 80, stock: 12, type: '買う', desc: '川釣りで使える小さな餌です。' },
+    ...BATTLE_CONSUMABLE_ITEMS.map(item => ({
+      name: item.name,
+      price: item.price,
+      stock: 99,
+      type: '買う' as const,
+      category: item.kind === 'heal' ? '戦闘回復' : '戦闘蘇生',
+      desc: item.desc,
+    })),
     { name: '【レシピ】のこぎり', price: 500, stock: 1, type: '買う', desc: 'のこぎりの作り方が書かれたレシピです。' },
     { name: '【レシピ】つるはし', price: 500, stock: 1, type: '買う', desc: 'つるはしの作り方が書かれたレシピです。' },
     { name: '木材', price: 40, stock: 20, type: '売る', desc: '農場設備の修理にも使える素材です。' },
@@ -2230,6 +2313,7 @@ export default function App() {
     ...shopItems.filter(item => (
       item.type === '買う' &&
       item.stock > 0 &&
+      (getBattleConsumableItem(item.name)?.unlockRepaymentCount ?? 0) <= successfulRepaymentCount &&
       (!isRecipeItemName(item.name) || (inventoryCounts[item.name] ?? 0) === 0)
     )),
     ...fishShopItems,
@@ -2239,6 +2323,26 @@ export default function App() {
     ...battleMaterialShopItems,
     ...shopItems.filter(item => item.type === '売る' && (inventoryCounts[item.name] ?? 0) > 0),
   ];
+
+  useEffect(() => {
+    setShopItems(prev => {
+      const next = prev.filter(item => !REMOVED_LEGACY_ITEM_NAMES.includes(item.name as typeof REMOVED_LEGACY_ITEM_NAMES[number]));
+      return next.length === prev.length ? prev : next;
+    });
+    setInventoryCounts(prev => {
+      if (!REMOVED_LEGACY_ITEM_VARIANTS.some(itemName => (prev[itemName] ?? 0) > 0)) return prev;
+      const next = { ...prev };
+      REMOVED_LEGACY_ITEM_VARIANTS.forEach(itemName => {
+        delete next[itemName];
+      });
+      return next;
+    });
+    if (REMOVED_LEGACY_ITEM_VARIANTS.includes(selectedItemName)) {
+      setSelectedItemName('いやし草もち');
+      selectedItemNameRef.current = 'いやし草もち';
+    }
+  }, [inventoryCounts, selectedItemName]);
+
   const renderMenuDetail = (id: MenuItemId) => {
     const tabs = ['消耗品', '素材', '装備品', '売却品', 'だいじなもの'];
     const stats = [
@@ -5211,6 +5315,11 @@ export default function App() {
     setBattleHitEffect(null);
     setBattleSupportEffect(null);
     setBattlePartnerSkillDisplay(null);
+    setBattleItemPanelOpen(false);
+    setBattleItemSelectionStep('item');
+    setSelectedBattleCommandIndex(0);
+    setSelectedBattleItemIndex(0);
+    setSelectedBattleItemTargetIndex(0);
     const selectedBeast = BEAST_BATTLE_DATA.find(beast => beast.id === battleTestBeastId) ?? BEAST_BATTLE_DATA[0];
     const testBeasts = [createBattleUnitFromBeast(selectedBeast), null, null];
     setBattlePreviewState(createInitialBattlePreviewState(equippedItems, testBeasts, battleTestPartnerId || null, 'test', heroLevel));
@@ -5232,6 +5341,11 @@ export default function App() {
     setBattleHitEffect(null);
     setBattleSupportEffect(null);
     setBattlePartnerSkillDisplay(null);
+    setBattleItemPanelOpen(false);
+    setBattleItemSelectionStep('item');
+    setSelectedBattleCommandIndex(0);
+    setSelectedBattleItemIndex(0);
+    setSelectedBattleItemTargetIndex(0);
     setBattlePreviewState(createInitialBattlePreviewState(equippedItems, beasts, companionGirlId, encounterType, heroLevel));
     setBattleIntroPhase(3);
     setBattlePreviewOpen(true);
@@ -5319,7 +5433,7 @@ export default function App() {
   };
 
   const getBattleSpritePose = (unitId: string): BattlePose => (
-    battleMotion?.actorId === unitId ? battleMotion.pose : 'idle'
+    battleMotion?.actorId === unitId ? battleMotion.pose : battleIntroPhase !== null ? 'idle' : 'defend'
   );
 
   const triggerBattleMotion = (actorId: string, pose: BattlePose, durationMs = 420) => {
@@ -5379,10 +5493,118 @@ export default function App() {
       : getBattleGirlSpriteSrc(girlId).replace(/\.png$/, '-down.png')
   );
 
+  const getBattleItemOwnedCount = (itemName: string) => getItemCountIncludingDebug(inventoryCounts, itemName);
+
+  const getBattleItemInventoryKeyToConsume = (itemName: string) => (
+    (inventoryCounts[itemName] ?? 0) > 0 ? itemName : toDebugItemName(itemName)
+  );
+
+  const getAvailableBattleItems = () => BATTLE_CONSUMABLE_ITEMS.filter(item => getBattleItemOwnedCount(item.name) > 0);
+
+  const getBattleItemTargets = (item: BattleConsumableItem, state = battlePreviewState) => {
+    const units = [state.hero, ...state.allies.filter((ally): ally is BattleUnitState => Boolean(ally))];
+    return units.filter(unit => item.kind === 'revive' ? unit.hp <= 0 : unit.hp > 0);
+  };
+
+  const closeBattleItemPanel = () => {
+    setBattleItemPanelOpen(false);
+    setBattleItemSelectionStep('item');
+  };
+
+  const openBattleItemPanel = () => {
+    const availableItems = getAvailableBattleItems();
+    if (availableItems.length === 0) {
+      setBattlePreviewState(prev => ({ ...prev, logs: [...prev.logs, '使える戦闘アイテムを持っていない。'].slice(-12) }));
+      return;
+    }
+    setSelectedBattleItemIndex(0);
+    setSelectedBattleItemTargetIndex(0);
+    setBattleItemSelectionStep('item');
+    setBattleItemPanelOpen(true);
+  };
+
+  const consumeBattleItem = (item: BattleConsumableItem, targetId: string) => {
+    const current = battlePreviewState;
+    if (current.result !== 'ongoing') return;
+    if ((current.turn ?? 'party') !== 'party' || current.turnQueue[current.turnIndex]?.unitId !== current.hero.id) return;
+    if (getBattleItemOwnedCount(item.name) <= 0) {
+      setBattlePreviewState(prev => ({ ...prev, logs: [...prev.logs, `${item.name}を持っていない。`].slice(-12) }));
+      return;
+    }
+    if (item.kind === 'heal' && current.healingItemUses >= BATTLE_HEALING_ITEM_USE_LIMIT) {
+      setBattlePreviewState(prev => ({ ...prev, logs: [...prev.logs, '回復アイテムはこのバトルではもう使えない。'].slice(-12) }));
+      return;
+    }
+    if (item.kind === 'revive' && current.reviveItemUses >= BATTLE_REVIVE_ITEM_USE_LIMIT) {
+      setBattlePreviewState(prev => ({ ...prev, logs: [...prev.logs, '蘇生アイテムはこのバトルではもう使えない。'].slice(-12) }));
+      return;
+    }
+
+    const hero = { ...current.hero };
+    const allies = current.allies.map(ally => ally ? { ...ally } : null);
+    const beasts = current.beasts.map(beast => beast ? { ...beast } : null);
+    const target = targetId === hero.id
+      ? hero
+      : allies.find((ally): ally is BattleUnitState => Boolean(ally && ally.id === targetId));
+    if (!target) return;
+    if (item.kind === 'heal' && target.hp <= 0) {
+      setBattlePreviewState(prev => ({ ...prev, logs: [...prev.logs, `${target.name}には今使えない。`].slice(-12) }));
+      return;
+    }
+    if (item.kind === 'revive' && target.hp > 0) {
+      setBattlePreviewState(prev => ({ ...prev, logs: [...prev.logs, `${target.name}は戦闘不能ではない。`].slice(-12) }));
+      return;
+    }
+
+    const turnLogs: string[] = [`${item.name}を使った！`];
+    if (item.kind === 'heal') {
+      const healAmount = item.healAmount ?? 0;
+      const beforeHp = target.hp;
+      target.hp = Math.min(target.maxHp, target.hp + healAmount);
+      turnLogs.push(`${target.name}のHPが${target.hp - beforeHp}回復した！`);
+    } else {
+      const reviveHp = Math.max(1, Math.round(target.maxHp * (item.reviveHpRate ?? 0.25)));
+      target.hp = Math.min(target.maxHp, reviveHp);
+      turnLogs.push(`${target.name}がHP${target.hp}で復活した！`);
+    }
+
+    triggerBattleSupportEffect(target.id);
+    playUiSound(BATTLE_SE_SOURCES.cure);
+    const inventoryKey = getBattleItemInventoryKeyToConsume(item.name);
+    if (inventoryKey !== toDebugItemName(item.name)) {
+      setInventoryCounts(prev => ({ ...prev, [inventoryKey]: Math.max(0, (prev[inventoryKey] ?? 0) - 1) }));
+    }
+
+    const nextTurn = getNextBattleTurn(hero, allies, beasts, current.turnQueue, current.turnIndex);
+    setBattlePreviewState(prev => ({
+      ...prev,
+      hero,
+      allies,
+      beasts,
+      logs: [...prev.logs, ...turnLogs].slice(-12),
+      healingItemUses: prev.healingItemUses + (item.kind === 'heal' ? 1 : 0),
+      reviveItemUses: prev.reviveItemUses + (item.kind === 'revive' ? 1 : 0),
+      ...nextTurn,
+    }));
+    closeBattleItemPanel();
+  };
+
+  useEffect(() => {
+    if (!battleItemPanelOpen) return;
+    const selector = battleItemSelectionStep === 'item'
+      ? `[data-battle-item-index="${selectedBattleItemIndex}"]`
+      : `[data-battle-item-target-index="${selectedBattleItemTargetIndex}"]`;
+    document.querySelector<HTMLElement>(selector)?.scrollIntoView({ block: 'nearest' });
+  }, [battleItemPanelOpen, battleItemSelectionStep, selectedBattleItemIndex, selectedBattleItemTargetIndex]);
+
   const handleBattlePreviewCommand = (command: string) => {
     playFixSound();
     if (battleIntroPhase !== null) return;
     if ((battlePreviewState.turn ?? 'party') !== 'party' || battlePreviewState.turnQueue[battlePreviewState.turnIndex]?.unitId !== 'hero') return;
+    if (command === 'アイテム') {
+      openBattleItemPanel();
+      return;
+    }
     if (command === '強攻撃' && battlePreviewState.battleSp < BATTLE_SKILL_SP_COST) {
       setBattlePreviewState(prev => ({ ...prev, logs: [...prev.logs, '戦闘SPが足りない！'].slice(-12) }));
       return;
@@ -5436,10 +5658,6 @@ export default function App() {
 
       if (command === 'あきらめる') {
         return { ...prev, logs: [...prev.logs, '主人公たちは戦闘から離脱した。'].slice(-12), result: 'escaped' };
-      }
-
-      if (command === 'アイテム') {
-        return { ...prev, logs: [...prev.logs, `${command}はまだ未実装です。`].slice(-12) };
       }
 
       if (command === '防御') {
@@ -5550,31 +5768,36 @@ export default function App() {
         {
           const aliveAllies = allies.filter((ally): ally is BattleUnitState => Boolean(ally && ally.hp > 0));
           const targetHero = hero.hp > 0 && (aliveAllies.length === 0 || Math.random() < 0.7);
+          const target = targetHero ? hero : aliveAllies[Math.floor(Math.random() * aliveAllies.length)];
+          if (!target) {
+            const result = getBattleResult(hero, allies, beasts);
+            const nextTurn = getNextBattleTurn(hero, allies, beasts, prev.turnQueue, prev.turnIndex);
+            return { ...prev, hero, allies, beasts, result, ...(result === 'ongoing' ? nextTurn : { turn: 'party' }) };
+          }
           turnLogs.push(`${beast.name}の攻撃！`);
           triggerBattleMotion(beast.id, 'attack', 420);
           playBattleHitSe();
 
-          if (targetHero) {
-            const result = calculateBattleDamage(beast, hero, { isBeastAttacker: true });
+          if (target.id === hero.id) {
+            const result = calculateBattleDamage(beast, target, { isBeastAttacker: true });
             let damage = result.damage;
-            if (hero.defending) {
+            if (target.defending) {
               damage = Math.max(1, Math.round(damage * 0.5));
-              hero.defending = false;
+              target.defending = false;
               playUiSound(BATTLE_SE_SOURCES.guard);
-              window.setTimeout(() => triggerBattleMotion(hero.id, 'defend', 300), 180);
+              window.setTimeout(() => triggerBattleMotion(target.id, 'defend', 300), 180);
               turnLogs.push('主人公は防御してダメージを半減した！');
             } else {
               window.setTimeout(() => {
-                triggerBattleMotion(hero.id, 'hurt', 260);
-                triggerBattleHitEffect(hero.id);
+                triggerBattleMotion(target.id, 'hurt', 260);
+                triggerBattleHitEffect(target.id);
               }, 220);
             }
-            hero.hp = Math.max(0, hero.hp - damage);
+            target.hp = Math.max(0, target.hp - damage);
             if (result.critical) turnLogs.push('クリティカル！');
             turnLogs.push(`主人公に${damage}ダメージ！`);
-            if (hero.hp <= 0) turnLogs.push('主人公は倒れた！');
+            if (target.hp <= 0) turnLogs.push('主人公は倒れた！');
           } else {
-            const target = aliveAllies[Math.floor(Math.random() * aliveAllies.length)];
             const result = calculateBattleDamage(beast, target, { isBeastAttacker: true });
             target.hp = Math.max(0, target.hp - result.damage);
             window.setTimeout(() => {
@@ -5637,7 +5860,11 @@ export default function App() {
         let partnerDropRateBonus = prev.partnerDropRateBonus;
         let isPutiFollowUp = false;
         let usedSupportSkill = false;
-        if (skill && partnerSkillUses < prev.partnerSkillMaxUses && Math.random() < 0.5) {
+        const isSpRecoverySkill = partner.id === 'viola' || partner.id === 'saffy';
+        const canUsePartnerSkill = skill &&
+          partnerSkillUses < prev.partnerSkillMaxUses &&
+          (!isSpRecoverySkill || battleSp < prev.maxBattleSp);
+        if (canUsePartnerSkill && Math.random() < 0.5) {
           partnerSkillUses += 1;
           usedSupportSkill = PARTNER_SUPPORT_SKILL_IDS.has(partner.id);
           triggerPartnerSkillDisplay(partner.id, skill.name);
@@ -5648,7 +5875,7 @@ export default function App() {
             playUiSound(BATTLE_SE_SOURCES.cure);
           }
           switch (partner.id) {
-            case 'viola': battleSp = Math.min(prev.maxBattleSp, battleSp + 1); break;
+            case 'viola': battleSp = Math.min(prev.maxBattleSp, battleSp + 2); break;
             case 'nazuna': target.defense = Math.max(0, target.defense - 2); break;
             case 'kabune': {
               const recipient = [hero, ...allies.filter((ally): ally is BattleUnitState => Boolean(ally))].sort((left, right) => left.hp / left.maxHp - right.hp / right.maxHp)[0];
@@ -9635,6 +9862,88 @@ export default function App() {
         return;
       }
 
+      if (battlePreviewOpen) {
+        if (e.repeat) return;
+        const actionButtons = ['攻撃', '強攻撃', '防御', 'アイテム', 'あきらめる'];
+        const activeTurn = battlePreviewState.turnQueue[battlePreviewState.turnIndex];
+        const isHeroTurn = battlePreviewState.result === 'ongoing' &&
+          (battlePreviewState.turn ?? 'party') === 'party' &&
+          activeTurn?.unitId === battlePreviewState.hero.id &&
+          battleIntroPhase === null;
+
+        if (battleItemPanelOpen) {
+          const availableItems = getAvailableBattleItems();
+          const selectedItem = availableItems[Math.min(selectedBattleItemIndex, Math.max(0, availableItems.length - 1))];
+          const targets = selectedItem ? getBattleItemTargets(selectedItem) : [];
+          if (e.key === 'Escape') {
+            e.preventDefault();
+            playFixSound();
+            if (battleItemSelectionStep === 'target') {
+              setBattleItemSelectionStep('item');
+            } else {
+              closeBattleItemPanel();
+            }
+            return;
+          }
+          if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+            e.preventDefault();
+            playCursorSound();
+            const delta = e.key === 'ArrowDown' ? 1 : -1;
+            if (battleItemSelectionStep === 'item') {
+              setSelectedBattleItemIndex(prev => availableItems.length > 0 ? (prev + delta + availableItems.length) % availableItems.length : 0);
+            } else {
+              setSelectedBattleItemTargetIndex(prev => targets.length > 0 ? (prev + delta + targets.length) % targets.length : 0);
+            }
+            return;
+          }
+          if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+            e.preventDefault();
+            return;
+          }
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            if (battleItemSelectionStep === 'item') {
+              if (!selectedItem) return;
+              playFixSound();
+              setSelectedBattleItemTargetIndex(0);
+              setBattleItemSelectionStep('target');
+            } else if (selectedItem && targets.length > 0) {
+              const target = targets[Math.min(selectedBattleItemTargetIndex, targets.length - 1)];
+              if (target) {
+                playFixSound();
+                consumeBattleItem(selectedItem, target.id);
+              }
+            }
+            return;
+          }
+          return;
+        }
+
+        if (battlePreviewState.result !== 'ongoing') {
+          if (e.key === 'Enter' || e.key === ' ' || e.key === 'Escape') {
+            e.preventDefault();
+            playFixSound();
+            setBattleMotion(null);
+            setBattlePreviewOpen(false);
+          }
+          return;
+        }
+        if (!isHeroTurn) return;
+        if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+          e.preventDefault();
+          playCursorSound();
+          const delta = e.key === 'ArrowDown' ? 1 : -1;
+          setSelectedBattleCommandIndex(prev => (prev + delta + actionButtons.length) % actionButtons.length);
+          return;
+        }
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          handleBattlePreviewCommand(actionButtons[selectedBattleCommandIndex] ?? actionButtons[0]);
+          return;
+        }
+        return;
+      }
+
       if (craftConfirmRecipeName) {
         if (e.repeat) return;
         if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
@@ -11086,7 +11395,7 @@ export default function App() {
       window.removeEventListener('keydown', handleKeyDown); window.removeEventListener('keyup', handleKeyUp);
       cancelAnimationFrame(animationFrameId);
     };
-  }, [setupMode, bedTiles, workbenchTiles, fishingTiles, miningTiles, depletedMiningPointIds, activeMiningPointId, loggingTiles, activeLoggingPoints, activeLoggingPointId, sleepPromptVisible, craftPromptVisible, fishingPromptVisible, miningPromptVisible, loggingPromptVisible, confirmPromptChoice, pendingDeleteSaveSlot, pendingOverwriteSaveSlot, activeAutoEventSpot, activeAutoEventMessage, activeAutoEventMessageIndex, activeAutoEventMessages, displayedAutoEventMessage, turn, currentAP, kurumiShopOpen, kurumiIntroOpen, kurumiIntroSelectedIndex, kurumiIntroAskedTopics, kurumiIntroCompletedDay, selectedShopControl, selectedShopItemIndex, shopItems, gold, equipmentActionOpen, equippedItems, inventoryCounts, caughtFishIds, fishingMiniGameOpen, fishingMiniGameStage, miningMiniGameOpen, isFishingResultInputLocked, fishingTutorialOpen, fishingTutorialEndingOpen, fishingTutorialEndingStepIndex, sawCraftTutorialIntroOpen, sawCraftTutorialIntroStepIndex, sawCraftTutorialReady, sawCraftTutorialShedDialogueOpen, sawCraftTutorialWorkbenchReady, selectedFishingTutorialAction, selectedFishingResultAction, recipeDetailOpen, farmGirlDetailOpen, bootMode, timeOfDay]);
+  }, [setupMode, bedTiles, workbenchTiles, fishingTiles, miningTiles, depletedMiningPointIds, activeMiningPointId, loggingTiles, activeLoggingPoints, activeLoggingPointId, sleepPromptVisible, craftPromptVisible, fishingPromptVisible, miningPromptVisible, loggingPromptVisible, confirmPromptChoice, pendingDeleteSaveSlot, pendingOverwriteSaveSlot, activeAutoEventSpot, activeAutoEventMessage, activeAutoEventMessageIndex, activeAutoEventMessages, displayedAutoEventMessage, turn, currentAP, kurumiShopOpen, kurumiIntroOpen, kurumiIntroSelectedIndex, kurumiIntroAskedTopics, kurumiIntroCompletedDay, selectedShopControl, selectedShopItemIndex, shopItems, gold, equipmentActionOpen, equippedItems, inventoryCounts, caughtFishIds, fishingMiniGameOpen, fishingMiniGameStage, miningMiniGameOpen, isFishingResultInputLocked, fishingTutorialOpen, fishingTutorialEndingOpen, fishingTutorialEndingStepIndex, sawCraftTutorialIntroOpen, sawCraftTutorialIntroStepIndex, sawCraftTutorialReady, sawCraftTutorialShedDialogueOpen, sawCraftTutorialWorkbenchReady, selectedFishingTutorialAction, selectedFishingResultAction, recipeDetailOpen, farmGirlDetailOpen, bootMode, timeOfDay, battlePreviewOpen, battlePreviewState, battleIntroPhase, battleItemPanelOpen, battleItemSelectionStep, selectedBattleCommandIndex, selectedBattleItemIndex, selectedBattleItemTargetIndex]);
 
   // Zone creation states
   const [dragStart, setDragStart] = useState<{ x: number, y: number } | null>(null);
@@ -13163,6 +13472,12 @@ export default function App() {
             const countdownFrameIndex = battleIntroPhase === 3 ? 0 : battleIntroPhase === 2 ? 1 : 2;
             const battleResultFrameIndex = result === 'victory' ? 0 : 1;
             const partnerSkillRemainingUses = Math.max(0, battlePreviewState.partnerSkillMaxUses - battlePreviewState.partnerSkillUses);
+            const availableBattleItems = getAvailableBattleItems();
+            const selectedBattleItem = availableBattleItems[Math.min(selectedBattleItemIndex, Math.max(0, availableBattleItems.length - 1))];
+            const battleItemTargets = selectedBattleItem ? getBattleItemTargets(selectedBattleItem) : [];
+            const selectedBattleItemTarget = battleItemTargets[Math.min(selectedBattleItemTargetIndex, Math.max(0, battleItemTargets.length - 1))];
+            const healingItemRemainingUses = Math.max(0, BATTLE_HEALING_ITEM_USE_LIMIT - battlePreviewState.healingItemUses);
+            const reviveItemRemainingUses = Math.max(0, BATTLE_REVIVE_ITEM_USE_LIMIT - battlePreviewState.reviveItemUses);
             const renderHpBar = (hp: number, maxHp: number, colorClass = 'bg-[#4ade80]', spacingClass = 'mt-2') => (
               <div className={`${spacingClass} h-3 overflow-hidden rounded-full border border-white/20 bg-black/55`}>
                 <div
@@ -13234,10 +13549,13 @@ export default function App() {
                   ? 'battle-actor-attack-right'
                   : pose === 'hurt'
                     ? 'battle-actor-hurt'
+                    : pose === 'defend'
+                      ? 'battle-actor-defend'
                     : '';
               const hitEffectClass = battleHitEffect?.targetId === companion.id ? 'battle-hit-effect' : '';
+              const supportEffectClass = battleSupportEffect?.targetId === companion.id ? 'battle-support-effect' : '';
               return (
-                <div className={`absolute ${isDown ? 'bottom-[118px] right-[0%] w-[210px] aspect-square' : 'bottom-[128px] right-[5%] w-[112px] aspect-[384/1080] battle-actor-idle'} z-[4] overflow-visible opacity-95 drop-shadow-[0_14px_12px_rgba(0,0,0,0.58)] ${motionClass} ${hitEffectClass}`}>
+                <div className={`absolute ${isDown ? 'bottom-[118px] right-[0%] w-[210px] aspect-square' : 'bottom-[128px] right-[5%] w-[112px] aspect-[384/1080] battle-actor-idle'} z-[4] overflow-visible opacity-95 drop-shadow-[0_14px_12px_rgba(0,0,0,0.58)] ${motionClass} ${hitEffectClass} ${supportEffectClass}`}>
                   {!isDown && companionSkill && companionSkill.maxUses > 0 && (
                     <div className={`battle-partner-skill-bubble ${battlePartnerSkillDisplay?.partnerId === companion.id ? 'is-active' : ''}`}>
                       {battlePartnerSkillDisplay?.partnerId === companion.id
@@ -13305,6 +13623,10 @@ export default function App() {
                 className="absolute inset-0 z-[115] flex items-center justify-center bg-black/65 p-8"
                 onPointerDown={(event) => event.stopPropagation()}
                 onClick={(event) => event.stopPropagation()}
+                onContextMenu={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                }}
               >
                 <div className="relative aspect-[16/9] w-[1320px] max-w-[calc(100%-32px)] overflow-hidden rounded-2xl border-4 border-[#dda15e] bg-[#140d0b] text-[#fdf6e3] shadow-[0_28px_80px_rgba(0,0,0,0.78)]">
                   <img src={battleBackgroundSrc} alt="" className="absolute inset-0 h-full w-full object-cover" />
@@ -13347,17 +13669,21 @@ export default function App() {
                     </div>
                     <div className="row-span-2 rounded-xl border-2 border-[#dda15e]/55 bg-[#0d1117]/90 p-2">
                       <div className="grid h-full grid-rows-5 gap-2">
-                        {result === 'ongoing' ? actionButtons.map(label => (
+                        {result === 'ongoing' ? actionButtons.map((label, index) => (
                           (() => {
                             const isAvailable = battleIntroPhase === null && isHeroTurn && (label !== '強攻撃' || battlePreviewState.battleSp >= BATTLE_SKILL_SP_COST);
+                            const selected = index === selectedBattleCommandIndex && !battleItemPanelOpen;
                             return <button
                               key={label}
                               type="button"
+                              onPointerDown={() => setSelectedBattleCommandIndex(index)}
                               onClick={() => handleBattlePreviewCommand(label)}
                               disabled={!isAvailable}
                               className={`rounded-lg border-2 px-4 text-lg font-black shadow-[0_4px_0_rgba(0,0,0,0.35)] ${
                               isAvailable
-                                ? 'border-[#c8a87a] bg-[#202938] text-[#fdf6e3] hover:border-white hover:bg-[#2f3c52]'
+                                ? selected
+                                  ? 'border-white bg-[#4a5823] text-[#fdf6e3] hover:border-white hover:bg-[#60732d]'
+                                  : 'border-[#c8a87a] bg-[#202938] text-[#fdf6e3] hover:border-white hover:bg-[#2f3c52]'
                                 : 'border-[#55606f] bg-[#111827] text-[#94a3b8] opacity-70'
                             }`}
                           >
@@ -13391,6 +13717,97 @@ export default function App() {
                       </div>
                     </div>
                   </div>
+                  {battleItemPanelOpen && result === 'ongoing' && (
+                    <div className="absolute inset-0 z-[17] flex items-center justify-center bg-black/42 px-6" aria-live="polite">
+                      <div className="grid w-[760px] max-w-full grid-cols-[1fr_260px] gap-4 rounded-xl border-2 border-[#fdf6e3]/70 bg-[#111827]/96 p-4 text-[#fdf6e3] shadow-[0_18px_48px_rgba(0,0,0,0.72)]">
+                        <div className="min-w-0">
+                          <div className="mb-2 flex items-center justify-between gap-3">
+                            <div>
+                              <div className="text-xl font-black text-[#ffd166]">アイテム</div>
+                              <div className="text-xs font-bold text-[#c8a87a]">↑↓ 選択 / Enter 決定・次へ / Esc 戻る</div>
+                            </div>
+                            <div className="rounded border border-[#67e8f9]/60 bg-black/35 px-3 py-2 text-right text-xs font-black leading-relaxed">
+                              <div>回復 あと {healingItemRemainingUses}/{BATTLE_HEALING_ITEM_USE_LIMIT}</div>
+                              <div>蘇生 あと {reviveItemRemainingUses}/{BATTLE_REVIVE_ITEM_USE_LIMIT}</div>
+                            </div>
+                          </div>
+                          {battleItemSelectionStep === 'item' ? (
+                            <div className="max-h-[300px] space-y-2 overflow-y-auto pr-2">
+                              {availableBattleItems.map((item, index) => {
+                                const selected = index === selectedBattleItemIndex;
+                                const count = getBattleItemOwnedCount(item.name);
+                                const exhausted = item.kind === 'heal' ? healingItemRemainingUses <= 0 : reviveItemRemainingUses <= 0;
+                                return (
+                                  <button
+                                    key={item.name}
+                                    type="button"
+                                    data-battle-item-index={index}
+                                    onClick={() => {
+                                      setSelectedBattleItemIndex(index);
+                                      setSelectedBattleItemTargetIndex(0);
+                                      setBattleItemSelectionStep('target');
+                                    }}
+                                    className={`grid min-h-[58px] w-full grid-cols-[26px_minmax(0,1fr)_74px] items-center gap-2 rounded-lg border px-3 py-2 text-left ${selected ? 'border-white bg-[#4a5823]/75' : 'border-[#5a3010] bg-black/30 hover:bg-[#2d1b15]'} ${exhausted ? 'opacity-55' : ''}`}
+                                  >
+                                    <span className="text-center text-[#ffd166]">{selected ? '▶' : ''}</span>
+                                    <span className="min-w-0">
+                                      <span className="block truncate text-base font-black">{item.name}</span>
+                                      <span className="block truncate text-xs font-bold text-[#c8a87a]">{item.kind === 'heal' ? `HP ${item.healAmount} 回復` : `HP ${Math.round((item.reviveHpRate ?? 0) * 100)}% 蘇生`}</span>
+                                    </span>
+                                    <span className="text-right text-sm font-black text-[#ffd166]">x{count}</span>
+                                  </button>
+                                );
+                              })}
+                              {availableBattleItems.length === 0 && (
+                                <div className="rounded-lg border border-[#5a3010] bg-black/30 p-5 text-center font-bold text-[#c8a87a]">
+                                  戦闘中に使えるアイテムを持っていません。
+                                </div>
+                              )}
+                            </div>
+                          ) : (
+                            <div className="space-y-2">
+                              <div className="rounded border border-[#dda15e]/55 bg-black/30 px-3 py-2 text-sm font-bold text-[#ffd166]">
+                                {selectedBattleItem?.name ?? 'アイテム'} を誰に使う？
+                              </div>
+                              {battleItemTargets.map((target, index) => {
+                                const selected = index === selectedBattleItemTargetIndex;
+                                return (
+                                  <button
+                                    key={target.id}
+                                    type="button"
+                                    data-battle-item-target-index={index}
+                                    onClick={() => selectedBattleItem && consumeBattleItem(selectedBattleItem, target.id)}
+                                    className={`grid min-h-[54px] w-full grid-cols-[26px_minmax(0,1fr)_110px] items-center gap-2 rounded-lg border px-3 py-2 text-left ${selected ? 'border-white bg-[#60732d]/75' : 'border-[#5a3010] bg-black/30 hover:bg-[#2d1b15]'}`}
+                                  >
+                                    <span className="text-center text-[#ffd166]">{selected ? '▶' : ''}</span>
+                                    <span className="font-black">{target.name}</span>
+                                    <span className="text-right text-sm font-black text-[#fdf6e3]">HP {target.hp}/{target.maxHp}</span>
+                                  </button>
+                                );
+                              })}
+                              {battleItemTargets.length === 0 && (
+                                <div className="rounded-lg border border-[#5a3010] bg-black/30 p-5 text-center font-bold text-[#c8a87a]">
+                                  このアイテムを使える対象がいません。
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                        <div className="rounded-lg border border-[#dda15e]/50 bg-black/30 p-3">
+                          <div className="text-xs font-black tracking-[0.16em] text-[#dda15e]">DETAIL</div>
+                          <div className="mt-2 text-lg font-black text-[#fdf6e3]">{selectedBattleItem?.name ?? '-'}</div>
+                          <p className="mt-3 text-sm font-bold leading-relaxed text-[#c8a87a]">{selectedBattleItem?.desc ?? 'アイテムを選んでください。'}</p>
+                          <button
+                            type="button"
+                            onClick={closeBattleItemPanel}
+                            className="mt-5 w-full rounded-lg border-2 border-[#c8a87a] bg-[#202938] px-4 py-3 text-base font-black text-[#fdf6e3] hover:border-white hover:bg-[#2f3c52]"
+                          >
+                            戻る
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                   {(result === 'victory' || result === 'defeat') && (
                     <div className="pointer-events-none absolute inset-0 z-[18] flex items-center justify-center px-6" aria-live="polite">
                       <div className={`w-[1120px] max-w-[95%] aspect-[32/9] overflow-hidden drop-shadow-[0_16px_32px_rgba(0,0,0,0.82)] ${result === 'victory' ? 'battle-result-win' : 'battle-result-lose'}`}>
