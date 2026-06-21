@@ -616,6 +616,10 @@ type BattleHitEffectState = {
   targetId: string;
   key: number;
 } | null;
+type BattleSupportEffectState = {
+  targetId: string;
+  key: number;
+} | null;
 type MiningDirection = 'ArrowUp' | 'ArrowDown' | 'ArrowLeft' | 'ArrowRight';
 type MiningRhythmNote = {
   id: number;
@@ -673,10 +677,13 @@ const BATTLE_VICTORY_BGM_SOURCES: Readonly<Record<GameDifficulty, string>> = {
   hard: '/bgm/victory3.wav',
 };
 const BATTLE_SE_SOURCES = {
+  cure: '/se/cure.mp3',
   guard: '/se/battle-bougyo.mp3',
   hit: ['/se/battle-dageki1.mp3', '/se/battle-dageki2.mp3', '/se/battle-dageki3.mp3'],
+  lose: '/se/battle-lose.wav',
   skill: '/se/battle-skill.mp3',
 } as const;
+const PARTNER_SUPPORT_SKILL_IDS = new Set(['viola', 'kabune', 'cure', 'saffy']);
 const BATTLE_BEAST_SPRITE_SOURCES: Readonly<Record<string, string>> = {
   mole: '/img/battle/teki-mogura.png',
   rabbit: '/img/battle/teki-usagi.png',
@@ -691,6 +698,7 @@ const BATTLE_GIRL_SPRITE_SOURCES: Readonly<Record<string, string>> = {
   chibiichi: '/img/battle/battle2d-ibiichi.png',
   mel: '/img/battle/battle2d-mel.png',
   ruby: '/img/battle/battle2d-ruby.png',
+  viola: '/img/battle/battle2d-viora.png',
   nazuna: '/img/battle/battle2d-nazuna.png',
   kabune: '/img/battle/battle2d-kabune.png',
   caro: '/img/battle/battle2d-kyaro.png',
@@ -754,8 +762,17 @@ const PARTNER_BATTLE_PROFILES: Readonly<Record<string, PartnerBattleProfile>> = 
 ].map(([id, [hp, attack, defense, speed]]) => [id as string, { hp, attack, defense, speed, skill: PARTNER_SKILL_PREVIEWS[id as string] }])) as Readonly<Record<string, PartnerBattleProfile>>;
 
 const FARM_GIRL_CARD_BACK_SRC = '/img/card.png';
-const FARM_GIRL_CARD_IMAGES = ['/img/chibiichi-card.jpg', '/img/ruby-card.jpg', '/img/mel-card.jpg'];
-const OPEN_FARM_GIRL_CARD_COUNT = FARM_GIRL_CARD_IMAGES.filter(src => src !== FARM_GIRL_CARD_BACK_SRC).length;
+const FARM_GIRL_CARD_IMAGES: Readonly<Record<string, string>> = {
+  chibiichi: '/img/chibiichi-card.jpg',
+  mel: '/img/mel-card.jpg',
+  ruby: '/img/ruby-card.jpg',
+};
+const FARM_GIRL_DETAIL_IMAGES: Readonly<Record<string, string>> = {
+  chibiichi: '/img/chibiichi-pro.jpg',
+  mel: '/img/mel-pro.jpg',
+  ruby: '/img/ruby-pro.jpg',
+};
+const OPEN_FARM_GIRL_CARD_COUNT = Object.keys(FARM_GIRL_CARD_IMAGES).length;
 
 const KURUMI_TRADE_REWARDS: KurumiTradeReward[] = [
   { threshold: 1000, imageSrc: '/img/kurumi-pantsu.png', message: 'いつもありがとう！お礼だよっ！', voiceSrc: '/voice/kurumi1.wav' },
@@ -1868,10 +1885,13 @@ export default function App() {
   // RPGメニュー状態
   const [menuOpen, setMenuOpen] = useState(true);
   const [battlePreviewOpen, setBattlePreviewOpen] = useState(false);
+  const [battleIntroPhase, setBattleIntroPhase] = useState<3 | 2 | 1 | 'start' | null>(null);
   const [battlePreviewState, setBattlePreviewState] = useState<BattlePreviewState>(createInitialBattlePreviewState);
   const [battlePartnerSkillDisplay, setBattlePartnerSkillDisplay] = useState<BattlePartnerSkillDisplay>(null);
   const [battleMotion, setBattleMotion] = useState<BattleMotionState>(null);
   const [battleHitEffect, setBattleHitEffect] = useState<BattleHitEffectState>(null);
+  const [battleSupportEffect, setBattleSupportEffect] = useState<BattleSupportEffectState>(null);
+  const battleLoseSoundPlayedRef = useRef(false);
   const [battleTestBeastId, setBattleTestBeastId] = useState<BeastId>('mole');
   const [battleTestPartnerId, setBattleTestPartnerId] = useState<string>('');
   const menuOpenRef = useRef(false);
@@ -1932,14 +1952,15 @@ export default function App() {
       </span>
     );
   });
-  const menuGirls = Array.from({ length: 15 }).map((_, index) => ({
-    name: ['ちびいち', 'ルビー', 'メル'][index] ?? `娘${String(index + 1).padStart(2, '0')}`,
+  const menuGirls = GIRL_DATA.map((girl, index) => ({
+    id: girl.id,
+    name: girl.girlName,
     trait: ['素直', '内気', '勝気', '甘えん坊', '好奇心旺盛'][index % 5],
     stage: ['未受精', '受精準備', '受精初期'][index % 3],
     level: 1,
     affinity: 1,
-    cardImg: FARM_GIRL_CARD_IMAGES[index] ?? FARM_GIRL_CARD_BACK_SRC,
-    detailImg: ['/img/chibiichi-pro.jpg', '/img/ruby-pro.jpg', '/img/mel-pro.jpg'][index] ?? '/img/card.png',
+    cardImg: FARM_GIRL_CARD_IMAGES[girl.id] ?? FARM_GIRL_CARD_BACK_SRC,
+    detailImg: FARM_GIRL_DETAIL_IMAGES[girl.id] ?? FARM_GIRL_CARD_BACK_SRC,
   }));
   const [itemMenuTab, setItemMenuTab] = useState('消耗品');
   const itemMenuTabRef = useRef('消耗品');
@@ -2605,7 +2626,7 @@ export default function App() {
 
     if (id === 'farm') {
       const selectedFarmGirl = menuGirls[selectedFarmGirlIndex] ?? menuGirls[0];
-      const selectedGirlData = GIRL_DATA.find(girl => girl.girlName === selectedFarmGirl.name);
+      const selectedGirlData = GIRL_DATA.find(girl => girl.id === selectedFarmGirl.id);
       const selectedGirlSeed = selectedGirlData
         ? GIRL_SEED_ACQUISITION_DATA.find(seed => seed.girlId === selectedGirlData.id)
         : undefined;
@@ -2778,7 +2799,7 @@ export default function App() {
               <div className="farm-girl-card-grid grid min-h-0 grid-cols-3 gap-3 overflow-y-auto pr-2">
                 {menuGirls.map((girl, index) => (
                   <button
-                    key={girl.name}
+                    key={girl.id}
                     type="button"
                     onMouseEnter={() => { if (selectedFarmGirlIndex !== index) playCursorSound(); }}
                     onPointerDown={(event) => { event.stopPropagation(); playFixSound(); setMenuFocusArea('content'); setMenuContentFocus('secondary'); setSelectedFarmGirlIndex(index); setFarmGirlDetailOpen(true); setDialogMessage(`${girl.name}の詳細情報を表示しました。`); }}
@@ -5188,10 +5209,12 @@ export default function App() {
     playFixSound();
     setBattleMotion(null);
     setBattleHitEffect(null);
+    setBattleSupportEffect(null);
     setBattlePartnerSkillDisplay(null);
     const selectedBeast = BEAST_BATTLE_DATA.find(beast => beast.id === battleTestBeastId) ?? BEAST_BATTLE_DATA[0];
     const testBeasts = [createBattleUnitFromBeast(selectedBeast), null, null];
     setBattlePreviewState(createInitialBattlePreviewState(equippedItems, testBeasts, battleTestPartnerId || null, 'test', heroLevel));
+    setBattleIntroPhase(3);
     setBattlePreviewOpen(true);
   };
 
@@ -5207,8 +5230,10 @@ export default function App() {
     playFixSound();
     setBattleMotion(null);
     setBattleHitEffect(null);
+    setBattleSupportEffect(null);
     setBattlePartnerSkillDisplay(null);
     setBattlePreviewState(createInitialBattlePreviewState(equippedItems, beasts, companionGirlId, encounterType, heroLevel));
+    setBattleIntroPhase(3);
     setBattlePreviewOpen(true);
   };
 
@@ -5317,6 +5342,16 @@ export default function App() {
     }, durationMs);
   };
 
+  const triggerBattleSupportEffect = (targetId: string, durationMs = 760) => {
+    const key = Date.now();
+    setBattleSupportEffect({ targetId, key });
+    window.setTimeout(() => {
+      setBattleSupportEffect(current => (
+        current?.targetId === targetId && current.key === key ? null : current
+      ));
+    }, durationMs);
+  };
+
   const triggerPartnerSkillDisplay = (partnerId: string, skillName: string) => {
     const key = Date.now();
     setBattlePartnerSkillDisplay({ partnerId, text: skillName, key });
@@ -5338,8 +5373,15 @@ export default function App() {
     BATTLE_GIRL_SPRITE_SOURCES[girlId] ?? '/img/battle/battle2d-ruby.png'
   );
 
+  const getBattleGirlDownSpriteSrc = (girlId: string): string => (
+    girlId === 'hero'
+      ? '/img/battle/battle2d-player-down.png'
+      : getBattleGirlSpriteSrc(girlId).replace(/\.png$/, '-down.png')
+  );
+
   const handleBattlePreviewCommand = (command: string) => {
     playFixSound();
+    if (battleIntroPhase !== null) return;
     if ((battlePreviewState.turn ?? 'party') !== 'party' || battlePreviewState.turnQueue[battlePreviewState.turnIndex]?.unitId !== 'hero') return;
     if (command === '強攻撃' && battlePreviewState.battleSp < BATTLE_SKILL_SP_COST) {
       setBattlePreviewState(prev => ({ ...prev, logs: [...prev.logs, '戦闘SPが足りない！'].slice(-12) }));
@@ -5465,7 +5507,27 @@ export default function App() {
   };
 
   useEffect(() => {
+    if (!battlePreviewOpen || battleIntroPhase === null) return;
+
+    playVoiceSound('/voice/3.wav');
+    const timers = [
+      window.setTimeout(() => {
+        setBattleIntroPhase(2);
+        playVoiceSound('/voice/2.wav');
+      }, 1000),
+      window.setTimeout(() => {
+        setBattleIntroPhase(1);
+        playVoiceSound('/voice/1.wav');
+      }, 2000),
+      window.setTimeout(() => setBattleIntroPhase('start'), 3000),
+      window.setTimeout(() => setBattleIntroPhase(null), 3700),
+    ];
+    return () => timers.forEach(timer => window.clearTimeout(timer));
+  }, [battlePreviewOpen]);
+
+  useEffect(() => {
     if (!battlePreviewOpen) return;
+    if (battleIntroPhase !== null) return;
     if (battlePreviewState.result !== 'ongoing') return;
     if ((battlePreviewState.turn ?? 'party') !== 'enemy') return;
 
@@ -5543,10 +5605,11 @@ export default function App() {
     }, BATTLE_ENEMY_TURN_DELAY_MS);
 
     return () => window.clearTimeout(timer);
-  }, [battlePreviewOpen, battlePreviewState.turn, battlePreviewState.turnIndex, battlePreviewState.result]);
+  }, [battlePreviewOpen, battleIntroPhase, battlePreviewState.turn, battlePreviewState.turnIndex, battlePreviewState.result]);
 
   useEffect(() => {
     if (!battlePreviewOpen) return;
+    if (battleIntroPhase !== null) return;
     if (battlePreviewState.result !== 'ongoing') return;
     if ((battlePreviewState.turn ?? 'party') !== 'partner') return;
 
@@ -5573,10 +5636,17 @@ export default function App() {
         let battleSp = prev.battleSp;
         let partnerDropRateBonus = prev.partnerDropRateBonus;
         let isPutiFollowUp = false;
+        let usedSupportSkill = false;
         if (skill && partnerSkillUses < prev.partnerSkillMaxUses && Math.random() < 0.5) {
           partnerSkillUses += 1;
+          usedSupportSkill = PARTNER_SUPPORT_SKILL_IDS.has(partner.id);
           triggerPartnerSkillDisplay(partner.id, skill.name);
           turnLogs.push(`${partner.name}の${skill.name}！`);
+          if (usedSupportSkill) {
+            triggerBattleMotion(partner.id, 'defend', 520);
+            triggerBattleSupportEffect(hero.id);
+            playUiSound(BATTLE_SE_SOURCES.cure);
+          }
           switch (partner.id) {
             case 'viola': battleSp = Math.min(prev.maxBattleSp, battleSp + 1); break;
             case 'nazuna': target.defense = Math.max(0, target.defense - 2); break;
@@ -5596,12 +5666,14 @@ export default function App() {
             case 'saffy': battleSp = Math.min(prev.maxBattleSp, battleSp + 2); break;
           }
         }
-        triggerBattleMotion(partner.id, 'attack', 420);
-        playBattleHitSe();
+        window.setTimeout(() => {
+          triggerBattleMotion(partner.id, 'attack', 420);
+          playBattleHitSe();
+        }, usedSupportSkill ? 520 : 0);
         window.setTimeout(() => {
           triggerBattleMotion(target.id, 'hurt', 300);
           triggerBattleHitEffect(target.id);
-        }, 220);
+        }, usedSupportSkill ? 740 : 220);
 
         const { damage, critical } = calculateBattleDamage(partner, target, { isBeastTarget: true });
         target.hp = Math.max(0, target.hp - damage);
@@ -5640,7 +5712,7 @@ export default function App() {
     }, 850);
 
     return () => window.clearTimeout(timer);
-  }, [battlePreviewOpen, battlePreviewState.turn, battlePreviewState.turnIndex, battlePreviewState.result]);
+  }, [battlePreviewOpen, battleIntroPhase, battlePreviewState.turn, battlePreviewState.turnIndex, battlePreviewState.result]);
 
   useEffect(() => {
     if (battlePreviewState.result !== 'victory') return;
@@ -5673,6 +5745,16 @@ export default function App() {
     });
     setBattlePreviewState(prev => prev.result === 'victory' ? { ...prev, lootGranted: true } : prev);
   }, [battlePreviewState.result, battlePreviewState.loot, battlePreviewState.lootGranted, gameMode]);
+
+  useEffect(() => {
+    if (!battlePreviewOpen || battlePreviewState.result !== 'defeat') {
+      battleLoseSoundPlayedRef.current = false;
+      return;
+    }
+    if (battleLoseSoundPlayedRef.current) return;
+    battleLoseSoundPlayedRef.current = true;
+    playUiSound(BATTLE_SE_SOURCES.lose);
+  }, [battlePreviewOpen, battlePreviewState.result]);
 
   useEffect(() => {
     if (battlePreviewState.result !== 'defeat') return;
@@ -9225,7 +9307,7 @@ export default function App() {
     const audio = bgmRef.current;
     if (!audio) return;
     if (!battlePreviewOpen) return;
-    if (battlePreviewState.result === 'victory') return;
+    if (battlePreviewState.result !== 'ongoing') return;
     const nextSource = BATTLE_BGM_SOURCES[difficulty];
     if (bgmSourceRef.current !== nextSource) {
       bgmSourceRef.current = nextSource;
@@ -9246,20 +9328,37 @@ export default function App() {
     const audio = bgmRef.current;
     if (!audio) return;
     if (!battlePreviewOpen) return;
-    if (battlePreviewState.result !== 'victory') return;
-    const nextSource = BATTLE_VICTORY_BGM_SOURCES[difficulty];
-    if (bgmSourceRef.current !== nextSource) {
-      bgmSourceRef.current = nextSource;
-      audio.pause();
-      audio.src = nextSource;
-      audio.loop = false;
-      audio.currentTime = 0;
+    if (battlePreviewState.result === 'victory') {
+      const nextSource = BATTLE_VICTORY_BGM_SOURCES[difficulty];
+      if (bgmSourceRef.current !== nextSource) {
+        cancelBgmFade();
+        bgmSourceRef.current = nextSource;
+        audio.pause();
+        audio.src = nextSource;
+        audio.loop = false;
+        audio.currentTime = 0;
+      }
+      audio.volume = getEffectiveVolume(nextSource, bgmVolume, audioGainsRef.current);
+      audio.play().then(() => {
+        bgmStartedRef.current = true;
+      }).catch((err) => {
+        console.log("Battle victory BGM autoplay blocked", err);
+      });
+
+      const fadeTimer = window.setTimeout(() => {
+        fadeBgmTo(0, 3000, () => {
+          audio.pause();
+          audio.currentTime = 0;
+        });
+      }, 1600);
+      return () => window.clearTimeout(fadeTimer);
     }
-    audio.volume = getEffectiveVolume(nextSource, bgmVolume, audioGainsRef.current);
-    audio.play().then(() => {
-      bgmStartedRef.current = true;
-    }).catch((err) => {
-      console.log("Battle victory BGM autoplay blocked", err);
+
+    if (battlePreviewState.result !== 'defeat') return;
+
+    fadeBgmTo(0, 3000, () => {
+      audio.pause();
+      audio.currentTime = 0;
     });
   }, [battlePreviewOpen, battlePreviewState.result, difficulty, bgmVolume, audioGains]);
 
@@ -13061,8 +13160,11 @@ export default function App() {
             const aliveBeasts = beasts.filter((beast): beast is BattleUnitState => Boolean(beast));
             const mainBeast = aliveBeasts[0] ?? null;
             const battleBackgroundSrc = BATTLE_BACKGROUND_SOURCES[difficulty];
-            const renderHpBar = (hp: number, maxHp: number, colorClass = 'bg-[#4ade80]') => (
-              <div className="mt-2 h-3 overflow-hidden rounded-full border border-white/20 bg-black/55">
+            const countdownFrameIndex = battleIntroPhase === 3 ? 0 : battleIntroPhase === 2 ? 1 : 2;
+            const battleResultFrameIndex = result === 'victory' ? 0 : 1;
+            const partnerSkillRemainingUses = Math.max(0, battlePreviewState.partnerSkillMaxUses - battlePreviewState.partnerSkillUses);
+            const renderHpBar = (hp: number, maxHp: number, colorClass = 'bg-[#4ade80]', spacingClass = 'mt-2') => (
+              <div className={`${spacingClass} h-3 overflow-hidden rounded-full border border-white/20 bg-black/55`}>
                 <div
                   className={`h-full rounded-full transition-[width] ${colorClass}`}
                   style={{ width: `${Math.max(0, Math.min(100, (hp / maxHp) * 100))}%` }}
@@ -13092,6 +13194,14 @@ export default function App() {
               </div>
             );
             const renderHeroSprite = () => {
+              const isDown = hero.hp <= 0;
+              if (isDown) {
+                return (
+                  <div className="absolute bottom-[8px] right-[8%] z-[5] w-[260px] aspect-square overflow-visible drop-shadow-[0_18px_16px_rgba(0,0,0,0.65)]">
+                    <img src={getBattleGirlDownSpriteSrc(hero.id)} alt={`${hero.name} 倒れ`} className="h-full w-full object-contain" />
+                  </div>
+                );
+              }
               const pose = getBattleSpritePose(hero.id);
               const frameIndex = BATTLE_POSE_FRAME_INDEX[pose] ?? 0;
               const motionClass = pose === 'skill'
@@ -13104,39 +13214,45 @@ export default function App() {
                     ? 'battle-actor-defend'
                     : '';
               const hitEffectClass = battleHitEffect?.targetId === hero.id ? 'battle-hit-effect' : '';
+              const supportEffectClass = battleSupportEffect?.targetId === hero.id ? 'battle-support-effect' : '';
               return renderSpriteSheet(
                 hero,
                 '/img/battle/battle2d-player.png',
                 BATTLE_SPRITE_FRAME_COUNT,
                 frameIndex,
-                `absolute bottom-[8px] right-[17%] z-[5] w-[145px] aspect-[384/1080] overflow-visible drop-shadow-[0_18px_16px_rgba(0,0,0,0.65)] battle-actor-idle ${motionClass} ${hitEffectClass}`,
+                `absolute bottom-[8px] right-[17%] z-[5] w-[145px] aspect-[384/1080] overflow-visible drop-shadow-[0_18px_16px_rgba(0,0,0,0.65)] battle-actor-idle ${motionClass} ${hitEffectClass} ${supportEffectClass}`,
               );
             };
             const renderCompanionSprite = () => {
               if (!companion) return null;
+              const isDown = companion.hp <= 0;
               const pose = getBattleSpritePose(companion.id);
               const frameIndex = BATTLE_POSE_FRAME_INDEX[pose] ?? 0;
-              const motionClass = pose === 'attack' || pose === 'skill'
-                ? 'battle-actor-attack-right'
-                : pose === 'hurt'
-                  ? 'battle-actor-hurt'
-                  : '';
+              const motionClass = isDown
+                ? ''
+                : pose === 'attack' || pose === 'skill'
+                  ? 'battle-actor-attack-right'
+                  : pose === 'hurt'
+                    ? 'battle-actor-hurt'
+                    : '';
               const hitEffectClass = battleHitEffect?.targetId === companion.id ? 'battle-hit-effect' : '';
               return (
-                <div className={`absolute bottom-[128px] right-[5%] z-[4] w-[112px] aspect-[384/1080] overflow-visible opacity-95 drop-shadow-[0_14px_12px_rgba(0,0,0,0.58)] battle-actor-idle ${motionClass} ${hitEffectClass}`}>
-                  {companionSkill && (
+                <div className={`absolute ${isDown ? 'bottom-[118px] right-[0%] w-[210px] aspect-square' : 'bottom-[128px] right-[5%] w-[112px] aspect-[384/1080] battle-actor-idle'} z-[4] overflow-visible opacity-95 drop-shadow-[0_14px_12px_rgba(0,0,0,0.58)] ${motionClass} ${hitEffectClass}`}>
+                  {!isDown && companionSkill && companionSkill.maxUses > 0 && (
                     <div className={`battle-partner-skill-bubble ${battlePartnerSkillDisplay?.partnerId === companion.id ? 'is-active' : ''}`}>
                       {battlePartnerSkillDisplay?.partnerId === companion.id
                         ? battlePartnerSkillDisplay.text
-                        : `特殊効果：${companionSkill.effectLabel} ${battlePreviewState.partnerSkillUses}/${battlePreviewState.partnerSkillMaxUses}`}
+                        : battlePreviewState.partnerSkillMaxUses > 0
+                          ? `特殊効果：${companionSkill.effectLabel} ${partnerSkillRemainingUses}/${battlePreviewState.partnerSkillMaxUses}`
+                          : `特殊効果：${companionSkill.effectLabel}`}
                     </div>
                   )}
                   <div className="absolute inset-0 overflow-hidden">
                     <img
-                      src={getBattleGirlSpriteSrc(companion.id)}
-                      alt={companion.name}
-                      className="absolute top-0 h-full max-w-none object-fill"
-                      style={{
+                      src={isDown ? getBattleGirlDownSpriteSrc(companion.id) : getBattleGirlSpriteSrc(companion.id)}
+                      alt={isDown ? `${companion.name} 倒れ` : companion.name}
+                      className={isDown ? 'h-full w-full object-contain' : 'absolute top-0 h-full max-w-none object-fill'}
+                      style={isDown ? undefined : {
                         width: `${BATTLE_SPRITE_FRAME_COUNT * 100}%`,
                         left: `-${frameIndex * 100}%`,
                       }}
@@ -13208,19 +13324,23 @@ export default function App() {
                       {mainBeast ? renderHpBar(mainBeast.hp, mainBeast.maxHp, 'bg-[#ef4444]') : null}
                     </div>
                     <div className="col-start-1 row-start-2 rounded-xl border-2 border-[#dda15e]/55 bg-[#0d1117]/90 px-4 py-2">
-                      <div className="grid grid-cols-[minmax(0,1fr)_92px] gap-x-3 gap-y-1 text-[13px] font-black">
-                        <span>
+                      <div className="grid h-full grid-rows-[20px_12px_20px_12px] gap-y-1 text-[12px] font-black leading-tight">
+                        <div className="flex min-w-0 items-center justify-between gap-2">
+                          <span className="min-w-0 truncate whitespace-nowrap">
                           主人公 {heroStars.map((filled, index) => (
                             <span key={index} className={filled ? 'text-[#ffd166]' : 'text-[#5a4a31]'}>★</span>
                           ))}{hero.defending ? ' / 防御中' : ''} <span className="text-[#7dd3fc]">SP {battlePreviewState.battleSp}/{battlePreviewState.maxBattleSp}</span>
-                        </span>
-                        <span className="text-right">HP {hero.hp}/{hero.maxHp}</span>
-                        <div className="col-span-2">{renderHpBar(hero.hp, hero.maxHp, 'bg-[#22c55e]')}</div>
+                          </span>
+                          <span className="shrink-0 whitespace-nowrap text-right">HP {hero.hp}/{hero.maxHp}</span>
+                        </div>
+                        {renderHpBar(hero.hp, hero.maxHp, 'bg-[#22c55e]', 'mt-0')}
                         {companion && (
                           <>
-                            <span>{companion.name}</span>
-                            <span className="text-right">HP {companion.hp}/{companion.maxHp}</span>
-                            <div className="col-span-2 -mt-1">{renderHpBar(companion.hp, companion.maxHp, 'bg-[#f59e0b]')}</div>
+                            <div className="flex min-w-0 items-center justify-between gap-2">
+                              <span className="min-w-0 truncate whitespace-nowrap">{companion.name}</span>
+                              <span className="shrink-0 whitespace-nowrap text-right">HP {companion.hp}/{companion.maxHp}</span>
+                            </div>
+                            {renderHpBar(companion.hp, companion.maxHp, 'bg-[#f59e0b]', 'mt-0')}
                           </>
                         )}
                       </div>
@@ -13229,7 +13349,7 @@ export default function App() {
                       <div className="grid h-full grid-rows-5 gap-2">
                         {result === 'ongoing' ? actionButtons.map(label => (
                           (() => {
-                            const isAvailable = isHeroTurn && (label !== '強攻撃' || battlePreviewState.battleSp >= BATTLE_SKILL_SP_COST);
+                            const isAvailable = battleIntroPhase === null && isHeroTurn && (label !== '強攻撃' || battlePreviewState.battleSp >= BATTLE_SKILL_SP_COST);
                             return <button
                               key={label}
                               type="button"
@@ -13271,6 +13391,34 @@ export default function App() {
                       </div>
                     </div>
                   </div>
+                  {(result === 'victory' || result === 'defeat') && (
+                    <div className="pointer-events-none absolute inset-0 z-[18] flex items-center justify-center px-6" aria-live="polite">
+                      <div className={`w-[1120px] max-w-[95%] aspect-[32/9] overflow-hidden drop-shadow-[0_16px_32px_rgba(0,0,0,0.82)] ${result === 'victory' ? 'battle-result-win' : 'battle-result-lose'}`}>
+                        <img
+                          src="/img/winlose.png"
+                          alt={result === 'victory' ? 'WIN' : 'LOSE'}
+                          className="relative h-[200%] w-full max-w-none object-fill"
+                          style={{ top: `-${battleResultFrameIndex * 100}%` }}
+                        />
+                      </div>
+                    </div>
+                  )}
+                  {battleIntroPhase !== null && (
+                    <div className="absolute inset-0 z-[20] flex items-center justify-center bg-black/48" aria-live="polite">
+                      {battleIntroPhase === 'start' ? (
+                        <img src="/img/battle-start.png" alt="BATTLE START!" className="w-[78%] max-w-[980px] object-contain animate-[battleStartExit_0.7s_cubic-bezier(0.16,0.88,0.25,1)_both] drop-shadow-[0_12px_28px_rgba(0,0,0,0.8)]" />
+                      ) : (
+                        <div className="w-[260px] aspect-[1/2] overflow-hidden">
+                          <img
+                            src="/img/battle321.png"
+                            alt={`${battleIntroPhase}`}
+                            className="relative h-full w-[300%] max-w-none object-fill drop-shadow-[0_12px_28px_rgba(0,0,0,0.8)]"
+                            style={{ left: `-${countdownFrameIndex * 100}%` }}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
             );
