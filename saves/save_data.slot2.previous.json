@@ -1,11 +1,41 @@
 {
   "turn": 4,
   "gold": 5000,
+  "gameMode": "story",
+  "hasUnlockedEndlessNurseryMode": false,
+  "collectionProgress": {
+    "collectedGirlIds": [],
+    "caughtFishIds": [],
+    "craftedItemIds": [],
+    "unlockedEventIds": [],
+    "defeatedBeastIds": []
+  },
+  "endlessStats": {
+    "daysPlayed": 0,
+    "totalHarvestCount": 0,
+    "totalFishCaught": 0,
+    "totalTreesCut": 0,
+    "totalOresMined": 0,
+    "totalBeastsDefeated": 0,
+    "totalGirlsCollected": 0,
+    "totalTrustEventsUnlocked": 0,
+    "totalMoneyEarned": 0
+  },
   "debt": 20000000,
   "debtAmount": 20000000,
   "repaymentCycleDays": 7,
+  "storyCleared": false,
   "farmCredit": 0,
+  "successfulRepaymentCount": 0,
   "missedRepaymentCount": 0,
+  "heroLevel": 1,
+  "heroSP": 0,
+  "unlockedHeroSkills": [],
+  "hasBeastPremonition": false,
+  "premonitionDay": null,
+  "scheduledBeastAttackDay": null,
+  "beastAttackPending": false,
+  "companionGirlId": null,
   "currentWeeklyInterestRate": 1.9,
   "interestRateCycleIndex": 0,
   "farmGirls": [
@@ -16,7 +46,10 @@
       "growthProgress": 0,
       "lastHarvestDay": null,
       "trust": 0,
-      "unlockedTrustEventIds": []
+      "unlockedTrustEventIds": [],
+      "condition": "normal",
+      "conditionDay": null,
+      "conditionSource": null
     },
     {
       "girlId": "mel",
@@ -25,7 +58,10 @@
       "growthProgress": 0,
       "lastHarvestDay": null,
       "trust": 0,
-      "unlockedTrustEventIds": []
+      "unlockedTrustEventIds": [],
+      "condition": "normal",
+      "conditionDay": null,
+      "conditionSource": null
     },
     {
       "girlId": "ruby",
@@ -34,7 +70,10 @@
       "growthProgress": 0,
       "lastHarvestDay": null,
       "trust": 0,
-      "unlockedTrustEventIds": []
+      "unlockedTrustEventIds": [],
+      "condition": "normal",
+      "conditionDay": null,
+      "conditionSource": null
     },
     {
       "girlId": "viola",
@@ -43,7 +82,10 @@
       "growthProgress": 0,
       "lastHarvestDay": null,
       "trust": 0,
-      "unlockedTrustEventIds": []
+      "unlockedTrustEventIds": [],
+      "condition": "normal",
+      "conditionDay": null,
+      "conditionSource": null
     },
     {
       "girlId": "nazuna",
@@ -52,7 +94,10 @@
       "growthProgress": 0,
       "lastHarvestDay": null,
       "trust": 0,
-      "unlockedTrustEventIds": []
+      "unlockedTrustEventIds": [],
+      "condition": "normal",
+      "conditionDay": null,
+      "conditionSource": null
     },
     {
       "girlId": "kabune",
@@ -61,7 +106,10 @@
       "growthProgress": 0,
       "lastHarvestDay": null,
       "trust": 0,
-      "unlockedTrustEventIds": []
+      "unlockedTrustEventIds": [],
+      "condition": "normal",
+      "conditionDay": null,
+      "conditionSource": null
     },
     {
       "girlId": "caro",
@@ -70,7 +118,10 @@
       "growthProgress": 0,
       "lastHarvestDay": null,
       "trust": 0,
-      "unlockedTrustEventIds": []
+      "unlockedTrustEventIds": [],
+      "condition": "normal",
+      "conditionDay": null,
+      "conditionSource": null
     },
     {
       "girlId": "theta",
@@ -79,7 +130,10 @@
       "growthProgress": 0,
       "lastHarvestDay": null,
       "trust": 0,
-      "unlockedTrustEventIds": []
+      "unlockedTrustEventIds": [],
+      "condition": "normal",
+      "conditionDay": null,
+      "conditionSource": null
     },
     {
       "girlId": "cure",
@@ -88,7 +142,10 @@
       "growthProgress": 0,
       "lastHarvestDay": null,
       "trust": 0,
-      "unlockedTrustEventIds": []
+      "unlockedTrustEventIds": [],
+      "condition": "normal",
+      "conditionDay": null,
+      "conditionSource": null
     },
     {
       "girlId": "shiro",
@@ -97,7 +154,10 @@
       "growthProgress": 0,
       "lastHarvestDay": null,
       "trust": 0,
-      "unlockedTrustEventIds": []
+      "unlockedTrustEventIds": [],
+      "condition": "normal",
+      "conditionDay": null,
+      "conditionSource": null
     },
     {
       "girlId": "momona",
@@ -106,7 +166,10 @@
       "growthProgress": 0,
       "lastHarvestDay": null,
       "trust": 0,
-      "unlockedTrustEventIds": []
+      "unlockedTrustEventIds": [],
+      "condition": "normal",
+      "conditionDay": null,
+      "conditionSource": null
     },
     {
       "girlId": "pan",
@@ -115,7 +178,10 @@
       "growthProgress": 0,
       "lastHarvestDay": null,
       "trust": 0,
-      "unlockedTrustEventIds": []
+      "unlockedTrustEventIds": [],
+      "condition": "normal",
+      "conditionDay": null,
+      "conditionSource": null
     },
     {
       "girlId": "puti",
@@ -124,7 +190,10 @@
       "growthProgress": 0,
       "lastHarvestDay": null,
       "trust": 0,
-      "unlockedTrustEventIds": []
+      "unlockedTrustEventIds": [],
+      "condition": "normal",
+      "conditionDay": null,
+      "conditionSource": null
     },
     {
       "girlId": "roma",
@@ -133,7 +202,10 @@
       "growthProgress": 0,
       "lastHarvestDay": null,
       "trust": 0,
-      "unlockedTrustEventIds": []
+      "unlockedTrustEventIds": [],
+      "condition": "normal",
+      "conditionDay": null,
+      "conditionSource": null
     },
     {
       "girlId": "saffy",
@@ -142,7 +214,10 @@
       "growthProgress": 0,
       "lastHarvestDay": null,
       "trust": 0,
-      "unlockedTrustEventIds": []
+      "unlockedTrustEventIds": [],
+      "condition": "normal",
+      "conditionDay": null,
+      "conditionSource": null
     }
   ],
   "ownedGirlSeeds": [
@@ -180,7 +255,7 @@
       "plantedDay": null
     }
   ],
-  "currentAP": 5,
+  "currentAP": 3,
   "maxAPPerTimeSlot": 5,
   "difficulty": "normal",
   "currentMap": "farm",
@@ -44583,6 +44658,122 @@
     }
   },
   "inventoryCounts": {
+    "薬草（デバッグ用）": 1,
+    "気付け水（デバッグ用）": 1,
+    "小さな釣り餌（デバッグ用）": 1,
+    "木材（デバッグ用）": 1,
+    "川魚の鱗（デバッグ用）": 1,
+    "モグラの爪（デバッグ用）": 1,
+    "ウサギの靭帯（デバッグ用）": 1,
+    "軟らかい銅鉱石（デバッグ用）": 1,
+    "泥混じりの鉄鉱石（デバッグ用）": 1,
+    "柔らかな若枝（デバッグ用）": 1,
+    "軽石炭（デバッグ用）": 1,
+    "しなやかな軟木（デバッグ用）": 1,
+    "猪の牙（デバッグ用）": 1,
+    "熊の剛糸（デバッグ用）": 1,
+    "良質な鉄鉱石（デバッグ用）": 1,
+    "堅実な中木（デバッグ用）": 1,
+    "巨獣の鋼角（デバッグ用）": 1,
+    "神獣の絹糸（デバッグ用）": 1,
+    "金鉱石（デバッグ用）": 1,
+    "不朽の鉄木（デバッグ用）": 1,
+    "脆い鉛鉱石（デバッグ用）": 1,
+    "錫鉱石（デバッグ用）": 1,
+    "銀鉱石（デバッグ用）": 1,
+    "鋼鉄石（デバッグ用）": 1,
+    "聖域の輝石（デバッグ用）": 1,
+    "猪の硬皮（デバッグ用）": 1,
+    "巨獣の強剛糸（デバッグ用）": 1,
+    "古代の神木（デバッグ用）": 1,
+    "竹の釣竿（デバッグ用）": 1,
+    "丈夫な釣竿（デバッグ用）": 1,
+    "高級釣竿（デバッグ用）": 1,
+    "伝説の釣り竿（デバッグ用）": 1,
+    "のこぎり（デバッグ用）": 1,
+    "丈夫なのこぎり（デバッグ用）": 1,
+    "高級のこぎり（デバッグ用）": 1,
+    "伝説ののこぎり（デバッグ用）": 1,
+    "つるはし（デバッグ用）": 1,
+    "丈夫なつるはし（デバッグ用）": 1,
+    "高級つるはし（デバッグ用）": 1,
+    "伝説のつるはし（デバッグ用）": 1,
+    "農神の指輪（デバッグ用）": 1,
+    "釣神の指輪（デバッグ用）": 1,
+    "木剣（デバッグ用）": 1,
+    "獣殺し（デバッグ用）": 1,
+    "天の裁き（デバッグ用）": 1,
+    "毛皮の服（デバッグ用）": 1,
+    "剛牙の鎧（デバッグ用）": 1,
+    "神域の加護（デバッグ用）": 1,
+    "【レシピ】のこぎり（デバッグ用）": 1,
+    "【レシピ】つるはし（デバッグ用）": 1,
+    "【レシピ】丈夫なつるはし（デバッグ用）": 1,
+    "【レシピ】丈夫なのこぎり（デバッグ用）": 1,
+    "【レシピ】高級つるはし（デバッグ用）": 1,
+    "【レシピ】高級のこぎり（デバッグ用）": 1,
+    "【レシピ】伝説のつるはし（デバッグ用）": 1,
+    "【レシピ】伝説ののこぎり（デバッグ用）": 1,
+    "【レシピ】丈夫な釣竿（デバッグ用）": 1,
+    "【レシピ】高級釣竿（デバッグ用）": 1,
+    "【レシピ】伝説の釣り竿（デバッグ用）": 1,
+    "枝（デバッグ用）": 1,
+    "使用済みコンドーム（デバッグ用）": 1,
+    "フナ（デバッグ用）": 1,
+    "オイカワ（デバッグ用）": 1,
+    "ウグイ（デバッグ用）": 1,
+    "どじょう（デバッグ用）": 1,
+    "ハゼ（デバッグ用）": 1,
+    "パンツ（デバッグ用）": 1,
+    "ニジマス（デバッグ用）": 1,
+    "ヤマメ（デバッグ用）": 1,
+    "人魚の鱗（デバッグ用）": 1,
+    "イワナ（デバッグ用）": 1,
+    "鮎（デバッグ用）": 1,
+    "尺イワナ（デバッグ用）": 1,
+    "サクラマス（デバッグ用）": 1,
+    "サケ（デバッグ用）": 1,
+    "ライギョ（デバッグ用）": 1,
+    "モズクガニ（デバッグ用）": 1,
+    "イトウ（デバッグ用）": 1,
+    "手紙の入った空き瓶（デバッグ用）": 1,
+    "オオナマズ（デバッグ用）": 1,
+    "錦鯉（デバッグ用）": 1,
+    "青い人魚（デバッグ用）": 1,
+    "黄色い人魚（デバッグ用）": 1,
+    "ピンクの人魚（デバッグ用）": 1,
+    "重厚な硬木（デバッグ用）": 1,
+    "ちびいちのいちご（デバッグ用）": 1,
+    "めるのメロン（デバッグ用）": 1,
+    "ルビーのトマト（デバッグ用）": 1,
+    "ヴィオラのブドウ（デバッグ用）": 1,
+    "ナズナのなす（デバッグ用）": 1,
+    "かぶねのかぶ（デバッグ用）": 1,
+    "キャロのにんじん（デバッグ用）": 1,
+    "シータのしいたけ（デバッグ用）": 1,
+    "キュアのきゅうり（デバッグ用）": 1,
+    "シロのだいこん（デバッグ用）": 1,
+    "ももなのもも（デバッグ用）": 1,
+    "ぱんちゃんのかぼちゃ（デバッグ用）": 1,
+    "プティのドラゴンフルーツ（デバッグ用）": 1,
+    "ロマのロマネスコ（デバッグ用）": 1,
+    "サフィーのサフラン（デバッグ用）": 1,
+    "モグラの肉（デバッグ用）": 1,
+    "小石（デバッグ用）": 1,
+    "鋭い前歯（デバッグ用）": 1,
+    "綺麗な小石（デバッグ用）": 1,
+    "猿の牙（デバッグ用）": 1,
+    "猿の肉（デバッグ用）": 1,
+    "光る木の実（デバッグ用）": 1,
+    "猪の肉（デバッグ用）": 1,
+    "熊の爪（デバッグ用）": 1,
+    "熊の胆石（デバッグ用）": 1,
+    "鋭い牙（デバッグ用）": 1,
+    "獣の丈夫な筋（デバッグ用）": 1,
+    "鋭い爪（デバッグ用）": 1,
+    "聖域の結晶（デバッグ用）": 1,
+    "神獣の角（デバッグ用）": 1,
+    "伝説の雫（デバッグ用）": 1,
     "【レシピ】丈夫な釣竿": 1,
     "【レシピ】高級釣竿": 1,
     "【レシピ】伝説の釣り竿": 1,
@@ -44590,7 +44781,6 @@
     "つるはし": 2,
     "農神の指輪": 1,
     "釣神の指輪": 1,
-    "釣神の指輪（デバッグ用）": 1,
     "丈夫な釣竿": 1,
     "高級釣竿": 1,
     "伝説の釣り竿": 1,
@@ -44600,22 +44790,24 @@
     "高級つるはし": 1,
     "枝": 1,
     "竹の釣竿": 1,
-    "使用済みコンドーム": 0,
+    "使用済みコンドーム": 1,
     "携帯おにぎり": 4,
     "【レシピ】つるはし": 1,
     "モグラの爪": 0,
     "ウサギの靭帯": 0,
     "泥混じりの鉄鉱石": 0,
-    "柔らかな若枝": 0,
+    "柔らかな若枝": 1,
     "【レシピ】のこぎり": 1,
-    "軟らかい銅鉱石": 0
+    "軟らかい銅鉱石": 0,
+    "堅実な中木": 1,
+    "しなやかな軟木": 1
   },
   "equippedItems": {
     "主人公-slot1": "竹の釣竿",
-    "主人公-slot2": "のこぎり",
-    "主人公-slot3": "つるはし",
+    "主人公-slot2": "高級のこぎり",
+    "主人公-slot3": "高級つるはし",
     "主人公-slot4": "釣神の指輪（デバッグ用）",
-    "ちびいち-slot1": "小さな鈴",
+    "ちびいち-slot1": "",
     "ちびいち-slot2": ""
   },
   "caughtFishIds": [
@@ -44633,9 +44825,21 @@
     "枝": [
       12.6
     ],
-    "使用済みコンドーム": []
+    "使用済みコンドーム": [
+      11.8
+    ]
   },
-  "lumberInventorySizes": {},
+  "lumberInventorySizes": {
+    "堅実な中木": [
+      69.3
+    ],
+    "しなやかな軟木": [
+      82.7
+    ],
+    "柔らかな若枝": [
+      16.1
+    ]
+  },
   "oreInventoryWeights": {},
   "depletedMiningPointIds": {},
   "fishingTutorialCompleted": true,
@@ -44643,11 +44847,14 @@
   "sawCraftTutorialReady": false,
   "sawCraftTutorialWorkbenchReady": false,
   "sawCraftTutorialCompleted": true,
+  "loggingTutorialCompleted": false,
+  "miningTutorialCompleted": false,
   "craftedRecipeIds": [
     "【レシピ】つるはし",
     "【レシピ】のこぎり"
   ],
   "gatheringTutorialCompleted": true,
+  "gatheringTutorialChoice": null,
   "kurumiIntroAskedTopics": [
     "village",
     "debt",

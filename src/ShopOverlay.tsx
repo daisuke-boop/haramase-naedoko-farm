@@ -6,6 +6,7 @@ type ShopItem = {
   price: number;
   stock: number;
   desc: string;
+  category?: string;
   fishName?: string;
   fishPrice?: number;
   sizedInventoryName?: string;
@@ -163,6 +164,11 @@ const ShopOverlay = ({
                        <div className="flex min-h-0 flex-col rounded-xl border border-[#5a3010] bg-black/30 p-4">
                           <div style={menuTinyLabelStyle}>商品詳細</div>
                           <div className="mt-2 break-words text-2xl font-bold leading-tight text-[#fdf6e3]">{selectedItem?.name}</div>
+                          {selectedItem?.category && (
+                             <div className="mt-2 w-fit rounded border border-[#a3b18a]/70 bg-[#4a5823]/45 px-2 py-1 text-sm font-bold text-[#dbe7c9]">
+                                {selectedItem.category}
+                             </div>
+                          )}
                           <div className="mt-3 text-xl font-bold text-[#ffd166]">{selectedItem?.price.toLocaleString()} G</div>
                           <p className="mt-4 min-h-0 flex-1 overflow-y-auto pr-1 leading-relaxed text-[#c8a87a]">{selectedItem?.desc}</p>
                           <button

@@ -16,11 +16,20 @@ type DebugDialogueOption = {
   currentMessage: string;
 };
 
+type MiningBgmRhythmOption = {
+  src: string;
+  label: string;
+};
+
 type DebugPanelProps = {
   setupMode: SetupMode;
   debugPanelPos: { x: number; y: number };
   handleDebugDragStart: (e: React.PointerEvent) => void;
   setTurn: React.Dispatch<React.SetStateAction<number>>;
+  onStartMiningMiniGameTest: (bgmSource: string) => void;
+  onStartMiningRhythmRecording: (bgmSource: string) => void;
+  miningRhythmOptions: readonly MiningBgmRhythmOption[];
+  miningRhythmTimingCounts: Record<string, number>;
   timeOfDay: TimeOfDay;
   currentMap: GameMap;
   getMapLabel: (map: GameMap) => string;
@@ -66,6 +75,10 @@ const DebugPanel = ({
   debugPanelPos,
   handleDebugDragStart,
   setTurn,
+  onStartMiningMiniGameTest,
+  onStartMiningRhythmRecording,
+  miningRhythmOptions,
+  miningRhythmTimingCounts,
   timeOfDay,
   currentMap,
   getMapLabel,
@@ -109,6 +122,9 @@ const DebugPanel = ({
   const selectedDebugDialogue = debugDialogueOptions.find(option => option.key === selectedDebugDialogueKey) ?? debugDialogueOptions[0];
   const [debugDialogueDraft, setDebugDialogueDraft] = React.useState(selectedDebugDialogue?.currentMessage ?? '');
   const [bulkAudioGain, setBulkAudioGain] = React.useState(selectedAudioGain);
+  const [selectedMiningRhythmSource, setSelectedMiningRhythmSource] = React.useState(miningRhythmOptions[0]?.src ?? '');
+  const selectedMiningRhythmCount = miningRhythmTimingCounts[selectedMiningRhythmSource] ?? 0;
+  const totalMiningRhythmCount = Object.values(miningRhythmTimingCounts).reduce((sum, count) => sum + count, 0);
 
   React.useEffect(() => {
     if (!selectedDebugDialogue && debugDialogueOptions[0]) {
@@ -167,6 +183,33 @@ const DebugPanel = ({
               夜 🌙
             </button>
           </div>
+
+          <button
+            type="button"
+            onClick={() => onStartMiningMiniGameTest(selectedMiningRhythmSource)}
+            className="rounded border-2 border-cyan-300 bg-cyan-950/80 px-2 py-1.5 text-[10px] font-black text-cyan-100 shadow-[0_0_10px_rgba(103,232,249,0.25)] transition-colors hover:bg-cyan-700 hover:text-white"
+          >
+            ⛏ 採掘ミニゲーム強制テスト{totalMiningRhythmCount > 0 ? ` (${totalMiningRhythmCount})` : ''}
+          </button>
+          <select
+            value={selectedMiningRhythmSource}
+            onChange={(e) => setSelectedMiningRhythmSource(e.target.value)}
+            className="w-full rounded border border-fuchsia-400/70 bg-[#2d1b15] px-1 py-1 text-[9px] font-bold text-fuchsia-100"
+            title="採掘リズムを記録するBGM"
+          >
+            {miningRhythmOptions.map(option => (
+              <option key={option.src} value={option.src}>
+                {option.label} ({miningRhythmTimingCounts[option.src] ?? 0})
+              </option>
+            ))}
+          </select>
+          <button
+            type="button"
+            onClick={() => onStartMiningRhythmRecording(selectedMiningRhythmSource)}
+            className="rounded border-2 border-fuchsia-300 bg-fuchsia-950/80 px-2 py-1.5 text-[10px] font-black text-fuchsia-100 shadow-[0_0_10px_rgba(240,171,252,0.25)] transition-colors hover:bg-fuchsia-700 hover:text-white"
+          >
+            🎵 採掘リズム記録{selectedMiningRhythmCount > 0 ? ` (${selectedMiningRhythmCount})` : ''}
+          </button>
           
            {/* Volume Settings */}
            <div className="flex flex-col gap-1.5 border-t border-red-600/30 pt-1.5 mt-0.5">

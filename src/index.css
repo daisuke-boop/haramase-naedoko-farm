@@ -115,14 +115,41 @@ canvas {
     inset 0 0 0 1px rgba(255, 238, 201, 0.2);
 }
 
+.farm-girl-card-grid,
+.farm-menu-scroll-area {
+  scrollbar-gutter: stable;
+  scrollbar-color: rgba(255, 209, 102, 0.76) rgba(20, 12, 9, 0.72);
+  scrollbar-width: thin;
+}
+
 .farm-girl-card-grid {
-  grid-template-rows: repeat(5, minmax(0, 1fr));
+  grid-auto-rows: minmax(128px, 1fr);
 }
 
 .farm-girl-card-grid .farm-girl-card-button {
   aspect-ratio: auto;
+  min-height: 128px;
   height: 100%;
   width: 100%;
+}
+
+.farm-girl-card-grid::-webkit-scrollbar,
+.farm-menu-scroll-area::-webkit-scrollbar {
+  width: 10px;
+}
+
+.farm-girl-card-grid::-webkit-scrollbar-track,
+.farm-menu-scroll-area::-webkit-scrollbar-track {
+  background: rgba(20, 12, 9, 0.72);
+  border: 1px solid rgba(90, 48, 16, 0.75);
+  border-radius: 999px;
+}
+
+.farm-girl-card-grid::-webkit-scrollbar-thumb,
+.farm-menu-scroll-area::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, #ffd166, #bc6c25);
+  border: 2px solid rgba(20, 12, 9, 0.9);
+  border-radius: 999px;
 }
 
 .farm-girl-card-preview {
@@ -618,6 +645,14 @@ canvas {
   animation: farmLoggingDissolveB 2.0s ease-in-out infinite;
 }
 
+.farm-mining-dissolve-a {
+  animation: farmMiningDissolveA 2s ease-in-out infinite;
+}
+
+.farm-mining-dissolve-b {
+  animation: farmMiningDissolveB 2s ease-in-out infinite;
+}
+
 .farm-logging-tutorial-fan-needle {
   transform-origin: 150px 198px;
   animation: farmLoggingTutorialFanNeedle 2.1s ease-in-out infinite alternate;
@@ -770,4 +805,232 @@ canvas {
   100% {
     opacity: 0;
   }
+}
+@keyframes farmMiningRockPerfect {
+  0% { transform: translateX(0) scale(1); }
+  25% { transform: translateX(-3px) scale(1.03); }
+  50% { transform: translateX(3px) scale(1.03); }
+  75% { transform: translateX(-2px) scale(1.015); }
+  100% { transform: translateX(0) scale(1); }
+}
+
+@keyframes farmMiningRockGood {
+  0% { transform: translateX(0) scale(1); }
+  30% { transform: translateX(-2px); }
+  60% { transform: translateX(2px); }
+  100% { transform: translateX(0) scale(1); }
+}
+
+@keyframes farmMiningRockBad {
+  0% { transform: translateX(0); }
+  35% { transform: translateX(-1px); }
+  70% { transform: translateX(1px); }
+  100% { transform: translateX(0); }
+}
+
+@keyframes farmMiningDissolveA {
+  0%, 40% { opacity: 1; }
+  50%, 90% { opacity: 0; }
+  100% { opacity: 1; }
+}
+
+@keyframes farmMiningDissolveB {
+  0%, 40% { opacity: 0; }
+  50%, 90% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+.farm-mining-rock-perfect {
+  animation: farmMiningRockPerfect 80ms ease-out;
+}
+
+.farm-mining-rock-good {
+  animation: farmMiningRockGood 80ms ease-out;
+}
+
+.farm-mining-rock-bad {
+  animation: farmMiningRockBad 80ms ease-out;
+}
+
+@keyframes battleActorAttackRight {
+  0% { transform: translateX(0) scale(1); }
+  45% { transform: translateX(-26px) scale(1.04); }
+  100% { transform: translateX(0) scale(1); }
+}
+
+@keyframes battleActorAttackLeft {
+  0% { transform: translateX(0) scale(1); }
+  45% { transform: translateX(24px) scale(1.04); }
+  100% { transform: translateX(0) scale(1); }
+}
+
+@keyframes battleActorStrongAttack {
+  0% { transform: translateX(0) scale(1); filter: brightness(1); }
+  20% { transform: translateX(10px) scale(0.96); filter: brightness(1.15) drop-shadow(0 0 0 rgba(255, 211, 92, 0)); }
+  48% { transform: translateX(-54px) scale(1.14); filter: brightness(1.65) drop-shadow(0 0 24px rgba(255, 211, 92, 0.95)); }
+  62% { transform: translateX(-45px) scale(1.08); filter: brightness(1.35) drop-shadow(0 0 34px rgba(255, 108, 70, 0.9)); }
+  100% { transform: translateX(0) scale(1); filter: brightness(1); }
+}
+
+@keyframes battleActorHurt {
+  0% { transform: translateX(0); filter: brightness(1.35) drop-shadow(0 0 12px rgba(255,255,255,0.75)); }
+  28% { transform: translateX(-8px); }
+  56% { transform: translateX(8px); }
+  100% { transform: translateX(0); filter: brightness(1); }
+}
+
+@keyframes battleActorDefend {
+  0% { transform: scale(1); filter: drop-shadow(0 0 0 rgba(96,165,250,0)); }
+  45% { transform: scale(0.96); filter: drop-shadow(0 0 18px rgba(96,165,250,0.95)); }
+  100% { transform: scale(1); filter: drop-shadow(0 0 0 rgba(96,165,250,0)); }
+}
+
+@keyframes battleActorDefeated {
+  0% { opacity: 1; transform: translate(0, 0) rotate(0deg) scale(1); filter: brightness(1.5) saturate(0.75); }
+  20% { opacity: 1; transform: translate(-10px, 3px) rotate(-5deg) scale(1.02); }
+  52% { opacity: 0.82; transform: translate(8px, 22px) rotate(-13deg) scale(0.94); filter: brightness(0.85) saturate(0.35); }
+  100% { opacity: 0; transform: translate(0, 48px) rotate(-20deg) scale(0.72); filter: brightness(0.35) saturate(0); }
+}
+
+@keyframes battlePartnerSkillBubblePop {
+  0% { opacity: 0; scale: 0.65; translate: -50% 10px; }
+  28% { opacity: 1; scale: 1.18; translate: -50% -3px; }
+  100% { opacity: 1; scale: 1; translate: -50% 0; }
+}
+
+@keyframes battleActorIdleFloat {
+  0%, 100% { translate: 0 0; }
+  50% { translate: 0 -7px; }
+}
+
+@keyframes battleHitFlash {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.45) rotate(-18deg);
+    filter: blur(0) brightness(1.4);
+  }
+  18% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1.05) rotate(-18deg);
+    filter: blur(0) brightness(1.9);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(1.48) rotate(-18deg);
+    filter: blur(1px) brightness(1);
+  }
+}
+
+@keyframes battleHitRing {
+  0% {
+    opacity: 0.9;
+    transform: translate(-50%, -50%) scale(0.4);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(1.65);
+  }
+}
+
+.battle-actor-idle {
+  animation: battleActorIdleFloat 1.55s ease-in-out infinite;
+  will-change: transform, translate;
+}
+
+.battle-actor-attack-right {
+  animation: battleActorAttackRight 420ms ease-out;
+}
+
+.battle-actor-attack-left {
+  animation: battleActorAttackLeft 420ms ease-out;
+}
+
+.battle-actor-strong-attack {
+  animation: battleActorStrongAttack 620ms cubic-bezier(0.22, 0.7, 0.3, 1);
+}
+
+.battle-actor-hurt {
+  animation: battleActorHurt 300ms ease-out;
+}
+
+.battle-actor-defend {
+  animation: battleActorDefend 420ms ease-out;
+}
+
+.battle-actor-defeated {
+  animation: battleActorDefeated 820ms cubic-bezier(0.22, 0.7, 0.35, 1) forwards;
+  pointer-events: none;
+}
+
+.battle-partner-skill-bubble {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 6px);
+  z-index: 6;
+  width: max-content;
+  max-width: 150px;
+  translate: -50% 0;
+  border: 1px solid rgba(253, 246, 227, 0.82);
+  border-radius: 5px;
+  background: rgba(24, 33, 54, 0.94);
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.55);
+  color: #fff7dc;
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1;
+  padding: 5px 7px;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.battle-partner-skill-bubble::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: -5px;
+  width: 8px;
+  height: 8px;
+  translate: -50% 0;
+  rotate: 45deg;
+  border-right: 1px solid rgba(253, 246, 227, 0.82);
+  border-bottom: 1px solid rgba(253, 246, 227, 0.82);
+  background: rgba(24, 33, 54, 0.94);
+}
+
+.battle-partner-skill-bubble.is-active {
+  border-color: rgba(255, 209, 102, 0.98);
+  background: rgba(86, 32, 66, 0.97);
+  box-shadow: 0 0 18px rgba(255, 180, 90, 0.75), 0 4px 12px rgba(0, 0, 0, 0.6);
+  color: #fff6ce;
+  animation: battlePartnerSkillBubblePop 240ms ease-out both;
+}
+
+.battle-hit-effect::before,
+.battle-hit-effect::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 48%;
+  z-index: 3;
+  pointer-events: none;
+}
+
+.battle-hit-effect::before {
+  width: 86%;
+  height: 22%;
+  border-radius: 999px;
+  background:
+    linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.95) 35%, rgba(255, 215, 88, 0.92) 55%, transparent 100%),
+    linear-gradient(180deg, transparent 0%, rgba(255, 82, 82, 0.85) 48%, transparent 100%);
+  box-shadow: 0 0 18px rgba(255, 235, 140, 0.95), 0 0 30px rgba(239, 68, 68, 0.75);
+  animation: battleHitFlash 360ms ease-out forwards;
+}
+
+.battle-hit-effect::after {
+  width: 62%;
+  aspect-ratio: 1;
+  border-radius: 999px;
+  border: 3px solid rgba(255, 238, 180, 0.95);
+  box-shadow: inset 0 0 18px rgba(255, 255, 255, 0.55), 0 0 20px rgba(255, 180, 70, 0.8);
+  animation: battleHitRing 360ms ease-out forwards;
 }

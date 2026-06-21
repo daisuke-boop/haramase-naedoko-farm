@@ -1,4 +1,5 @@
 import type { TimeOfDay } from '../types';
+import { toBaseItemName } from './debugItemData';
 
 export type GameDifficulty = 'easy' | 'normal' | 'hard';
 export type FishingRodName = '竹の釣竿' | '丈夫な釣竿' | '高級釣竿' | '伝説の釣り竿';
@@ -112,7 +113,7 @@ export const FISH_ZUKAN_ENTRIES: readonly FishZukanEntry[] = FISHING_FISH_DATA.m
 export const isFishingRodName = (name: string): name is FishingRodName => name in FISHING_ROD_CATCH_TABLE;
 
 export const getFishingRodName = (name: string): FishingRodName => (
-  isFishingRodName(name) ? name : DEFAULT_FISHING_ROD
+  isFishingRodName(toBaseItemName(name)) ? toBaseItemName(name) as FishingRodName : DEFAULT_FISHING_ROD
 );
 
 export const FISHING_ROD_RANKS: readonly FishingRodName[] = [

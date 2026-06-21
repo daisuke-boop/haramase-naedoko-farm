@@ -18,7 +18,7 @@ export const LUMBER_DATA: readonly LumberData[] = [
   { id: 'ancient_tree', name: '古代の神木', minSize: 100, maxSize: 160, basePriceMin: 2000, basePriceMax: 15000 },
 ] as const;
 
-export const sellPriceMultiplier = 100;
+export const sellPriceMultiplier = 10;
 
 export const SAW_RANKS: readonly SawName[] = [
   'のこぎり',
@@ -42,14 +42,16 @@ export const SAW_LUMBER_WEIGHTS: Readonly<Record<SawName, Readonly<Record<Lumber
   },
 };
 
-export const isSawName = (name: string): name is SawName => SAW_RANKS.includes(name as SawName);
+export const isSawName = (name: string): name is SawName => SAW_RANKS.includes(toBaseItemName(name) as SawName);
 
 export const getHighestOwnedSaw = (
   equippedItems: Readonly<Record<string, string>>,
   inventoryCounts: Readonly<Record<string, number>>,
 ): SawName => {
-  const equippedSawNames = Object.values(equippedItems).filter(isSawName);
-  const ownedSawNames = SAW_RANKS.filter(name => (inventoryCounts[name] ?? 0) > 0);
+  const equippedSawNames = Object.values(equippedItems)
+    .map(toBaseItemName)
+    .filter(isSawName);
+  const ownedSawNames = SAW_RANKS.filter(name => getItemCountIncludingDebug(inventoryCounts, name) > 0);
   const candidates = [...equippedSawNames, ...ownedSawNames];
   return candidates.reduce<SawName>((highest, saw) => (
     SAW_RANKS.indexOf(saw) > SAW_RANKS.indexOf(highest) ? saw : highest
@@ -95,3 +97,4 @@ export const createLumberRewards = (
   const lumber = selectLumberReward(sawName, random);
   return { lumber, size: createLumberSize(lumber, random) };
 });
+import { getItemCountIncludingDebug, toBaseItemName } from './debugItemData';
