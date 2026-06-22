@@ -621,6 +621,14 @@ type BattleSupportEffectState = {
   targetId: string;
   key: number;
 } | null;
+type BattleDamagePopup = {
+  targetId: string;
+  damage: number;
+  critical: boolean;
+  healing: boolean;
+  spRecovery: boolean;
+  key: number;
+};
 type MiningDirection = 'ArrowUp' | 'ArrowDown' | 'ArrowLeft' | 'ArrowRight';
 type MiningRhythmNote = {
   id: number;
@@ -750,6 +758,7 @@ const BATTLE_CONSUMABLE_ITEMS: readonly BattleConsumableItem[] = [
     desc: '戦闘不能の味方1人をHP80%で復活させる究極の雫。終盤の切り札です。',
   },
 ];
+const DEBUG_BATTLE_CONSUMABLE_ITEM_NAMES = BATTLE_CONSUMABLE_ITEMS.map(item => toDebugItemName(item.name));
 const getBattleConsumableItem = (name: string): BattleConsumableItem | undefined => (
   BATTLE_CONSUMABLE_ITEMS.find(item => item.name === name)
 );
@@ -797,6 +806,8 @@ const BATTLE_BEAST_POSE_FRAME_INDEX: Readonly<Record<BattlePose, number>> = {
   skill: 1,
 };
 const BATTLE_ENEMY_TURN_DELAY_MS = 2000;
+const BATTLE_ATTACK_MOTION_DURATION_MS = 1100;
+const BATTLE_RESULT_REVEAL_DELAY_MS = 1250;
 const BATTLE_SKILL_SP_COST = 2;
 type PartnerSkillPreview = {
   name: string;
@@ -1655,7 +1666,6 @@ const createInitialBattlePreviewState = (
   const turnQueue = createBattleTurnQueue(hero, allies, initialBeasts);
   const maxBattleSp = 4 + heroStats.level * 2;
   const partnerSkillMaxUses = companion ? (PARTNER_SKILL_PREVIEWS[companion.id]?.maxUses ?? 0) : 0;
-  const partnerSkillUses = partnerSkillMaxUses > 0 ? 1 + Math.floor(Math.random() * partnerSkillMaxUses) : 0;
   return {
     hero,
     allies,
@@ -1676,7 +1686,7 @@ const createInitialBattlePreviewState = (
     battleSp: maxBattleSp,
     maxBattleSp,
     partnerSkillUses: 0,
-    partnerSkillMaxUses: partnerSkillUses,
+    partnerSkillMaxUses,
     partnerDropRateBonus: 0,
     healingItemUses: 0,
     reviveItemUses: 0,
@@ -1964,6 +1974,11 @@ export default function App() {
   const [battleMotion, setBattleMotion] = useState<BattleMotionState>(null);
   const [battleHitEffect, setBattleHitEffect] = useState<BattleHitEffectState>(null);
   const [battleSupportEffect, setBattleSupportEffect] = useState<BattleSupportEffectState>(null);
+  const [battleDamagePopups, setBattleDamagePopups] = useState<BattleDamagePopup[]>([]);
+  const [battleResultReveal, setBattleResultReveal] = useState(false);
+  const previousBattleVitalsRef = useRef<{ hpById: Record<string, number>; battleSp: number } | null>(null);
+  const resolvedPartnerTurnRef = useRef<string | null>(null);
+  const battleLogRef = useRef<HTMLDivElement | null>(null);
   const battleLoseSoundPlayedRef = useRef(false);
   const [battleItemPanelOpen, setBattleItemPanelOpen] = useState(false);
   const [battleItemSelectionStep, setBattleItemSelectionStep] = useState<BattleItemSelectionStep>('item');
@@ -2330,12 +2345,21 @@ export default function App() {
       return next.length === prev.length ? prev : next;
     });
     setInventoryCounts(prev => {
-      if (!REMOVED_LEGACY_ITEM_VARIANTS.some(itemName => (prev[itemName] ?? 0) > 0)) return prev;
       const next = { ...prev };
+      let changed = false;
       REMOVED_LEGACY_ITEM_VARIANTS.forEach(itemName => {
-        delete next[itemName];
+        if ((next[itemName] ?? 0) > 0) {
+          delete next[itemName];
+          changed = true;
+        }
       });
-      return next;
+      DEBUG_BATTLE_CONSUMABLE_ITEM_NAMES.forEach(itemName => {
+        if ((next[itemName] ?? 0) <= 0) {
+          next[itemName] = 1;
+          changed = true;
+        }
+      });
+      return changed ? next : prev;
     });
     if (REMOVED_LEGACY_ITEM_VARIANTS.includes(selectedItemName)) {
       setSelectedItemName('いやし草もち');
@@ -5314,6 +5338,9 @@ export default function App() {
     setBattleMotion(null);
     setBattleHitEffect(null);
     setBattleSupportEffect(null);
+    setBattleDamagePopups([]);
+    previousBattleVitalsRef.current = null;
+    resolvedPartnerTurnRef.current = null;
     setBattlePartnerSkillDisplay(null);
     setBattleItemPanelOpen(false);
     setBattleItemSelectionStep('item');
@@ -5340,6 +5367,9 @@ export default function App() {
     setBattleMotion(null);
     setBattleHitEffect(null);
     setBattleSupportEffect(null);
+    setBattleDamagePopups([]);
+    previousBattleVitalsRef.current = null;
+    resolvedPartnerTurnRef.current = null;
     setBattlePartnerSkillDisplay(null);
     setBattleItemPanelOpen(false);
     setBattleItemSelectionStep('item');
@@ -5466,6 +5496,75 @@ export default function App() {
     }, durationMs);
   };
 
+  const triggerBattleDamagePopup = (
+    targetId: string,
+    damage: number,
+    critical = false,
+    healing = false,
+    spRecovery = false,
+  ) => {
+    const key = Date.now() + Math.random();
+    setBattleDamagePopups(current => [...current, { targetId, damage, critical, healing, spRecovery, key }]);
+    window.setTimeout(() => {
+      setBattleDamagePopups(current => current.filter(popup => popup.key !== key));
+    }, 900);
+  };
+
+  useEffect(() => {
+    if (!battlePreviewOpen) {
+      previousBattleVitalsRef.current = null;
+      return;
+    }
+
+    const units = [
+      battlePreviewState.hero,
+      ...battlePreviewState.allies.filter((ally): ally is BattleUnitState => Boolean(ally)),
+      ...battlePreviewState.beasts.filter((beast): beast is BattleUnitState => Boolean(beast)),
+    ];
+    const hpById = Object.fromEntries(units.map(unit => [unit.id, unit.hp]));
+    const previous = previousBattleVitalsRef.current;
+    previousBattleVitalsRef.current = { hpById, battleSp: battlePreviewState.battleSp };
+    if (!previous) return;
+
+    units.forEach(unit => {
+      const previousHp = previous.hpById[unit.id];
+      if (previousHp === undefined || previousHp === unit.hp) return;
+      if (unit.hp < previousHp) {
+        triggerBattleDamagePopup(unit.id, previousHp - unit.hp);
+        triggerBattleHitEffect(unit.id);
+        triggerBattleMotion(unit.id, 'hurt', 300);
+      } else {
+        triggerBattleDamagePopup(unit.id, unit.hp - previousHp, false, true);
+      }
+    });
+
+    if (battlePreviewState.battleSp > previous.battleSp) {
+      triggerBattleDamagePopup(
+        battlePreviewState.hero.id,
+        battlePreviewState.battleSp - previous.battleSp,
+        false,
+        false,
+        true,
+      );
+    }
+  }, [battlePreviewOpen, battlePreviewState.hero, battlePreviewState.allies, battlePreviewState.beasts, battlePreviewState.battleSp]);
+
+  useEffect(() => {
+    const isResolved = battlePreviewState.result === 'victory' || battlePreviewState.result === 'defeat';
+    if (!battlePreviewOpen || !isResolved) {
+      setBattleResultReveal(false);
+      return;
+    }
+    const timer = window.setTimeout(() => setBattleResultReveal(true), BATTLE_RESULT_REVEAL_DELAY_MS);
+    return () => window.clearTimeout(timer);
+  }, [battlePreviewOpen, battlePreviewState.result]);
+
+  useEffect(() => {
+    const logElement = battleLogRef.current;
+    if (!battlePreviewOpen || !logElement) return;
+    logElement.scrollTop = logElement.scrollHeight;
+  }, [battlePreviewOpen, battlePreviewState.logs]);
+
   const triggerPartnerSkillDisplay = (partnerId: string, skillName: string) => {
     const key = Date.now();
     setBattlePartnerSkillDisplay({ partnerId, text: skillName, key });
@@ -5495,8 +5594,10 @@ export default function App() {
 
   const getBattleItemOwnedCount = (itemName: string) => getItemCountIncludingDebug(inventoryCounts, itemName);
 
+  const hasBattleDebugItem = (itemName: string) => (inventoryCounts[toDebugItemName(itemName)] ?? 0) > 0;
+
   const getBattleItemInventoryKeyToConsume = (itemName: string) => (
-    (inventoryCounts[itemName] ?? 0) > 0 ? itemName : toDebugItemName(itemName)
+    hasBattleDebugItem(itemName) ? toDebugItemName(itemName) : itemName
   );
 
   const getAvailableBattleItems = () => BATTLE_CONSUMABLE_ITEMS.filter(item => getBattleItemOwnedCount(item.name) > 0);
@@ -5531,11 +5632,12 @@ export default function App() {
       setBattlePreviewState(prev => ({ ...prev, logs: [...prev.logs, `${item.name}を持っていない。`].slice(-12) }));
       return;
     }
-    if (item.kind === 'heal' && current.healingItemUses >= BATTLE_HEALING_ITEM_USE_LIMIT) {
+    const isDebugItem = hasBattleDebugItem(item.name);
+    if (!isDebugItem && item.kind === 'heal' && current.healingItemUses >= BATTLE_HEALING_ITEM_USE_LIMIT) {
       setBattlePreviewState(prev => ({ ...prev, logs: [...prev.logs, '回復アイテムはこのバトルではもう使えない。'].slice(-12) }));
       return;
     }
-    if (item.kind === 'revive' && current.reviveItemUses >= BATTLE_REVIVE_ITEM_USE_LIMIT) {
+    if (!isDebugItem && item.kind === 'revive' && current.reviveItemUses >= BATTLE_REVIVE_ITEM_USE_LIMIT) {
       setBattlePreviewState(prev => ({ ...prev, logs: [...prev.logs, '蘇生アイテムはこのバトルではもう使えない。'].slice(-12) }));
       return;
     }
@@ -5557,14 +5659,17 @@ export default function App() {
     }
 
     const turnLogs: string[] = [`${item.name}を使った！`];
+    let recoveredHp = 0;
     if (item.kind === 'heal') {
       const healAmount = item.healAmount ?? 0;
       const beforeHp = target.hp;
       target.hp = Math.min(target.maxHp, target.hp + healAmount);
-      turnLogs.push(`${target.name}のHPが${target.hp - beforeHp}回復した！`);
+      recoveredHp = target.hp - beforeHp;
+      turnLogs.push(`${target.name}のHPが${recoveredHp}回復した！`);
     } else {
       const reviveHp = Math.max(1, Math.round(target.maxHp * (item.reviveHpRate ?? 0.25)));
       target.hp = Math.min(target.maxHp, reviveHp);
+      recoveredHp = target.hp;
       turnLogs.push(`${target.name}がHP${target.hp}で復活した！`);
     }
 
@@ -5610,22 +5715,12 @@ export default function App() {
       return;
     }
     if (command === '攻撃') {
-      triggerBattleMotion('hero', 'attack');
+      triggerBattleMotion('hero', 'attack', BATTLE_ATTACK_MOTION_DURATION_MS);
       playBattleHitSe();
-      const target = battlePreviewState.beasts.find(beast => beast && beast.hp > 0);
-      if (target) window.setTimeout(() => {
-        triggerBattleMotion(target.id, 'hurt', 300);
-        triggerBattleHitEffect(target.id);
-      }, 220);
     }
     if (command === '強攻撃') {
       triggerBattleMotion('hero', 'skill', 520);
       playUiSound(BATTLE_SE_SOURCES.skill);
-      const target = battlePreviewState.beasts.find(beast => beast && beast.hp > 0);
-      if (target) window.setTimeout(() => {
-        triggerBattleMotion(target.id, 'hurt', 340);
-        triggerBattleHitEffect(target.id);
-      }, 260);
     }
     if (command === '防御') {
       triggerBattleMotion('hero', 'defend', 560);
@@ -5775,7 +5870,7 @@ export default function App() {
             return { ...prev, hero, allies, beasts, result, ...(result === 'ongoing' ? nextTurn : { turn: 'party' }) };
           }
           turnLogs.push(`${beast.name}の攻撃！`);
-          triggerBattleMotion(beast.id, 'attack', 420);
+          triggerBattleMotion(beast.id, 'attack', BATTLE_ATTACK_MOTION_DURATION_MS);
           playBattleHitSe();
 
           if (target.id === hero.id) {
@@ -5787,11 +5882,6 @@ export default function App() {
               playUiSound(BATTLE_SE_SOURCES.guard);
               window.setTimeout(() => triggerBattleMotion(target.id, 'defend', 300), 180);
               turnLogs.push('主人公は防御してダメージを半減した！');
-            } else {
-              window.setTimeout(() => {
-                triggerBattleMotion(target.id, 'hurt', 260);
-                triggerBattleHitEffect(target.id);
-              }, 220);
             }
             target.hp = Math.max(0, target.hp - damage);
             if (result.critical) turnLogs.push('クリティカル！');
@@ -5800,10 +5890,6 @@ export default function App() {
           } else {
             const result = calculateBattleDamage(beast, target, { isBeastAttacker: true });
             target.hp = Math.max(0, target.hp - result.damage);
-            window.setTimeout(() => {
-              triggerBattleMotion(target.id, 'hurt', 260);
-              triggerBattleHitEffect(target.id);
-            }, 220);
             if (result.critical) turnLogs.push('クリティカル！');
             turnLogs.push(`${target.name}に${result.damage}ダメージ！`);
             if (target.hp <= 0) turnLogs.push(`${target.name}は倒れた！`);
@@ -5834,9 +5920,19 @@ export default function App() {
     if (!battlePreviewOpen) return;
     if (battleIntroPhase !== null) return;
     if (battlePreviewState.result !== 'ongoing') return;
-    if ((battlePreviewState.turn ?? 'party') !== 'partner') return;
+    if ((battlePreviewState.turn ?? 'party') !== 'partner') {
+      resolvedPartnerTurnRef.current = null;
+      return;
+    }
 
     const timer = window.setTimeout(() => {
+      const activeTurn = battlePreviewState.turnQueue[battlePreviewState.turnIndex];
+      const turnKey = `${battlePreviewState.turnIndex}:${activeTurn?.unitId ?? ''}`;
+      if (resolvedPartnerTurnRef.current === turnKey) return;
+      resolvedPartnerTurnRef.current = turnKey;
+      const partnerSkillRoll = Math.random();
+      let partnerSkillEffectsPlayed = false;
+      let partnerAttackEffectsPlayed = false;
       setBattlePreviewState(prev => {
         if (prev.result !== 'ongoing') return prev;
         if ((prev.turn ?? 'party') !== 'partner') return prev;
@@ -5860,47 +5956,83 @@ export default function App() {
         let partnerDropRateBonus = prev.partnerDropRateBonus;
         let isPutiFollowUp = false;
         let usedSupportSkill = false;
-        const isSpRecoverySkill = partner.id === 'viola' || partner.id === 'saffy';
+        let supportEffectTargetId = hero.id;
+        let recoveredHp = 0;
+        let recoveredSp = 0;
         const canUsePartnerSkill = skill &&
           partnerSkillUses < prev.partnerSkillMaxUses &&
-          (!isSpRecoverySkill || battleSp < prev.maxBattleSp);
-        if (canUsePartnerSkill && Math.random() < 0.5) {
-          partnerSkillUses += 1;
+          (
+            partner.id === 'viola' || partner.id === 'saffy'
+              ? battleSp < prev.maxBattleSp
+              : partner.id === 'kabune'
+                ? hero.hp > 0 && hero.hp < hero.maxHp
+                : partner.id === 'cure'
+                  ? hero.hp > 0 && hero.hp < hero.maxHp
+                  : true
+          );
+        if (canUsePartnerSkill && partnerSkillRoll < 0.5) {
+          partnerSkillUses = Math.min(prev.partnerSkillMaxUses, partnerSkillUses + 1);
           usedSupportSkill = PARTNER_SUPPORT_SKILL_IDS.has(partner.id);
-          triggerPartnerSkillDisplay(partner.id, skill.name);
           turnLogs.push(`${partner.name}の${skill.name}！`);
-          if (usedSupportSkill) {
-            triggerBattleMotion(partner.id, 'defend', 520);
-            triggerBattleSupportEffect(hero.id);
-            playUiSound(BATTLE_SE_SOURCES.cure);
+          const shouldPlaySkillEffects = !partnerSkillEffectsPlayed;
+          if (shouldPlaySkillEffects) {
+            partnerSkillEffectsPlayed = true;
+            triggerPartnerSkillDisplay(partner.id, skill.name);
+            if (usedSupportSkill) {
+              triggerBattleMotion(partner.id, 'defend', 520);
+            }
           }
           switch (partner.id) {
-            case 'viola': battleSp = Math.min(prev.maxBattleSp, battleSp + 2); break;
+            case 'viola': {
+              const beforeSp = battleSp;
+              battleSp = Math.min(prev.maxBattleSp, battleSp + 2);
+              recoveredSp = battleSp - beforeSp;
+              break;
+            }
             case 'nazuna': target.defense = Math.max(0, target.defense - 2); break;
             case 'kabune': {
-              const recipient = [hero, ...allies.filter((ally): ally is BattleUnitState => Boolean(ally))].sort((left, right) => left.hp / left.maxHp - right.hp / right.maxHp)[0];
+              const recipient = [hero, ...allies.filter((ally): ally is BattleUnitState => Boolean(ally && ally.hp > 0))]
+                .filter(unit => unit.hp < unit.maxHp)
+                .sort((left, right) => left.hp / left.maxHp - right.hp / right.maxHp)[0];
+              if (!recipient) break;
+              const beforeHp = recipient.hp;
               recipient.hp = Math.min(recipient.maxHp, recipient.hp + 10);
+              recoveredHp = recipient.hp - beforeHp;
+              supportEffectTargetId = recipient.id;
               break;
             }
             case 'caro': hero.speed += 3; break;
             case 'theta': partnerDropRateBonus += 0.10; break;
-            case 'cure': hero.hp = Math.min(hero.maxHp, hero.hp + 15); break;
+            case 'cure': {
+              const beforeHp = hero.hp;
+              hero.hp = Math.min(hero.maxHp, hero.hp + 15);
+              recoveredHp = hero.hp - beforeHp;
+              break;
+            }
             case 'shiro': hero.beastDamageReduction = (hero.beastDamageReduction ?? 0) + 8; break;
             case 'momona': hero.criticalRate = (hero.criticalRate ?? 0) + 5; break;
             case 'pan': hero.beastDamageReduction = (hero.beastDamageReduction ?? 0) + 15; break;
             case 'puti': isPutiFollowUp = true; break;
             case 'roma': partnerDropRateBonus += 0.10; break;
-            case 'saffy': battleSp = Math.min(prev.maxBattleSp, battleSp + 2); break;
+            case 'saffy': {
+              const beforeSp = battleSp;
+              battleSp = Math.min(prev.maxBattleSp, battleSp + 2);
+              recoveredSp = battleSp - beforeSp;
+              break;
+            }
+          }
+          if (usedSupportSkill && shouldPlaySkillEffects) {
+            triggerBattleSupportEffect(supportEffectTargetId);
+            playUiSound(BATTLE_SE_SOURCES.cure);
           }
         }
-        window.setTimeout(() => {
-          triggerBattleMotion(partner.id, 'attack', 420);
-          playBattleHitSe();
-        }, usedSupportSkill ? 520 : 0);
-        window.setTimeout(() => {
-          triggerBattleMotion(target.id, 'hurt', 300);
-          triggerBattleHitEffect(target.id);
-        }, usedSupportSkill ? 740 : 220);
+        if (!partnerAttackEffectsPlayed) {
+          partnerAttackEffectsPlayed = true;
+          window.setTimeout(() => {
+            triggerBattleMotion(partner.id, 'attack', BATTLE_ATTACK_MOTION_DURATION_MS);
+            playBattleHitSe();
+          }, usedSupportSkill ? 520 : 0);
+        }
 
         const { damage, critical } = calculateBattleDamage(partner, target, { isBeastTarget: true });
         target.hp = Math.max(0, target.hp - damage);
@@ -9535,6 +9667,7 @@ export default function App() {
     if (!audio) return;
     if (!battlePreviewOpen) return;
     if (battlePreviewState.result !== 'ongoing') return;
+    cancelBgmFade();
     const nextSource = BATTLE_BGM_SOURCES[difficulty];
     if (bgmSourceRef.current !== nextSource) {
       bgmSourceRef.current = nextSource;
@@ -13478,14 +13611,25 @@ export default function App() {
             const selectedBattleItemTarget = battleItemTargets[Math.min(selectedBattleItemTargetIndex, Math.max(0, battleItemTargets.length - 1))];
             const healingItemRemainingUses = Math.max(0, BATTLE_HEALING_ITEM_USE_LIMIT - battlePreviewState.healingItemUses);
             const reviveItemRemainingUses = Math.max(0, BATTLE_REVIVE_ITEM_USE_LIMIT - battlePreviewState.reviveItemUses);
-            const renderHpBar = (hp: number, maxHp: number, colorClass = 'bg-[#4ade80]', spacingClass = 'mt-2') => (
-              <div className={`${spacingClass} h-3 overflow-hidden rounded-full border border-white/20 bg-black/55`}>
+            const recentBattleLogs = logs.slice(-5);
+            const renderHpBar = (hp: number, maxHp: number, colorClass = 'bg-[#4ade80]') => (
+              <div className="h-3.5 overflow-hidden rounded-full border border-white/20 bg-black/65 p-px shadow-[inset_0_1px_2px_rgba(0,0,0,0.85)]">
                 <div
-                  className={`h-full rounded-full transition-[width] ${colorClass}`}
+                  className={`h-full rounded-full ${colorClass} shadow-[0_0_8px_currentColor] transition-[width] duration-300 ease-out`}
                   style={{ width: `${Math.max(0, Math.min(100, (hp / maxHp) * 100))}%` }}
                 />
               </div>
             );
+            const renderDamagePopups = (targetId: string, positionClass = '') => battleDamagePopups
+              .filter(popup => popup.targetId === targetId)
+              .map(popup => (
+                <span
+                  key={popup.key}
+                  className={`battle-damage-popup ${positionClass} ${popup.spRecovery ? 'is-sp-recovery' : popup.healing ? 'is-healing' : popup.critical ? 'is-critical' : ''}`}
+                >
+                  {popup.spRecovery ? `SP +${popup.damage}` : `${popup.healing ? '+' : ''}${popup.damage}`}
+                </span>
+              ));
             const renderSpriteSheet = (
               unit: BattleUnitState,
               src: string,
@@ -13506,6 +13650,7 @@ export default function App() {
                     }}
                   />
                 </div>
+                {renderDamagePopups(unit.id)}
               </div>
             );
             const renderHeroSprite = () => {
@@ -13514,18 +13659,20 @@ export default function App() {
                 return (
                   <div className="absolute bottom-[8px] right-[8%] z-[5] w-[260px] aspect-square overflow-visible drop-shadow-[0_18px_16px_rgba(0,0,0,0.65)]">
                     <img src={getBattleGirlDownSpriteSrc(hero.id)} alt={`${hero.name} 倒れ`} className="h-full w-full object-contain" />
+                    {renderDamagePopups(hero.id)}
                   </div>
                 );
               }
               const pose = getBattleSpritePose(hero.id);
               const frameIndex = BATTLE_POSE_FRAME_INDEX[pose] ?? 0;
+              const isActiveDefendMotion = battleMotion?.actorId === hero.id && battleMotion.pose === 'defend';
               const motionClass = pose === 'skill'
                 ? 'battle-actor-strong-attack'
                 : pose === 'attack'
                 ? 'battle-actor-attack-right'
                 : pose === 'hurt'
                   ? 'battle-actor-hurt'
-                  : pose === 'defend'
+                  : isActiveDefendMotion
                     ? 'battle-actor-defend'
                     : '';
               const hitEffectClass = battleHitEffect?.targetId === hero.id ? 'battle-hit-effect' : '';
@@ -13543,13 +13690,14 @@ export default function App() {
               const isDown = companion.hp <= 0;
               const pose = getBattleSpritePose(companion.id);
               const frameIndex = BATTLE_POSE_FRAME_INDEX[pose] ?? 0;
+              const isActiveDefendMotion = battleMotion?.actorId === companion.id && battleMotion.pose === 'defend';
               const motionClass = isDown
                 ? ''
                 : pose === 'attack' || pose === 'skill'
                   ? 'battle-actor-attack-right'
                   : pose === 'hurt'
                     ? 'battle-actor-hurt'
-                    : pose === 'defend'
+                    : isActiveDefendMotion
                       ? 'battle-actor-defend'
                     : '';
               const hitEffectClass = battleHitEffect?.targetId === companion.id ? 'battle-hit-effect' : '';
@@ -13570,12 +13718,18 @@ export default function App() {
                       src={isDown ? getBattleGirlDownSpriteSrc(companion.id) : getBattleGirlSpriteSrc(companion.id)}
                       alt={isDown ? `${companion.name} 倒れ` : companion.name}
                       className={isDown ? 'h-full w-full object-contain' : 'absolute top-0 h-full max-w-none object-fill'}
+                      onError={isDown ? event => {
+                        event.currentTarget.onerror = null;
+                        event.currentTarget.src = getBattleGirlSpriteSrc(companion.id);
+                        event.currentTarget.className = 'h-full w-full object-contain opacity-65';
+                      } : undefined}
                       style={isDown ? undefined : {
                         width: `${BATTLE_SPRITE_FRAME_COUNT * 100}%`,
                         left: `-${frameIndex * 100}%`,
                       }}
                     />
                   </div>
+                  {renderDamagePopups(companion.id)}
                 </div>
               );
             };
@@ -13613,6 +13767,7 @@ export default function App() {
                       }}
                     />
                   </div>
+                  {renderDamagePopups(beast.id, 'is-beast')}
                 </div>
               );
             };
@@ -13631,44 +13786,55 @@ export default function App() {
                 <div className="relative aspect-[16/9] w-[1320px] max-w-[calc(100%-32px)] overflow-hidden rounded-2xl border-4 border-[#dda15e] bg-[#140d0b] text-[#fdf6e3] shadow-[0_28px_80px_rgba(0,0,0,0.78)]">
                   <img src={battleBackgroundSrc} alt="" className="absolute inset-0 h-full w-full object-cover" />
                   <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(0,0,0,0.34),transparent_22%,transparent_65%,rgba(0,0,0,0.62)),radial-gradient(circle_at_center,transparent_38%,rgba(0,0,0,0.42))]" />
-                  <div className="absolute inset-x-[34px] bottom-[214px] top-[54px] z-[3]">
+                  <div className="absolute inset-x-[34px] bottom-[198px] top-[54px] z-[3]">
                     <div className="absolute bottom-0 left-[60px] right-[60px] z-[2] h-[92px] rounded-[50%] bg-[radial-gradient(ellipse_at_center,rgba(255,209,102,0.26),rgba(0,0,0,0.18)_58%,transparent_70%)]" />
                     {aliveBeasts.map((beast, index) => renderBeastSprite(beast, index))}
                     {renderCompanionSprite()}
                     {renderHeroSprite()}
                   </div>
-                  <div className="absolute bottom-[18px] left-6 right-6 z-[8] grid grid-cols-[300px_minmax(0,1fr)_250px] grid-rows-[82px_112px] gap-3">
-                    <div className="rounded-xl border-2 border-[#dda15e]/55 bg-[#0d1117]/90 px-4 py-3">
-                      <div className="flex justify-between text-sm font-black">
+                  <div className="absolute bottom-[18px] left-6 right-6 z-[8] grid grid-cols-[minmax(430px,1.45fr)_minmax(360px,1fr)_250px] grid-rows-[76px_96px] gap-3">
+                    <div className="rounded-xl border-2 border-[#dda15e]/55 bg-[#0d1117]/90 px-4 py-2.5">
+                      <div className="mb-1 text-base font-black leading-tight">
                         <span>{mainBeast?.name ?? '獣'}</span>
-                        <span>{mainBeast ? `HP ${mainBeast.hp} / ${mainBeast.maxHp}` : '-'}</span>
                       </div>
-                      {mainBeast ? renderHpBar(mainBeast.hp, mainBeast.maxHp, 'bg-[#ef4444]') : null}
-                    </div>
-                    <div className="col-start-1 row-start-2 rounded-xl border-2 border-[#dda15e]/55 bg-[#0d1117]/90 px-4 py-2">
-                      <div className="grid h-full grid-rows-[20px_12px_20px_12px] gap-y-1 text-[12px] font-black leading-tight">
-                        <div className="flex min-w-0 items-center justify-between gap-2">
-                          <span className="min-w-0 truncate whitespace-nowrap">
-                          主人公 {heroStars.map((filled, index) => (
-                            <span key={index} className={filled ? 'text-[#ffd166]' : 'text-[#5a4a31]'}>★</span>
-                          ))}{hero.defending ? ' / 防御中' : ''} <span className="text-[#7dd3fc]">SP {battlePreviewState.battleSp}/{battlePreviewState.maxBattleSp}</span>
-                          </span>
-                          <span className="shrink-0 whitespace-nowrap text-right">HP {hero.hp}/{hero.maxHp}</span>
+                      {mainBeast && (
+                        <div className="grid grid-cols-[minmax(0,1fr)_58px] items-center gap-3 text-base font-black tabular-nums">
+                          {renderHpBar(mainBeast.hp, mainBeast.maxHp, 'bg-[#ef4444]')}
+                          <span className="whitespace-nowrap text-right">{mainBeast.hp}/{mainBeast.maxHp}</span>
                         </div>
-                        {renderHpBar(hero.hp, hero.maxHp, 'bg-[#22c55e]', 'mt-0')}
+                      )}
+                    </div>
+                    <div className="col-start-1 row-start-2 rounded-xl border-2 border-[#dda15e]/55 bg-[#0d1117]/90 px-5 py-2">
+                      <div className="grid h-full grid-rows-[22px_18px_22px] gap-y-1 text-base font-black leading-none tabular-nums">
+                        <div className="grid min-w-0 grid-cols-[168px_minmax(0,1fr)_58px] items-center gap-3">
+                          <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-2 whitespace-nowrap">
+                            <span className="min-w-0 truncate">主人公 <span>{heroStars.map((filled, index) => (
+                              <span key={index} className={filled ? 'text-[#ffd166]' : 'text-[#5a4a31]'}>★</span>
+                            ))}</span></span>
+                            <span>HP</span>
+                          </div>
+                          {renderHpBar(hero.hp, hero.maxHp, 'bg-[#22c55e]')}
+                          <span className="whitespace-nowrap text-right">{hero.hp}/{hero.maxHp}</span>
+                        </div>
+                        <div className="grid min-h-[16px] grid-cols-[168px_minmax(0,1fr)_58px] items-center gap-3 text-[#7dd3fc]">
+                          <span className="flex h-full items-center justify-end">SP</span>
+                          {renderHpBar(battlePreviewState.battleSp, battlePreviewState.maxBattleSp, 'bg-[#38bdf8]')}
+                          <span className="whitespace-nowrap text-right">{battlePreviewState.battleSp}/{battlePreviewState.maxBattleSp}</span>
+                        </div>
                         {companion && (
-                          <>
-                            <div className="flex min-w-0 items-center justify-between gap-2">
-                              <span className="min-w-0 truncate whitespace-nowrap">{companion.name}</span>
-                              <span className="shrink-0 whitespace-nowrap text-right">HP {companion.hp}/{companion.maxHp}</span>
+                          <div className="grid min-w-0 grid-cols-[168px_minmax(0,1fr)_58px] items-center gap-3">
+                            <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-2 whitespace-nowrap">
+                              <span className="min-w-0 truncate">{companion.name}</span>
+                              <span>HP</span>
                             </div>
-                            {renderHpBar(companion.hp, companion.maxHp, 'bg-[#f59e0b]', 'mt-0')}
-                          </>
+                            {renderHpBar(companion.hp, companion.maxHp, 'bg-[#f59e0b]')}
+                            <span className="whitespace-nowrap text-right">{companion.hp}/{companion.maxHp}</span>
+                          </div>
                         )}
                       </div>
                     </div>
-                    <div className="row-span-2 rounded-xl border-2 border-[#dda15e]/55 bg-[#0d1117]/90 p-2">
-                      <div className="grid h-full grid-rows-5 gap-2">
+                    <div className="row-span-2 rounded-xl border-2 border-[#dda15e]/55 bg-[#0d1117]/90 p-2.5">
+                      <div className="grid h-full grid-rows-5 gap-1.5">
                         {result === 'ongoing' ? actionButtons.map((label, index) => (
                           (() => {
                             const isAvailable = battleIntroPhase === null && isHeroTurn && (label !== '強攻撃' || battlePreviewState.battleSp >= BATTLE_SKILL_SP_COST);
@@ -13679,7 +13845,7 @@ export default function App() {
                               onPointerDown={() => setSelectedBattleCommandIndex(index)}
                               onClick={() => handleBattlePreviewCommand(label)}
                               disabled={!isAvailable}
-                              className={`rounded-lg border-2 px-4 text-lg font-black shadow-[0_4px_0_rgba(0,0,0,0.35)] ${
+                              className={`flex min-h-0 items-center justify-center rounded-lg border-2 px-4 py-0 text-lg font-black leading-none whitespace-nowrap shadow-[0_3px_0_rgba(0,0,0,0.35)] transition-colors ${
                               isAvailable
                                 ? selected
                                   ? 'border-white bg-[#4a5823] text-[#fdf6e3] hover:border-white hover:bg-[#60732d]'
@@ -13694,20 +13860,28 @@ export default function App() {
                           <button
                             type="button"
                             onClick={() => { playFixSound(); setBattleMotion(null); setBattlePreviewOpen(false); }}
-                            className="row-span-5 rounded-lg border-2 border-[#c8a87a] bg-[#202938] px-4 text-lg font-black text-[#fdf6e3] shadow-[0_4px_0_rgba(0,0,0,0.35)] hover:border-white hover:bg-[#2f3c52]"
+                            className="row-span-5 flex min-h-0 items-center justify-center rounded-lg border-2 border-[#c8a87a] bg-[#202938] px-4 py-0 text-lg font-black leading-none text-[#fdf6e3] shadow-[0_3px_0_rgba(0,0,0,0.35)] transition-colors hover:border-white hover:bg-[#2f3c52]"
                           >
                             戦闘を閉じる
                           </button>
                         )}
                       </div>
                     </div>
-                    <div className="col-start-2 row-span-2 row-start-1 rounded-xl border-2 border-[#dda15e]/55 bg-[#0d1117]/90 px-5 py-4 text-base font-bold leading-relaxed">
-                      <div className="h-full overflow-hidden">
-                        {result === 'ongoing' && activeTurn && (
-                          <p className="mb-1 text-sm text-[#7dd3fc]">行動順: {activeTurn.kind === 'party' ? hero.name : activeTurn.kind === 'partner' ? (allies.find(ally => ally?.id === activeTurn.unitId)?.name ?? '仲間') : (beasts.find(beast => beast?.id === activeTurn.unitId)?.name ?? '獣')}</p>
-                        )}
-                        {logs.slice(-5).map((log, index) => (
-                          <p key={`${index}-${log}`} className={index >= logs.slice(-5).length - 1 ? 'text-[#ffd166]' : undefined}>{log}</p>
+                    <div className="col-start-2 row-span-2 row-start-1 rounded-xl border-2 border-[#dda15e]/55 bg-[#0d1117]/90 px-5 py-4 text-lg font-bold leading-relaxed">
+                      <div ref={battleLogRef} className="h-full overflow-y-auto break-words pr-2">
+                        {recentBattleLogs.map((log, index) => (
+                          <p
+                            key={`${index}-${log}`}
+                            className={log.includes('クリティカル')
+                              ? 'text-[#fb7185]'
+                              : companionSkill && log.includes(companionSkill.name)
+                                ? 'text-[#c4b5fd]'
+                                : index === recentBattleLogs.length - 1
+                                  ? 'text-[#ffd166]'
+                                  : undefined}
+                          >
+                            {log}
+                          </p>
                         ))}
                         {result === 'victory' && battlePreviewState.loot.length > 0 && (
                           <p className="mt-2 text-[#bbf7d0]">
@@ -13736,7 +13910,8 @@ export default function App() {
                               {availableBattleItems.map((item, index) => {
                                 const selected = index === selectedBattleItemIndex;
                                 const count = getBattleItemOwnedCount(item.name);
-                                const exhausted = item.kind === 'heal' ? healingItemRemainingUses <= 0 : reviveItemRemainingUses <= 0;
+                                const isDebugItem = hasBattleDebugItem(item.name);
+                                const exhausted = !isDebugItem && (item.kind === 'heal' ? healingItemRemainingUses <= 0 : reviveItemRemainingUses <= 0);
                                 return (
                                   <button
                                     key={item.name}
@@ -13754,7 +13929,7 @@ export default function App() {
                                       <span className="block truncate text-base font-black">{item.name}</span>
                                       <span className="block truncate text-xs font-bold text-[#c8a87a]">{item.kind === 'heal' ? `HP ${item.healAmount} 回復` : `HP ${Math.round((item.reviveHpRate ?? 0) * 100)}% 蘇生`}</span>
                                     </span>
-                                    <span className="text-right text-sm font-black text-[#ffd166]">x{count}</span>
+                                    <span className="text-right text-sm font-black text-[#ffd166]">{isDebugItem ? '∞' : `x${count}`}</span>
                                   </button>
                                 );
                               })}
@@ -13808,7 +13983,7 @@ export default function App() {
                       </div>
                     </div>
                   )}
-                  {(result === 'victory' || result === 'defeat') && (
+                  {battleResultReveal && (result === 'victory' || result === 'defeat') && (
                     <div className="pointer-events-none absolute inset-0 z-[18] flex items-center justify-center px-6" aria-live="polite">
                       <div className={`w-[1120px] max-w-[95%] aspect-[32/9] overflow-hidden drop-shadow-[0_16px_32px_rgba(0,0,0,0.82)] ${result === 'victory' ? 'battle-result-win' : 'battle-result-lose'}`}>
                         <img

@@ -34,6 +34,7 @@
   "hasBeastPremonition": false,
   "premonitionDay": null,
   "scheduledBeastAttackDay": null,
+  "mountainLordAttackPending": false,
   "beastAttackPending": false,
   "companionGirlId": null,
   "currentWeeklyInterestRate": 1.4,
@@ -269,7 +270,7 @@
       "plantedDay": null
     }
   ],
-  "currentAP": 4,
+  "currentAP": 1,
   "maxAPPerTimeSlot": 5,
   "difficulty": "easy",
   "currentMap": "farm",
@@ -632,45 +633,45 @@
       "spawnY": 210
     }
   ],
-  "bgmVolume": 0.2,
+  "bgmVolume": 0.03,
   "seVolume": 0.2,
   "voiceVolume": 0.19,
   "audioGains": {
-    "/bgm/ie.mp3": 0.2,
+    "/bgm/ie.mp3": 0.1,
     "/bgm/fishking.mp3": 2.5,
-    "/se/Fireplace.mp3": 0.2,
-    "/voice/kurumi.wav": 0.2,
-    "/bgm/title.mp3": 0.2,
-    "/bgm/farmbgm.wav": 0.2,
-    "/bgm/yado.mp3": 0.2,
-    "/bgm/shop.mp3": 0.2,
-    "/se/zoon2.wav": 0.2,
-    "/se/taki.mp3": 0.2,
-    "/se/river.mp3": 0.2,
-    "/se/semi.mp3": 0.2,
-    "/se/soil.mp3": 0.2,
-    "/se/grass.mp3": 0.2,
-    "/se/foot.mp3": 0.2,
-    "/se/rainw.mp3": 0.2,
-    "/se/rock.mp3": 0.2,
-    "/se/jutan.mp3": 0.2,
-    "/se/don.mp3": 0.2,
-    "/se/door.mp3": 0.2,
-    "/se/suzume.mp3": 0.2,
-    "/se/bird.wav": 0.2,
-    "/se/Water-splash.mp3": 0.2,
-    "/se/cursor.mp3": 0.2,
-    "/se/fix.mp3": 0.2,
-    "/se/success.mp3": 0.2,
-    "/se/cloak.mp3": 0.2,
-    "/se/chapon.mp3": 0.2,
-    "/voice/fish-result.wav": 0.2,
-    "/voice/fish-lose.wav": 0.2,
-    "/voice/kurumi-start.wav": 0.2,
-    "/voice/kurumi-start2.wav": 0.2,
-    "/voice/kurumi-start3.wav": 0.2,
-    "/voice/kurumi-start4.wav": 0.2,
-    "/voice/kurumi-start5.wav": 0.2
+    "/se/Fireplace.mp3": 0.1,
+    "/voice/kurumi.wav": 0.1,
+    "/bgm/title.mp3": 0.1,
+    "/bgm/farmbgm.wav": 0.05,
+    "/bgm/yado.mp3": 0.1,
+    "/bgm/shop.mp3": 0.1,
+    "/se/zoon2.wav": 0.1,
+    "/se/taki.mp3": 0.1,
+    "/se/river.mp3": 0.1,
+    "/se/semi.mp3": 0.1,
+    "/se/soil.mp3": 0.1,
+    "/se/grass.mp3": 0.1,
+    "/se/foot.mp3": 0.1,
+    "/se/rainw.mp3": 0.1,
+    "/se/rock.mp3": 0.1,
+    "/se/jutan.mp3": 0.1,
+    "/se/don.mp3": 0.1,
+    "/se/door.mp3": 0.1,
+    "/se/suzume.mp3": 0.1,
+    "/se/bird.wav": 0.1,
+    "/se/Water-splash.mp3": 0.1,
+    "/se/cursor.mp3": 0.1,
+    "/se/fix.mp3": 0.1,
+    "/se/success.mp3": 0.1,
+    "/se/cloak.mp3": 0.1,
+    "/se/chapon.mp3": 0.1,
+    "/voice/fish-result.wav": 0.1,
+    "/voice/fish-lose.wav": 0.1,
+    "/voice/kurumi-start.wav": 0.1,
+    "/voice/kurumi-start2.wav": 0.1,
+    "/voice/kurumi-start3.wav": 0.1,
+    "/voice/kurumi-start4.wav": 0.1,
+    "/voice/kurumi-start5.wav": 0.1
   },
   "mapBgmSources": {
     "farm": "/bgm/farmbgm.wav",
@@ -45112,9 +45113,13 @@
     }
   },
   "inventoryCounts": {
-    "薬草（デバッグ用）": 1,
     "気付け水（デバッグ用）": 1,
-    "小さな釣り餌（デバッグ用）": 1,
+    "いやし草もち（デバッグ用）": 1,
+    "生命ミルク（デバッグ用）": 1,
+    "女神の蜜薬（デバッグ用）": 1,
+    "めざめの鈴（デバッグ用）": 1,
+    "生命の種火（デバッグ用）": 1,
+    "天命の雫（デバッグ用）": 1,
     "木材（デバッグ用）": 1,
     "川魚の鱗（デバッグ用）": 1,
     "モグラの爪（デバッグ用）": 1,
@@ -45230,39 +45235,49 @@
     "サフィーのサフラン（デバッグ用）": 1,
     "竹の釣竿": 1,
     "【レシピ】のこぎり": 1,
-    "モグラの爪": 2,
+    "モグラの爪": 5,
     "ウサギの靭帯": 0,
     "軟らかい銅鉱石": 3,
     "柔らかな若枝": 0,
     "のこぎり": 1,
     "【レシピ】つるはし": 1,
-    "泥混じりの鉄鉱石": 0,
+    "泥混じりの鉄鉱石": 2,
     "つるはし": 1,
-    "軽石炭": 4,
+    "軽石炭": 7,
     "脆い鉛鉱石": 0,
     "オイカワ": 1,
     "重厚な硬木": 1,
     "堅実な中木": 0,
     "使用済みコンドーム": 1,
     "不朽の鉄木": 1,
-    "古代の神木": 0
+    "古代の神木": 0,
+    "モグラの肉": 1,
+    "熊の剛糸": 4,
+    "鋭い前歯": 1,
+    "熊の爪": 6,
+    "熊の胆石": 2,
+    "鋭い牙": 1,
+    "鋭い爪": 1,
+    "ウグイ": 1
   },
   "equippedItems": {
     "主人公-slot1": "竹の釣竿",
     "主人公-slot2": "のこぎり",
     "主人公-slot3": "つるはし",
-    "主人公-slot4": "農神の指輪（デバッグ用）",
+    "主人公-slot4": "剛牙の鎧（デバッグ用）",
     "ちびいち-slot1": "",
     "ちびいち-slot2": ""
   },
   "caughtFishIds": [
     "oikawa",
-    "gomu"
+    "gomu",
+    "ugui"
   ],
   "nushiCaughtFishIds": [],
   "fishBestSizes": {
     "oikawa": 13.9,
-    "gomu": 12.6
+    "gomu": 12.6,
+    "ugui": 36.3
   },
   "fishInventorySizes": {
     "オイカワ": [
@@ -45270,6 +45285,9 @@
     ],
     "使用済みコンドーム": [
       12.6
+    ],
+    "ウグイ": [
+      36.3
     ]
   },
   "lumberInventorySizes": {
@@ -45287,14 +45305,21 @@
       536,
       640,
       236,
-      239
+      239,
+      610,
+      654,
+      558
     ],
     "軟らかい銅鉱石": [
       1102,
       1792,
       1601
     ],
-    "脆い鉛鉱石": []
+    "脆い鉛鉱石": [],
+    "泥混じりの鉄鉱石": [
+      2134,
+      1203
+    ]
   },
   "depletedMiningPointIds": {},
   "fishingTutorialCompleted": true,
