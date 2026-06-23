@@ -115,6 +115,36 @@ canvas {
     inset 0 0 0 1px rgba(255, 238, 201, 0.2);
 }
 
+.farm-girl-card-reveal-image {
+  animation: farmGirlCardReveal 1.4s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+.farm-girl-card-reveal-sparkles {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 18% 28%, #fff 0 2px, #ffe56b 3px 5px, transparent 7px),
+    radial-gradient(circle at 76% 18%, #fff 0 2px, #ff9ee5 3px 6px, transparent 8px),
+    radial-gradient(circle at 68% 68%, #fff 0 2px, #ffe56b 3px 5px, transparent 7px),
+    radial-gradient(circle at 28% 78%, #fff 0 2px, #ff9ee5 3px 6px, transparent 8px);
+  animation: farmGirlCardSparkles 1.4s ease-out both;
+}
+
+@keyframes farmGirlCardReveal {
+  0%, 28% { opacity: 0; transform: scale(0.82) rotate(-2deg); filter: brightness(2.2) blur(4px); }
+  58% { opacity: 1; transform: scale(1.08) rotate(1deg); filter: brightness(1.65) blur(0); }
+  100% { opacity: 1; transform: scale(1); filter: brightness(1); }
+}
+
+@keyframes farmGirlCardSparkles {
+  0% { opacity: 0; transform: scale(0.65) rotate(-8deg); filter: drop-shadow(0 0 4px #fff); }
+  28% { opacity: 1; }
+  75% { opacity: 0.9; transform: scale(1.12) rotate(8deg); filter: drop-shadow(0 0 12px #ffe56b); }
+  100% { opacity: 0; transform: scale(1.3) rotate(12deg); }
+}
+
 .farm-girl-card-grid,
 .farm-menu-scroll-area {
   scrollbar-gutter: stable;

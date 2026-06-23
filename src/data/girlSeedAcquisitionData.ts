@@ -158,7 +158,7 @@ export const GIRL_SEED_ACQUISITION_DATA: readonly GirlSeedAcquisitionData[] = [
   {
     girlId: 'puti',
     seedId: 'dragon_fruit',
-    seedName: 'ドラゴンフルーツの娘苗',
+    seedName: 'ドラフルの娘苗',
     acquisitionType: 'repaymentUnlock',
     unlockDifficulty: 'hard',
     requiredSuccessfulRepayments: 3,
@@ -167,7 +167,7 @@ export const GIRL_SEED_ACQUISITION_DATA: readonly GirlSeedAcquisitionData[] = [
   {
     girlId: 'roma',
     seedId: 'romanesco',
-    seedName: 'ロマネスコの娘苗',
+    seedName: 'ロマネの娘苗',
     acquisitionType: 'creditUnlock',
     unlockDifficulty: 'hard',
     requiredFarmCredit: 60,

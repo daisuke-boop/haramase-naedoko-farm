@@ -564,6 +564,7 @@ type FarmGirlCondition = 'normal' | 'affected';
 type FarmGirlSaveState = {
   girlId: string;
   state: FarmGirlState;
+  cardRevealed: boolean;
   plantedDay: number | null;
   growthProgress: number;
   lastHarvestDay: number | null;
@@ -580,6 +581,19 @@ type FarmFieldSlotState = {
   girlId: string | null;
   state: Extract<FarmGirlState, 'none' | 'growing' | 'appeared'>;
   plantedDay: number | null;
+};
+type FarmSlotInteractionStage = 'confirmHarvest' | 'confirmPlant' | 'selectSeed' | 'confirmSeed';
+const FARM_SEED_SLOT_PLACEMENTS: Readonly<Record<string, { offsetX: number; offsetY: number; scale: number }>> = {
+  left_1: { offsetX: 102, offsetY: 53, scale: 86 },
+  left_2: { offsetX: 101, offsetY: 53, scale: 86 },
+  left_3: { offsetX: 101, offsetY: 52, scale: 86 },
+  left_4: { offsetX: 101, offsetY: 52, scale: 86 },
+  left_5: { offsetX: 101, offsetY: 52, scale: 86 },
+  left_6: { offsetX: 101, offsetY: 53, scale: 86 },
+  right_1: { offsetX: 100, offsetY: 51, scale: 86 },
+  right_2: { offsetX: 101, offsetY: 52, scale: 86 },
+  right_3: { offsetX: 103, offsetY: 51, scale: 86 },
+  right_4: { offsetX: 102, offsetY: 52, scale: 86 },
 };
 
 type BattleUnitState = BattleStats & {
@@ -843,9 +857,21 @@ const PARTNER_BATTLE_PROFILES: Readonly<Record<string, PartnerBattleProfile>> = 
 
 const FARM_GIRL_CARD_BACK_SRC = '/img/card.png';
 const FARM_GIRL_CARD_IMAGES: Readonly<Record<string, string>> = {
-  chibiichi: '/img/chibiichi-card.jpg',
-  mel: '/img/mel-card.jpg',
-  ruby: '/img/ruby-card.jpg',
+  chibiichi: '/img/chibiichi-card.png',
+  mel: '/img/mel-card.png',
+  ruby: '/img/ruby-card.png',
+  viola: '/img/viora-card.png',
+  nazuna: '/img/nazuna-card.png',
+  kabune: '/img/kabune-card.png',
+  caro: '/img/kyaro-card.png',
+  theta: '/img/shita-card.png',
+  cure: '/img/kyua-card.png',
+  shiro: '/img/shiro-card.png',
+  momona: '/img/momona-card.png',
+  pan: '/img/pan-card.png',
+  puti: '/img/puthi-card.png',
+  roma: '/img/roma-card.png',
+  saffy: '/img/safi-card.png',
 };
 const FARM_GIRL_DETAIL_IMAGES: Readonly<Record<string, string>> = {
   chibiichi: '/img/chibiichi-pro.jpg',
@@ -1425,6 +1451,12 @@ const CRAFT_TUTORIAL_KURUMI_ZONE = { x: 940, y: 480, w: 60, h: 60 };
 const CRAFT_TUTORIAL_KURUMI_LABEL_W = 210;
 const CRAFT_TUTORIAL_KURUMI_LABEL_H = 54;
 const WARP_COOLDOWN_MS = 450;
+const COMPANION_TRAIL_DELAY_FRAMES = 18;
+const COMPANION_FOLLOW_DISTANCE = 54;
+const DEBUG_INITIAL_GIRL_TRUST = 20; // 最終ビルドでは 0 に戻す
+const DEBUG_APPEARED_GIRL_IDS = new Set(
+  GIRL_DATA.filter(girl => girl.id !== 'saffy').map(girl => girl.id)
+); // 最終ビルドでは空に戻す
 const CRAFT_SUCCESS_SOUND_SRC = '/se/craft.mp3';
 const LOGGING_SUCCESS_SOUND_SRC = '/se/success.mp3';
 const LOGGING_CUT_SOUND_SRC = '/se/saw.wav';
@@ -1432,6 +1464,19 @@ const LOGGING_BGM_SRC = '/bgm/tree.mp3';
 const LOGGING_RESULT_SOUND_SRC = '/se/nushi.mp3';
 
 const clampNumber = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
+
+const getCompanionRestPosition = (
+  position: { x: number; y: number },
+  direction: 'up' | 'down' | 'left' | 'right',
+) => {
+  const offset = {
+    up: { x: 0, y: COMPANION_FOLLOW_DISTANCE },
+    down: { x: 0, y: -COMPANION_FOLLOW_DISTANCE },
+    left: { x: COMPANION_FOLLOW_DISTANCE, y: 0 },
+    right: { x: -COMPANION_FOLLOW_DISTANCE, y: 0 },
+  }[direction];
+  return { x: position.x + offset.x, y: position.y + offset.y, direction, isWalking: false };
+};
 const shouldEquipCraftedGatheringTool = (currentTool: string, craftedTool: string) => {
   if (isSawName(craftedTool)) {
     return !isSawName(currentTool) || SAW_RANKS.indexOf(craftedTool) > SAW_RANKS.indexOf(currentTool);
@@ -1755,11 +1800,12 @@ const isFarmGirlState = (value: unknown): value is FarmGirlState => (
 );
 const createInitialFarmGirls = (): FarmGirlSaveState[] => GIRL_DATA.map(girl => ({
   girlId: girl.id,
-  state: 'none',
+  state: DEBUG_APPEARED_GIRL_IDS.has(girl.id) ? 'appeared' : 'none',
+  cardRevealed: DEBUG_APPEARED_GIRL_IDS.has(girl.id),
   plantedDay: null,
   growthProgress: 0,
   lastHarvestDay: null,
-  trust: girl.initialTrust,
+  trust: DEBUG_INITIAL_GIRL_TRUST,
   unlockedTrustEventIds: [],
   condition: 'normal',
   conditionDay: null,
@@ -1782,11 +1828,18 @@ const normalizeFarmGirls = (raw: unknown): FarmGirlSaveState[] => {
     const entry = rawEntry as Record<string, unknown>;
     return {
       girlId: girl.id,
-      state: isFarmGirlState(entry.state) ? entry.state : 'none',
+      state: DEBUG_APPEARED_GIRL_IDS.has(girl.id)
+        ? 'appeared'
+        : isFarmGirlState(entry.state) ? entry.state : 'none',
+      cardRevealed: DEBUG_APPEARED_GIRL_IDS.has(girl.id)
+        ? true
+        : typeof entry.cardRevealed === 'boolean'
+        ? entry.cardRevealed
+        : entry.state === 'appeared' || entry.state === 'companion' || entry.state === 'lover',
       plantedDay: typeof entry.plantedDay === 'number' && Number.isInteger(entry.plantedDay) && entry.plantedDay > 0 ? entry.plantedDay : null,
       growthProgress: typeof entry.growthProgress === 'number' && Number.isFinite(entry.growthProgress) ? clampNumber(entry.growthProgress, 0, 100) : 0,
       lastHarvestDay: typeof entry.lastHarvestDay === 'number' && Number.isInteger(entry.lastHarvestDay) && entry.lastHarvestDay > 0 ? entry.lastHarvestDay : null,
-      trust: typeof entry.trust === 'number' && Number.isFinite(entry.trust) ? clampNumber(entry.trust, 0, 100) : girl.initialTrust,
+      trust: DEBUG_INITIAL_GIRL_TRUST,
       unlockedTrustEventIds: Array.isArray(entry.unlockedTrustEventIds)
         ? entry.unlockedTrustEventIds.filter((id): id is string => typeof id === 'string')
         : [],
@@ -1944,6 +1997,9 @@ const loadFishingFanConfigs = (): Record<string, FishingFanConfig> => {
 export default function App() {
   const [pos, setPos] = useState({ x: 960, y: 540 }); // 起動（リセット）時は常にマップ中央からスタート
   const [dir, setDir] = useState<'up' | 'down' | 'left' | 'right'>('down');
+  // 同行娘は主人公の少し前の足跡をたどる。旋回時も横へワープせず、後ろを自然に追従する。
+  const [companionFollow, setCompanionFollow] = useState({ x: 960, y: 540, direction: 'down' as const, isWalking: false });
+  const companionTrailRef = useRef<Array<{ x: number; y: number; direction: 'up' | 'down' | 'left' | 'right'; isWalking: boolean }>>([]);
   const [isWalking, setIsWalking] = useState(false);
   const [scale, setScale] = useState(1);
   const keys = useRef<{ [key: string]: boolean }>({});
@@ -2075,9 +2131,30 @@ export default function App() {
   const selectedFarmGirlForDetail = menuGirls[selectedFarmGirlIndex] ?? menuGirls[0];
   const [farmGirlDetailOpen, setFarmGirlDetailOpen] = useState(false);
   const [farmGirls, setFarmGirls] = useState<FarmGirlSaveState[]>(createInitialFarmGirls);
+  const [revealingFarmGirlIds, setRevealingFarmGirlIds] = useState<string[]>([]);
   const [ownedGirlSeeds, setOwnedGirlSeeds] = useState<string[]>(() => [...INITIAL_OWNED_GIRL_SEEDS]);
   const [farmFieldSlots, setFarmFieldSlots] = useState<FarmFieldSlotState[]>(() => createInitialFarmFieldSlots('hard'));
   const [plantingSeedId, setPlantingSeedId] = useState<string | null>(null);
+  const [farmSlotInteractionStage, setFarmSlotInteractionStage] = useState<FarmSlotInteractionStage | null>(null);
+  const [activeFarmSlotKey, setActiveFarmSlotKey] = useState<string | null>(null);
+  const [farmSlotConfirmChoice, setFarmSlotConfirmChoice] = useState<'yes' | 'no'>('yes');
+  const [selectedNearbySeedIndex, setSelectedNearbySeedIndex] = useState(0);
+  const [pendingNearbySeedId, setPendingNearbySeedId] = useState<string | null>(null);
+  const [nearbyFarmSlotKey, setNearbyFarmSlotKey] = useState<string | null>(null);
+  const farmSlotInteractionBlockedRef = useRef<string | null>(null);
+  const [showFarmPlantButtonPreview, setShowFarmPlantButtonPreview] = useState(false);
+  const [selectedFarmPlantButtonKey, setSelectedFarmPlantButtonKey] = useState('left_1');
+  const [farmPlantButtonPlacements, setFarmPlantButtonPlacements] = useState<Record<string, { offsetX: number; offsetY: number }>>(() => {
+    try {
+      const parsed = JSON.parse(window.localStorage.getItem('farm_plant_button_placements') ?? '{}');
+      return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+    } catch {
+      return {};
+    }
+  });
+  useEffect(() => {
+    window.localStorage.setItem('farm_plant_button_placements', JSON.stringify(farmPlantButtonPlacements));
+  }, [farmPlantButtonPlacements]);
   const [recipeDetailOpen, setRecipeDetailOpen] = useState(false);
   const [selectedRecipeName, setSelectedRecipeName] = useState('');
   const [craftRecipeSelectMode, setCraftRecipeSelectMode] = useState(false);
@@ -2491,7 +2568,7 @@ export default function App() {
           stats: [12, 8, 10, 14],
           description: '農具と探索を担当します。装備で移動や作業効率を伸ばせます。',
         },
-        {
+        ...(companionGirlId === 'chibiichi' ? [{
           label: 'ちびいち',
           img: '/img/chibiichi.png?v=20260616-restore-2',
           level: 1,
@@ -2504,7 +2581,7 @@ export default function App() {
           ],
           stats: [6, 5, 16, 18],
           description: 'サポート役として農場を手伝います。素早さと魅力が高めです。',
-        },
+        }] : []),
       ];
       const selectedEquipmentCharacter = equipmentCharacters.find(char => selectedEquipmentSlot.startsWith(char.label)) ?? equipmentCharacters[0];
       const selectedEquipmentSlotMatch = /slot(\d+)$/.exec(selectedEquipmentSlot);
@@ -2761,6 +2838,7 @@ export default function App() {
       const selectedFarmGirlState = selectedGirlData
         ? farmGirls.find(girl => girl.girlId === selectedGirlData.id)
         : undefined;
+      const selectedFarmGirlIsVisible = Boolean(selectedFarmGirlState?.cardRevealed);
       const selectedGirlSeedOwned = selectedGirlSeed ? ownedGirlSeeds.includes(selectedGirlSeed.seedId) : false;
       const selectedHarvestInfo = selectedGirlData ? getFarmGirlHarvestInfo(selectedGirlData.id) : null;
       const selectedNextTrustEvent = selectedGirlData && selectedFarmGirlState
@@ -2914,7 +2992,7 @@ export default function App() {
             <div className="flex items-end justify-between gap-3">
               <div>
                 <div style={menuTinyLabelStyle}>娘カード一覧</div>
-                <div className="text-[#fdf6e3] text-lg font-bold leading-tight">クリックで中央に詳細表示</div>
+                <div className="text-[#fdf6e3] text-lg font-bold leading-tight">カードで選択・「詳細」で画像表示</div>
               </div>
               <div className="text-[#d7b98a] text-sm font-bold">{menuGirls.length} / {menuGirls.length}</div>
             </div>
@@ -2926,21 +3004,69 @@ export default function App() {
             <div className="grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_270px] gap-3 overflow-hidden">
               <div className="farm-girl-card-grid grid min-h-0 grid-cols-3 gap-3 overflow-y-auto pr-2">
                 {menuGirls.map((girl, index) => (
-                  <button
+                  (() => {
+                    const farmGirl = farmGirls.find(entry => entry.girlId === girl.id);
+                    const isRevealing = revealingFarmGirlIds.includes(girl.id);
+                    const showGirlCard = farmGirl?.cardRevealed || isRevealing;
+                    const cardImageSrc = showGirlCard ? girl.cardImg : '/img/nae.png';
+                    return (
+                  <div
                     key={girl.id}
-                    type="button"
                     onMouseEnter={() => { if (selectedFarmGirlIndex !== index) playCursorSound(); }}
-                    onPointerDown={(event) => { event.stopPropagation(); playFixSound(); setMenuFocusArea('content'); setMenuContentFocus('secondary'); setSelectedFarmGirlIndex(index); setFarmGirlDetailOpen(true); setDialogMessage(`${girl.name}の詳細情報を表示しました。`); }}
-                    onClick={(event) => { if (event.detail !== 0) return; playFixSound(); setMenuFocusArea('content'); setMenuContentFocus('secondary'); setSelectedFarmGirlIndex(index); setFarmGirlDetailOpen(true); setDialogMessage(`${girl.name}の詳細情報を表示しました。`); }}
-                    className={`farm-girl-card-button relative overflow-hidden border rounded cursor-pointer text-left ${selectedFarmGirlIndex === index ? 'is-selected border-white' : 'border-[#6b3b2f]'}`}
+                    className={`farm-girl-card-button relative overflow-hidden border rounded text-left ${selectedFarmGirlIndex === index ? 'is-selected border-white' : 'border-[#6b3b2f]'}`}
                   >
-                    <img src={girl.cardImg} alt={girl.name} className="absolute inset-0 h-full w-full object-contain p-1.5" />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/82 via-black/8 to-transparent" />
-                    <div className="absolute left-2 right-2 bottom-2 rounded bg-black/58 border border-white/10 px-2 py-1">
-                      <div className="text-[#fff7dc] font-bold text-xs leading-tight">{girl.name}</div>
-                      <div className="text-[9px] text-[#ffd45a] leading-none">{renderStars(girl.affinity)}</div>
-                    </div>
-                  </button>
+                    <button
+                      type="button"
+                      onPointerDown={(event) => {
+                        event.stopPropagation();
+                        playFixSound();
+                        setMenuFocusArea('content');
+                        setMenuContentFocus('secondary');
+                        setSelectedFarmGirlIndex(index);
+                      }}
+                      onClick={(event) => {
+                        if (event.detail !== 0) return;
+                        playFixSound();
+                        setMenuFocusArea('content');
+                        setMenuContentFocus('secondary');
+                        setSelectedFarmGirlIndex(index);
+                      }}
+                      className="absolute inset-0 cursor-pointer text-left"
+                      aria-label={`${girl.name}を選択`}
+                    >
+                      <img
+                        src={cardImageSrc}
+                        alt={showGirlCard ? girl.name : `${girl.name}の苗`}
+                        className={`absolute inset-0 h-full w-full object-contain p-1.5 ${isRevealing ? 'farm-girl-card-reveal-image' : ''}`}
+                      />
+                      {isRevealing && <div className="farm-girl-card-reveal-sparkles" aria-hidden="true" />}
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/82 via-black/8 to-transparent" />
+                      <div className="absolute left-2 right-2 bottom-2 rounded border border-white/10 bg-black/58 px-2 py-1 pr-14">
+                        <div className="text-[#fff7dc] font-bold text-xs leading-tight">{girl.name}</div>
+                        <div className="text-[9px] text-[#ffd45a] leading-none">{renderStars(girl.affinity)}</div>
+                      </div>
+                    </button>
+                    {farmGirl?.cardRevealed && (
+                      <button
+                        type="button"
+                        onPointerDown={(event) => event.stopPropagation()}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          playFixSound();
+                          setMenuFocusArea('content');
+                          setMenuContentFocus('secondary');
+                          setSelectedFarmGirlIndex(index);
+                          setFarmGirlDetailOpen(true);
+                          setDialogMessage(`${girl.name}の詳細情報を表示しました。`);
+                        }}
+                        className="absolute bottom-3 right-3 z-10 rounded border border-[#ffd166]/75 bg-[#5b3518]/95 px-2 py-1 text-[10px] font-black leading-none text-[#fff4ca] hover:bg-[#7a4a24]"
+                      >
+                        詳細
+                      </button>
+                    )}
+                  </div>
+                    );
+                  })()
                 ))}
               </div>
               <div className="farm-menu-scroll-area min-h-0 overflow-y-auto rounded border border-[#5a3010]/80 bg-black/25 p-3 pr-2">
@@ -3021,19 +3147,20 @@ export default function App() {
             </div>
           </div>
           <div style={menuPanelBaseStyle} className="farm-menu-scroll-area flex min-h-0 flex-col gap-3 overflow-y-auto pr-2">
-            <button
-              type="button"
-              onPointerDown={(event) => { event.stopPropagation(); playFixSound(); setMenuFocusArea('content'); setMenuContentFocus('secondary'); setFarmGirlDetailOpen(true); setDialogMessage(`${selectedFarmGirl.name}の詳細情報を表示しました。`); }}
-              onClick={(event) => { if (event.detail !== 0) return; playFixSound(); setMenuFocusArea('content'); setMenuContentFocus('secondary'); setFarmGirlDetailOpen(true); setDialogMessage(`${selectedFarmGirl.name}の詳細情報を表示しました。`); }}
-              className="farm-girl-card-preview relative overflow-hidden rounded border border-[#f1c27d]/70 cursor-pointer"
-            >
-              <img src={selectedFarmGirl.cardImg} alt={selectedFarmGirl.name} className="absolute inset-0 h-full w-full object-contain p-2" />
+            <div className="farm-girl-card-preview relative overflow-hidden rounded border border-[#f1c27d]/70">
+              <img
+                src={selectedFarmGirlIsVisible ? selectedFarmGirl.cardImg : '/img/nae.png'}
+                alt={selectedFarmGirlIsVisible ? selectedFarmGirl.name : `${selectedFarmGirl.name}の苗`}
+                className="absolute inset-0 h-full w-full object-contain p-2"
+              />
               <div className="absolute inset-0 bg-gradient-to-t from-black/82 via-black/10 to-transparent" />
               <div className="absolute left-3 right-3 bottom-3 rounded bg-black/58 border border-white/10 px-3 py-2">
-                <div className="text-[#fff7dc] text-2xl font-bold leading-tight">{selectedFarmGirl.name}</div>
-                <div className="mt-1 text-lg">{renderStars(selectedFarmGirl.affinity)}</div>
+                <div className="text-[#fff7dc] text-2xl font-bold leading-tight">
+                  {selectedFarmGirlIsVisible ? selectedFarmGirl.name : '成長待ち'}
+                </div>
+                {selectedFarmGirlIsVisible && <div className="mt-1 text-lg">{renderStars(selectedFarmGirl.affinity)}</div>}
               </div>
-            </button>
+            </div>
             <div className="bg-black/30 border border-[#5a3010]/70 rounded px-3 py-3">
               <div style={menuTinyLabelStyle}>詳細</div>
               <div className="mt-2 grid grid-cols-2 gap-2 text-sm">
@@ -3097,33 +3224,29 @@ export default function App() {
                           {selectedGirlIsCompanion ? '⚔ 同行中' : '同行していません'}
                         </div>
                       </div>
-                      {selectedGirlIsCompanion ? (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            playFixSound();
-                            setCompanionGirlId(null);
-                            setDialogMessage(`${selectedGirlData.girlName}との同行を解除しました。`);
-                          }}
-                          className="rounded border border-[#a66a36] bg-[#4b2818] px-3 py-1.5 text-xs font-bold text-[#ffe2ad] transition hover:bg-[#63351d]"
-                        >
-                          同行解除
-                        </button>
-                      ) : (
-                        <button
-                          type="button"
-                          disabled={!selectedGirlCanBecomeCompanion}
-                          onClick={() => {
-                            if (!selectedGirlCanBecomeCompanion) return;
-                            playFixSound();
-                            setCompanionGirlId(selectedGirlData.id);
-                            setDialogMessage(`${selectedGirlData.girlName}と同行することにしました。`);
-                          }}
-                          className="rounded border border-[#50785d] bg-[#27472d] px-3 py-1.5 text-xs font-bold text-[#dbffe2] transition hover:bg-[#345f3b] disabled:cursor-not-allowed disabled:border-[#4d4d4d] disabled:bg-[#292929] disabled:text-[#8d8d8d]"
-                        >
-                          同行する
-                        </button>
-                      )}
+                      <button
+                        type="button"
+                        disabled={!selectedGirlIsCompanion && !selectedGirlCanBecomeCompanion}
+                        onPointerDown={(event) => event.stopPropagation()}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          if (!selectedGirlIsCompanion && !selectedGirlCanBecomeCompanion) return;
+                          playFixSound();
+                          setCompanionGirlId(selectedGirlIsCompanion ? null : selectedGirlData.id);
+                          setDialogMessage(
+                            selectedGirlIsCompanion
+                              ? `${selectedGirlData.girlName}との同行を解除しました。`
+                              : `${selectedGirlData.girlName}と同行することにしました。`,
+                          );
+                        }}
+                        className={`rounded border px-3 py-1.5 text-xs font-bold transition disabled:cursor-not-allowed disabled:border-[#4d4d4d] disabled:bg-[#292929] disabled:text-[#8d8d8d] ${
+                          selectedGirlIsCompanion
+                            ? 'border-[#a66a36] bg-[#4b2818] text-[#ffe2ad] hover:bg-[#63351d]'
+                            : 'border-[#50785d] bg-[#27472d] text-[#dbffe2] hover:bg-[#345f3b]'
+                        }`}
+                      >
+                        {selectedGirlIsCompanion ? '同行解除' : '同行する'}
+                      </button>
                     </div>
                     {!selectedGirlIsCompanion && !selectedGirlCanBecomeCompanion && (
                       <div className="mt-2 text-[11px] text-[#c8a87a]">
@@ -3513,6 +3636,22 @@ export default function App() {
   useEffect(() => { menuSelectedIndexRef.current = menuSelectedIndex; }, [menuSelectedIndex]);
   useEffect(() => { menuFocusAreaRef.current = menuFocusArea; }, [menuFocusArea]);
   useEffect(() => { menuContentFocusRef.current = menuContentFocus; }, [menuContentFocus]);
+  useEffect(() => {
+    if (!menuOpen || selectedMenuItem.id !== 'farm') return;
+    const pendingGirlIds = farmGirls
+      .filter(girl => girl.state === 'appeared' && !girl.cardRevealed)
+      .map(girl => girl.girlId);
+    if (pendingGirlIds.length === 0) return;
+
+    setRevealingFarmGirlIds(pendingGirlIds);
+    const revealTimer = window.setTimeout(() => {
+      setFarmGirls(previous => previous.map(girl => (
+        pendingGirlIds.includes(girl.girlId) ? { ...girl, cardRevealed: true } : girl
+      )));
+      setRevealingFarmGirlIds(previous => previous.filter(girlId => !pendingGirlIds.includes(girlId)));
+    }, 1400);
+    return () => window.clearTimeout(revealTimer);
+  }, [farmGirls, menuOpen, selectedMenuItem.id]);
   useEffect(() => { itemMenuTabRef.current = itemMenuTab; }, [itemMenuTab]);
   useEffect(() => { selectedItemNameRef.current = selectedItemName; }, [selectedItemName]);
   useEffect(() => { selectedEquipmentSlotRef.current = selectedEquipmentSlot; }, [selectedEquipmentSlot]);
@@ -3760,6 +3899,11 @@ export default function App() {
 
   // Warp Doors State
   const [currentMap, setCurrentMap] = useState<GameMap>('farm');
+  useEffect(() => {
+    const initialFollow = getCompanionRestPosition(posRef.current, dir);
+    companionTrailRef.current = Array.from({ length: COMPANION_TRAIL_DELAY_FRAMES }, () => initialFollow);
+    setCompanionFollow(initialFollow);
+  }, [companionGirlId, currentMap]);
   const [doors, setDoors] = useState<WarpDoor[]>(defaultDoors);
   const [selectedDoorId, setSelectedDoorId] = useState<string | null>(null);
   const [inspectSpots, setInspectSpots] = useState<InspectSpot[]>([]);
@@ -3888,8 +4032,8 @@ export default function App() {
   }, [debugDialogueOverrides]);
 
   useEffect(() => {
-     movementLockedRef.current = sleepPromptVisible || craftPromptVisible || fishingPromptVisible || miningPromptVisible || loggingPromptVisible || fishingMiniGameOpen || miningMiniGameOpen || miningRhythmRecording || craftMiniGameOpen || fishingTutorialOpen || fishingTutorialEndingOpen || sawCraftTutorialIntroOpen || sawCraftTutorialShedDialogueOpen || gatheringTutorialOpen || miningTutorialOpen || kurumiShopOpen || kurumiIntroOpen || isSleepSequenceActive || beastAttackPending || repaymentEventPending || battlePreviewOpen;
-  }, [sleepPromptVisible, craftPromptVisible, fishingPromptVisible, miningPromptVisible, loggingPromptVisible, fishingMiniGameOpen, miningMiniGameOpen, miningRhythmRecording, craftMiniGameOpen, fishingTutorialOpen, fishingTutorialEndingOpen, sawCraftTutorialIntroOpen, sawCraftTutorialShedDialogueOpen, gatheringTutorialOpen, miningTutorialOpen, kurumiShopOpen, kurumiIntroOpen, isSleepSequenceActive, beastAttackPending, repaymentEventPending, battlePreviewOpen]);
+     movementLockedRef.current = sleepPromptVisible || craftPromptVisible || fishingPromptVisible || miningPromptVisible || loggingPromptVisible || fishingMiniGameOpen || miningMiniGameOpen || miningRhythmRecording || craftMiniGameOpen || fishingTutorialOpen || fishingTutorialEndingOpen || sawCraftTutorialIntroOpen || sawCraftTutorialShedDialogueOpen || gatheringTutorialOpen || miningTutorialOpen || kurumiShopOpen || kurumiIntroOpen || isSleepSequenceActive || beastAttackPending || repaymentEventPending || battlePreviewOpen || farmSlotInteractionStage !== null;
+  }, [sleepPromptVisible, craftPromptVisible, fishingPromptVisible, miningPromptVisible, loggingPromptVisible, fishingMiniGameOpen, miningMiniGameOpen, miningRhythmRecording, craftMiniGameOpen, fishingTutorialOpen, fishingTutorialEndingOpen, sawCraftTutorialIntroOpen, sawCraftTutorialShedDialogueOpen, gatheringTutorialOpen, miningTutorialOpen, kurumiShopOpen, kurumiIntroOpen, isSleepSequenceActive, beastAttackPending, repaymentEventPending, battlePreviewOpen, farmSlotInteractionStage]);
 
   useEffect(() => {
      if (sleepPromptVisible || craftPromptVisible || fishingPromptVisible || miningPromptVisible || loggingPromptVisible) {
@@ -5315,9 +5459,13 @@ export default function App() {
 
   const getFarmFieldSlotPoint = (slot: FarmFieldSlotState): Point => {
     const corners = fieldCorners[slot.fieldId];
-    const slotCount = getFarmFieldConfig(difficulty, slot.fieldId).slotCount;
-    const u = (slot.slotIndex - 0.5) / slotCount;
-    const v = 0.5;
+    const columns = slot.fieldId === 'left' ? 3 : 2;
+    const rows = 2;
+    const zeroBasedIndex = slot.slotIndex - 1;
+    const column = zeroBasedIndex % columns;
+    const row = Math.floor(zeroBasedIndex / columns);
+    const u = (column + 0.5) / columns;
+    const v = (Math.min(row, rows - 1) + 0.5) / rows;
     return {
       x: (1 - u) * (1 - v) * corners.topLeft.x + u * (1 - v) * corners.topRight.x + u * v * corners.bottomRight.x + (1 - u) * v * corners.bottomLeft.x,
       y: (1 - u) * (1 - v) * corners.topLeft.y + u * (1 - v) * corners.topRight.y + u * v * corners.bottomRight.y + (1 - u) * v * corners.bottomLeft.y,
@@ -6357,7 +6505,7 @@ export default function App() {
     }
 
     const farmGirl = farmGirls.find(girl => girl.girlId === seedData.girlId);
-    if (!farmGirl || farmGirl.state !== 'none' || isFarmGirlDuplicateBlocked(farmGirls, seedData.girlId)) {
+    if (!farmGirl || isGirlPlantedInFarmField(seedData.girlId)) {
       setDialogMessage('同じ娘はすでに存在しているため、植え付けできません。');
       return;
     }
@@ -6378,6 +6526,7 @@ export default function App() {
         ? {
           ...girl,
           state: 'growing',
+          cardRevealed: false,
           plantedDay: currentDay,
           growthProgress: 0,
           lastHarvestDay: null,
@@ -6397,6 +6546,161 @@ export default function App() {
     setPlantingSeedId(null);
     setDialogMessage(`${seedData.seedName}を${getFarmFieldLabel(fieldId)} ${slotIndex}に植えました。`);
   };
+  const getFarmSlotByKey = (slotKey: string | null) => {
+    if (!slotKey) return null;
+    return farmFieldSlots.find(slot => `${slot.fieldId}_${slot.slotIndex}` === slotKey) ?? null;
+  };
+  const isGirlPlantedInFarmField = (girlId: string) => farmFieldSlots.some(slot => slot.girlId === girlId);
+  const nearbyOwnedSeedOptions = ownedGirlSeeds.flatMap(seedId => {
+    const seed = GIRL_SEED_ACQUISITION_DATA.find(entry => entry.seedId === seedId);
+    if (!seed) return [];
+    const isPlanted = isGirlPlantedInFarmField(seed.girlId);
+    return [{ ...seed, isPlanted }];
+  });
+  const getFirstPlantableNearbySeedIndex = () => Math.max(0, nearbyOwnedSeedOptions.findIndex(seed => !seed.isPlanted));
+  const getNextPlantableNearbySeedIndex = (currentIndex: number, direction: 1 | -1) => {
+    const plantableIndexes = nearbyOwnedSeedOptions
+      .map((seed, index) => seed.isPlanted ? -1 : index)
+      .filter(index => index >= 0);
+    if (plantableIndexes.length === 0) return currentIndex;
+    const currentPlantableIndex = plantableIndexes.indexOf(currentIndex);
+    if (currentPlantableIndex === -1) {
+      return direction > 0 ? plantableIndexes[0] : plantableIndexes[plantableIndexes.length - 1];
+    }
+    return plantableIndexes[(currentPlantableIndex + direction + plantableIndexes.length) % plantableIndexes.length];
+  };
+  const closeFarmSlotInteraction = (blockCurrentSlot = true) => {
+    if (blockCurrentSlot) farmSlotInteractionBlockedRef.current = activeFarmSlotKey;
+    setFarmSlotInteractionStage(null);
+    setActiveFarmSlotKey(null);
+    setPendingNearbySeedId(null);
+    setFarmSlotConfirmChoice('yes');
+  };
+  const openFarmSlotInteraction = (slotKey: string) => {
+    const slot = getFarmSlotByKey(slotKey);
+    if (!slot || currentMapRef.current !== 'farm' || menuOpenRef.current || setupMode !== 'none') return;
+    if (!slot.girlId) {
+      setActiveFarmSlotKey(slotKey);
+      setFarmSlotConfirmChoice('yes');
+      setFarmSlotInteractionStage('confirmPlant');
+      playFixSound();
+      return;
+    }
+    const harvestInfo = getFarmGirlHarvestInfo(slot.girlId);
+    if (!harvestInfo.canHarvest || companionGirlId === slot.girlId) return;
+    setActiveFarmSlotKey(slotKey);
+    setFarmSlotConfirmChoice('yes');
+    setFarmSlotInteractionStage('confirmHarvest');
+    playFixSound();
+  };
+
+  useEffect(() => {
+    if (currentMap !== 'farm' || setupMode !== 'none' || menuOpen || farmSlotInteractionStage !== null || isWalking || movementLockedRef.current) {
+      setNearbyFarmSlotKey(null);
+      return;
+    }
+    const playerPos = posRef.current;
+    const candidates = farmFieldSlots.flatMap(slot => {
+      const slotKey = `${slot.fieldId}_${slot.slotIndex}`;
+      const basePoint = getFarmFieldSlotPoint(slot);
+      const placement = slot.girlId
+        ? FARM_SEED_SLOT_PLACEMENTS[slotKey] ?? { offsetX: 0, offsetY: 0 }
+        : farmPlantButtonPlacements[slotKey] ?? { offsetX: 0, offsetY: 0 };
+      const dx = playerPos.x - (basePoint.x + placement.offsetX);
+      const dy = playerPos.y - (basePoint.y + placement.offsetY);
+      const distance = Math.sqrt(dx * dx + dy * dy);
+      const canHarvest = slot.girlId
+        ? getFarmGirlHarvestInfo(slot.girlId).canHarvest && companionGirlId !== slot.girlId
+        : false;
+      return distance <= 105 && (!slot.girlId || canHarvest) ? [{ slotKey, distance }] : [];
+    }).sort((left, right) => left.distance - right.distance);
+    const nextSlotKey = candidates[0]?.slotKey ?? null;
+    setNearbyFarmSlotKey(nextSlotKey);
+    if (!nextSlotKey) {
+      farmSlotInteractionBlockedRef.current = null;
+      return;
+    }
+    if (farmSlotInteractionBlockedRef.current === nextSlotKey) return;
+    const timer = window.setTimeout(() => openFarmSlotInteraction(nextSlotKey), 450);
+    return () => window.clearTimeout(timer);
+  }, [pos, isWalking, currentMap, setupMode, menuOpen, farmSlotInteractionStage, farmFieldSlots, farmGirls, companionGirlId, turn, farmPlantButtonPlacements]);
+
+  useEffect(() => {
+    if (!farmSlotInteractionStage) return;
+    const handleFarmSlotInteractionKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        event.stopPropagation();
+        closeFarmSlotInteraction();
+        return;
+      }
+      if (farmSlotInteractionStage === 'selectSeed') {
+        if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
+          event.preventDefault();
+          event.stopPropagation();
+          if (nearbyOwnedSeedOptions.length === 0) return;
+          const direction = event.key === 'ArrowDown' ? 1 : -1;
+          setSelectedNearbySeedIndex(index => getNextPlantableNearbySeedIndex(index, direction));
+          playCursorSound();
+          return;
+        }
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          event.stopPropagation();
+          const selectedSeed = nearbyOwnedSeedOptions[selectedNearbySeedIndex];
+          if (!selectedSeed || selectedSeed.isPlanted) return;
+          setPendingNearbySeedId(selectedSeed.seedId);
+          setFarmSlotConfirmChoice('yes');
+          setFarmSlotInteractionStage('confirmSeed');
+          playFixSound();
+        }
+        return;
+      }
+      if (event.key === 'ArrowLeft' || event.key === 'ArrowRight' || event.key === 'ArrowUp' || event.key === 'ArrowDown') {
+        event.preventDefault();
+        event.stopPropagation();
+        setFarmSlotConfirmChoice(choice => choice === 'yes' ? 'no' : 'yes');
+        playCursorSound();
+        return;
+      }
+      if (event.key !== 'Enter' && event.key !== ' ') return;
+      event.preventDefault();
+      event.stopPropagation();
+      if (farmSlotConfirmChoice === 'no') {
+        closeFarmSlotInteraction();
+        return;
+      }
+      const slot = getFarmSlotByKey(activeFarmSlotKey);
+      if (!slot) {
+        closeFarmSlotInteraction();
+        return;
+      }
+      if (farmSlotInteractionStage === 'confirmHarvest' && slot.girlId) {
+        harvestFarmGirl(slot.girlId);
+        closeFarmSlotInteraction();
+      } else if (farmSlotInteractionStage === 'confirmPlant') {
+        setSelectedNearbySeedIndex(getFirstPlantableNearbySeedIndex());
+        setFarmSlotInteractionStage('selectSeed');
+      } else if (farmSlotInteractionStage === 'confirmSeed' && pendingNearbySeedId) {
+        plantGirlSeedToSlot(pendingNearbySeedId, slot.fieldId, slot.slotIndex);
+        closeFarmSlotInteraction();
+      }
+    };
+    window.addEventListener('keydown', handleFarmSlotInteractionKeyDown, true);
+    return () => window.removeEventListener('keydown', handleFarmSlotInteractionKeyDown, true);
+  }, [farmSlotInteractionStage, farmSlotConfirmChoice, activeFarmSlotKey, pendingNearbySeedId, selectedNearbySeedIndex, nearbyOwnedSeedOptions]);
+
+  useEffect(() => {
+    if (!nearbyFarmSlotKey || farmSlotInteractionStage || menuOpen || setupMode !== 'none') return;
+    const handleNearbyFarmSlotKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Enter' && event.key !== ' ' && event.key.toLowerCase() !== 'h') return;
+      event.preventDefault();
+      event.stopPropagation();
+      openFarmSlotInteraction(nearbyFarmSlotKey);
+    };
+    window.addEventListener('keydown', handleNearbyFarmSlotKeyDown, true);
+    return () => window.removeEventListener('keydown', handleNearbyFarmSlotKeyDown, true);
+  }, [nearbyFarmSlotKey, farmSlotInteractionStage, menuOpen, setupMode, farmFieldSlots, farmGirls, companionGirlId, turn]);
   useEffect(() => {
     if (bootMode !== 'playing') return;
     if (gameMode !== 'story') return;
@@ -9582,7 +9886,99 @@ export default function App() {
     left: playerSpriteUrls.left,
     right: playerSpriteUrls.right
   };
-
+  const chibiichiCompanionSprites = {
+    down: '/img/companions/chibiichi_idle.png',
+    up: '/img/companions/chibiichi_back.png',
+    left: '/img/companions/chibiichi_idle.png',
+    right: '/img/companions/chibiichi_idle.png',
+  };
+  const chibiichiCompanionWalkSprites = {
+    down: [
+      chibiichiCompanionSprites.down,
+      '/img/companions/chibiichi_walk1.png',
+      chibiichiCompanionSprites.down,
+      '/img/companions/chibiichi_walk2.png',
+    ],
+    up: [
+      chibiichiCompanionSprites.up,
+      chibiichiCompanionSprites.up,
+      chibiichiCompanionSprites.up,
+      chibiichiCompanionSprites.up,
+    ],
+    left: [
+      chibiichiCompanionSprites.left,
+      '/img/companions/chibiichi_walk1.png',
+      chibiichiCompanionSprites.left,
+      '/img/companions/chibiichi_walk2.png',
+    ],
+    right: [
+      chibiichiCompanionSprites.right,
+      '/img/companions/chibiichi_walk1.png',
+      chibiichiCompanionSprites.right,
+      '/img/companions/chibiichi_walk2.png',
+    ],
+  } as const;
+  const chibiichiCompanionSpriteSheet = {
+    url: '/img/chibiichi-walk.png',
+    columns: 3,
+    rows: 3,
+    sourceWidth: 1330,
+    sourceHeight: 1182,
+    cellWidth: 402,
+    cellHeight: 394,
+    offsetX: 60,
+    offsetY: 0,
+    stabilizeMotion: true,
+    frameOffsets: {
+      0: { x: 0, y: 0 },
+      1: { x: 0, y: -3 },
+      2: { x: 0, y: -4 },
+      3: { x: 0, y: 0 },
+      4: { x: 0, y: 0 },
+      5: { x: 0, y: 0 },
+      6: { x: 0, y: 0 },
+      7: { x: 0, y: 3 },
+      8: { x: 0, y: 3 },
+    },
+    frames: {
+      down: [0, 1, 0, 2],
+      up: [3, 4, 3, 5],
+      left: [6, 7, 6, 8],
+      right: [6, 7, 6, 8],
+    },
+  } as const;
+  const melCompanionSpriteSheet = {
+    url: '/img/mel-walk.png',
+    columns: 3,
+    rows: 3,
+    sourceWidth: 1254,
+    sourceHeight: 1254,
+    cellWidth: 418,
+    cellHeight: 418,
+    stabilizeMotion: true,
+    frameOffsets: {
+      0: { x: 0, y: 0 },
+      1: { x: 29, y: 1 },
+      2: { x: 60, y: 1 },
+      3: { x: 0, y: 0 },
+      4: { x: 36, y: 0 },
+      5: { x: 67, y: 0 },
+      6: { x: 0, y: 0 },
+      7: { x: 36, y: 1 },
+      8: { x: 65, y: 1 },
+    },
+    frames: {
+      down: [0, 1, 0, 2],
+      up: [3, 4, 3, 5],
+      left: [6, 7, 6, 8],
+      right: [6, 7, 6, 8],
+    },
+  } as const;
+  const companionSpriteSheet = companionGirlId === 'chibiichi'
+    ? chibiichiCompanionSpriteSheet
+    : companionGirlId === 'mel'
+      ? melCompanionSpriteSheet
+      : null;
   useEffect(() => {
     const handleResize = () => {
       const availableWidth = window.innerWidth - 32;
@@ -11290,6 +11686,7 @@ export default function App() {
       }
 
       let moved = false;
+      let warped = false;
       let newDir = currentDir;
       const startX = currentX;
       const startY = currentY;
@@ -11348,7 +11745,7 @@ export default function App() {
         ny = Math.max(50, Math.min(ny, GAME_HEIGHT - 10));
         
         // 扉（ワープゾーン）衝突判定
-        let warped = false;
+        warped = false;
         const canWarp = performance.now() - lastWarpedAtRef.current >= WARP_COOLDOWN_MS;
         if (canWarp) {
           const currentDoors = doorsRef.current.filter(d => d.map === currentMapRef.current);
@@ -11511,6 +11908,23 @@ export default function App() {
       const nextAutoEvent = currentAutoEventSpots.find(spot => !triggeredAutoEventIdsRef.current.has(spot.id));
       if (nextAutoEvent) {
         triggerAutoEventSpot(nextAutoEvent);
+      }
+
+      const companionStep = { x: currentX, y: currentY, direction: currentDir, isWalking: moved };
+      if (warped) {
+        // マップ移動時は前マップの足跡を破棄して、娘が置き去りになるのを防ぐ。
+        const companionRestPosition = getCompanionRestPosition(companionStep, currentDir);
+        companionTrailRef.current = Array.from({ length: COMPANION_TRAIL_DELAY_FRAMES }, () => companionRestPosition);
+        setCompanionFollow(companionRestPosition);
+      } else if (moved) {
+        companionTrailRef.current.push(companionStep);
+        if (companionTrailRef.current.length > COMPANION_TRAIL_DELAY_FRAMES) {
+          companionTrailRef.current.shift();
+        }
+        setCompanionFollow(companionTrailRef.current[0] ?? companionStep);
+      } else {
+        // 主人公が止まったら、娘も現在位置のまま待機ポーズへ戻す。
+        setCompanionFollow(previous => previous.isWalking ? { ...previous, isWalking: false } : previous);
       }
 
       setPos({ x: currentX, y: currentY });
@@ -12936,6 +13350,8 @@ export default function App() {
                  )}
                  {farmFieldSlots.filter(slot => slot.girlId).map(slot => {
                     const point = getFarmFieldSlotPoint(slot);
+                    const slotKey = `${slot.fieldId}_${slot.slotIndex}`;
+                    const slotPlacement = FARM_SEED_SLOT_PLACEMENTS[slotKey] ?? { offsetX: 0, offsetY: 0, scale: 100 };
                     const girl = GIRL_DATA.find(entry => entry.id === slot.girlId);
                     const seed = GIRL_SEED_ACQUISITION_DATA.find(entry => entry.girlId === slot.girlId);
                     const farmGirl = farmGirls.find(entry => entry.girlId === slot.girlId);
@@ -12946,19 +13362,140 @@ export default function App() {
                           ? '出現中・収穫可'
                           : `出現中・あと${harvestInfo?.daysUntilHarvest ?? 0}日`
                        : `成長中 ${farmGirl?.growthProgress ?? 0}/${crop?.growthDays ?? '?'}日`;
+                    const actualSlotName = slot.state === 'appeared'
+                       ? girl?.girlName ?? '娘'
+                       : seed?.seedName ?? '娘苗';
+                    const slotName = actualSlotName;
+                    const isNtr = farmGirl?.condition === 'affected';
+                    const isCompanion = companionGirlId === slot.girlId;
+                    const canHarvest = Boolean(harvestInfo?.canHarvest);
+                    // 受精システム実装前は通常を未受精、affected をNTRとして表示する。
+                    const fertilizationStatus = isNtr ? 'NTR' : '未受精';
                     return (
-                       <div
+                       <button
                           key={`${slot.fieldId}_${slot.slotIndex}_${slot.girlId}`}
-                          className={`pointer-events-none absolute z-20 -translate-x-1/2 -translate-y-1/2 rounded-xl border-2 px-3 py-1 text-center text-[12px] font-black text-[#fff7dc] shadow-[0_4px_12px_rgba(0,0,0,0.55)] ${
-                             slot.state === 'appeared'
-                                ? 'border-[#86efac]/90 bg-[#14532d]/88'
-                                : 'border-[#ffd166]/85 bg-[#1a100d]/82'
+                          type="button"
+                          disabled={!canHarvest || isCompanion}
+                          aria-label={canHarvest && !isCompanion ? `${slotName}を収穫` : `${slotName} ${slotStatus}`}
+                          onPointerDown={(event) => {
+                            event.preventDefault();
+                            event.stopPropagation();
+                            openFarmSlotInteraction(slotKey);
+                          }}
+                          onPointerUp={(event) => {
+                            event.preventDefault();
+                            event.stopPropagation();
+                          }}
+                          onClick={(event) => {
+                            event.preventDefault();
+                            event.stopPropagation();
+                          }}
+                          className={`absolute z-20 flex -translate-x-1/2 -translate-y-1/2 items-center gap-1.5 rounded-lg border-0 bg-transparent p-0 text-center font-black ${
+                            canHarvest && !isCompanion
+                              ? 'cursor-pointer pointer-events-auto transition-transform hover:scale-[1.04] focus:outline-none focus:ring-4 focus:ring-lime-200/80'
+                              : 'pointer-events-none'
                           }`}
-                          style={{ left: point.x, top: point.y }}
+                          style={{
+                            left: point.x + slotPlacement.offsetX,
+                            top: point.y + slotPlacement.offsetY,
+                            transform: `translate(-50%, -50%) scale(${slotPlacement.scale / 100})`,
+                          }}
                        >
-                          <div>{girl?.girlName ?? seed?.seedName ?? '娘苗'}</div>
-                          <div className="text-[10px] leading-tight text-[#ffe8a3]">{slotStatus}</div>
-                       </div>
+                          <div className="flex w-[92px] flex-col items-center gap-1">
+                            <div className="w-full truncate rounded-md border border-[#ffd166]/80 bg-[#1a100d]/92 px-1 py-1 text-[11px] leading-none text-white shadow-[0_3px_8px_rgba(0,0,0,0.55)]">
+                              {slotName}
+                            </div>
+                            <div className={`relative h-20 w-16 overflow-hidden rounded-xl border-2 shadow-[0_4px_12px_rgba(0,0,0,0.55)] ${
+                              slot.state === 'appeared'
+                                 ? 'border-[#86efac]/90 bg-[#14532d]/88'
+                                 : 'border-[#ffd166]/85 bg-[#1a100d]/82'
+                            }`}>
+                              <img
+                                src={slot.state === 'appeared'
+                                  ? FARM_GIRL_CARD_IMAGES[slot.girlId ?? ''] ?? '/img/nae.png'
+                                  : '/img/nae.png'}
+                                alt={slotName}
+                                className="h-full w-full object-contain"
+                              />
+                              {isCompanion && (
+                                <div className="absolute inset-x-1 bottom-1 rounded border border-cyan-100 bg-cyan-700/95 px-1 py-1 text-[10px] leading-none text-white shadow">
+                                  同行中
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                          <div className={`flex w-[104px] flex-col gap-1.5 rounded-md border px-1.5 py-1.5 text-[11px] leading-tight shadow-[0_3px_8px_rgba(0,0,0,0.55)] ${
+                            slot.state === 'appeared'
+                               ? 'border-[#86efac]/90 bg-[#14532d]/90 text-[#dcfce7]'
+                               : 'border-[#ffd166]/85 bg-[#1a100d]/90 text-[#ffe8a3]'
+                          }`}>
+                            <div className="whitespace-nowrap text-[11px] text-white">{slotStatus}</div>
+                            <div className={`rounded-md border px-1 py-1.5 text-center text-[12px] leading-none text-white ${
+                              fertilizationStatus === 'NTR'
+                                ? 'border-red-300 bg-red-700'
+                                : 'border-slate-300 bg-slate-600'
+                            }`}>
+                              {fertilizationStatus}
+                            </div>
+                            <div className={`rounded-md border px-1 py-1.5 text-center text-[12px] leading-none ${
+                              canHarvest
+                                ? 'border-lime-200 bg-green-700 text-lime-50'
+                                : 'border-white/10 bg-slate-950/65 text-slate-500 grayscale'
+                            }`}>
+                              {canHarvest && !isCompanion ? '収穫可 / H' : '収穫可'}
+                            </div>
+                          </div>
+                       </button>
+                    );
+                 })}
+                 {(showFarmPlantButtonPreview
+                    ? (['left', 'right'] as FieldId[]).flatMap(fieldId => (
+                        Array.from(
+                          { length: fieldId === 'left' ? 6 : 4 },
+                          (_, index): FarmFieldSlotState => farmFieldSlots.find(slot => slot.fieldId === fieldId && slot.slotIndex === index + 1) ?? {
+                            fieldId,
+                            slotIndex: index + 1,
+                            girlId: null,
+                            state: 'none',
+                            plantedDay: null,
+                          },
+                        )
+                      ))
+                    : farmFieldSlots
+                 ).map(slot => {
+                    const slotKey = `${slot.fieldId}_${slot.slotIndex}`;
+                    const point = getFarmFieldSlotPoint(slot);
+                    const placement = farmPlantButtonPlacements[slotKey] ?? { offsetX: 0, offsetY: 0 };
+                    if (!showFarmPlantButtonPreview && slot.girlId) return null;
+                    const isNearby = nearbyFarmSlotKey === slotKey;
+                    const isSelectedPreview = showFarmPlantButtonPreview && selectedFarmPlantButtonKey === slotKey;
+                    return (
+                      <button
+                        key={`farm_action_${slotKey}`}
+                        type="button"
+                        onPointerDown={(event) => {
+                          event.preventDefault();
+                          event.stopPropagation();
+                        }}
+                        onPointerUp={(event) => {
+                          event.preventDefault();
+                          event.stopPropagation();
+                        }}
+                        onClick={(event) => {
+                          event.preventDefault();
+                          event.stopPropagation();
+                          openFarmSlotInteraction(slotKey);
+                        }}
+                        className={`absolute z-30 -translate-x-1/2 -translate-y-1/2 rounded-lg border-2 border-[#ffd166]/65 bg-[#1a100d]/65 px-3 py-1.5 text-[12px] font-black text-[#ffe8a3] shadow-[0_4px_10px_rgba(0,0,0,0.55)] transition-all ${
+                          isNearby ? 'scale-110 opacity-100 ring-2 ring-white/70' : 'opacity-55 hover:opacity-100'
+                        } ${isSelectedPreview ? 'opacity-100 ring-4 ring-white' : ''}`}
+                        style={{
+                          left: point.x + placement.offsetX,
+                          top: point.y + placement.offsetY,
+                        }}
+                      >
+                        ＋ 植える
+                      </button>
                     );
                  })}
                  {setupMode === 'crops' && (Object.entries(fieldCorners) as [FieldId, FieldCorners][]).map(([fieldId, corners]) => (
@@ -13575,6 +14112,24 @@ export default function App() {
              </div>
              );
           })()}
+
+          {/* 同行娘は主人公の移動履歴をたどるため、曲がり角でも後ろを自然に追従する。 */}
+          {setupMode !== 'animation' && companionSpriteSheet && !isPlayerInBath && (
+            <Character
+              x={companionFollow.x}
+              y={companionFollow.y}
+              direction={companionFollow.direction}
+              isWalking={companionFollow.isWalking}
+              customSprites={chibiichiCompanionSprites}
+              isHidden={isPlayerInHideArea(companionFollow.x, companionFollow.y, currentMap)}
+              playerWalkSprites={chibiichiCompanionWalkSprites}
+              mirrorRightSprite
+              walkFrameMs={150}
+              scale={1}
+              showGroundShadow={false}
+              spriteSheet={companionSpriteSheet}
+            />
+          )}
 
           {/* Player */}
           {setupMode !== 'animation' && (
@@ -16340,6 +16895,115 @@ export default function App() {
                 )}
         </DialogBox>
 
+        {farmSlotInteractionStage && (() => {
+          const activeSlot = getFarmSlotByKey(activeFarmSlotKey);
+          const pendingSeed = GIRL_SEED_ACQUISITION_DATA.find(seed => seed.seedId === pendingNearbySeedId);
+          const title = farmSlotInteractionStage === 'confirmHarvest'
+            ? '収穫しますか？'
+            : farmSlotInteractionStage === 'confirmPlant'
+              ? '娘苗を植える？'
+              : farmSlotInteractionStage === 'confirmSeed'
+                ? `${pendingSeed?.seedName ?? '娘苗'}を植えますか？`
+                : '植える娘苗を選んでください';
+          const confirmAction = (choice: 'yes' | 'no') => {
+            if (choice === 'no') {
+              closeFarmSlotInteraction();
+              return;
+            }
+            if (!activeSlot) return closeFarmSlotInteraction();
+            if (farmSlotInteractionStage === 'confirmHarvest' && activeSlot.girlId) {
+              harvestFarmGirl(activeSlot.girlId);
+              closeFarmSlotInteraction();
+            } else if (farmSlotInteractionStage === 'confirmPlant') {
+              setSelectedNearbySeedIndex(getFirstPlantableNearbySeedIndex());
+              setFarmSlotInteractionStage('selectSeed');
+            } else if (farmSlotInteractionStage === 'confirmSeed' && pendingNearbySeedId) {
+              plantGirlSeedToSlot(pendingNearbySeedId, activeSlot.fieldId, activeSlot.slotIndex);
+              closeFarmSlotInteraction();
+            }
+          };
+          return (
+            <div className="fixed inset-0 z-[9997] flex items-center justify-center bg-black/48 px-6 pointer-events-auto">
+              <div
+                onContextMenu={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  closeFarmSlotInteraction();
+                }}
+                className="w-[520px] max-w-[92vw] rounded-2xl border-[3px] border-[#ffd166] bg-[#1a100d]/97 p-5 text-[#fdf6e3] shadow-[0_24px_70px_rgba(0,0,0,0.75)]"
+              >
+                <div className="text-center text-xl font-black text-[#fff3b0]">{title}</div>
+                {farmSlotInteractionStage === 'selectSeed' ? (
+                  <>
+                    <div className="mt-4 max-h-[360px] space-y-2 overflow-y-auto pr-1">
+                      {nearbyOwnedSeedOptions.length === 0 ? (
+                        <div className="rounded-lg border border-[#8a7060] bg-black/30 p-5 text-center font-bold text-[#c8a87a]">
+                          植えられる所持苗がありません
+                        </div>
+                      ) : nearbyOwnedSeedOptions.map((seed, index) => (
+                        <button
+                          key={seed.seedId}
+                          type="button"
+                          onMouseEnter={() => {
+                            if (seed.isPlanted) return;
+                            if (selectedNearbySeedIndex !== index) playCursorSound();
+                            setSelectedNearbySeedIndex(index);
+                          }}
+                          onClick={(event) => {
+                            event.preventDefault();
+                            event.stopPropagation();
+                            if (seed.isPlanted) return;
+                            setSelectedNearbySeedIndex(index);
+                            setPendingNearbySeedId(seed.seedId);
+                            setFarmSlotConfirmChoice('yes');
+                            setFarmSlotInteractionStage('confirmSeed');
+                            playFixSound();
+                          }}
+                          className={`flex w-full items-center justify-between rounded-lg border-2 px-4 py-3 text-left text-base font-black transition-colors ${
+                            seed.isPlanted
+                              ? 'cursor-not-allowed border-gray-700 bg-gray-900/70 text-gray-500'
+                              : selectedNearbySeedIndex === index
+                                ? 'border-white bg-[#9a5a1d] text-white ring-2 ring-[#ffd166]'
+                                : 'border-[#6b3d1e] bg-[#2d1b15] text-[#fdf6e3] hover:bg-[#4a2a18]'
+                          }`}
+                        >
+                          <span>{seed.seedName}</span>
+                          <span className="text-sm">{seed.isPlanted ? '植え付け中' : '植え付け可'}</span>
+                        </button>
+                      ))}
+                    </div>
+                    <div className="mt-4 text-center text-sm font-bold text-[#c8a87a]">↑↓ 選択　Enter 決定　Esc 戻る　マウス操作対応</div>
+                  </>
+                ) : (
+                  <>
+                    <div className="mt-6 grid grid-cols-2 gap-4">
+                      {(['yes', 'no'] as const).map(choice => (
+                        <button
+                          key={choice}
+                          type="button"
+                          onMouseEnter={() => setFarmSlotConfirmChoice(choice)}
+                          onClick={() => {
+                            setFarmSlotConfirmChoice(choice);
+                            confirmAction(choice);
+                          }}
+                          className={`h-14 rounded-xl border-2 text-lg font-black transition-colors ${
+                            farmSlotConfirmChoice === choice
+                              ? 'border-white bg-[#bc6c25] text-white ring-4 ring-[#ffd166]/60'
+                              : 'border-[#6b3d1e] bg-[#2d1b15] text-[#c8a87a]'
+                          }`}
+                        >
+                          {choice === 'yes' ? 'はい' : 'いいえ'}
+                        </button>
+                      ))}
+                    </div>
+                    <div className="mt-4 text-center text-sm font-bold text-[#c8a87a]">←→ 選択　Enter 決定　Esc キャンセル　マウス操作対応</div>
+                  </>
+                )}
+              </div>
+            </div>
+          );
+        })()}
+
         <DebugPanel
            setupMode={setupMode}
            debugPanelPos={debugPanelPos}
@@ -16397,6 +17061,12 @@ export default function App() {
            debugDialogueOptions={debugDialogueOptions}
            onSaveDebugDialogue={saveDebugDialogueOverride}
            onResetDebugDialogue={resetDebugDialogueOverride}
+           showFarmPlantButtonPreview={showFarmPlantButtonPreview}
+           setShowFarmPlantButtonPreview={setShowFarmPlantButtonPreview}
+           selectedFarmPlantButtonKey={selectedFarmPlantButtonKey}
+           setSelectedFarmPlantButtonKey={setSelectedFarmPlantButtonKey}
+           farmPlantButtonPlacements={farmPlantButtonPlacements}
+           setFarmPlantButtonPlacements={setFarmPlantButtonPlacements}
         />
         {craftConfirmRecipeName && (
            <div className="fixed inset-0 z-[9998] flex items-center justify-center bg-black/62 px-8 pointer-events-auto">
@@ -16535,7 +17205,7 @@ export default function App() {
               </div>
            </div>
         )}
-        {farmGirlDetailOpen && createPortal(
+        {farmGirlDetailOpen && farmGirls.find(girl => girl.girlId === selectedFarmGirlForDetail.id)?.cardRevealed && createPortal(
            <div
               className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/62 px-8 py-6 pointer-events-auto"
               onClick={() => { playFixSound(); setMenuFocusArea('content'); setMenuContentFocus('secondary'); setFarmGirlDetailOpen(false); }}

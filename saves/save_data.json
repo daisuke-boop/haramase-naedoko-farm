@@ -41,11 +41,11 @@
   "farmGirls": [
     {
       "girlId": "chibiichi",
-      "state": "none",
+      "state": "appeared",
       "plantedDay": null,
       "growthProgress": 0,
       "lastHarvestDay": null,
-      "trust": 0,
+      "trust": 20,
       "unlockedTrustEventIds": [],
       "condition": "normal",
       "conditionDay": null,

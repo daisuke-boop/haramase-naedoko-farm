@@ -197,7 +197,7 @@ export const FARM_GIRL_CROP_DATA: readonly FarmGirlCropData[] = [
   },
   {
     girlId: 'puti',
-    seedName: 'ドラゴンフルーツの娘苗',
+    seedName: 'ドラフルの娘苗',
     harvestItemName: 'プティのドラゴンフルーツ',
     unlockTier: 'final',
     growthDays: 6,
@@ -209,7 +209,7 @@ export const FARM_GIRL_CROP_DATA: readonly FarmGirlCropData[] = [
   },
   {
     girlId: 'roma',
-    seedName: 'ロマネスコの娘苗',
+    seedName: 'ロマネの娘苗',
     harvestItemName: 'ロマのロマネスコ',
     unlockTier: 'final',
     growthDays: 6,

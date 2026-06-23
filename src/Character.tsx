@@ -68,12 +68,29 @@ type CharacterProps = {
   customSprites: Record<PlayerDirection, string | null>,
   isHidden: boolean,
   isBathMasked?: boolean,
-  playerWalkSprites: Record<PlayerDirection, [string, string, string, string]>,
-  overrideWalkSprites?: Record<PlayerDirection, [string, string, string, string]>,
+  playerWalkSprites: Readonly<Record<PlayerDirection, readonly [string, string, string, string]>>,
+  overrideWalkSprites?: Readonly<Record<PlayerDirection, readonly [string, string, string, string]>>,
   walkFrameMs?: number,
+  mirrorRightSprite?: boolean,
+  scale?: number,
+  showGroundShadow?: boolean,
+  spriteSheet?: {
+    url: string,
+    columns: number,
+    rows: number,
+    sourceWidth?: number,
+    sourceHeight?: number,
+    cellWidth?: number,
+    cellHeight?: number,
+    offsetX?: number,
+    offsetY?: number,
+    frameOffsets?: Readonly<Record<number, { x: number, y: number }>>,
+    stabilizeMotion?: boolean,
+    frames: Readonly<Record<PlayerDirection, readonly [number, number, number, number]>>,
+  },
 };
 
-const Character = ({ x, y, direction, isWalking, customSprites, isHidden, isBathMasked, playerWalkSprites, overrideWalkSprites, walkFrameMs = 150 }: CharacterProps) => {
+const Character = ({ x, y, direction, isWalking, customSprites, isHidden, isBathMasked, playerWalkSprites, overrideWalkSprites, walkFrameMs = 150, mirrorRightSprite = false, scale = 1, showGroundShadow = true, spriteSheet }: CharacterProps) => {
   const [frame, setFrame] = useState(0);
   
   // 停止時は4方向画像、歩行時は手足差分フレームを使う
@@ -87,9 +104,9 @@ const Character = ({ x, y, direction, isWalking, customSprites, isHidden, isBath
     return customSprites[direction] ?? null;
   };
 
-  const currentSpriteUrl = getSpriteUrl();
+  const currentSpriteUrl = spriteSheet?.url ?? getSpriteUrl();
   const spriteImg = useTransparentSprite(currentSpriteUrl);
-  const shouldMirrorSprite = direction === 'right' && !!currentSpriteUrl?.includes('player_left');
+  const shouldMirrorSprite = direction === 'right' && (mirrorRightSprite || !!currentSpriteUrl?.includes('player_left'));
 
   useEffect(() => {
     if (!isWalking) {
@@ -100,6 +117,7 @@ const Character = ({ x, y, direction, isWalking, customSprites, isHidden, isBath
   }, [isWalking, walkFrameMs]);
 
   const bounce = isWalking && (frame === 1 || frame === 3) ? -2 : 0;
+  const spriteBounce = spriteSheet?.stabilizeMotion ? 0 : bounce;
 
   // 歩行時の手足のアニメーション用値（デフォルト画像でない場合のフォールバック）
   const armRotationLeft = isWalking ? (frame === 1 ? 'rotate(-25deg)' : frame === 3 ? 'rotate(25deg)' : 'rotate(0deg)') : 'rotate(0deg)';
@@ -109,17 +127,53 @@ const Character = ({ x, y, direction, isWalking, customSprites, isHidden, isBath
   const spriteRotation = isWalking
     ? (frame === 1 ? 'rotate(-3deg) skewX(-2deg)' : frame === 3 ? 'rotate(3deg) skewX(2deg)' : 'none')
     : 'none';
+  const sheetRotation = spriteSheet?.stabilizeMotion ? '' : spriteRotation;
 
   const isHorizontal = direction === 'left' || direction === 'right';
 
   return (
     <div
       className="absolute flex flex-col items-center justify-end z-30 pointer-events-none"
-      style={{ left: x - 30, top: y - 50, width: 60, height: 60, opacity: isHidden ? 0.42 : 1, filter: isHidden ? 'brightness(0.75)' : undefined }}
+      style={{ left: x - 30, top: y - 50, width: 60, height: 60, opacity: isHidden ? 0.42 : 1, filter: isHidden ? 'brightness(0.75)' : undefined, transform: `scale(${scale})`, transformOrigin: 'center bottom' }}
     >
-      {!isBathMasked && <div className="absolute bottom-[-1px] w-[26px] h-2 bg-black/40 rounded-full blur-[2px]" />}
+      {showGroundShadow && !isBathMasked && <div className="absolute bottom-[-1px] w-[26px] h-2 bg-black/40 rounded-full blur-[2px]" />}
       
       {spriteImg ? (
+        spriteSheet ? (
+          <div
+            className="relative z-10 h-full w-full overflow-hidden"
+            style={{
+              transform: `translateY(${spriteBounce}px) ${sheetRotation} ${shouldMirrorSprite ? 'scaleX(-1)' : ''}`,
+              clipPath: isBathMasked ? 'inset(0 0 46% 0)' : undefined,
+            }}
+          >
+            {(() => {
+              const sheetFrame = spriteSheet.frames[direction][isWalking ? frame : 0];
+              const column = sheetFrame % spriteSheet.columns;
+              const row = Math.floor(sheetFrame / spriteSheet.columns);
+              const sourceWidth = spriteSheet.sourceWidth ?? spriteSheet.columns;
+              const sourceHeight = spriteSheet.sourceHeight ?? spriteSheet.rows;
+              const cellWidth = spriteSheet.cellWidth ?? 1;
+              const cellHeight = spriteSheet.cellHeight ?? 1;
+              const offsetX = spriteSheet.offsetX ?? 0;
+              const offsetY = spriteSheet.offsetY ?? 0;
+              const frameOffset = spriteSheet.frameOffsets?.[sheetFrame] ?? { x: 0, y: 0 };
+              return (
+                <img
+                  src={spriteImg.src}
+                  className="absolute max-w-none max-h-none filter drop-shadow-[0_2px_3px_rgba(0,0,0,0.5)]"
+                  style={{
+                    width: `${(sourceWidth / cellWidth) * 100}%`,
+                    height: `${(sourceHeight / cellHeight) * 100}%`,
+                    left: `${-((offsetX + column * cellWidth - frameOffset.x) / cellWidth) * 100}%`,
+                    top: `${-((offsetY + row * cellHeight - frameOffset.y) / cellHeight) * 100}%`,
+                  }}
+                  alt="Player"
+                />
+              );
+            })()}
+          </div>
+        ) : (
          <img 
             src={spriteImg.src} 
             className="relative z-10 filter drop-shadow-[0_2px_3px_rgba(0,0,0,0.5)] object-contain transition-transform duration-75"
@@ -132,6 +186,7 @@ const Character = ({ x, y, direction, isWalking, customSprites, isHidden, isBath
             }}
             alt="Player"
          />
+        )
       ) : (
          // Default placeholder with hand and foot animations
          isHorizontal ? (

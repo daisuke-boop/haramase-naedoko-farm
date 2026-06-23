@@ -1,5 +1,5 @@
 {
-  "turn": 4,
+  "turn": 16,
   "gold": 5000,
   "gameMode": "story",
   "hasUnlockedEndlessNurseryMode": false,
@@ -42,47 +42,57 @@
   "farmGirls": [
     {
       "girlId": "chibiichi",
-      "state": "none",
-      "plantedDay": null,
-      "growthProgress": 0,
+      "state": "appeared",
+      "cardRevealed": false,
+      "plantedDay": 3,
+      "growthProgress": 2,
       "lastHarvestDay": null,
-      "trust": 0,
-      "unlockedTrustEventIds": [],
+      "trust": 20,
+      "unlockedTrustEventIds": [
+        "chibiichi_trust_20"
+      ],
       "condition": "normal",
       "conditionDay": null,
       "conditionSource": null
     },
     {
       "girlId": "mel",
-      "state": "none",
-      "plantedDay": null,
+      "state": "appeared",
+      "cardRevealed": true,
+      "plantedDay": 3,
       "growthProgress": 0,
-      "lastHarvestDay": null,
-      "trust": 0,
-      "unlockedTrustEventIds": [],
+      "lastHarvestDay": 3,
+      "trust": 20,
+      "unlockedTrustEventIds": [
+        "mel_trust_20"
+      ],
       "condition": "normal",
       "conditionDay": null,
       "conditionSource": null
     },
     {
       "girlId": "ruby",
-      "state": "none",
-      "plantedDay": null,
-      "growthProgress": 0,
+      "state": "appeared",
+      "cardRevealed": false,
+      "plantedDay": 3,
+      "growthProgress": 2,
       "lastHarvestDay": null,
-      "trust": 0,
-      "unlockedTrustEventIds": [],
+      "trust": 20,
+      "unlockedTrustEventIds": [
+        "ruby_trust_20"
+      ],
       "condition": "normal",
       "conditionDay": null,
       "conditionSource": null
     },
     {
       "girlId": "viola",
-      "state": "none",
+      "state": "appeared",
+      "cardRevealed": true,
       "plantedDay": null,
       "growthProgress": 0,
       "lastHarvestDay": null,
-      "trust": 0,
+      "trust": 20,
       "unlockedTrustEventIds": [],
       "condition": "normal",
       "conditionDay": null,
@@ -90,11 +100,12 @@
     },
     {
       "girlId": "nazuna",
-      "state": "none",
+      "state": "appeared",
+      "cardRevealed": true,
       "plantedDay": null,
       "growthProgress": 0,
       "lastHarvestDay": null,
-      "trust": 0,
+      "trust": 20,
       "unlockedTrustEventIds": [],
       "condition": "normal",
       "conditionDay": null,
@@ -102,11 +113,12 @@
     },
     {
       "girlId": "kabune",
-      "state": "none",
+      "state": "appeared",
+      "cardRevealed": true,
       "plantedDay": null,
       "growthProgress": 0,
       "lastHarvestDay": null,
-      "trust": 0,
+      "trust": 20,
       "unlockedTrustEventIds": [],
       "condition": "normal",
       "conditionDay": null,
@@ -114,11 +126,12 @@
     },
     {
       "girlId": "caro",
-      "state": "none",
+      "state": "appeared",
+      "cardRevealed": true,
       "plantedDay": null,
       "growthProgress": 0,
       "lastHarvestDay": null,
-      "trust": 0,
+      "trust": 20,
       "unlockedTrustEventIds": [],
       "condition": "normal",
       "conditionDay": null,
@@ -126,11 +139,12 @@
     },
     {
       "girlId": "theta",
-      "state": "none",
+      "state": "appeared",
+      "cardRevealed": true,
       "plantedDay": null,
       "growthProgress": 0,
       "lastHarvestDay": null,
-      "trust": 0,
+      "trust": 20,
       "unlockedTrustEventIds": [],
       "condition": "normal",
       "conditionDay": null,
@@ -138,11 +152,12 @@
     },
     {
       "girlId": "cure",
-      "state": "none",
+      "state": "appeared",
+      "cardRevealed": true,
       "plantedDay": null,
       "growthProgress": 0,
       "lastHarvestDay": null,
-      "trust": 0,
+      "trust": 20,
       "unlockedTrustEventIds": [],
       "condition": "normal",
       "conditionDay": null,
@@ -150,11 +165,12 @@
     },
     {
       "girlId": "shiro",
-      "state": "none",
+      "state": "appeared",
+      "cardRevealed": true,
       "plantedDay": null,
       "growthProgress": 0,
       "lastHarvestDay": null,
-      "trust": 0,
+      "trust": 20,
       "unlockedTrustEventIds": [],
       "condition": "normal",
       "conditionDay": null,
@@ -162,11 +178,12 @@
     },
     {
       "girlId": "momona",
-      "state": "none",
+      "state": "appeared",
+      "cardRevealed": true,
       "plantedDay": null,
       "growthProgress": 0,
       "lastHarvestDay": null,
-      "trust": 0,
+      "trust": 20,
       "unlockedTrustEventIds": [],
       "condition": "normal",
       "conditionDay": null,
@@ -174,23 +191,27 @@
     },
     {
       "girlId": "pan",
-      "state": "none",
+      "state": "appeared",
+      "cardRevealed": true,
       "plantedDay": null,
       "growthProgress": 0,
-      "lastHarvestDay": null,
-      "trust": 0,
-      "unlockedTrustEventIds": [],
+      "lastHarvestDay": 3,
+      "trust": 20,
+      "unlockedTrustEventIds": [
+        "pan_trust_20"
+      ],
       "condition": "normal",
       "conditionDay": null,
       "conditionSource": null
     },
     {
       "girlId": "puti",
-      "state": "none",
+      "state": "appeared",
+      "cardRevealed": true,
       "plantedDay": null,
       "growthProgress": 0,
       "lastHarvestDay": null,
-      "trust": 0,
+      "trust": 20,
       "unlockedTrustEventIds": [],
       "condition": "normal",
       "conditionDay": null,
@@ -198,11 +219,12 @@
     },
     {
       "girlId": "roma",
-      "state": "none",
+      "state": "appeared",
+      "cardRevealed": true,
       "plantedDay": null,
       "growthProgress": 0,
       "lastHarvestDay": null,
-      "trust": 0,
+      "trust": 20,
       "unlockedTrustEventIds": [],
       "condition": "normal",
       "conditionDay": null,
@@ -211,10 +233,11 @@
     {
       "girlId": "saffy",
       "state": "none",
+      "cardRevealed": false,
       "plantedDay": null,
       "growthProgress": 0,
       "lastHarvestDay": null,
-      "trust": 0,
+      "trust": 20,
       "unlockedTrustEventIds": [],
       "condition": "normal",
       "conditionDay": null,
@@ -230,9 +253,9 @@
     {
       "fieldId": "left",
       "slotIndex": 1,
-      "girlId": null,
-      "state": "none",
-      "plantedDay": null
+      "girlId": "mel",
+      "state": "growing",
+      "plantedDay": 3
     },
     {
       "fieldId": "left",
@@ -251,9 +274,9 @@
     {
       "fieldId": "left",
       "slotIndex": 4,
-      "girlId": null,
-      "state": "none",
-      "plantedDay": null
+      "girlId": "ruby",
+      "state": "appeared",
+      "plantedDay": 3
     },
     {
       "fieldId": "left",
@@ -265,12 +288,12 @@
     {
       "fieldId": "left",
       "slotIndex": 6,
-      "girlId": null,
-      "state": "none",
-      "plantedDay": null
+      "girlId": "chibiichi",
+      "state": "appeared",
+      "plantedDay": 3
     }
   ],
-  "currentAP": 1,
+  "currentAP": 5,
   "maxAPPerTimeSlot": 5,
   "difficulty": "easy",
   "currentMap": "farm",
@@ -633,7 +656,7 @@
       "spawnY": 210
     }
   ],
-  "bgmVolume": 0.03,
+  "bgmVolume": 0.2,
   "seVolume": 0.2,
   "voiceVolume": 0.19,
   "audioGains": {
@@ -45237,19 +45260,19 @@
     "【レシピ】のこぎり": 1,
     "モグラの爪": 5,
     "ウサギの靭帯": 0,
-    "軟らかい銅鉱石": 3,
-    "柔らかな若枝": 0,
+    "軟らかい銅鉱石": 6,
+    "柔らかな若枝": 1,
     "のこぎり": 1,
     "【レシピ】つるはし": 1,
-    "泥混じりの鉄鉱石": 2,
+    "泥混じりの鉄鉱石": 5,
     "つるはし": 1,
-    "軽石炭": 7,
+    "軽石炭": 10,
     "脆い鉛鉱石": 0,
     "オイカワ": 1,
-    "重厚な硬木": 1,
+    "重厚な硬木": 0,
     "堅実な中木": 0,
     "使用済みコンドーム": 1,
-    "不朽の鉄木": 1,
+    "不朽の鉄木": 0,
     "古代の神木": 0,
     "モグラの肉": 1,
     "熊の剛糸": 4,
@@ -45259,7 +45282,11 @@
     "鋭い牙": 2,
     "鋭い爪": 1,
     "ウグイ": 1,
-    "獣の丈夫な筋": 1
+    "獣の丈夫な筋": 1,
+    "ルビーのトマト": 3,
+    "ぱんちゃんのかぼちゃ": 1,
+    "ちびいちのいちご": 2,
+    "めるのメロン": 1
   },
   "equippedItems": {
     "主人公-slot1": "竹の釣竿",
@@ -45292,14 +45319,13 @@
     ]
   },
   "lumberInventorySizes": {
-    "重厚な硬木": [
-      52.7
-    ],
+    "重厚な硬木": [],
     "堅実な中木": [],
-    "不朽の鉄木": [
-      114.6
-    ],
-    "古代の神木": []
+    "不朽の鉄木": [],
+    "古代の神木": [],
+    "柔らかな若枝": [
+      34.6
+    ]
   },
   "oreInventoryWeights": {
     "軽石炭": [
@@ -45309,17 +45335,26 @@
       239,
       610,
       654,
-      558
+      558,
+      809,
+      1201,
+      904
     ],
     "軟らかい銅鉱石": [
       1102,
       1792,
-      1601
+      1601,
+      2284,
+      1852,
+      1694
     ],
     "脆い鉛鉱石": [],
     "泥混じりの鉄鉱石": [
       2134,
-      1203
+      1203,
+      1858,
+      1165,
+      1571
     ]
   },
   "depletedMiningPointIds": {},

@@ -20,6 +20,7 @@ type MiningBgmRhythmOption = {
   src: string;
   label: string;
 };
+type FarmPlantButtonPlacement = { offsetX: number; offsetY: number };
 
 type DebugPanelProps = {
   setupMode: SetupMode;
@@ -68,6 +69,12 @@ type DebugPanelProps = {
   debugDialogueOptions: DebugDialogueOption[];
   onSaveDebugDialogue: (key: string, message: string) => void;
   onResetDebugDialogue: (key: string) => void;
+  showFarmPlantButtonPreview: boolean;
+  setShowFarmPlantButtonPreview: React.Dispatch<React.SetStateAction<boolean>>;
+  selectedFarmPlantButtonKey: string;
+  setSelectedFarmPlantButtonKey: React.Dispatch<React.SetStateAction<string>>;
+  farmPlantButtonPlacements: Record<string, FarmPlantButtonPlacement>;
+  setFarmPlantButtonPlacements: React.Dispatch<React.SetStateAction<Record<string, FarmPlantButtonPlacement>>>;
 };
 
 const DebugPanel = ({
@@ -117,7 +124,14 @@ const DebugPanel = ({
   debugDialogueOptions,
   onSaveDebugDialogue,
   onResetDebugDialogue,
+  showFarmPlantButtonPreview,
+  setShowFarmPlantButtonPreview,
+  selectedFarmPlantButtonKey,
+  setSelectedFarmPlantButtonKey,
+  farmPlantButtonPlacements,
+  setFarmPlantButtonPlacements,
 }: DebugPanelProps) => {
+  const [isMinimized, setIsMinimized] = React.useState(false);
   const [selectedDebugDialogueKey, setSelectedDebugDialogueKey] = React.useState(debugDialogueOptions[0]?.key ?? '');
   const selectedDebugDialogue = debugDialogueOptions.find(option => option.key === selectedDebugDialogueKey) ?? debugDialogueOptions[0];
   const [debugDialogueDraft, setDebugDialogueDraft] = React.useState(selectedDebugDialogue?.currentMessage ?? '');
@@ -141,22 +155,38 @@ const DebugPanel = ({
 
   return (
         <div 
-           className={`absolute bg-[#1a100d]/90 border-[3px] border-red-600 rounded-lg p-2.5 flex flex-col gap-2 z-[140] text-[#fdf6e3] text-xs shadow-2xl w-[240px] select-none transition-opacity duration-200 ${setupMode !== 'none' ? 'opacity-40 hover:opacity-100' : ''}`}
+           className={`absolute flex flex-col bg-[#1a100d]/90 border-[3px] border-red-600 rounded-lg z-[140] text-[#fdf6e3] text-xs shadow-2xl w-[240px] select-none transition-opacity duration-200 overflow-hidden ${setupMode !== 'none' ? 'opacity-40 hover:opacity-100' : ''}`}
            style={{
               left: debugPanelPos.x,
-              top: debugPanelPos.y
+              top: debugPanelPos.y,
+              height: isMinimized ? 'auto' : `max(180px, calc(100% - ${Math.max(8, debugPanelPos.y)}px - 8px))`,
+              maxHeight: `calc(100% - ${Math.max(8, debugPanelPos.y)}px - 8px)`,
            }}
            onPointerDown={stopDebugPropagation}
            onPointerUp={stopDebugPropagation}
            onClick={stopDebugPropagation}
            onKeyDown={stopDebugPropagation}
         >
-          <div 
-             onPointerDown={handleDebugDragStart}
-             className="text-red-400 font-bold border-b-2 border-red-600 pb-1 text-center text-sm tracking-wider cursor-move select-none active:text-white"
-          >
-             🛠️ デバッグ設定 (ドラッグ)
+          <div className={`flex shrink-0 items-center border-red-600 px-2.5 py-2 ${isMinimized ? '' : 'border-b-2'}`}>
+             <div 
+                onPointerDown={handleDebugDragStart}
+                className="min-w-0 flex-1 cursor-move select-none text-center text-sm font-bold tracking-wider text-red-400 active:text-white"
+             >
+                🛠️ デバッグ設定
+             </div>
+             <button
+                type="button"
+                onPointerDown={stopDebugPropagation}
+                onClick={() => setIsMinimized(value => !value)}
+                className="ml-1 flex h-6 w-7 shrink-0 items-center justify-center rounded border border-red-700 bg-red-950 text-sm font-black text-red-200 hover:bg-red-800 hover:text-white"
+                aria-label={isMinimized ? 'デバッグ設定を展開' : 'デバッグ設定を最小化'}
+                title={isMinimized ? '展開' : '最小化'}
+             >
+                {isMinimized ? '＋' : '－'}
+             </button>
           </div>
+          {!isMinimized && (
+          <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-scroll overscroll-contain p-2.5 pr-2 [scrollbar-color:#dc2626_#2d1b15] [scrollbar-width:thin]">
           <div className="grid grid-cols-2 gap-1.5">
             <button 
               onClick={() => setTurn(t => Math.floor(t / 4) * 4 + 0)} 
@@ -460,6 +490,70 @@ const DebugPanel = ({
               </label>
            </div>
 
+           <div className="flex flex-col gap-1.5 border-t border-yellow-500/40 pt-1.5">
+              <div className="text-center text-[9px] font-bold text-yellow-200">🌱 植えるボタン位置調整</div>
+              <button
+                 type="button"
+                 onClick={() => setShowFarmPlantButtonPreview(value => !value)}
+                 className={`rounded border px-1 py-1.5 text-[9px] font-bold ${
+                   showFarmPlantButtonPreview
+                     ? 'border-yellow-200 bg-yellow-700 text-white'
+                     : 'border-yellow-800 bg-[#2d1b15] text-yellow-300'
+                 }`}
+              >
+                 {showFarmPlantButtonPreview ? '✓ 全10ボタンを表示中' : '全10ボタンを表示'}
+              </button>
+              <select
+                 value={selectedFarmPlantButtonKey}
+                 onChange={(e) => setSelectedFarmPlantButtonKey(e.target.value)}
+                 className="w-full rounded border border-yellow-700 bg-[#2d1b15] px-1 py-1 text-[10px] font-bold text-white"
+              >
+                 {['left_1', 'left_2', 'left_3', 'left_4', 'left_5', 'left_6', 'right_1', 'right_2', 'right_3', 'right_4'].map(key => (
+                    <option key={key} value={key}>{key.replace('left_', '左畑 ').replace('right_', '右畑 ')}枠</option>
+                 ))}
+              </select>
+              {([
+                 ['offsetX', 'X', -240, 240],
+                 ['offsetY', 'Y', -240, 240],
+              ] as const).map(([key, label, min, max]) => {
+                 const placement = farmPlantButtonPlacements[selectedFarmPlantButtonKey] ?? { offsetX: 0, offsetY: 0 };
+                 return (
+                    <label key={key} className="flex flex-col gap-0.5 text-[8px] text-gray-300">
+                       <span className="flex items-center justify-between gap-2">
+                          <span>{label}</span>
+                          <input
+                             type="number"
+                             min={min}
+                             max={max}
+                             value={placement[key]}
+                             onChange={(e) => {
+                               const value = Math.max(min, Math.min(max, Number(e.target.value) || 0));
+                               setFarmPlantButtonPlacements(prev => ({
+                                 ...prev,
+                                 [selectedFarmPlantButtonKey]: { ...(prev[selectedFarmPlantButtonKey] ?? { offsetX: 0, offsetY: 0 }), [key]: value },
+                               }));
+                             }}
+                             className="w-16 rounded border border-yellow-700 bg-black px-1 py-0.5 text-right text-[9px] font-bold text-yellow-100"
+                          />
+                          <span>px</span>
+                       </span>
+                       <input
+                          type="range"
+                          min={min}
+                          max={max}
+                          value={placement[key]}
+                          onChange={(e) => setFarmPlantButtonPlacements(prev => ({
+                            ...prev,
+                            [selectedFarmPlantButtonKey]: { ...(prev[selectedFarmPlantButtonKey] ?? { offsetX: 0, offsetY: 0 }), [key]: Number(e.target.value) },
+                          }))}
+                          className="h-1 w-full cursor-pointer appearance-none rounded-lg bg-gray-700 accent-yellow-400"
+                       />
+                    </label>
+                 );
+              })}
+              <div className="text-[8px] leading-tight text-gray-500">選択中は白枠で強調。変更は自動保存されます。</div>
+           </div>
+
            {/* Dialogue Line Break Debug */}
            <div className="flex flex-col gap-1 border-t border-red-600/30 pt-1.5 mt-0.5">
               <div className="text-[9px] text-pink-200 font-bold text-center">💬 会話改行調整</div>
@@ -535,6 +629,8 @@ const DebugPanel = ({
           <div className="text-[9px] text-gray-400 text-center leading-tight">
             (※製品版で削除予定)
           </div>
+          </div>
+          )}
         </div>
   );
 };
