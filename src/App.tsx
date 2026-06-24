@@ -139,6 +139,9 @@ import type {
   WarpDoor,
 } from './types';
 
+const TITLE_START_TRANSITION_MS = 1500;
+const TITLE_START_SOUND_SRC = '/se/start.mp3';
+
 const getMapBackgroundUrl = (map: GameMap, timeOfDay: TimeOfDay) => {
   const background = mapBackgrounds[map];
   return typeof background === 'string' ? background : background[timeOfDay];
@@ -2276,6 +2279,7 @@ export default function App() {
   const [circleIntroVisible, setCircleIntroVisible] = useState(false);
   const [bootMode, setBootMode] = useState<'title' | 'loadingSave' | 'playing'>('title');
   const [titlePanelMode, setTitlePanelMode] = useState<'none' | 'new' | 'difficulty' | 'load' | 'endless' | 'config'>('none');
+  const [titleStartTransitionPhase, setTitleStartTransitionPhase] = useState<'idle' | 'fadeOut' | 'fadeIn'>('idle');
   const [currentSaveSlot, setCurrentSaveSlot] = useState(1);
   const [startingNewGame, setStartingNewGame] = useState(false);
   const [pendingNewGameSlot, setPendingNewGameSlot] = useState<number | null>(null);
@@ -2297,6 +2301,18 @@ export default function App() {
   const prologuePageRef = useRef(prologuePage);
   const prologueRingRevealRef = useRef(prologueRingReveal);
   const autoSaveBlockedSlotsRef = useRef<Set<number>>(new Set());
+  const pendingNewGameModeRef = useRef<GameMode>(pendingNewGameMode);
+  const pendingNewGameDifficultyRef = useRef<GameDifficulty>(pendingNewGameDifficulty);
+  const titleStartTransitionTimerRef = useRef<number | null>(null);
+  const titleStartTransitionPhaseRef = useRef(titleStartTransitionPhase);
+  useEffect(() => { pendingNewGameModeRef.current = pendingNewGameMode; }, [pendingNewGameMode]);
+  useEffect(() => { pendingNewGameDifficultyRef.current = pendingNewGameDifficulty; }, [pendingNewGameDifficulty]);
+  useEffect(() => { titleStartTransitionPhaseRef.current = titleStartTransitionPhase; }, [titleStartTransitionPhase]);
+  useEffect(() => () => {
+    if (titleStartTransitionTimerRef.current !== null) {
+      window.clearTimeout(titleStartTransitionTimerRef.current);
+    }
+  }, []);
 
   const [setupMode, setSetupMode] = useState<'none' | 'animation' | 'collision' | 'hideArea' | 'doors' | 'footstep' | 'crops' | 'bed' | 'bathTub'>('none');
 
@@ -3140,7 +3156,49 @@ export default function App() {
       const categoryIcons: Record<HeroSkillCategory, string> = {
         farm: '🌾', gather: '🧭', battle: '⚔', companion: '♡', special: '✦',
       };
-      const nodeLeft = (column: number) => 13 + column * 29;
+      const skillIconSheetIndexes: Record<string, number> = {
+        farm_harvest_up: 0,
+        farm_sell_up: 1,
+        farm_interest_down: 2,
+        gather_fishing_rare_up: 3,
+        gather_mining_rare_up: 4,
+        gather_lumber_rare_up: 5,
+        battle_hp_up: 7,
+        battle_damage_reduce: 8,
+        battle_beast_damage_up: 11,
+        companion_trust_up: 13,
+        companion_harvest_penalty_down: 14,
+        special_life_understanding: 16,
+        special_hybrid_cultivation: 17,
+      };
+      const renderSkillIcon = (skill: HeroSkillData, className = '') => {
+        const sheetIndex = skillIconSheetIndexes[skill.id];
+        if (sheetIndex === undefined) {
+          return (
+            <span className={`grid place-items-center text-3xl leading-none ${className}`}>
+              {skill.icon}
+            </span>
+          );
+        }
+        const column = sheetIndex % 5;
+        const row = Math.floor(sheetIndex / 5);
+        return (
+          <span className={`relative block overflow-hidden ${className}`} aria-hidden="true">
+            <img
+              src="/img/skill.png"
+              alt=""
+              className="absolute max-w-none"
+              style={{
+                width: '500%',
+                height: '500%',
+                left: `${-column * 100}%`,
+                top: `${-row * 100}%`,
+              }}
+            />
+          </span>
+        );
+      };
+      const nodeLeft = (column: number) => 18 + column * 30;
       const nodeTop = (row: number) => 10 + row * 16;
       return (
         <div className="grid grid-cols-[1fr_320px] gap-4 h-full">
@@ -3199,29 +3257,31 @@ export default function App() {
                       onMouseEnter={() => { if (!isSelected) playCursorSound(); }}
                       onClick={(event) => event.stopPropagation()}
                       style={{ left: `${nodeLeft(skill.treeColumn)}%`, top: `${nodeTop(skill.treeRow)}%` }}
-                      className={`absolute z-10 grid h-28 w-32 -translate-x-1/2 -translate-y-1/2 place-items-center border-2 p-2 text-center transition ${
+                      className={`absolute z-10 grid h-40 w-48 -translate-x-1/2 -translate-y-1/2 grid-rows-[auto_1fr_auto_auto] place-items-center rounded-lg border-2 p-3 text-center transition ${
                         isSelected
-                          ? 'border-white bg-[#a75a27] ring-4 ring-[#fff1a8]/75 shadow-[0_0_0_3px_rgba(255,209,102,0.3),0_0_22px_rgba(255,209,102,0.5)]'
+                          ? 'border-white bg-[#a75a27] ring-4 ring-[#fff1a8]/75 shadow-[0_0_0_3px_rgba(255,209,102,0.3),0_0_28px_rgba(255,209,102,0.55)]'
                           : isUnlocked
-                            ? 'border-[#93d178] bg-[#36522c] shadow-[0_0_14px_rgba(147,209,120,0.2)]'
+                            ? 'border-[#d8ff9a] bg-[#426b2c] ring-4 ring-[#bbf7a5]/65 shadow-[0_0_0_3px_rgba(216,255,154,0.2),0_0_28px_rgba(147,209,120,0.55)]'
                             : canUnlock
                               ? 'border-[#7be0d3] bg-[#1e5a58] hover:bg-[#28736f]'
                               : 'border-[#5a4032] bg-[#1a100d]/90 hover:bg-[#3a2418]'
                       }`}
                     >
-                      <span className={`absolute -top-3 rounded-full border px-2 py-1 text-[11px] font-black leading-none shadow-md ${
+                      <span className={`absolute -top-6 rounded-full border-2 px-4 py-2 text-[20px] font-black leading-none shadow-lg ${
                         isUnlocked
-                          ? 'border-[#bbf7a5] bg-[#245b2c] text-[#eaffd6]'
-                          : 'border-[#d69a6a] bg-[#5d2d1d] text-[#ffe1c6]'
+                          ? 'border-[#f0ffd0] bg-[#2f7a2e] text-[#f6ffe9] shadow-[0_0_18px_rgba(216,255,154,0.72)]'
+                          : 'border-[#ffcb9a] bg-[#6b341f] text-[#fff0dc]'
                       }`}>
                         {isUnlocked ? '取得済み' : '未取得'}
                       </span>
-                      <span className={`grid h-11 w-11 place-items-center rounded-full border text-3xl leading-none ${
+                      <span className={`mt-2 grid h-[76px] w-[120px] place-items-center overflow-hidden rounded-md border bg-[#f7e0b5]/10 p-1 shadow-inner ${
                         isUnlocked
-                          ? 'border-[#bbf7a5] bg-[#245b2c] text-[#efffdc]'
-                          : 'border-[#a76a49] bg-[#301a14] text-[#eab88f]'
-                      }`}>{skill.icon}</span>
-                      <span className="mt-1 text-sm font-black leading-tight text-[#fff7dc]">{skill.name}</span>
+                          ? 'border-[#efffcf] bg-[#d8ff9a]/20 shadow-[0_0_18px_rgba(216,255,154,0.4)]'
+                          : 'border-[#a76a49]'
+                      }`}>
+                        {renderSkillIcon(skill, 'h-full w-full rounded')}
+                      </span>
+                      <span className="mt-2 text-base font-black leading-tight text-[#fff7dc]">{skill.name}</span>
                       <span className="text-xs font-bold text-[#ffd166]">SP {skill.costSP}</span>
                     </button>
                   );
@@ -3231,6 +3291,11 @@ export default function App() {
           </div>
           <div style={menuPanelBaseStyle} className="flex flex-col gap-3">
             <div style={menuTinyLabelStyle}>選択スキル</div>
+            {selectedSkill && (
+              <div className="grid h-[118px] place-items-center rounded border border-[#76502c] bg-[#f7e0b5]/10 p-2 shadow-inner">
+                {renderSkillIcon(selectedSkill, 'h-full w-full max-w-[190px] rounded')}
+              </div>
+            )}
             <div className="text-[#fdf6e3] text-3xl font-bold">{selectedSkill?.name ?? 'スキル未選択'}</div>
             <div className="rounded border border-[#5a3010] bg-black/30 p-3">
               <div style={menuTinyLabelStyle}>系統</div>
@@ -3419,23 +3484,19 @@ export default function App() {
                 {selectedFarmGirlIsVisible && <div className="mt-1 text-lg">{renderStars(selectedFarmGirl.affinity)}</div>}
               </div>
             </div>
-            <div className="bg-black/30 border border-[#5a3010]/70 rounded px-3 py-3">
+            <div className="bg-black/30 border border-[#5a3010]/70 rounded px-4 py-4">
               <div style={menuTinyLabelStyle}>詳細</div>
               <div className="mt-3 grid grid-cols-2 gap-3 text-base">
-                <div className="rounded bg-black/25 px-3 py-3">
+                <div className="rounded bg-black/25 px-4 py-4">
                   <div className="text-[#c8a87a] text-sm font-bold">レベル</div>
-                  <div className="text-[#fdf6e3] text-2xl font-bold">Lv {selectedFarmGirl.level}</div>
+                  <div className="mt-1 text-[#fdf6e3] text-3xl font-black leading-none">Lv {selectedFarmGirl.level}</div>
                 </div>
-                <div className="rounded bg-black/25 px-3 py-3">
-                  <div className="text-[#c8a87a] text-sm font-bold">星</div>
-                  <div className="text-[#ffd45a] text-2xl font-bold">{selectedFarmGirl.affinity} / 5</div>
-                </div>
-                <div className="rounded bg-black/25 px-3 py-3">
+                <div className="rounded bg-black/25 px-4 py-4">
                   <div className="text-[#c8a87a] text-sm font-bold">状態</div>
-                  <div className="text-[#fdf6e3] text-lg font-bold">{selectedFarmGirlConditionText}</div>
+                  <div className="mt-1 text-[#fdf6e3] text-xl font-black leading-tight">{selectedFarmGirlConditionText}</div>
                 </div>
                 {selectedFarmGirlState?.condition === 'affected' && (
-                  <div className="col-span-2 rounded bg-black/25 px-3 py-3">
+                  <div className="col-span-2 rounded bg-black/25 px-4 py-4">
                     <div className="text-sm font-bold text-[#d8c4e8]">看病すると回復できます</div>
                     <button
                       type="button"
@@ -3450,7 +3511,7 @@ export default function App() {
                   </div>
                 )}
                 {selectedGirlData && selectedFarmGirlState?.state === 'growing' && (
-                  <div className="col-span-2 rounded bg-black/25 px-3 py-3">
+                  <div className="col-span-2 rounded bg-black/25 px-4 py-4">
                     <div className="flex items-center justify-between gap-2">
                       <div className="text-[#c8a87a] text-sm font-bold">苗のお世話</div>
                       <div className="text-base font-bold text-[#ffd166]">品質 {selectedFarmGirlState.quality} / 100（{getFarmQualityLabel(selectedFarmGirlState.quality)}）</div>
@@ -3486,11 +3547,11 @@ export default function App() {
                   </div>
                 )}
                 {selectedGirlData && selectedFarmGirlState && (
-                  <div className="col-span-2 rounded bg-black/25 px-3 py-3">
+                  <div className="col-span-2 rounded bg-black/25 px-4 py-4">
                     <div className="flex items-center justify-between gap-2">
                       <div>
                         <div className="text-[#c8a87a] text-sm font-bold">同行</div>
-                        <div className={`mt-1 text-base font-bold ${selectedGirlIsCompanion ? 'text-[#ffd166]' : 'text-[#fdf6e3]'}`}>
+                        <div className={`mt-1 text-xl font-black leading-tight ${selectedGirlIsCompanion ? 'text-[#ffd166]' : 'text-[#fdf6e3]'}`}>
                           {selectedGirlIsCompanion ? '⚔ 同行中' : '同行していません'}
                         </div>
                       </div>
@@ -3526,9 +3587,9 @@ export default function App() {
                   </div>
                 )}
                 {selectedGirlData && selectedFarmGirlState && (
-                  <div className="col-span-2 rounded bg-black/25 px-3 py-3">
+                  <div className="col-span-2 rounded bg-black/25 px-4 py-4">
                     <div className="text-[#c8a87a] text-sm font-bold">信頼度</div>
-                    <div className="mt-1 text-lg font-bold text-[#fdf6e3]">
+                    <div className="mt-1 text-xl font-black text-[#fdf6e3]">
                       信頼度 {selectedFarmGirlState.trust} / 100
                     </div>
                     <div className="mt-2 grid grid-cols-2 gap-2 text-sm font-bold">
@@ -3552,10 +3613,10 @@ export default function App() {
                   </div>
                 )}
                 {selectedGirlData && selectedHarvestInfo?.crop && selectedFarmGirlState?.state === 'appeared' && (
-                  <div className="col-span-2 rounded bg-black/25 px-3 py-3">
+                  <div className="col-span-2 rounded bg-black/25 px-4 py-4">
                     <div className="text-[#c8a87a] text-sm font-bold">収穫</div>
                     <div className="mt-1 flex items-center justify-between gap-2">
-                      <div className="min-w-0 text-base font-bold text-[#fdf6e3]">
+                      <div className="min-w-0 text-lg font-black leading-tight text-[#fdf6e3]">
                         {selectedCompanionHarvestModifier.multiplier === 0
                           ? '同行中のため収穫できません'
                           : selectedHarvestInfo.canHarvest
@@ -5228,6 +5289,8 @@ export default function App() {
           }
         }
         if (startingNewGame) {
+          const requestedNewGameMode = pendingNewGameModeRef.current;
+          const requestedNewGameDifficulty = pendingNewGameDifficultyRef.current;
           if (mapSettingsForNewGame) {
             applyMapSettingsSnapshot(mapSettingsForNewGame);
           }
@@ -5236,10 +5299,10 @@ export default function App() {
           setBgmVolume(DEFAULT_MASTER_VOLUME);
           setSeVolume(DEFAULT_MASTER_VOLUME);
           setVoiceVolume(DEFAULT_MASTER_VOLUME);
-          const difficultyOption = DIFFICULTY_OPTIONS.find(option => option.id === pendingNewGameDifficulty) ?? DIFFICULTY_OPTIONS[2];
+          const difficultyOption = DIFFICULTY_OPTIONS.find(option => option.id === requestedNewGameDifficulty) ?? DIFFICULTY_OPTIONS[2];
           setDifficulty(difficultyOption.id);
-          setGameMode(pendingNewGameMode);
-          setDebtAmount(pendingNewGameMode === 'endlessNursery' ? 0 : getInitialDebtAmount(difficultyOption.id));
+          setGameMode(requestedNewGameMode);
+          setDebtAmount(requestedNewGameMode === 'endlessNursery' ? 0 : getInitialDebtAmount(difficultyOption.id));
           setRepaymentCycleDays(DEFAULT_REPAYMENT_CYCLE_DAYS);
           setRepaymentEventPending(false);
           setStoryCleared(false);
@@ -5301,7 +5364,7 @@ export default function App() {
           setProloguePage(0);
           setPrologueRingReveal(false);
           setPrologueRingRevealReady(false);
-          setPrologueOpen(pendingNewGameMode === 'story');
+          setPrologueOpen(requestedNewGameMode === 'story');
           setInventoryCounts({ ...INITIAL_INVENTORY_COUNTS });
           setEquippedItems({ ...INITIAL_EQUIPPED_ITEMS });
           equippedItemsRef.current = { ...INITIAL_EQUIPPED_ITEMS };
@@ -5317,6 +5380,17 @@ export default function App() {
         setBootMode('playing');
         setMenuOpen(false);
         setIsLoading(false);
+        if (startingNewGame && pendingNewGameModeRef.current === 'story' && titleStartTransitionPhaseRef.current === 'fadeOut') {
+          titleStartTransitionPhaseRef.current = 'fadeIn';
+          setTitleStartTransitionPhase('fadeIn');
+          if (titleStartTransitionTimerRef.current !== null) {
+            window.clearTimeout(titleStartTransitionTimerRef.current);
+          }
+          titleStartTransitionTimerRef.current = window.setTimeout(() => {
+            titleStartTransitionPhaseRef.current = 'idle';
+            setTitleStartTransitionPhase('idle');
+          }, TITLE_START_TRANSITION_MS);
+        }
       })
       .catch(err => {
         console.error('セーブデータの読み込みに失敗しました:', err);
@@ -5324,6 +5398,17 @@ export default function App() {
         setBootMode('playing');
         setMenuOpen(false);
         setIsLoading(false);
+        if (titleStartTransitionPhaseRef.current === 'fadeOut') {
+          titleStartTransitionPhaseRef.current = 'fadeIn';
+          setTitleStartTransitionPhase('fadeIn');
+          if (titleStartTransitionTimerRef.current !== null) {
+            window.clearTimeout(titleStartTransitionTimerRef.current);
+          }
+          titleStartTransitionTimerRef.current = window.setTimeout(() => {
+            titleStartTransitionPhaseRef.current = 'idle';
+            setTitleStartTransitionPhase('idle');
+          }, TITLE_START_TRANSITION_MS);
+        }
       });
 
     return () => {
@@ -5620,6 +5705,7 @@ export default function App() {
 
   const beginNewGameInSlot = (slot: number, mode: GameMode) => {
     playFixSound();
+    pendingNewGameModeRef.current = mode;
     setPendingNewGameMode(mode);
     const summary = getSlotSummary(slot);
     if (summary?.exists) {
@@ -5650,22 +5736,34 @@ export default function App() {
   };
 
   const startNewGameWithDifficulty = (difficultyId: GameDifficulty) => {
+    if (titleStartTransitionPhaseRef.current !== 'idle') return;
     const slot = pendingNewGameSlot ?? 1;
     const difficultyOption = DIFFICULTY_OPTIONS.find(option => option.id === difficultyId) ?? DIFFICULTY_OPTIONS[2];
-    playFixSound();
-    autoSaveBlockedSlotsRef.current.delete(slot);
-    setCurrentSaveSlot(slot);
+    pendingNewGameDifficultyRef.current = difficultyOption.id;
+    pendingNewGameModeRef.current = 'story';
     setPendingNewGameDifficulty(difficultyOption.id);
     setPendingNewGameMode('story');
-    setStartingNewGame(true);
+    playUiSound(TITLE_START_SOUND_SRC);
     setTitlePanelMode('none');
-    setBootMode('loadingSave');
+    titleStartTransitionPhaseRef.current = 'fadeOut';
+    setTitleStartTransitionPhase('fadeOut');
+    if (titleStartTransitionTimerRef.current !== null) {
+      window.clearTimeout(titleStartTransitionTimerRef.current);
+    }
+    titleStartTransitionTimerRef.current = window.setTimeout(() => {
+      autoSaveBlockedSlotsRef.current.delete(slot);
+      setCurrentSaveSlot(slot);
+      setStartingNewGame(true);
+      setBootMode('loadingSave');
+    }, TITLE_START_TRANSITION_MS);
   };
 
   const startEndlessNurseryMode = () => {
     if (!canStartEndlessNurseryMode()) return;
     const slot = pendingNewGameSlot ?? 1;
     playFixSound();
+    pendingNewGameDifficultyRef.current = 'hard';
+    pendingNewGameModeRef.current = 'endlessNursery';
     autoSaveBlockedSlotsRef.current.delete(slot);
     setCurrentSaveSlot(slot);
     setPendingNewGameDifficulty('hard');
@@ -7294,6 +7392,7 @@ export default function App() {
   };
   const currentRepaymentInterest = Math.round(debtAmount * (currentWeeklyInterestRate / 100));
   const currentMinimumRepayment = Math.min(MINIMUM_REPAYMENT_BY_DIFFICULTY[difficulty], debtAmount);
+  const nextScheduledRepayment = currentMinimumRepayment + currentRepaymentInterest;
   const finishRepaymentEvent = (nextFarmCredit: number, nextMissedRepaymentCount: number, message: string) => {
     setFarmCredit(Math.max(0, Math.min(100, nextFarmCredit)));
     setMissedRepaymentCount(Math.max(0, nextMissedRepaymentCount));
@@ -7428,6 +7527,110 @@ export default function App() {
     ];
   }, [debugDialogueOverrides]);
   const isKurumiShopUnlocked = kurumiIntroCompletedDay !== null && currentDay > kurumiIntroCompletedDay;
+  const getIsNearFishingPoint = () => {
+    const { x, y } = posRef.current;
+    const minGridX = Math.floor((x - 15) / TILE_SIZE);
+    const maxGridX = Math.floor((x + 15) / TILE_SIZE);
+    const minGridY = Math.floor((y - 10) / TILE_SIZE);
+    const maxGridY = Math.floor(y / TILE_SIZE);
+    for (let gx = minGridX; gx <= maxGridX; gx += 1) {
+      for (let gy = minGridY; gy <= maxGridY; gy += 1) {
+        if (fishingTiles[`${currentMap}_${gx},${gy}`]) return true;
+      }
+    }
+    return false;
+  };
+  const getNearbyMiningPointIdForHud = () => {
+    const { x, y } = posRef.current;
+    const canUsePostMiningTutorialPoint = (
+      gatheringTutorialCompleted &&
+      gatheringTutorialChoice === 'mining' &&
+      !miningTutorialCompleted
+    );
+    if (
+      canUsePostMiningTutorialPoint &&
+      currentMap === POST_MINING_TUTORIAL_POINT.map &&
+      x + 18 >= POST_MINING_TUTORIAL_POINT.x &&
+      x - 18 <= POST_MINING_TUTORIAL_POINT.x + POST_MINING_TUTORIAL_POINT.w &&
+      y >= POST_MINING_TUTORIAL_POINT.y &&
+      y - 34 <= POST_MINING_TUTORIAL_POINT.y + POST_MINING_TUTORIAL_POINT.h
+    ) {
+      return POST_MINING_TUTORIAL_POINT.id;
+    }
+    const minGridX = Math.floor((x - 15) / TILE_SIZE);
+    const maxGridX = Math.floor((x + 15) / TILE_SIZE);
+    const minGridY = Math.floor((y - 10) / TILE_SIZE);
+    const maxGridY = Math.floor(y / TILE_SIZE);
+    for (let gx = minGridX; gx <= maxGridX; gx += 1) {
+      for (let gy = minGridY; gy <= maxGridY; gy += 1) {
+        const pointId = `${currentMap}_${gx},${gy}`;
+        if (miningTiles[pointId]) return pointId;
+      }
+    }
+    return null;
+  };
+  const getIsNearLoggingTileForHud = () => {
+    const { x, y } = posRef.current;
+    const minGridX = Math.floor((x - 15) / TILE_SIZE);
+    const maxGridX = Math.floor((x + 15) / TILE_SIZE);
+    const minGridY = Math.floor((y - 10) / TILE_SIZE);
+    const maxGridY = Math.floor(y / TILE_SIZE);
+    for (let gx = minGridX; gx <= maxGridX; gx += 1) {
+      for (let gy = minGridY; gy <= maxGridY; gy += 1) {
+        if (loggingTiles[`${currentMap}_${gx},${gy}`]) return true;
+      }
+    }
+    return false;
+  };
+  const hasFishingRodEquippedForHud = Boolean(equippedItems['主人公-slot1'] && equippedItems['主人公-slot1'].includes('釣竿'));
+  const hasPickaxeEquippedForHud = hasEquippedPickaxe(equippedItems);
+  const hasSawEquippedForHud = ['主人公-slot2', '主人公-slot3'].some(slotId => (
+    equippedItems[slotId]?.includes('のこぎり')
+  ));
+  const hasHarvestableFarmGirl = farmFieldSlots.some(slot => (
+    slot.girlId !== null &&
+    companionGirlId !== slot.girlId &&
+    getFarmGirlHarvestInfo(slot.girlId).canHarvest
+  ));
+  const hasSeedlingCareRemaining = farmGirls.some(girl => {
+    if (girl.state !== 'growing') return false;
+    const isSameDay = girl.careDay === currentDay;
+    return !isSameDay || girl.caressCount < 1 || girl.fingerCount < 1 || girl.fertilizeCount < 1;
+  });
+  const hasPlantableSeedAndField = (
+    getPlantableFarmFieldSlots().length > 0 &&
+    ownedGirlSeeds.some(seedId => {
+      const seed = GIRL_SEED_ACQUISITION_DATA.find(entry => entry.seedId === seedId);
+      return seed && !isGirlPlantedInFarmField(seed.girlId);
+    })
+  );
+  const hasSellableShopItem = isKurumiShopUnlocked && shopItemsForDisplay.some(item => item.type === '売る' && item.stock > 0);
+  const hasUnlockableHeroSkill = HERO_SKILL_DATA.some(skill => canUnlockHeroSkill(skill.id));
+  const hasNewFarmGirlCard = farmGirls.some(girl => girl.state === 'appeared' && !girl.cardRevealed);
+  const hasNewRepaymentShopItem = successfulRepaymentCount > 0 && BATTLE_CONSUMABLE_ITEMS.some(item => (
+    item.unlockRepaymentCount === successfulRepaymentCount &&
+    shopItemsForDisplay.some(shopItem => shopItem.type === '買う' && shopItem.name === item.name)
+  ));
+  const supplementalHudNotice = (() => {
+    if (bootMode !== 'playing' || prologueOpen) return null;
+    if (!isEndlessNurseryMode() && daysUntilRepayment <= 2 && gold < nextScheduledRepayment) return '返済資金が不足中';
+    if (!isEndlessNurseryMode() && daysUntilRepayment === 1) return `明日返済：予定 ¥${nextScheduledRepayment.toLocaleString()}`;
+    if (timeOfDay === 'night' && currentAP <= 0 && currentMap !== 'house') return '自宅のベッドで休めます';
+    if (timeOfDay === 'night' && currentAP <= 0) return '今日はもう休もう';
+    if (currentAP > 0 && currentAP <= 1 && timeOfDay !== 'night') return '残りAPに注意';
+    if (hasHarvestableFarmGirl) return '収穫できる娘あり';
+    if (currentAP > 0 && hasSeedlingCareRemaining) return '苗娘のお世話が残っています';
+    if (hasPlantableSeedAndField) return '空き畑に苗を植えられます';
+    if (getIsNearFishingPoint() && !hasFishingRodEquippedForHud) return '釣竿を装備すると釣りできます';
+    if (getNearbyMiningPointIdForHud() && !hasPickaxeEquippedForHud) return 'つるはしを装備すると採掘できます';
+    if (getIsNearLoggingTileForHud() && !hasSawEquippedForHud) return 'のこぎりを装備すると伐採できます';
+    if (hasBeastPremonition) return mountainLordAttackPending ? '巨大な気配に注意' : '畑を警戒中';
+    if (hasSellableShopItem) return '売れる品があります';
+    if (hasUnlockableHeroSkill) return 'SPでスキル取得できます';
+    if (hasNewFarmGirlCard) return '新しい娘カードを確認できます';
+    if (hasNewRepaymentShopItem) return 'くるみ商店に新商品入荷';
+    return null;
+  })();
   const hasAskedAllKurumiIntroTopics = KURUMI_INTRO_TOPIC_IDS.every(id => kurumiIntroAskedTopics.includes(id));
   const isOpeningWalkObjectiveActive = (
     bootMode === 'playing' &&
@@ -13909,6 +14112,14 @@ export default function App() {
               aria-hidden="true"
             />
           )}
+          {titleStartTransitionPhase !== 'idle' && (
+            <div
+              className={`pointer-events-auto absolute inset-0 z-[520] bg-black ${
+                titleStartTransitionPhase === 'fadeOut' ? 'title-start-fade-out' : 'title-start-fade-in'
+              }`}
+              aria-hidden="true"
+            />
+          )}
           {bootMode !== 'playing' && (
             <div className="absolute inset-0 z-[300] flex items-center justify-center bg-black">
               <div className="relative aspect-[1672/941] w-full max-h-full overflow-hidden bg-black">
@@ -14229,7 +14440,7 @@ export default function App() {
 	          
 	        {/* Header UI */}
         <div className="h-[74px] bg-[#2d1b15] border-b-[4px] border-[#bc6c25] flex items-center px-5 z-40 text-[#fdf6e3]">
-          <div className="flex min-w-0 flex-1 items-center gap-4 overflow-hidden text-lg font-black">
+          <div className="flex min-w-0 flex-1 items-center gap-3 overflow-hidden text-lg font-black">
             <span className="flex shrink-0 items-baseline gap-1.5">
               <span className="text-sm text-[#a3b18a]">DAY</span>
               <span className="text-2xl">{currentDay}日目</span>
@@ -14249,8 +14460,8 @@ export default function App() {
             {isEndlessNurseryMode() ? (
               <span className="shrink-0 rounded border border-[#f4c7ff]/55 bg-[#421a4d]/65 px-2.5 py-1 text-base text-[#f4c7ff]">借金なし / 返済なし</span>
             ) : (
-              <span className="shrink-0 rounded border border-[#ffdd99]/45 bg-[#3a2508]/70 px-2.5 py-1 text-base text-[#ffdd99]">
-                借金 ¥{debtAmount.toLocaleString()} / 返済まであと{daysUntilRepayment}日
+              <span className="shrink-0 rounded border border-[#ffdd99]/45 bg-[#3a2508]/70 px-2 py-1 text-sm text-[#ffdd99]">
+                借金 ¥{debtAmount.toLocaleString()} / 返済まであと{daysUntilRepayment}日 / 予定 ¥{nextScheduledRepayment.toLocaleString()}
               </span>
             )}
             <span className="shrink-0 text-base text-[#a5d8ff]">同行：{companionGirlName ?? 'なし'}</span>
@@ -14263,8 +14474,13 @@ export default function App() {
               <span className="text-sm font-bold text-[#d8c4a5]">SP:{heroSP}</span>
             </span>
             {hudObjective && (
-              <span className="min-w-0 flex-1 truncate rounded border border-[#ffd166]/80 bg-[#4a310b]/88 px-3 py-1.5 text-base text-[#fff1a8] shadow-[0_0_14px_rgba(255,209,102,0.22)]">
+              <span className="min-w-[140px] max-w-[360px] flex-1 truncate rounded border border-[#ffd166]/80 bg-[#4a310b]/88 px-2.5 py-1.5 text-sm text-[#fff1a8] shadow-[0_0_14px_rgba(255,209,102,0.22)]">
                 NEXT　{hudObjective}
+              </span>
+            )}
+            {supplementalHudNotice && (
+              <span className="max-w-[250px] shrink-0 truncate rounded border border-[#67e8f9]/70 bg-[#0f3440]/82 px-2.5 py-1.5 text-sm text-[#c9f7ff] shadow-[0_0_12px_rgba(103,232,249,0.2)]">
+                ! {supplementalHudNotice}
               </span>
             )}
             {hasBeastPremonition && (

@@ -20,6 +20,24 @@ canvas {
   image-rendering: crisp-edges; /* Firefox */
 }
 
+.title-start-fade-out {
+  animation: titleStartFadeOut 1500ms ease-in forwards;
+}
+
+.title-start-fade-in {
+  animation: titleStartFadeIn 1500ms ease-out forwards;
+}
+
+@keyframes titleStartFadeOut {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes titleStartFadeIn {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
 .prologue-image-frame {
   padding: clamp(10px, 1.2vw, 18px);
   border: clamp(5px, 0.75vw, 10px) solid #9b6330;
