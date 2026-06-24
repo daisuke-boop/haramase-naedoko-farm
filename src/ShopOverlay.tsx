@@ -26,6 +26,7 @@ type ShopOverlayProps = {
   isShopTradePose: boolean;
   kurumiRewardImageSrc?: string;
   kurumiRewardMessage?: string;
+  shopNoticeMessage?: string;
   menuTinyLabelStyle: React.CSSProperties;
   handleShopBackdropPointerDown: () => void;
   handleShopCloseClick: () => void;
@@ -46,13 +47,14 @@ const ShopOverlay = ({
   isShopTradePose,
   kurumiRewardImageSrc,
   kurumiRewardMessage,
+  shopNoticeMessage,
   menuTinyLabelStyle,
   handleShopBackdropPointerDown,
   handleShopCloseClick,
   handleShopItemClick,
   handleShopActionClick,
 }: ShopOverlayProps) => {
-  if (!kurumiShopOpen) return null;
+  const selectedItemButtonRef = React.useRef<HTMLButtonElement | null>(null);
   const buyItems = shopItems.map((item, index) => ({ item, index })).filter(({ item }) => item.type === '買う');
   const sellItems = shopItems.map((item, index) => ({ item, index })).filter(({ item }) => item.type === '売る');
   const selectedItem = shopItems[selectedShopItemIndex] ?? shopItems[0];
@@ -75,15 +77,27 @@ const ShopOverlay = ({
     </>
   ));
 
+  React.useEffect(() => {
+    if (!kurumiShopOpen || selectedShopControl !== 'items') return;
+    selectedItemButtonRef.current?.scrollIntoView({ block: 'nearest' });
+  }, [kurumiShopOpen, selectedShopControl, selectedShopItemIndex, activeTradeType]);
+
+  if (!kurumiShopOpen) return null;
+
   return (
            <div
               className="absolute inset-0 z-[86] flex items-center justify-center bg-black/58 p-6 pointer-events-auto"
               onPointerDown={handleShopBackdropPointerDown}
            >
               <div
-                 className="grid h-[680px] max-h-full w-[1240px] max-w-full grid-cols-[1fr_430px] overflow-hidden rounded-2xl border-4 border-[#dda15e] bg-[#1a100d]/96 shadow-2xl"
+                 className="relative grid h-[680px] max-h-full w-[1240px] max-w-full grid-cols-[1fr_430px] overflow-hidden rounded-2xl border-4 border-[#dda15e] bg-[#1a100d]/96 shadow-2xl"
                  onPointerDown={(e) => e.stopPropagation()}
               >
+                 {shopNoticeMessage && (
+                    <div className="pointer-events-none absolute left-1/2 top-8 z-30 w-[min(620px,calc(100%-48px))] -translate-x-1/2 whitespace-pre-line rounded-2xl border-4 border-[#ffd166] bg-[#2d160f]/96 px-6 py-4 text-center text-2xl font-black text-[#fff7dc] shadow-[0_18px_40px_rgba(0,0,0,0.65),0_0_26px_rgba(255,209,102,0.35)]">
+                       {shopNoticeMessage}
+                    </div>
+                 )}
                  <div className="flex min-h-0 flex-col p-5">
                     <div className="mb-3 flex shrink-0 items-center justify-between border-b border-[#bc6c25]/60 pb-3">
                        <div>
@@ -142,6 +156,7 @@ const ShopOverlay = ({
                                    <button
                                       key={`${item.name}-${item.price}-${index}`}
                                       type="button"
+                                      ref={selected ? selectedItemButtonRef : undefined}
                                       onPointerDown={() => { setSelectedShopItemIndex(index); setSelectedShopControl('items'); }}
                                       onClick={() => handleShopItemClick(index)}
                                       className={`grid min-h-[64px] w-full grid-cols-[minmax(0,1fr)_108px_76px] items-center gap-3 rounded-lg border px-4 py-2 text-left cursor-pointer ${

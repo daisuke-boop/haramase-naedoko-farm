@@ -1,6 +1,6 @@
 {
-  "turn": 0,
-  "gold": 5000,
+  "turn": 5,
+  "gold": 15569,
   "gameMode": "story",
   "hasUnlockedEndlessNurseryMode": false,
   "collectionProgress": {
@@ -36,17 +36,17 @@
   "scheduledBeastAttackDay": null,
   "mountainLordAttackPending": false,
   "beastAttackPending": false,
-  "companionGirlId": null,
-  "currentWeeklyInterestRate": 1.6,
+  "companionGirlId": "chibiichi",
+  "currentWeeklyInterestRate": 2.1,
   "interestRateCycleIndex": 0,
   "farmGirls": [
     {
       "girlId": "chibiichi",
       "state": "appeared",
       "cardRevealed": true,
-      "plantedDay": null,
-      "growthProgress": 0,
-      "quality": 50,
+      "plantedDay": 1,
+      "growthProgress": 1,
+      "quality": 37,
       "careDay": null,
       "caressCount": 0,
       "fingerCount": 0,
@@ -62,16 +62,18 @@
       "girlId": "mel",
       "state": "appeared",
       "cardRevealed": true,
-      "plantedDay": null,
-      "growthProgress": 0,
-      "quality": 50,
+      "plantedDay": 1,
+      "growthProgress": 1,
+      "quality": 30,
       "careDay": null,
       "caressCount": 0,
       "fingerCount": 0,
       "fertilizeCount": 0,
-      "lastHarvestDay": null,
-      "trust": 20,
-      "unlockedTrustEventIds": [],
+      "lastHarvestDay": 2,
+      "trust": 23,
+      "unlockedTrustEventIds": [
+        "mel_trust_20"
+      ],
       "condition": "normal",
       "conditionDay": null,
       "conditionSource": null
@@ -80,16 +82,18 @@
       "girlId": "ruby",
       "state": "appeared",
       "cardRevealed": true,
-      "plantedDay": null,
-      "growthProgress": 0,
-      "quality": 50,
+      "plantedDay": 1,
+      "growthProgress": 1,
+      "quality": 33,
       "careDay": null,
       "caressCount": 0,
       "fingerCount": 0,
       "fertilizeCount": 0,
-      "lastHarvestDay": null,
-      "trust": 20,
-      "unlockedTrustEventIds": [],
+      "lastHarvestDay": 2,
+      "trust": 23,
+      "unlockedTrustEventIds": [
+        "ruby_trust_20"
+      ],
       "condition": "normal",
       "conditionDay": null,
       "conditionSource": null
@@ -311,30 +315,34 @@
       "conditionSource": null
     }
   ],
-  "ownedGirlSeeds": [],
-  "hasReceivedKurumiStarterSeeds": false,
-  "seedAfterPlantTutorialCompleted": false,
+  "ownedGirlSeeds": [
+    "ichigo",
+    "melon",
+    "tomato"
+  ],
+  "hasReceivedKurumiStarterSeeds": true,
+  "seedAfterPlantTutorialCompleted": true,
   "farmFieldSlots": [
     {
       "fieldId": "right",
       "slotIndex": 1,
-      "girlId": null,
-      "state": "none",
-      "plantedDay": null
+      "girlId": "chibiichi",
+      "state": "growing",
+      "plantedDay": 1
     },
     {
       "fieldId": "right",
       "slotIndex": 2,
-      "girlId": null,
-      "state": "none",
-      "plantedDay": null
+      "girlId": "ruby",
+      "state": "growing",
+      "plantedDay": 1
     },
     {
       "fieldId": "right",
       "slotIndex": 3,
-      "girlId": null,
-      "state": "none",
-      "plantedDay": null
+      "girlId": "mel",
+      "state": "growing",
+      "plantedDay": 1
     },
     {
       "fieldId": "right",
@@ -344,10 +352,10 @@
       "plantedDay": null
     }
   ],
-  "currentAP": 5,
+  "currentAP": 4,
   "maxAPPerTimeSlot": 5,
   "difficulty": "hard",
-  "currentMap": "kawa",
+  "currentMap": "farm",
   "zones": [
     {
       "id": "1781485855659",
@@ -583,7 +591,7 @@
       "w": 60,
       "h": 50,
       "spawnX": 850,
-      "spawnY": 750
+      "spawnY": 660
     },
     {
       "id": "door_house_exit",
@@ -594,7 +602,7 @@
       "w": 110,
       "h": 60,
       "spawnX": 560,
-      "spawnY": 630
+      "spawnY": 660
     },
     {
       "id": "door_shed_exit",
@@ -605,7 +613,7 @@
       "w": 70,
       "h": 30,
       "spawnX": 840,
-      "spawnY": 600
+      "spawnY": 640
     },
     {
       "id": "door_to_doukutsu",
@@ -616,51 +624,7 @@
       "w": 50,
       "h": 50,
       "spawnX": 950,
-      "spawnY": 640
-    },
-    {
-      "id": "door_1781485591085",
-      "map": "farm",
-      "targetMap": "kawa",
-      "x": 920,
-      "y": 1040,
-      "w": 60,
-      "h": 60,
-      "spawnX": 940,
-      "spawnY": 90
-    },
-    {
-      "id": "door_1781485617403",
-      "map": "kawa",
-      "targetMap": "farm",
-      "x": 870,
-      "y": 0,
-      "w": 140,
-      "h": 80,
-      "spawnX": 950,
-      "spawnY": 1040
-    },
-    {
-      "id": "door_1781485670144",
-      "map": "farm",
-      "targetMap": "waterfall",
-      "x": 940,
-      "y": 320,
-      "w": 70,
-      "h": 50,
-      "spawnX": 930,
-      "spawnY": 1020
-    },
-    {
-      "id": "door_1781485699502",
-      "map": "waterfall",
-      "targetMap": "farm",
-      "x": 890,
-      "y": 1020,
-      "w": 120,
-      "h": 60,
-      "spawnX": 970,
-      "spawnY": 420
+      "spawnY": 560
     },
     {
       "id": "door_1781489949346",
@@ -671,7 +635,7 @@
       "w": 70,
       "h": 90,
       "spawnX": 1330,
-      "spawnY": 980
+      "spawnY": 900
     },
     {
       "id": "door_1781489977042",
@@ -682,7 +646,7 @@
       "w": 540,
       "h": 80,
       "spawnX": 1390,
-      "spawnY": 570
+      "spawnY": 620
     },
     {
       "id": "door_1781490078997",
@@ -693,7 +657,7 @@
       "w": 100,
       "h": 100,
       "spawnX": 470,
-      "spawnY": 960
+      "spawnY": 870
     },
     {
       "id": "door_1781490104483",
@@ -704,7 +668,51 @@
       "w": 160,
       "h": 100,
       "spawnX": 370,
-      "spawnY": 210
+      "spawnY": 250
+    },
+    {
+      "id": "door_to_waterfall",
+      "map": "farm",
+      "targetMap": "waterfall",
+      "x": 940,
+      "y": 320,
+      "w": 70,
+      "h": 50,
+      "spawnX": 930,
+      "spawnY": 930
+    },
+    {
+      "id": "door_waterfall_exit",
+      "map": "waterfall",
+      "targetMap": "farm",
+      "x": 890,
+      "y": 1020,
+      "w": 120,
+      "h": 60,
+      "spawnX": 970,
+      "spawnY": 460
+    },
+    {
+      "id": "door_1781485591085",
+      "map": "farm",
+      "targetMap": "kawa",
+      "x": 920,
+      "y": 1040,
+      "w": 60,
+      "h": 60,
+      "spawnX": 940,
+      "spawnY": 170
+    },
+    {
+      "id": "door_1781485617403",
+      "map": "kawa",
+      "targetMap": "farm",
+      "x": 870,
+      "y": 0,
+      "w": 140,
+      "h": 80,
+      "spawnX": 950,
+      "spawnY": 950
     }
   ],
   "bgmVolume": 0.1,
@@ -45280,36 +45288,96 @@
     "パンのかぼちゃ（デバッグ用）": 1,
     "プティのドラゴンフルーツ（デバッグ用）": 1,
     "ロマのロマネスコ（デバッグ用）": 1,
-    "サフィのサフラン（デバッグ用）": 1
+    "サフィのサフラン（デバッグ用）": 1,
+    "竹の釣竿": 1,
+    "ルビーのトマト": 3,
+    "メルのメロン": 1,
+    "枝": 1,
+    "【レシピ】のこぎり": 1,
+    "モグラの爪": 0,
+    "ウサギの靭帯": 0,
+    "軟らかい銅鉱石": 6,
+    "柔らかな若枝": 1,
+    "のこぎり": 1,
+    "【レシピ】つるはし": 1,
+    "泥混じりの鉄鉱石": 3,
+    "つるはし": 1,
+    "ウグイ": 0,
+    "重厚な硬木": 0,
+    "堅実な中木": 0
   },
   "equippedItems": {
-    "主人公-slot1": "",
-    "主人公-slot2": "",
-    "主人公-slot3": "",
+    "主人公-slot1": "竹の釣竿",
+    "主人公-slot2": "のこぎり",
+    "主人公-slot3": "つるはし",
     "主人公-slot4": "",
     "ちびいち-slot1": "",
     "ちびいち-slot2": ""
   },
-  "caughtFishIds": [],
+  "caughtFishIds": [
+    "eda",
+    "ugui"
+  ],
   "nushiCaughtFishIds": [],
-  "fishBestSizes": {},
-  "fishInventorySizes": {},
-  "lumberInventorySizes": {},
-  "oreInventoryWeights": {},
-  "depletedMiningPointIds": {},
-  "fishingTutorialCompleted": false,
-  "craftTutorialRecipeName": "【レシピ】のこぎり",
+  "fishBestSizes": {
+    "eda": 11.6,
+    "ugui": 29.5
+  },
+  "fishInventorySizes": {
+    "枝": [
+      11.6
+    ],
+    "ウグイ": []
+  },
+  "lumberInventorySizes": {
+    "重厚な硬木": [],
+    "柔らかな若枝": [
+      33.9
+    ],
+    "堅実な中木": []
+  },
+  "oreInventoryWeights": {
+    "泥混じりの鉄鉱石": [
+      2391,
+      1016,
+      680
+    ],
+    "軟らかい銅鉱石": [
+      1588,
+      820,
+      736,
+      1083,
+      719,
+      2450
+    ]
+  },
+  "depletedMiningPointIds": {
+    "morning_farm_post_mining_tutorial_rock": true,
+    "morning_farm_15,49": true,
+    "day_farm_16,29": true
+  },
+  "fishingTutorialCompleted": true,
+  "craftTutorialRecipeName": "【レシピ】つるはし",
   "sawCraftTutorialReady": false,
   "sawCraftTutorialWorkbenchReady": false,
-  "sawCraftTutorialCompleted": false,
-  "loggingTutorialCompleted": false,
-  "miningTutorialCompleted": false,
-  "craftedRecipeIds": [],
-  "gatheringTutorialCompleted": false,
-  "gatheringTutorialChoice": null,
-  "kurumiIntroAskedTopics": [],
-  "kurumiIntroCompletedDay": null,
-  "openingMapTransitionCount": 1,
+  "sawCraftTutorialCompleted": true,
+  "loggingTutorialCompleted": true,
+  "miningTutorialCompleted": true,
+  "craftedRecipeIds": [
+    "【レシピ】のこぎり",
+    "【レシピ】つるはし"
+  ],
+  "gatheringTutorialCompleted": true,
+  "gatheringTutorialChoice": "mining",
+  "kurumiIntroAskedTopics": [
+    "village",
+    "debt",
+    "naedoko",
+    "pantsu",
+    "grandpa"
+  ],
+  "kurumiIntroCompletedDay": 1,
+  "openingMapTransitionCount": 2,
   "bathTubMaskZone": {
     "x": 1260,
     "y": 380,

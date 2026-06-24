@@ -200,12 +200,12 @@ canvas {
 }
 
 .farm-girl-card-grid {
-  grid-auto-rows: minmax(188px, 1fr);
+  grid-auto-rows: minmax(148px, 1fr);
 }
 
 .farm-girl-card-grid .farm-girl-card-button {
   aspect-ratio: auto;
-  min-height: 188px;
+  min-height: 148px;
   height: 100%;
   width: 100%;
 }

@@ -204,6 +204,20 @@ type InspectSpot = {
   voiceSrc?: string;
 };
 type LoggingPoint = { id: string; map: GameMap; x: number; y: number; w: number; h: number };
+const POST_EVENT_IMAGE_SRC = 'post.jpg';
+const POST_DEBT_NOTICE_IMAGE_SRC = '/img/shakuyousho.png';
+const POST_DEBT_NOTICE_SOUND_SRC = '/se/shock.mp3';
+const POST_DEBT_NOTICE_SEEN_STORAGE_KEY = 'farm_post_debt_notice_seen';
+const POST_DEBT_NOTICE_REPEAT_TEXT = 'お爺さんが危ない連中から借りた借用書が入っている。';
+const isPostDebtNoticeEvent = (spot: InspectSpot | null) => {
+  if (!spot) return false;
+  const imageSrc = spot.imageSrc?.trim().replace(/^\/+/, '');
+  return spot.label === 'ポスト' && imageSrc === POST_EVENT_IMAGE_SRC;
+};
+const hasSeenPostDebtNotice = () => {
+  if (typeof window === 'undefined') return false;
+  return window.localStorage.getItem(POST_DEBT_NOTICE_SEEN_STORAGE_KEY) === 'true';
+};
 const monoAudioGraphs = new WeakMap<HTMLAudioElement, MonoAudioGraph>();
 
 const forceMonoPlayback = (audio: HTMLAudioElement) => {
@@ -252,35 +266,87 @@ const defaultDoors: WarpDoor[] = [
   // 家 -> 牧場 (下部の出口)
   { id: 'door_house_exit', map: 'house', targetMap: 'farm', x: 930, y: 1000, w: 100, h: 60, spawnX: NEW_GAME_START_POSITION.x, spawnY: NEW_GAME_START_POSITION.y },
   // 小屋 -> 牧場 (下部の出口)
-  { id: 'door_shed_exit', map: 'shed', targetMap: 'farm', x: 930, y: 1000, w: 100, h: 60, spawnX: 1560, spawnY: 700 },
+  { id: 'door_shed_exit', map: 'shed', targetMap: 'farm', x: 930, y: 1000, w: 100, h: 60, spawnX: 1560, spawnY: 745 },
   // 牧場 -> 洞窟
   { id: 'door_to_doukutsu', map: 'farm', targetMap: 'doukutsu', x: 1000, y: 100, w: 60, h: 60, spawnX: 960, spawnY: 900 },
   // 洞窟 -> 牧場
-  { id: 'door_doukutsu_exit', map: 'doukutsu', targetMap: 'farm', x: 930, y: 1000, w: 100, h: 60, spawnX: 1000, spawnY: 200 },
+  { id: 'door_doukutsu_exit', map: 'doukutsu', targetMap: 'farm', x: 930, y: 1000, w: 100, h: 60, spawnX: 1080, spawnY: 250 },
 ];
 
 const requiredRouteDoors: WarpDoor[] = [
-  { id: 'door_to_waterfall', map: 'farm', targetMap: 'waterfall', x: 940, y: 320, w: 70, h: 50, spawnX: 930, spawnY: 1020 },
-  { id: 'door_waterfall_exit', map: 'waterfall', targetMap: 'farm', x: 890, y: 1020, w: 120, h: 60, spawnX: 970, spawnY: 420 },
-  { id: 'door_1781485591085', map: 'farm', targetMap: 'kawa', x: 920, y: 1040, w: 60, h: 60, spawnX: 940, spawnY: 90 },
-  { id: 'door_1781485617403', map: 'kawa', targetMap: 'farm', x: 870, y: 0, w: 140, h: 80, spawnX: 950, spawnY: 1040 },
+  { id: 'door_to_waterfall', map: 'farm', targetMap: 'waterfall', x: 940, y: 320, w: 70, h: 50, spawnX: 930, spawnY: 940 },
+  { id: 'door_waterfall_exit', map: 'waterfall', targetMap: 'farm', x: 890, y: 1020, w: 120, h: 60, spawnX: 970, spawnY: 455 },
+  { id: 'door_1781485591085', map: 'farm', targetMap: 'kawa', x: 920, y: 1040, w: 60, h: 60, spawnX: 940, spawnY: 170 },
+  { id: 'door_1781485617403', map: 'kawa', targetMap: 'farm', x: 870, y: 0, w: 140, h: 80, spawnX: 950, spawnY: 985 },
 ];
 
-const ensureRequiredRouteDoors = (doors: WarpDoor[]) => {
-  const next = [...doors];
-  requiredRouteDoors.forEach(routeDoor => {
-    const sameIdIndex = next.findIndex(d => d.id === routeDoor.id);
-    if (sameIdIndex >= 0) {
-      next[sameIdIndex] = routeDoor;
-      return;
-    }
+const DOOR_SPAWN_CLEARANCE_PX = 90;
+const DOOR_SPAWN_MAX_FIX_PASSES = 4;
 
-    const hasSameRoute = next.some(d => d.map === routeDoor.map && d.targetMap === routeDoor.targetMap);
-    if (!hasSameRoute) {
-      next.push(routeDoor);
-    }
-  });
+const clampDoorSpawn = (value: number, min: number, max: number) => Math.max(min, Math.min(value, max));
+
+const getDistanceToDoorRect = (x: number, y: number, door: WarpDoor) => {
+  const dx = Math.max(door.x - x, 0, x - (door.x + door.w));
+  const dy = Math.max(door.y - y, 0, y - (door.y + door.h));
+  return Math.hypot(dx, dy);
+};
+
+const pushSpawnAwayFromDoor = (door: WarpDoor, blockingDoor: WarpDoor): WarpDoor => {
+  const centerX = blockingDoor.x + blockingDoor.w / 2;
+  const centerY = blockingDoor.y + blockingDoor.h / 2;
+  const dx = door.spawnX - centerX;
+  const dy = door.spawnY - centerY;
+  const useHorizontal = Math.abs(dx / Math.max(1, blockingDoor.w)) > Math.abs(dy / Math.max(1, blockingDoor.h));
+
+  if (useHorizontal) {
+    const direction = dx >= 0 ? 1 : -1;
+    return {
+      ...door,
+      spawnX: clampDoorSpawn(
+        centerX + direction * (blockingDoor.w / 2 + DOOR_SPAWN_CLEARANCE_PX),
+        30,
+        GAME_WIDTH - 30,
+      ),
+    };
+  }
+
+  const direction = dy >= 0 ? 1 : -1;
+  return {
+    ...door,
+    spawnY: clampDoorSpawn(
+      centerY + direction * (blockingDoor.h / 2 + DOOR_SPAWN_CLEARANCE_PX),
+      50,
+      GAME_HEIGHT - 10,
+    ),
+  };
+};
+
+const ensureSafeDoorSpawns = (doors: WarpDoor[]) => {
+  let next = doors;
+  for (let pass = 0; pass < DOOR_SPAWN_MAX_FIX_PASSES; pass += 1) {
+    let changed = false;
+    next = next.map(door => {
+      const blockingDoor = next.find(candidate => (
+        candidate.id !== door.id &&
+        candidate.map === door.targetMap &&
+        getDistanceToDoorRect(door.spawnX, door.spawnY, candidate) < DOOR_SPAWN_CLEARANCE_PX
+      ));
+      if (!blockingDoor) return door;
+      changed = true;
+      return pushSpawnAwayFromDoor(door, blockingDoor);
+    });
+    if (!changed) break;
+  }
   return next;
+};
+
+const ensureRequiredRouteDoors = (doors: WarpDoor[]) => {
+  const requiredRouteKeys = new Set(requiredRouteDoors.map(door => `${door.map}->${door.targetMap}`));
+  const next = doors.filter(door => !requiredRouteKeys.has(`${door.map}->${door.targetMap}`));
+  requiredRouteDoors.forEach(routeDoor => {
+    next.push(routeDoor);
+  });
+  return ensureSafeDoorSpawns(next);
 };
 
 const HOUSE_BED_SLEEP_ZONE = { x: 545, y: 345, w: 140, h: 175 };
@@ -953,7 +1019,7 @@ const KURUMI_INTRO_CLOSE_FADE_MS = 650;
 const SEED_PLANT_TUTORIAL_STEPS = [
   'ユウは好奇心いっぱいだねーっ！\nくるみもできる限りお手伝いするね！\nそれじゃあ最初にやることを教えるねっ。\nまずは、お爺さんから預かってる\n苗娘を3つあげる！',
   'この苗娘は、すっごい貴重なんだよっ！\nでも、育てるのがとっても大変みたいで\n収穫するのも難しいんだって！\nだけど、ユウのお爺さんが持ってた指輪の力と\n精力を使って安定的に育てる方法を開発したの！',
-  'くるみもお爺さんの収穫の\nお手伝いしたんだよっ！\n、、、\n、、、\nだから、ユウもきっと上手に育成できると\n思うから頑張ってね！',
+  'くるみもお爺さんの収穫の\nお手伝いしたんだよっ！\nどうやったら気持ちよく...じゃなかった\n品質のいい野菜や果物が出来るか\n色々試したの♪\nだから、ユウもきっと上手に育成出来ると\n思うから頑張ってね！',
   '苗娘は植えたあと、日数が進むと育っていくよ。\n色々と難しいこともあると思うけど、\nくるみもお手伝いしちゃうよーっ！\n明日は橋の近くで釣りも教えるけど、\n今日はまず畑に苗娘を植えてみよっ♪',
 ] as const;
 const SEED_PLANT_TUTORIAL_VOICE_SRCS = SEED_PLANT_TUTORIAL_STEPS.map((_, index) => `/voice/kurumi-seed${index + 1}.wav`);
@@ -1662,6 +1728,9 @@ const getEquippedPickaxe = (equippedItems: Readonly<Record<string, string>>): Pi
   const equippedPickaxe = toBaseItemName(equippedItems['主人公-slot3'] ?? '');
   return isPickaxeName(equippedPickaxe) ? equippedPickaxe : 'つるはし';
 };
+const hasEquippedPickaxe = (equippedItems: Readonly<Record<string, string>>) => {
+  return isPickaxeName(toBaseItemName(equippedItems['主人公-slot3'] ?? ''));
+};
 const getFishingFanSweetWidth = (fishLevel: number) => {
   if (fishLevel >= 22) return 5;
   return Number((80 - (75 * clampNumber(fishLevel, 0, 22)) / 22).toFixed(1));
@@ -2225,6 +2294,8 @@ export default function App() {
   const [nextObjective, setNextObjective] = useState<string | null>(null);
   const [openingMapTransitionCount, setOpeningMapTransitionCount] = useState(0);
   const prologueInputLockedRef = useRef(false);
+  const prologuePageRef = useRef(prologuePage);
+  const prologueRingRevealRef = useRef(prologueRingReveal);
   const autoSaveBlockedSlotsRef = useRef<Set<number>>(new Set());
 
   const [setupMode, setSetupMode] = useState<'none' | 'animation' | 'collision' | 'hideArea' | 'doors' | 'footstep' | 'crops' | 'bed' | 'bathTub'>('none');
@@ -2784,6 +2855,7 @@ export default function App() {
                   <button
                     key={name}
                     type="button"
+                    data-menu-item-name={name}
                     onPointerDown={() => {
                       setMenuFocusArea('content');
                       setMenuContentFocus('secondary');
@@ -2991,6 +3063,7 @@ export default function App() {
                           <button
                             key={name}
                             type="button"
+                            data-equipment-option-index={optionIndex}
                             onPointerDown={(e) => { e.stopPropagation(); setSelectedEquipmentOptionIndex(optionIndex); }}
                             onClick={() => {
                               playFixSound();
@@ -3246,7 +3319,7 @@ export default function App() {
         fertilize: selectedSeedlingCareIsToday ? selectedFarmGirlState?.fertilizeCount ?? 0 : 0,
       };
       return (
-        <div className="relative grid h-full min-h-0 grid-cols-[minmax(0,1fr)_280px] gap-4">
+        <div className="relative grid h-full min-h-0 grid-cols-[minmax(0,1fr)_420px] gap-4">
           <div style={{ ...menuPanelBaseStyle, ...menuKeyboardFocusStyle(menuFocusArea === 'content' && menuContentFocus === 'secondary') }} className="flex min-h-0 flex-col gap-3 overflow-hidden">
             <div className="flex items-end justify-between gap-3">
               <div>
@@ -3271,6 +3344,7 @@ export default function App() {
                     return (
                   <div
                     key={girl.id}
+                    data-farm-girl-index={index}
                     onMouseEnter={() => { if (selectedFarmGirlIndex !== index) playCursorSound(); }}
                     className={`farm-girl-card-button relative overflow-hidden border rounded text-left ${selectedFarmGirlIndex === index ? 'is-selected border-white' : 'border-[#6b3b2f]'}`}
                   >
@@ -3330,7 +3404,7 @@ export default function App() {
               </div>
             </div>
           </div>
-          <div style={{ ...menuPanelBaseStyle, ...menuKeyboardFocusStyle(menuFocusArea === 'content' && menuContentFocus === 'primary') }} className="farm-menu-scroll-area flex min-h-0 flex-col gap-3 overflow-y-auto pr-2">
+          <div style={{ ...menuPanelBaseStyle, ...menuKeyboardFocusStyle(menuFocusArea === 'content' && menuContentFocus === 'primary') }} className="farm-menu-scroll-area flex min-h-0 flex-col gap-4 overflow-y-auto pr-2 text-base">
             <div className="farm-girl-card-preview relative overflow-hidden rounded border border-[#f1c27d]/70">
               <img
                 src={selectedFarmGirlIsVisible ? selectedFarmGirl.cardImg : '/img/nae.png'}
@@ -3347,47 +3421,47 @@ export default function App() {
             </div>
             <div className="bg-black/30 border border-[#5a3010]/70 rounded px-3 py-3">
               <div style={menuTinyLabelStyle}>詳細</div>
-              <div className="mt-2 grid grid-cols-2 gap-2 text-sm">
-                <div className="rounded bg-black/25 px-2 py-2">
-                  <div className="text-[#c8a87a] text-xs">レベル</div>
-                  <div className="text-[#fdf6e3] text-lg font-bold">Lv {selectedFarmGirl.level}</div>
+              <div className="mt-3 grid grid-cols-2 gap-3 text-base">
+                <div className="rounded bg-black/25 px-3 py-3">
+                  <div className="text-[#c8a87a] text-sm font-bold">レベル</div>
+                  <div className="text-[#fdf6e3] text-2xl font-bold">Lv {selectedFarmGirl.level}</div>
                 </div>
-                <div className="rounded bg-black/25 px-2 py-2">
-                  <div className="text-[#c8a87a] text-xs">星</div>
-                  <div className="text-[#ffd45a] text-lg font-bold">{selectedFarmGirl.affinity} / 5</div>
+                <div className="rounded bg-black/25 px-3 py-3">
+                  <div className="text-[#c8a87a] text-sm font-bold">星</div>
+                  <div className="text-[#ffd45a] text-2xl font-bold">{selectedFarmGirl.affinity} / 5</div>
                 </div>
-                <div className="rounded bg-black/25 px-2 py-2">
-                  <div className="text-[#c8a87a] text-xs">状態</div>
-                  <div className="text-[#fdf6e3] font-bold">{selectedFarmGirlConditionText}</div>
+                <div className="rounded bg-black/25 px-3 py-3">
+                  <div className="text-[#c8a87a] text-sm font-bold">状態</div>
+                  <div className="text-[#fdf6e3] text-lg font-bold">{selectedFarmGirlConditionText}</div>
                 </div>
                 {selectedFarmGirlState?.condition === 'affected' && (
-                  <div className="col-span-2 rounded bg-black/25 px-2 py-2">
-                    <div className="text-xs font-bold text-[#d8c4e8]">看病すると回復できます</div>
+                  <div className="col-span-2 rounded bg-black/25 px-3 py-3">
+                    <div className="text-sm font-bold text-[#d8c4e8]">看病すると回復できます</div>
                     <button
                       type="button"
                       onClick={() => {
                         playFixSound();
                         careForFarmGirl(selectedFarmGirlState.girlId);
                       }}
-                      className="mt-2 rounded border border-[#d8a8ff]/80 bg-[#5b276a]/80 px-3 py-1.5 text-xs font-black text-[#fff5fd] transition hover:bg-[#7d388f]"
+                      className="mt-2 rounded border border-[#d8a8ff]/80 bg-[#5b276a]/80 px-4 py-2 text-sm font-black text-[#fff5fd] transition hover:bg-[#7d388f]"
                     >
                       看病する（AP 1）
                     </button>
                   </div>
                 )}
                 {selectedGirlData && selectedFarmGirlState?.state === 'growing' && (
-                  <div className="col-span-2 rounded bg-black/25 px-2 py-2">
+                  <div className="col-span-2 rounded bg-black/25 px-3 py-3">
                     <div className="flex items-center justify-between gap-2">
-                      <div className="text-[#c8a87a] text-xs">苗のお世話</div>
-                      <div className="text-xs font-bold text-[#ffd166]">品質 {selectedFarmGirlState.quality} / 100（{getFarmQualityLabel(selectedFarmGirlState.quality)}）</div>
+                      <div className="text-[#c8a87a] text-sm font-bold">苗のお世話</div>
+                      <div className="text-base font-bold text-[#ffd166]">品質 {selectedFarmGirlState.quality} / 100（{getFarmQualityLabel(selectedFarmGirlState.quality)}）</div>
                     </div>
-                    <div className="mt-1 text-[11px] font-bold text-[#a3b18a]">品質は擬人化後の作物売値に反映されます。</div>
-                    <div className="mt-2 grid grid-cols-3 gap-2">
+                    <div className="mt-1 text-sm font-bold text-[#a3b18a]">品質は擬人化後の作物売値に反映されます。</div>
+                    <div className="mt-3 grid grid-cols-3 gap-3">
                       <button
                         type="button"
                         disabled={selectedSeedlingCareCounts.caress >= 1 || currentAP <= 0}
                         onClick={() => { playFixSound(); careForSeedling(selectedGirlData.id, 'caress'); }}
-                        className="rounded border border-[#e5a6c8]/80 bg-[#6d3157]/80 px-2 py-2 text-xs font-black text-[#fff1f7] transition hover:bg-[#8d4170] disabled:cursor-not-allowed disabled:opacity-45"
+                        className="rounded border border-[#e5a6c8]/80 bg-[#6d3157]/80 px-3 py-3 text-sm font-black text-[#fff1f7] transition hover:bg-[#8d4170] disabled:cursor-not-allowed disabled:opacity-45"
                       >
                         愛撫<br />+3〜6 品質
                       </button>
@@ -3395,7 +3469,7 @@ export default function App() {
                         type="button"
                         disabled={selectedSeedlingCareCounts.finger >= 1 || currentAP <= 0}
                         onClick={() => { playFixSound(); careForSeedling(selectedGirlData.id, 'finger'); }}
-                        className="rounded border border-[#c7a6e5]/80 bg-[#4c356e]/80 px-2 py-2 text-xs font-black text-[#f6efff] transition hover:bg-[#62458b] disabled:cursor-not-allowed disabled:opacity-45"
+                        className="rounded border border-[#c7a6e5]/80 bg-[#4c356e]/80 px-3 py-3 text-sm font-black text-[#f6efff] transition hover:bg-[#62458b] disabled:cursor-not-allowed disabled:opacity-45"
                       >
                         指入れ<br />+6〜10 品質
                       </button>
@@ -3403,20 +3477,20 @@ export default function App() {
                         type="button"
                         disabled={selectedSeedlingCareCounts.fertilize >= 1 || currentAP <= 0}
                         onClick={() => { playFixSound(); careForSeedling(selectedGirlData.id, 'fertilize'); }}
-                        className="rounded border border-[#a3d977]/80 bg-[#3f6528]/80 px-2 py-2 text-xs font-black text-[#f1ffe4] transition hover:bg-[#517f34] disabled:cursor-not-allowed disabled:opacity-45"
+                        className="rounded border border-[#a3d977]/80 bg-[#3f6528]/80 px-3 py-3 text-sm font-black text-[#f1ffe4] transition hover:bg-[#517f34] disabled:cursor-not-allowed disabled:opacity-45"
                       >
                         肥料注入<br />成長 +1日
                       </button>
                     </div>
-                    <div className="mt-2 text-[10px] font-bold text-[#c8a87a]">各お世話は苗ごとに1日1回・AP 1を消費します。</div>
+                    <div className="mt-2 text-xs font-bold text-[#c8a87a]">各お世話は苗ごとに1日1回・AP 1を消費します。</div>
                   </div>
                 )}
                 {selectedGirlData && selectedFarmGirlState && (
-                  <div className="col-span-2 rounded bg-black/25 px-2 py-2">
+                  <div className="col-span-2 rounded bg-black/25 px-3 py-3">
                     <div className="flex items-center justify-between gap-2">
                       <div>
-                        <div className="text-[#c8a87a] text-xs">同行</div>
-                        <div className={`mt-1 text-sm font-bold ${selectedGirlIsCompanion ? 'text-[#ffd166]' : 'text-[#fdf6e3]'}`}>
+                        <div className="text-[#c8a87a] text-sm font-bold">同行</div>
+                        <div className={`mt-1 text-base font-bold ${selectedGirlIsCompanion ? 'text-[#ffd166]' : 'text-[#fdf6e3]'}`}>
                           {selectedGirlIsCompanion ? '⚔ 同行中' : '同行していません'}
                         </div>
                       </div>
@@ -3435,7 +3509,7 @@ export default function App() {
                               : `${selectedGirlData.girlName}と同行することにしました。`,
                           );
                         }}
-                        className={`rounded border px-3 py-1.5 text-xs font-bold transition disabled:cursor-not-allowed disabled:border-[#4d4d4d] disabled:bg-[#292929] disabled:text-[#8d8d8d] ${
+                        className={`rounded border px-4 py-2 text-sm font-bold transition disabled:cursor-not-allowed disabled:border-[#4d4d4d] disabled:bg-[#292929] disabled:text-[#8d8d8d] ${
                           selectedGirlIsCompanion
                             ? 'border-[#a66a36] bg-[#4b2818] text-[#ffe2ad] hover:bg-[#63351d]'
                             : 'border-[#50785d] bg-[#27472d] text-[#dbffe2] hover:bg-[#345f3b]'
@@ -3445,43 +3519,43 @@ export default function App() {
                       </button>
                     </div>
                     {!selectedGirlIsCompanion && !selectedGirlCanBecomeCompanion && (
-                      <div className="mt-2 text-[11px] text-[#c8a87a]">
+                      <div className="mt-2 text-sm text-[#c8a87a]">
                         同行には「出現中」かつ信頼度20以上が必要です。
                       </div>
                     )}
                   </div>
                 )}
                 {selectedGirlData && selectedFarmGirlState && (
-                  <div className="col-span-2 rounded bg-black/25 px-2 py-2">
-                    <div className="text-[#c8a87a] text-xs">信頼度</div>
-                    <div className="mt-1 text-sm font-bold text-[#fdf6e3]">
+                  <div className="col-span-2 rounded bg-black/25 px-3 py-3">
+                    <div className="text-[#c8a87a] text-sm font-bold">信頼度</div>
+                    <div className="mt-1 text-lg font-bold text-[#fdf6e3]">
                       信頼度 {selectedFarmGirlState.trust} / 100
                     </div>
-                    <div className="mt-2 grid grid-cols-2 gap-2 text-xs font-bold">
-                      <div className="rounded bg-black/25 px-2 py-1 text-[#a3b18a]">
+                    <div className="mt-2 grid grid-cols-2 gap-2 text-sm font-bold">
+                      <div className="rounded bg-black/25 px-3 py-2 text-[#a3b18a]">
                         収穫量補正：×{selectedTrustBonus.harvestMultiplier}
                       </div>
-                      <div className="rounded bg-black/25 px-2 py-1 text-[#ffd166]">
+                      <div className="rounded bg-black/25 px-3 py-2 text-[#ffd166]">
                         売値補正：×{selectedTrustBonus.sellMultiplier}
                       </div>
                       {selectedGirlIsCompanion && (
-                        <div className="col-span-2 rounded bg-black/25 px-2 py-1 text-[#f4c7ff]">
+                        <div className="col-span-2 rounded bg-black/25 px-3 py-2 text-[#f4c7ff]">
                           同行中収穫補正：{Math.round(selectedCompanionHarvestModifier.multiplier * 100)}%
                         </div>
                       )}
                     </div>
                     {selectedFarmGirlState.state === 'appeared' && (
-                      <div className="mt-2 rounded bg-black/25 px-2 py-1 text-xs font-bold text-[#f0d58a]">
+                      <div className="mt-2 rounded bg-black/25 px-3 py-2 text-sm font-bold text-[#f0d58a]">
                         作物品質：{selectedFarmGirlState.quality} / 100（{getFarmQualityLabel(selectedFarmGirlState.quality)}・売値 ×{getFarmQualityMultiplier(selectedFarmGirlState.quality)}）
                       </div>
                     )}
                   </div>
                 )}
                 {selectedGirlData && selectedHarvestInfo?.crop && selectedFarmGirlState?.state === 'appeared' && (
-                  <div className="col-span-2 rounded bg-black/25 px-2 py-2">
-                    <div className="text-[#c8a87a] text-xs">収穫</div>
+                  <div className="col-span-2 rounded bg-black/25 px-3 py-3">
+                    <div className="text-[#c8a87a] text-sm font-bold">収穫</div>
                     <div className="mt-1 flex items-center justify-between gap-2">
-                      <div className="min-w-0 text-sm font-bold text-[#fdf6e3]">
+                      <div className="min-w-0 text-base font-bold text-[#fdf6e3]">
                         {selectedCompanionHarvestModifier.multiplier === 0
                           ? '同行中のため収穫できません'
                           : selectedHarvestInfo.canHarvest
@@ -3496,7 +3570,7 @@ export default function App() {
                           playFixSound();
                           harvestFarmGirl(selectedGirlData.id);
                         }}
-                        className={`shrink-0 rounded border px-3 py-1 text-xs font-black ${
+                        className={`shrink-0 rounded border px-4 py-2 text-sm font-black ${
                           selectedHarvestInfo.canHarvest && selectedCompanionHarvestModifier.multiplier > 0
                             ? 'border-[#86efac]/80 bg-[#14532d]/85 text-[#f0fdf4] hover:bg-[#166534]'
                             : 'border-[#76502c]/70 bg-black/40 text-[#8f7b63] disabled:cursor-not-allowed'
@@ -3606,6 +3680,7 @@ export default function App() {
                 <button
                   key={fish.id}
                   type="button"
+                  data-zukan-index={index}
                   onPointerDown={() => { setMenuFocusArea('content'); setMenuContentFocus('secondary'); setSelectedZukanIndex(index); }}
                   onMouseEnter={() => { if (selectedZukanIndex !== index) playCursorSound(); }}
                   onClick={() => { playFixSound(); setMenuFocusArea('content'); setMenuContentFocus('secondary'); setSelectedZukanIndex(index); }}
@@ -3645,6 +3720,7 @@ export default function App() {
                 <button
                   key={girl?.id ?? `empty-${index}`}
                   type="button"
+                  data-zukan-index={index}
                   onPointerDown={() => { setMenuFocusArea('content'); setMenuContentFocus('secondary'); setSelectedZukanIndex(index); }}
                   onMouseEnter={() => { if (selectedZukanIndex !== index) playCursorSound(); }}
                   onClick={() => { playFixSound(); setMenuFocusArea('content'); setMenuContentFocus('secondary'); setSelectedZukanIndex(index); }}
@@ -3683,6 +3759,7 @@ export default function App() {
 	          <button
 	            key={action.label}
 	            type="button"
+	            data-system-action-index={index}
 	            onPointerDown={(event) => {
 	              event.preventDefault();
 	              event.stopPropagation();
@@ -3956,6 +4033,7 @@ export default function App() {
   const [selectedShopItemIndex, setSelectedShopItemIndex] = useState(0);
   const [selectedShopControl, setSelectedShopControl] = useState<'items' | 'action' | 'close'>('items');
   const [isShopTradePose, setIsShopTradePose] = useState(false);
+  const [shopNoticeMessage, setShopNoticeMessage] = useState('');
   const [activeKurumiTradeReward, setActiveKurumiTradeReward] = useState<KurumiTradeReward | null>(null);
   const [shownKurumiTradeRewardThresholds, setShownKurumiTradeRewardThresholds] = useState<number[]>([]);
   const [kurumiIntroOpen, setKurumiIntroOpen] = useState(false);
@@ -3971,6 +4049,7 @@ export default function App() {
   const [seedAfterPlantTutorialOpen, setSeedAfterPlantTutorialOpen] = useState(false);
   const [seedAfterPlantTutorialStepIndex, setSeedAfterPlantTutorialStepIndex] = useState(0);
   const shopTradePoseTimerRef = useRef<number | null>(null);
+  const shopNoticeTimerRef = useRef<number | null>(null);
   const kurumiTradeRewardTimerRef = useRef<number | null>(null);
   const kurumiIntroCloseTimerRef = useRef<number | null>(null);
   const seedPlantTutorialVoiceRef = useRef<HTMLAudioElement | null>(null);
@@ -4018,6 +4097,10 @@ export default function App() {
   const miningSeAudioRefs = useRef<Partial<Record<keyof typeof MINING_SE_SOURCES, HTMLAudioElement>>>({});
   const movementLockedRef = useRef(false);
   const lastWarpedAtRef = useRef(0);
+  const warpReentryLockedRef = useRef(false);
+  const mapTransitioningRef = useRef(false);
+  const mapTransitionTimerRef = useRef<number | null>(null);
+  const mapTransitionUnlockTimerRef = useRef<number | null>(null);
   
   const [isLoading, setIsLoading] = useState(false);
   const [zones, setZones] = useState<AnimZone[]>(defaultZones.map(ensureAnimZoneSpriteSize));
@@ -4050,12 +4133,21 @@ export default function App() {
 
   // Warp Doors State
   const [currentMap, setCurrentMap] = useState<GameMap>('farm');
+  const [mapTransitionPhase, setMapTransitionPhase] = useState<'idle' | 'fadeOut' | 'fadeIn'>('idle');
+  useEffect(() => () => {
+    if (mapTransitionTimerRef.current !== null) {
+      window.clearTimeout(mapTransitionTimerRef.current);
+    }
+    if (mapTransitionUnlockTimerRef.current !== null) {
+      window.clearTimeout(mapTransitionUnlockTimerRef.current);
+    }
+  }, []);
   useEffect(() => {
     const initialFollow = getCompanionRestPosition(posRef.current, dir);
     companionTrailRef.current = Array.from({ length: COMPANION_TRAIL_DELAY_FRAMES }, () => initialFollow);
     setCompanionFollow(initialFollow);
   }, [companionGirlId, currentMap]);
-  const [doors, setDoors] = useState<WarpDoor[]>(defaultDoors);
+  const [doors, setDoors] = useState<WarpDoor[]>(() => ensureRequiredRouteDoors(defaultDoors));
   const [selectedDoorId, setSelectedDoorId] = useState<string | null>(null);
   const [inspectSpots, setInspectSpots] = useState<InspectSpot[]>([]);
   const [selectedInspectSpotId, setSelectedInspectSpotId] = useState<string | null>(null);
@@ -4099,6 +4191,7 @@ export default function App() {
   const [audioGains, setAudioGains] = useState<Record<string, number>>(DEFAULT_AUDIO_GAINS);
   const [mapBgmSources, setMapBgmSources] = useState<Record<GameMap, string>>(DEFAULT_MAP_BGM_SOURCES);
   const [activeAutoEventSpot, setActiveAutoEventSpot] = useState<InspectSpot | null>(null);
+  const [activePostDebtNoticeFirstView, setActivePostDebtNoticeFirstView] = useState(false);
   const [activeAutoEventMessage, setActiveAutoEventMessage] = useState('');
   const [displayedAutoEventMessage, setDisplayedAutoEventMessage] = useState('');
   const [activeAutoEventMessageIndex, setActiveAutoEventMessageIndex] = useState(0);
@@ -6041,6 +6134,36 @@ export default function App() {
     document.querySelector<HTMLElement>(selector)?.scrollIntoView({ block: 'nearest' });
   }, [battleItemPanelOpen, battleItemSelectionStep, selectedBattleItemIndex, selectedBattleItemTargetIndex]);
 
+  useEffect(() => {
+    if (!menuOpen) return;
+    const selectedMenuId = selectedMenuItem.id;
+    const selectors: Partial<Record<MenuItemId, string>> = {
+      item: `[data-menu-item-name="${CSS.escape(selectedItemName)}"]`,
+      equipment: `[data-equipment-option-index="${selectedEquipmentOptionIndex}"]`,
+      farm: `[data-farm-girl-index="${selectedFarmGirlIndex}"]`,
+      zukan: `[data-zukan-index="${selectedZukanIndex}"]`,
+      system: `[data-system-action-index="${selectedSystemActionIndex}"]`,
+    };
+    const selector = selectors[selectedMenuId];
+    if (!selector) return;
+    document.querySelector<HTMLElement>(selector)?.scrollIntoView({ block: 'nearest' });
+  }, [
+    menuOpen,
+    selectedMenuItem.id,
+    selectedItemName,
+    selectedEquipmentOptionIndex,
+    selectedFarmGirlIndex,
+    selectedZukanIndex,
+    selectedSystemActionIndex,
+  ]);
+
+  useEffect(() => {
+    if (farmSlotInteractionStage !== 'selectSeed') return;
+    document
+      .querySelector<HTMLElement>(`[data-nearby-seed-index="${selectedNearbySeedIndex}"]`)
+      ?.scrollIntoView({ block: 'nearest' });
+  }, [farmSlotInteractionStage, selectedNearbySeedIndex]);
+
   const handleBattlePreviewCommand = (command: string) => {
     playFixSound();
     if (battleIntroPhase !== null) return;
@@ -6581,6 +6704,14 @@ export default function App() {
     prologueVoiceRef.current = null;
   };
 
+  useEffect(() => {
+    prologuePageRef.current = prologuePage;
+  }, [prologuePage]);
+
+  useEffect(() => {
+    prologueRingRevealRef.current = prologueRingReveal;
+  }, [prologueRingReveal]);
+
   const finishPrologue = () => {
     stopPrologueVoice();
     fadeOutAudio(prologueBgmRef.current, 1200);
@@ -6599,32 +6730,40 @@ export default function App() {
       prologueInputLockedRef.current = false;
     }, 400);
 
-    if (prologueRingReveal) {
-      if (!prologueRingRevealReady) return;
+    const currentProloguePage = prologuePageRef.current;
+    const isRingRevealOpen = prologueRingRevealRef.current;
+
+    if (isRingRevealOpen) {
       playFixSound();
+      prologueRingRevealRef.current = false;
+      prologuePageRef.current = 4;
       setPrologueRingReveal(false);
       setPrologueRingRevealReady(false);
       setProloguePage(4);
       return;
     }
-    if (prologuePage === 3) {
+    if (currentProloguePage === 3) {
+      prologueRingRevealRef.current = true;
       setPrologueRingRevealReady(false);
       setPrologueRingReveal(true);
       playUiSound('/se/cure.mp3');
       return;
     }
-    if (prologuePage < PROLOGUE_LETTERS.length - 1) {
+    if (currentProloguePage < PROLOGUE_LETTERS.length - 1) {
       playFixSound();
-      setProloguePage(page => page + 1);
+      const nextPage = currentProloguePage + 1;
+      prologuePageRef.current = nextPage;
+      setProloguePage(nextPage);
       return;
     }
-    if (prologuePage === PROLOGUE_LETTERS.length - 1) {
+    if (currentProloguePage === PROLOGUE_LETTERS.length - 1) {
       playFixSound();
       stopPrologueVoice();
       fadeOutAudio(prologueBgmRef.current, 1200);
       window.setTimeout(() => {
         prologueBgmRef.current = null;
       }, 1200);
+      prologuePageRef.current = PROLOGUE_LETTERS.length;
       setProloguePage(PROLOGUE_LETTERS.length);
       return;
     }
@@ -6643,10 +6782,7 @@ export default function App() {
 
   useEffect(() => {
     if (!prologueRingReveal) return;
-    const readyTimer = window.setTimeout(() => {
-      setPrologueRingRevealReady(true);
-    }, 3000);
-    return () => window.clearTimeout(readyTimer);
+    setPrologueRingRevealReady(true);
   }, [prologueRingReveal]);
 
   useEffect(() => {
@@ -6671,15 +6807,25 @@ export default function App() {
   useEffect(() => {
     if (!prologueOpen) return;
     const handlePrologueKeyDown = (event: KeyboardEvent) => {
-      if (event.repeat) return;
       if (event.key !== 'Enter' && event.key !== ' ' && event.key !== 'Escape') return;
       event.preventDefault();
       event.stopImmediatePropagation();
+      if (prologueRingRevealRef.current) {
+        playFixSound();
+        prologueInputLockedRef.current = false;
+        prologueRingRevealRef.current = false;
+        prologuePageRef.current = 4;
+        setPrologueRingReveal(false);
+        setPrologueRingRevealReady(false);
+        setProloguePage(4);
+        return;
+      }
+      if (event.repeat) return;
       advancePrologue();
     };
     window.addEventListener('keydown', handlePrologueKeyDown, true);
     return () => window.removeEventListener('keydown', handlePrologueKeyDown, true);
-  }, [prologueOpen, prologuePage]);
+  }, [prologueOpen, prologuePage, prologueRingReveal]);
 
   const playKurumiIntroVoice = (src: string) => {
     if (kurumiIntroVoiceRef.current) {
@@ -7375,7 +7521,11 @@ export default function App() {
     gatheringTutorialChoice,
   ]);
   const activeAutoEventMessages = activeAutoEventSpot
-     ? (activeAutoEventSpot.texts?.length ? activeAutoEventSpot.texts : [activeAutoEventSpot.text || activeAutoEventSpot.label || 'イベントが発生しました。'])
+     ? isPostDebtNoticeEvent(activeAutoEventSpot) && !activePostDebtNoticeFirstView
+        ? [POST_DEBT_NOTICE_REPEAT_TEXT]
+        : activeAutoEventSpot.texts?.length
+          ? activeAutoEventSpot.texts
+          : [activeAutoEventSpot.text || activeAutoEventSpot.label || 'イベントが発生しました。']
      : [];
   const isNearFishingTutorialKurumi = (playerPos = posRef.current) => {
     const kurumiCenterX = FISHING_TUTORIAL_KURUMI_ZONE.x + FISHING_TUTORIAL_KURUMI_ZONE.w / 2;
@@ -7966,6 +8116,9 @@ export default function App() {
      return () => {
         if (shopTradePoseTimerRef.current !== null) {
            window.clearTimeout(shopTradePoseTimerRef.current);
+        }
+        if (shopNoticeTimerRef.current !== null) {
+           window.clearTimeout(shopNoticeTimerRef.current);
         }
         if (kurumiTradeRewardTimerRef.current !== null) {
            window.clearTimeout(kurumiTradeRewardTimerRef.current);
@@ -9196,11 +9349,24 @@ export default function App() {
 
   const handleShopCloseClick = () => {
      playFixSound();
+     setShopNoticeMessage('');
      setKurumiShopOpen(false);
+  };
+
+  const showShopNotice = (message: string) => {
+     setShopNoticeMessage(message);
+     if (shopNoticeTimerRef.current !== null) {
+        window.clearTimeout(shopNoticeTimerRef.current);
+     }
+     shopNoticeTimerRef.current = window.setTimeout(() => {
+        setShopNoticeMessage('');
+        shopNoticeTimerRef.current = null;
+     }, 2200);
   };
 
   const handleShopItemClick = (index: number) => {
      playFixSound();
+     setShopNoticeMessage('');
      setSelectedShopItemIndex(index);
      setSelectedShopControl('items');
   };
@@ -9218,9 +9384,11 @@ export default function App() {
      }
      if (item.type === '買う' && gold < tradePrice) {
         playFixSound();
-        setDialogMessage('ゴールドが足りません。');
+        showShopNotice(`お金が足りません\n必要：${tradePrice.toLocaleString()} G / 所持：${gold.toLocaleString()} G`);
+        setDialogMessage('お金が足りません。');
         return;
      }
+     setShopNoticeMessage('');
      playUiSound('/se/coin.mp3');
      const nextTradeTotal = kurumiTradeTotal + tradePrice;
      const availableRewards = KURUMI_TRADE_REWARDS.filter(reward => (
@@ -9415,11 +9583,22 @@ export default function App() {
     setClickTargetMarker(null);
     autoEventBgmMutedRef.current = true;
     fadeBgmTo(0, 900);
-    const messages = spot.texts?.length ? spot.texts : [spot.text || spot.label || 'イベントが発生しました。'];
+    const isPostDebtEvent = isPostDebtNoticeEvent(spot);
+    const shouldShowPostDebtNotice = isPostDebtEvent && !hasSeenPostDebtNotice();
+    const messages = isPostDebtEvent && !shouldShowPostDebtNotice
+      ? [POST_DEBT_NOTICE_REPEAT_TEXT]
+      : spot.texts?.length
+        ? spot.texts
+        : [spot.text || spot.label || 'イベントが発生しました。'];
     setActiveAutoEventMessageIndex(0);
     setActiveAutoEventMessage(messages[0]);
+    setActivePostDebtNoticeFirstView(shouldShowPostDebtNotice);
     setActiveAutoEventSpot(spot);
     if (spot.seSrc) playEventAudio(spot.seSrc, 'se');
+    if (shouldShowPostDebtNotice) {
+      playEventAudio(POST_DEBT_NOTICE_SOUND_SRC, 'se');
+      window.localStorage.setItem(POST_DEBT_NOTICE_SEEN_STORAGE_KEY, 'true');
+    }
     if (spot.voiceSrc) playEventAudio(spot.voiceSrc, 'voice');
   };
 
@@ -9433,6 +9612,7 @@ export default function App() {
       fadeBgmTo(targetVolume, 900);
     }
     setActiveAutoEventSpot(null);
+    setActivePostDebtNoticeFirstView(false);
     setActiveAutoEventMessage('');
     setDisplayedAutoEventMessage('');
     setActiveAutoEventMessageIndex(0);
@@ -9682,6 +9862,12 @@ export default function App() {
   const startMiningPrompt = () => {
     if (!activeMiningPointId) {
       setMiningPromptVisible(false);
+      miningPromptBlockedRef.current = true;
+      return;
+    }
+    if (!hasEquippedPickaxe(equippedItemsRef.current)) {
+      setMiningPromptVisible(false);
+      setDialogMessage('採掘にはつるはしを装備する必要があります。');
       miningPromptBlockedRef.current = true;
       return;
     }
@@ -12189,13 +12375,15 @@ export default function App() {
       return { x: startX, y: startY };
     };
 
-    const safePos = getSafeSpawnPosition(pos.x, pos.y);
+    const loopStartPos = posRef.current;
+    const safePos = getSafeSpawnPosition(loopStartPos.x, loopStartPos.y);
     let currentX = safePos.x; 
     let currentY = safePos.y; 
     let currentDir = dir;
 
     // 衝突を回避した場合、posステートも安全な位置に更新
-    if (safePos.x !== pos.x || safePos.y !== pos.y) {
+    if (safePos.x !== loopStartPos.x || safePos.y !== loopStartPos.y) {
+       posRef.current = safePos;
        setPos(safePos);
     }
 
@@ -12374,7 +12562,13 @@ export default function App() {
     };
 
     const getTouchingMiningPointId = (x: number, y: number) => {
+      const canUsePostMiningTutorialPoint = (
+        gatheringTutorialCompleted &&
+        gatheringTutorialChoice === 'mining' &&
+        !miningTutorialCompleted
+      );
       if (
+        canUsePostMiningTutorialPoint &&
         currentMapRef.current === POST_MINING_TUTORIAL_POINT.map &&
         x + 18 >= POST_MINING_TUTORIAL_POINT.x &&
         x - 18 <= POST_MINING_TUTORIAL_POINT.x + POST_MINING_TUTORIAL_POINT.w &&
@@ -12396,8 +12590,91 @@ export default function App() {
       return null;
     };
 
+    const getFootDoorAt = (map: GameMap, x: number, y: number) => {
+      return doorsRef.current.find(d => (
+        d.map === map &&
+        d.w > 0 &&
+        d.h > 0 &&
+        x >= d.x &&
+        x <= d.x + d.w &&
+        y >= d.y &&
+        y <= d.y + d.h
+      )) ?? null;
+    };
+
+    const completeOpeningMapTransition = () => {
+      setOpeningMapTransitionCount(prev => {
+        if (
+          bootMode === 'playing' &&
+          currentDay === 1 &&
+          kurumiIntroCompletedDay === null &&
+          nextObjective === OPENING_WALK_OBJECTIVE &&
+          prev < OPENING_MAP_TRANSITIONS_BEFORE_KURUMI
+        ) {
+          const nextCount = prev + 1;
+          if (nextCount >= OPENING_MAP_TRANSITIONS_BEFORE_KURUMI) {
+            setNextObjective(KURUMI_INTRO_OBJECTIVE);
+            setDialogMessage(KURUMI_INTRO_OBJECTIVE);
+          }
+          return nextCount;
+        }
+        return prev;
+      });
+    };
+
+    const startMapTransition = (door: WarpDoor) => {
+      if (mapTransitioningRef.current) return;
+
+      mapTransitioningRef.current = true;
+      warpReentryLockedRef.current = true;
+      lastWarpedAtRef.current = performance.now();
+      keys.current = {};
+      clickTargetRef.current = null;
+      setClickTargetMarker(null);
+      setIsWalking(false);
+      setMapTransitionPhase('fadeOut');
+      playDoorSound();
+
+      if (mapTransitionTimerRef.current !== null) {
+        window.clearTimeout(mapTransitionTimerRef.current);
+      }
+      if (mapTransitionUnlockTimerRef.current !== null) {
+        window.clearTimeout(mapTransitionUnlockTimerRef.current);
+      }
+
+      mapTransitionTimerRef.current = window.setTimeout(() => {
+        const nextPosition = { x: door.spawnX, y: door.spawnY };
+        currentMapRef.current = door.targetMap;
+        currentX = nextPosition.x;
+        currentY = nextPosition.y;
+        posRef.current = nextPosition;
+        setCurrentMap(door.targetMap);
+        setPos(nextPosition);
+        setDir(currentDir);
+        completeOpeningMapTransition();
+        setMapTransitionPhase('fadeIn');
+
+        mapTransitionUnlockTimerRef.current = window.setTimeout(() => {
+          keys.current = {};
+          clickTargetRef.current = null;
+          setClickTargetMarker(null);
+          warpReentryLockedRef.current = false;
+          mapTransitioningRef.current = false;
+          setMapTransitionPhase('idle');
+          mapTransitionUnlockTimerRef.current = null;
+        }, 380);
+        mapTransitionTimerRef.current = null;
+      }, 260);
+    };
+
     const gameLoop = () => {
       if (setupMode !== 'none') return; // Pause movement in setup menu
+
+      if (mapTransitioningRef.current) {
+        setIsWalking(false);
+        animationFrameId = requestAnimationFrame(gameLoop);
+        return;
+      }
 
       if (menuOpenRef.current) {
         setIsWalking(false);
@@ -12428,6 +12705,14 @@ export default function App() {
         // キー入力があればクリック移動をキャンセル
         clickTargetRef.current = null;
         setClickTargetMarker(null);
+      }
+
+      if (
+        warpReentryLockedRef.current &&
+        !keyPressed &&
+        !getFootDoorAt(currentMapRef.current, currentX, currentY)
+      ) {
+        warpReentryLockedRef.current = false;
       }
 
       if (keys.current['ArrowUp'] || keys.current['w']) { ny -= SPEED; newDir = 'up'; moved = true; }
@@ -12472,52 +12757,13 @@ export default function App() {
         
         // 扉（ワープゾーン）衝突判定
         warped = false;
-        const canWarp = performance.now() - lastWarpedAtRef.current >= WARP_COOLDOWN_MS;
+        const canWarp = !warpReentryLockedRef.current && performance.now() - lastWarpedAtRef.current >= WARP_COOLDOWN_MS;
         if (canWarp) {
-          const currentDoors = doorsRef.current.filter(d => d.map === currentMapRef.current);
-          for (const d of currentDoors) {
-             // 扉は足元の中心点だけで判定する。矩形の重なり判定だと、
-             // 扉の横や壁越しで端だけ触れた時にもワープしてしまう。
-             const footX = nx;
-             const footY = ny;
-             const hasValidDoorSize = d.w > 0 && d.h > 0;
-
-             if (
-                hasValidDoorSize &&
-                footX >= d.x &&
-                footX <= d.x + d.w &&
-                footY >= d.y &&
-                footY <= d.y + d.h
-             ) {
-                lastWarpedAtRef.current = performance.now();
-                playDoorSound();
-                setCurrentMap(d.targetMap);
-                currentMapRef.current = d.targetMap; // 即座にRefも更新し、次フレームの判定ズレを防ぐ
-                currentX = d.spawnX;
-                currentY = d.spawnY;
-                setOpeningMapTransitionCount(prev => {
-                  if (
-                    bootMode === 'playing' &&
-                    currentDay === 1 &&
-                    kurumiIntroCompletedDay === null &&
-                    nextObjective === OPENING_WALK_OBJECTIVE &&
-                    prev < OPENING_MAP_TRANSITIONS_BEFORE_KURUMI
-                  ) {
-                    const nextCount = prev + 1;
-                    if (nextCount >= OPENING_MAP_TRANSITIONS_BEFORE_KURUMI) {
-                      setNextObjective(KURUMI_INTRO_OBJECTIVE);
-                      setDialogMessage(KURUMI_INTRO_OBJECTIVE);
-                    }
-                    return nextCount;
-                  }
-                  return prev;
-                });
-                clickTargetRef.current = null; // ワープ後はクリック移動キャンセル
-                setClickTargetMarker(null);
-                warped = true;
-                moved = false; // ワープ後は一旦歩行停止
-                break;
-             }
+          const d = getFootDoorAt(currentMapRef.current, nx, ny);
+          if (d) {
+            startMapTransition(d);
+            warped = true;
+            moved = false; // ワープ後は一旦歩行停止
           }
         }
 
@@ -12604,11 +12850,13 @@ export default function App() {
       }
 
       const miningPointId = getTouchingMiningPointId(currentX, currentY);
+      const hasMiningToolEquipped = hasEquippedPickaxe(equippedItemsRef.current);
       const canInspectMiningPoint = Boolean(
         miningPointId &&
         !isInBed &&
         !isInWorkbench &&
         !isInFishingPoint &&
+        hasMiningToolEquipped &&
         !isAPActionExhausted
       );
       setActiveMiningPointId(canInspectMiningPoint ? miningPointId : null);
@@ -12678,7 +12926,8 @@ export default function App() {
         setCompanionFollow(previous => previous.isWalking ? { ...previous, isWalking: false } : previous);
       }
 
-      setPos({ x: currentX, y: currentY });
+      posRef.current = { x: currentX, y: currentY };
+      setPos(posRef.current);
       setDir(currentDir);
       setIsWalking(moved);
 
@@ -12693,7 +12942,7 @@ export default function App() {
       window.removeEventListener('keydown', handleKeyDown); window.removeEventListener('keyup', handleKeyUp);
       cancelAnimationFrame(animationFrameId);
     };
-  }, [setupMode, bedTiles, workbenchTiles, fishingTiles, miningTiles, depletedMiningPointIds, activeMiningPointId, loggingTiles, activeLoggingPoints, activeLoggingPointId, sleepPromptVisible, craftPromptVisible, fishingPromptVisible, miningPromptVisible, loggingPromptVisible, confirmPromptChoice, pendingDeleteSaveSlot, pendingOverwriteSaveSlot, activeAutoEventSpot, activeAutoEventMessage, activeAutoEventMessageIndex, activeAutoEventMessages, displayedAutoEventMessage, turn, currentAP, kurumiShopOpen, kurumiIntroOpen, kurumiIntroSelectedIndex, kurumiIntroAskedTopics, kurumiIntroCompletedDay, seedPlantTutorialOpen, seedPlantTutorialStepIndex, seedAfterPlantTutorialOpen, seedAfterPlantTutorialStepIndex, selectedShopControl, selectedShopItemIndex, shopItems, gold, equipmentActionOpen, equippedItems, inventoryCounts, caughtFishIds, fishingMiniGameOpen, fishingMiniGameStage, miningMiniGameOpen, isFishingResultInputLocked, fishingTutorialOpen, fishingTutorialEndingOpen, fishingTutorialEndingStepIndex, sawCraftTutorialIntroOpen, sawCraftTutorialIntroStepIndex, sawCraftTutorialReady, sawCraftTutorialShedDialogueOpen, sawCraftTutorialWorkbenchReady, selectedFishingTutorialAction, selectedFishingResultAction, recipeDetailOpen, farmGirlDetailOpen, bootMode, timeOfDay, isOpeningWalkObjectiveActive, currentDay, nextObjective, battlePreviewOpen, battlePreviewState, battleIntroPhase, battleItemPanelOpen, battleItemSelectionStep, selectedBattleCommandIndex, selectedBattleItemIndex, selectedBattleItemTargetIndex]);
+  }, [setupMode, bedTiles, workbenchTiles, fishingTiles, miningTiles, depletedMiningPointIds, activeMiningPointId, loggingTiles, activeLoggingPoints, activeLoggingPointId, sleepPromptVisible, craftPromptVisible, fishingPromptVisible, miningPromptVisible, loggingPromptVisible, confirmPromptChoice, pendingDeleteSaveSlot, pendingOverwriteSaveSlot, activeAutoEventSpot, activeAutoEventMessage, activeAutoEventMessageIndex, activeAutoEventMessages, displayedAutoEventMessage, turn, currentAP, kurumiShopOpen, kurumiIntroOpen, kurumiIntroSelectedIndex, kurumiIntroAskedTopics, kurumiIntroCompletedDay, seedPlantTutorialOpen, seedPlantTutorialStepIndex, seedAfterPlantTutorialOpen, seedAfterPlantTutorialStepIndex, selectedShopControl, selectedShopItemIndex, shopItems, gold, equipmentActionOpen, equippedItems, inventoryCounts, caughtFishIds, fishingMiniGameOpen, fishingMiniGameStage, miningMiniGameOpen, isFishingResultInputLocked, fishingTutorialOpen, fishingTutorialEndingOpen, fishingTutorialEndingStepIndex, sawCraftTutorialIntroOpen, sawCraftTutorialIntroStepIndex, sawCraftTutorialReady, sawCraftTutorialShedDialogueOpen, sawCraftTutorialWorkbenchReady, gatheringTutorialCompleted, gatheringTutorialChoice, miningTutorialCompleted, selectedFishingTutorialAction, selectedFishingResultAction, recipeDetailOpen, farmGirlDetailOpen, bootMode, timeOfDay, isOpeningWalkObjectiveActive, currentDay, nextObjective, battlePreviewOpen, battlePreviewState, battleIntroPhase, battleItemPanelOpen, battleItemSelectionStep, selectedBattleCommandIndex, selectedBattleItemIndex, selectedBattleItemTargetIndex]);
 
   // Zone creation states
   const [dragStart, setDragStart] = useState<{ x: number, y: number } | null>(null);
@@ -12829,6 +13078,9 @@ export default function App() {
         setSelectedDoorId(newId);
      } else {
         const clickedPostMiningTutorialRock = (
+          gatheringTutorialCompleted &&
+          gatheringTutorialChoice === 'mining' &&
+          !miningTutorialCompleted &&
           currentMap === POST_MINING_TUTORIAL_POINT.map &&
           clickX >= POST_MINING_TUTORIAL_POINT.x &&
           clickX <= POST_MINING_TUTORIAL_POINT.x + POST_MINING_TUTORIAL_POINT.w &&
@@ -12848,6 +13100,8 @@ export default function App() {
             setDialogMessage('この採掘ポイントは、この時間帯にはもう採掘済みです。');
           } else if (minedCountThisTimeSlot >= TEMP_MINING_LIMIT_PER_TIME_SLOT) {
             setDialogMessage(`この時間帯に採掘できるのは${TEMP_MINING_LIMIT_PER_TIME_SLOT}回までです。`);
+          } else if (!hasEquippedPickaxe(equippedItemsRef.current)) {
+            setDialogMessage('採掘にはつるはしを装備する必要があります。');
           } else {
             setActiveMiningPointId(POST_MINING_TUTORIAL_POINT.id);
             setMiningPromptVisible(true);
@@ -13644,6 +13898,16 @@ export default function App() {
                 onEnded={closeCircleIntro}
               />
             </button>
+          )}
+          {mapTransitionPhase !== 'idle' && (
+            <div
+              className={`pointer-events-auto absolute inset-0 z-[260] bg-black transition-opacity ease-in-out ${
+                mapTransitionPhase === 'fadeOut'
+                  ? 'opacity-100 duration-[240ms]'
+                  : 'opacity-0 duration-[260ms]'
+              }`}
+              aria-hidden="true"
+            />
           )}
           {bootMode !== 'playing' && (
             <div className="absolute inset-0 z-[300] flex items-center justify-center bg-black">
@@ -16652,11 +16916,20 @@ export default function App() {
                           controls
                        />
                     ) : activeAutoEventSpot.imageSrc ? (
-                       <img
-                          src={resolveEventMediaSrc(activeAutoEventSpot.imageSrc, 'img')}
-                          alt={activeAutoEventSpot.label}
-                          className="block max-w-full max-h-[780px] object-contain"
-                       />
+                       <div className="relative">
+                          <img
+                             src={resolveEventMediaSrc(activeAutoEventSpot.imageSrc, 'img')}
+                             alt={activeAutoEventSpot.label}
+                             className="block max-w-full max-h-[780px] object-contain"
+                          />
+                          {activePostDebtNoticeFirstView && isPostDebtNoticeEvent(activeAutoEventSpot) && (
+                             <img
+                                src={POST_DEBT_NOTICE_IMAGE_SRC}
+                                alt="借用書"
+                                className="pointer-events-none absolute left-1/2 top-1/2 z-10 max-h-[72%] max-w-[74%] -translate-x-1/2 -translate-y-1/2 rotate-[-4deg] object-contain drop-shadow-[0_18px_28px_rgba(0,0,0,0.72)]"
+                             />
+                          )}
+                       </div>
                     ) : (
                        <div className="flex h-[420px] w-[820px] items-center justify-center bg-[#2d1b15] text-[#fdf6e3] text-3xl font-bold">
                           {activeAutoEventSpot.label}
@@ -17213,6 +17486,7 @@ export default function App() {
            isShopTradePose={isShopTradePose}
            kurumiRewardImageSrc={activeKurumiTradeReward?.imageSrc}
            kurumiRewardMessage={activeKurumiTradeReward?.message}
+           shopNoticeMessage={shopNoticeMessage}
            menuTinyLabelStyle={menuTinyLabelStyle}
            handleShopBackdropPointerDown={handleShopBackdropPointerDown}
            handleShopCloseClick={handleShopCloseClick}
@@ -17825,6 +18099,7 @@ export default function App() {
                         <button
                           key={seed.seedId}
                           type="button"
+                          data-nearby-seed-index={index}
                           onMouseEnter={() => {
                             if (seed.isPlanted) return;
                             if (selectedNearbySeedIndex !== index) playCursorSound();
@@ -18185,9 +18460,8 @@ export default function App() {
               <button
                 type="button"
                 onClick={advancePrologue}
-                disabled={!prologueRingRevealReady}
-                className={`relative h-full w-full max-w-[1120px] transition-opacity duration-1000 ${prologueRingRevealReady ? 'cursor-pointer opacity-100' : 'cursor-wait opacity-100'}`}
-                aria-label={prologueRingRevealReady ? '指輪と家の鍵の演出を閉じる' : '指輪と家の鍵の演出'}
+                className="relative h-full w-full max-w-[1120px] cursor-pointer opacity-100 transition-opacity duration-1000"
+                aria-label="指輪と家の鍵の演出を閉じる"
               >
                 <span className="prologue-image-frame absolute left-1/2 top-1/2 block w-[min(92vw,1120px)] -translate-x-1/2 -translate-y-1/2 opacity-0 transition-opacity duration-1000">
                   <img
@@ -18202,7 +18476,7 @@ export default function App() {
                     よく見ると、封筒の中にもう1通の手紙が入っていた！
                   </span>
                 </span>
-                <span className={`absolute bottom-[4%] left-1/2 -translate-x-1/2 whitespace-nowrap rounded bg-black/55 px-5 py-2 text-lg font-black text-[#fff7dc] transition-opacity duration-300 ${prologueRingRevealReady ? 'opacity-100' : 'opacity-0'}`}>
+                <span className="absolute bottom-[4%] left-1/2 -translate-x-1/2 whitespace-nowrap rounded bg-black/55 px-5 py-2 text-lg font-black text-[#fff7dc] transition-opacity duration-300">
                   クリック / Enter で続ける
                 </span>
               </button>
