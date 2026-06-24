@@ -41,7 +41,7 @@ export const GIRL_SEED_ACQUISITION_DATA: readonly GirlSeedAcquisitionData[] = [
   {
     girlId: 'chibiichi',
     seedId: 'ichigo',
-    seedName: 'いちごの娘苗',
+    seedName: 'いちごの苗娘',
     acquisitionType: 'initialOwned',
     unlockDifficulty: 'easy',
     isRepeatable: false,
@@ -49,7 +49,7 @@ export const GIRL_SEED_ACQUISITION_DATA: readonly GirlSeedAcquisitionData[] = [
   {
     girlId: 'mel',
     seedId: 'melon',
-    seedName: 'メロンの娘苗',
+    seedName: 'メロンの苗娘',
     acquisitionType: 'initialOwned',
     unlockDifficulty: 'easy',
     isRepeatable: false,
@@ -57,7 +57,7 @@ export const GIRL_SEED_ACQUISITION_DATA: readonly GirlSeedAcquisitionData[] = [
   {
     girlId: 'ruby',
     seedId: 'tomato',
-    seedName: 'トマトの娘苗',
+    seedName: 'トマトの苗娘',
     acquisitionType: 'initialOwned',
     unlockDifficulty: 'easy',
     isRepeatable: false,
@@ -65,7 +65,7 @@ export const GIRL_SEED_ACQUISITION_DATA: readonly GirlSeedAcquisitionData[] = [
   {
     girlId: 'viola',
     seedId: 'grape',
-    seedName: 'ブドウの娘苗',
+    seedName: 'ブドウの苗娘',
     acquisitionType: 'shop',
     unlockDifficulty: 'easy',
     price: 120_000,
@@ -74,7 +74,7 @@ export const GIRL_SEED_ACQUISITION_DATA: readonly GirlSeedAcquisitionData[] = [
   {
     girlId: 'nazuna',
     seedId: 'eggplant',
-    seedName: 'なすの娘苗',
+    seedName: 'なすの苗娘',
     acquisitionType: 'materialExchange',
     unlockDifficulty: 'easy',
     requiredItems: [
@@ -87,7 +87,7 @@ export const GIRL_SEED_ACQUISITION_DATA: readonly GirlSeedAcquisitionData[] = [
   {
     girlId: 'kabune',
     seedId: 'turnip',
-    seedName: 'かぶの娘苗',
+    seedName: 'かぶの苗娘',
     acquisitionType: 'creditUnlock',
     unlockDifficulty: 'easy',
     requiredFarmCredit: 10,
@@ -96,7 +96,7 @@ export const GIRL_SEED_ACQUISITION_DATA: readonly GirlSeedAcquisitionData[] = [
   {
     girlId: 'caro',
     seedId: 'carrot',
-    seedName: 'にんじんの娘苗',
+    seedName: 'にんじんの苗娘',
     acquisitionType: 'shop',
     unlockDifficulty: 'normal',
     price: 180_000,
@@ -105,7 +105,7 @@ export const GIRL_SEED_ACQUISITION_DATA: readonly GirlSeedAcquisitionData[] = [
   {
     girlId: 'theta',
     seedId: 'shiitake',
-    seedName: 'しいたけの娘苗',
+    seedName: 'しいたけの苗娘',
     acquisitionType: 'materialExchange',
     unlockDifficulty: 'normal',
     requiredItems: [
@@ -118,7 +118,7 @@ export const GIRL_SEED_ACQUISITION_DATA: readonly GirlSeedAcquisitionData[] = [
   {
     girlId: 'cure',
     seedId: 'cucumber',
-    seedName: 'きゅうりの娘苗',
+    seedName: 'きゅうりの苗娘',
     acquisitionType: 'repaymentUnlock',
     unlockDifficulty: 'normal',
     requiredSuccessfulRepayments: 1,
@@ -127,7 +127,7 @@ export const GIRL_SEED_ACQUISITION_DATA: readonly GirlSeedAcquisitionData[] = [
   {
     girlId: 'shiro',
     seedId: 'daikon',
-    seedName: 'だいこんの娘苗',
+    seedName: 'だいこんの苗娘',
     acquisitionType: 'creditUnlock',
     unlockDifficulty: 'normal',
     requiredFarmCredit: 25,
@@ -136,7 +136,7 @@ export const GIRL_SEED_ACQUISITION_DATA: readonly GirlSeedAcquisitionData[] = [
   {
     girlId: 'momona',
     seedId: 'peach',
-    seedName: 'ももの娘苗',
+    seedName: 'ももの苗娘',
     acquisitionType: 'specialEvent',
     unlockDifficulty: 'normal',
     eventId: 'momona_seed_unlock',
@@ -145,7 +145,7 @@ export const GIRL_SEED_ACQUISITION_DATA: readonly GirlSeedAcquisitionData[] = [
   {
     girlId: 'pan',
     seedId: 'pumpkin',
-    seedName: 'かぼちゃの娘苗',
+    seedName: 'かぼちゃの苗娘',
     acquisitionType: 'materialExchange',
     unlockDifficulty: 'normal',
     requiredItems: [
@@ -158,7 +158,7 @@ export const GIRL_SEED_ACQUISITION_DATA: readonly GirlSeedAcquisitionData[] = [
   {
     girlId: 'puti',
     seedId: 'dragon_fruit',
-    seedName: 'ドラフルの娘苗',
+    seedName: 'ドラフルの苗娘',
     acquisitionType: 'repaymentUnlock',
     unlockDifficulty: 'hard',
     requiredSuccessfulRepayments: 3,
@@ -167,7 +167,7 @@ export const GIRL_SEED_ACQUISITION_DATA: readonly GirlSeedAcquisitionData[] = [
   {
     girlId: 'roma',
     seedId: 'romanesco',
-    seedName: 'ロマネの娘苗',
+    seedName: 'ロマネの苗娘',
     acquisitionType: 'creditUnlock',
     unlockDifficulty: 'hard',
     requiredFarmCredit: 60,
@@ -176,7 +176,7 @@ export const GIRL_SEED_ACQUISITION_DATA: readonly GirlSeedAcquisitionData[] = [
   {
     girlId: 'saffy',
     seedId: 'saffron',
-    seedName: 'サフランの娘苗',
+    seedName: 'サフランの苗娘',
     acquisitionType: 'specialEvent',
     unlockDifficulty: 'hard',
     eventId: 'saffy_seed_unlock',

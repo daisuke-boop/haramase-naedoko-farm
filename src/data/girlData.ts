@@ -192,7 +192,7 @@ export const GIRL_DATA: readonly GirlData[] = [
   {
     id: 'saffy',
     cropName: 'サフラン',
-    girlName: 'サフィー',
+    girlName: 'サフィ',
     unlockTier: 'final',
     initialTrust: 0,
     combatRole: '信用・支援型',

@@ -116,6 +116,7 @@ import {
   HERO_SKILL_DATA,
   getHeroSkillById,
   getHeroSkillsByCategory,
+  type HeroSkillCategory,
   type HeroSkillData,
 } from './data/heroSkillData';
 import type {
@@ -238,13 +239,18 @@ const resumeMonoPlayback = (audio: HTMLAudioElement) => {
   }
 };
 
+const NEW_GAME_START_POSITION = { x: 610, y: 700 } as const;
+const OPENING_WALK_OBJECTIVE = 'まずは村を歩き回ってみよう！';
+const KURUMI_INTRO_OBJECTIVE = 'くるみに話しかけて村のことを聞こう！';
+const OPENING_MAP_TRANSITIONS_BEFORE_KURUMI = 2;
+
 const defaultDoors: WarpDoor[] = [
   // 牧場 -> 家 (左上)
   { id: 'door_to_house', map: 'farm', targetMap: 'house', x: 420, y: 320, w: 60, h: 60, spawnX: 960, spawnY: 770 },
   // 牧場 -> 小屋 (右下付近)
   { id: 'door_to_shed', map: 'farm', targetMap: 'shed', x: 1560, y: 640, w: 60, h: 60, spawnX: 960, spawnY: 650 },
   // 家 -> 牧場 (下部の出口)
-  { id: 'door_house_exit', map: 'house', targetMap: 'farm', x: 930, y: 1000, w: 100, h: 60, spawnX: 450, spawnY: 380 },
+  { id: 'door_house_exit', map: 'house', targetMap: 'farm', x: 930, y: 1000, w: 100, h: 60, spawnX: NEW_GAME_START_POSITION.x, spawnY: NEW_GAME_START_POSITION.y },
   // 小屋 -> 牧場 (下部の出口)
   { id: 'door_shed_exit', map: 'shed', targetMap: 'farm', x: 930, y: 1000, w: 100, h: 60, spawnX: 1560, spawnY: 700 },
   // 牧場 -> 洞窟
@@ -256,6 +262,8 @@ const defaultDoors: WarpDoor[] = [
 const requiredRouteDoors: WarpDoor[] = [
   { id: 'door_to_waterfall', map: 'farm', targetMap: 'waterfall', x: 940, y: 320, w: 70, h: 50, spawnX: 930, spawnY: 1020 },
   { id: 'door_waterfall_exit', map: 'waterfall', targetMap: 'farm', x: 890, y: 1020, w: 120, h: 60, spawnX: 970, spawnY: 420 },
+  { id: 'door_1781485591085', map: 'farm', targetMap: 'kawa', x: 920, y: 1040, w: 60, h: 60, spawnX: 940, spawnY: 90 },
+  { id: 'door_1781485617403', map: 'kawa', targetMap: 'farm', x: 870, y: 0, w: 140, h: 80, spawnX: 950, spawnY: 1040 },
 ];
 
 const ensureRequiredRouteDoors = (doors: WarpDoor[]) => {
@@ -326,6 +334,12 @@ const getFileGain = (src: string, audioGains: Record<string, number>) => {
 
 const getEffectiveVolume = (src: string, categoryVolume: number, audioGains: Record<string, number>) => {
   return Math.min(1, categoryVolume * getFileGain(src, audioGains));
+};
+
+const getBgmEffectiveVolume = (src: string, categoryVolume: number, audioGains: Record<string, number>) => {
+  return src === TITLE_BGM_SRC || src.endsWith(TITLE_BGM_SRC)
+    ? Math.min(1, categoryVolume * TITLE_BGM_VOLUME_MULTIPLIER)
+    : getEffectiveVolume(src, categoryVolume, audioGains);
 };
 
 const getDistanceToPolyline = (point: { x: number; y: number }, linePoints: { x: number; y: number }[]) => {
@@ -475,6 +489,7 @@ type DebugDialogueStep = {
 type FishingTutorialStep = 'intro' | 'rod' | 'direction' | 'power' | 'bite' | 'hit' | 'result';
 type FishingTutorialResult = 'success' | 'fail' | null;
 type MiningTutorialStep = 'arrows' | 'timing' | 'reward';
+type SeedAfterPlantTutorialStep = 'rooted' | 'growth_days' | 'care';
 type CraftCircle = { id: number; x: number; y: number; size: number; expiresAt: number; durationMs: number };
 type CraftRecipeId =
   | '【レシピ】のこぎり'
@@ -497,7 +512,7 @@ type CraftRecipeConfig = {
   circleDurationRangeMs: [number, number];
   scorePerCircle: number;
 };
-type KurumiIntroTopicId = 'village' | 'debt' | 'naedoko' | 'pantsu';
+type KurumiIntroTopicId = 'village' | 'debt' | 'naedoko' | 'pantsu' | 'grandpa';
 type SaveSlotSummary = {
   slot: number;
   exists: boolean;
@@ -556,6 +571,29 @@ const TITLE_IMAGE_SOURCES: Readonly<Record<TitleTheme, string | null>> = {
   default: '/img/titleview.jpg',
   endlessUnlocked: null,
 };
+const CIRCLE_INTRO_VIDEO_SRC = '/voice/circle.mp4';
+const TITLE_RANDOM_VOICE_SRCS = [
+  '/voice/koe/kiironingyo.wav',
+  '/voice/koe/kyaro.wav',
+  '/voice/koe/kyua.wav',
+  '/voice/koe/roma.wav',
+  '/voice/koe/shita.wav',
+  '/voice/koe/viora.wav',
+  '/voice/koe/mel.wav',
+  '/voice/koe/nazuna.wav',
+  '/voice/koe/ruby.wav',
+  '/voice/koe/aoningyo.wav',
+  '/voice/koe/kabuna.wav',
+  '/voice/koe/momona.wav',
+  '/voice/koe/chibiichi.wav',
+  '/voice/koe/puthi.wav',
+  '/voice/koe/pinkningyo.wav',
+  '/voice/koe/pan.wav',
+  '/voice/koe/safi.wav',
+  '/voice/koe/shiro.wav',
+] as const;
+const DEFAULT_MASTER_VOLUME = 0.1;
+const TITLE_BGM_VOLUME_MULTIPLIER = 0.25;
 const ENDLESS_NURSERY_UNLOCK_STORAGE_KEY = 'farm_has_unlocked_endless_nursery_mode';
 
 type FarmGirlState = 'none' | 'planted' | 'growing' | 'appeared' | 'companion' | 'lover';
@@ -567,6 +605,11 @@ type FarmGirlSaveState = {
   cardRevealed: boolean;
   plantedDay: number | null;
   growthProgress: number;
+  quality: number;
+  careDay: number | null;
+  caressCount: number;
+  fingerCount: number;
+  fertilizeCount: number;
   lastHarvestDay: number | null;
   trust: number;
   unlockedTrustEventIds: string[];
@@ -877,6 +920,18 @@ const FARM_GIRL_DETAIL_IMAGES: Readonly<Record<string, string>> = {
   chibiichi: '/img/chibiichi-pro.jpg',
   mel: '/img/mel-pro.jpg',
   ruby: '/img/ruby-pro.jpg',
+  viola: '/img/viora-pro.jpg',
+  nazuna: '/img/nasuna-pro.jpg',
+  kabune: '/img/kabune-pro.jpg',
+  caro: '/img/kyaro-pro.jpg',
+  theta: '/img/shita-pro.jpg',
+  cure: '/img/kyua-pro.jpg',
+  shiro: '/img/shiro-pro.jpg',
+  momona: '/img/momona-pro.jpg',
+  pan: '/img/pan-pro.jpg',
+  puti: '/img/puthi-pro.jpg',
+  roma: '/img/roma-pro.jpg',
+  saffy: '/img/safi-pro.jpg',
 };
 const OPEN_FARM_GIRL_CARD_COUNT = Object.keys(FARM_GIRL_CARD_IMAGES).length;
 
@@ -891,9 +946,47 @@ const KURUMI_INTRO_TOPICS: { id: KurumiIntroTopicId; label: string; answer: stri
   { id: 'debt', label: '借金の返し方は？', answer: 'うーん、育てた野菜や果物売ったり...かなぁ。\nあっ！くるみねー、色々ものを作るの得意なんだぁー！\nだから、もし素材とか欲しいものがあったら\nまた話しかけてね。\nあと、釣りも得意なんだぁ。\nそうだっ！釣りのやり方も教えるから、\n興味があったら教えてあげる！\n明日そこの橋の上で待ってるね！', voiceSrc: KURUMI_START3_SOUND_SRC },
   { id: 'naedoko', label: '苗床って？', answer: '孕ませ村の特産品の事だよっ！\n野菜や果物の苗床っていう女の子たちを育てたら、\nたっくさん美味しい野菜や果物ができるんだよー！\n幸い、むふふぅーっ！\nおにぃさんはあっちの方も強そうだし...\nきっといい野菜や果物が育つと思うよっ！', voiceSrc: KURUMI_START4_SOUND_SRC },
   { id: 'pantsu', label: 'パンツ見せて！', answer: 'えー、どうしょっかなぁー！...考えとくねっ♡', voiceSrc: KURUMI_START5_SOUND_SRC },
+  { id: 'grandpa', label: 'お爺さんとの関係は？', answer: 'えっ！そ、それは...内緒っ♡\nでも、ユウのこともお爺さん、毎日のように話してたんだよっ！\nユウの事もどうか頼む！って。\nだから、色々お世話するね♪', voiceSrc: '/voice/kurumi-start1.wav' },
 ];
 const KURUMI_INTRO_TOPIC_IDS = KURUMI_INTRO_TOPICS.map(topic => topic.id);
 const KURUMI_INTRO_CLOSE_FADE_MS = 650;
+const SEED_PLANT_TUTORIAL_STEPS = [
+  'ユウは好奇心いっぱいだねーっ！\nくるみもできる限りお手伝いするね！\nそれじゃあ最初にやることを教えるねっ。\nまずは、お爺さんから預かってる\n苗娘を3つあげる！',
+  'この苗娘は、すっごい貴重なんだよっ！\nでも、育てるのがとっても大変みたいで\n収穫するのも難しいんだって！\nだけど、ユウのお爺さんが持ってた指輪の力と\n精力を使って安定的に育てる方法を開発したの！',
+  'くるみもお爺さんの収穫の\nお手伝いしたんだよっ！\n、、、\n、、、\nだから、ユウもきっと上手に育成できると\n思うから頑張ってね！',
+  '苗娘は植えたあと、日数が進むと育っていくよ。\n色々と難しいこともあると思うけど、\nくるみもお手伝いしちゃうよーっ！\n明日は橋の近くで釣りも教えるけど、\n今日はまず畑に苗娘を植えてみよっ♪',
+] as const;
+const SEED_PLANT_TUTORIAL_VOICE_SRCS = SEED_PLANT_TUTORIAL_STEPS.map((_, index) => `/voice/kurumi-seed${index + 1}.wav`);
+const STARTER_SEED_OBJECTIVE = 'くるみからもらった苗娘を左畑に植えよう！';
+const SEED_AFTER_PLANT_TUTORIAL_STEPS: (DebugDialogueStep & { id: SeedAfterPlantTutorialStep })[] = [
+  {
+    id: 'rooted',
+    debugKey: 'seed_after_plant_tutorial_rooted',
+    message: 'できたできたっ！\nこれで苗娘が畑に根づいたよ♪\n日数が進むと少しずつ育って、\nお世話の仕方で品質も変わっていくの。',
+    voiceSrc: '/voice/kurumi-seed5.wav',
+  },
+  {
+    id: 'growth_days',
+    debugKey: 'seed_after_plant_tutorial_growth_days',
+    message: 'ほら、畑をよく見てごらん！\n成長中って横に0/2日とか0/3日って\n書いてあるでしょ？\nこの日数育てると苗娘は収穫できるよっ！',
+    voiceSrc: '/voice/kurumi-seed6.wav',
+  },
+  {
+    id: 'care',
+    debugKey: 'seed_after_plant_tutorial_care',
+    message: 'まずは初収穫を目指してみてね！\n収穫までに苗のお世話もすることが出来るから\n色々試してみるといいよ♪\n明日また様子を見に来よっ！\n今日はここまで！また明日ね♡',
+    voiceSrc: '/voice/kurumi-seed7.wav',
+  },
+];
+
+const PROLOGUE_LETTERS: readonly { text: string; voiceSrc: string }[] = [
+  { text: 'ユウへ\n\n元気か？ 爺ちゃんはもう長くない。\nそこで、爺ちゃんを大切にしてくれたお前に\n爺ちゃんの命よりも大事なものをユウに残す。\nこれは遺言じゃ！', voiceSrc: '/voice/jii01.wav' },
+  { text: '爺ちゃんの大事な畑を継いでくれ！\nそこには可愛い「娘たち」がたくさんおる。\n日々愛でて、肥料をやって\nたっぷり可愛がってやれば、\nすぐに実って、\n最高の笑顔を見せてくれるんじゃぞ。', voiceSrc: '/voice/jii02.wav' },
+  { text: 'ふふ、爺ちゃんの若い頃を思い出すな......\n毎日イチャイチャ、\n娘たちと一緒に暮らせるぞ！\n最高の人生が待ってる。\n絶対に後悔はさせん！', voiceSrc: '/voice/jii03.wav' },
+  { text: 'さあ、すぐに村に来い。\n家の鍵と指輪は同封した。\n楽しみにしてるぞ！\n\n爺ちゃんより', voiceSrc: '/voice/jii04.wav' },
+  { text: '……あ、そうじゃ！\nすっかり伝えるのを忘れておったわ！\n爺さん、くるみちゃんと遊びすぎて...じゃなくて\n畑の経営に失敗して、結構やばい所に\n莫大な借金を作ってしまったんじゃ！', voiceSrc: '/voice/jii05.wav' },
+  { text: 'じゃから、その畑で「特別な娘たち」を育てて、\n高く売って返済するしか道はないんじゃ！\n一緒に同封した農神の指輪の力は、\nユウの底なしの精力に反応して\n必ずや、、、\nあとは頼んだぞ！てへっ♡', voiceSrc: '/voice/jii06.wav' },
+];
 
 const FISH_ITEM_NAMES = new Set(FISH_ZUKAN_ENTRIES.map(fish => fish.name));
 const LUMBER_ITEM_NAMES = new Set(LUMBER_DATA.map(lumber => lumber.name));
@@ -1023,8 +1116,29 @@ const withDebugItemVariants = (itemNames: readonly string[]): string[] => (
 );
 const REMOVED_LEGACY_ITEM_NAMES = ['薬草', '携帯おにぎり', '小さな釣り餌'] as const;
 const REMOVED_LEGACY_ITEM_VARIANTS = withDebugItemVariants(REMOVED_LEGACY_ITEM_NAMES);
+const LEGACY_ITEM_NAME_RENAMES: Readonly<Record<string, string>> = {
+  'めるのメロン': 'メルのメロン',
+  'ぱんちゃんのかぼちゃ': 'パンのかぼちゃ',
+  'ぱんのかぼちゃ': 'パンのかぼちゃ',
+  'サフィーのサフラン': 'サフィのサフラン',
+};
+const migrateInventoryItemNames = (inventoryCounts: Record<string, number>): Record<string, number> => {
+  const next = { ...inventoryCounts };
+  let changed = false;
+  Object.entries(LEGACY_ITEM_NAME_RENAMES).forEach(([oldName, newName]) => {
+    [oldName, toDebugItemName(oldName)].forEach(oldItemName => {
+      const count = next[oldItemName] ?? 0;
+      if (count <= 0) return;
+      const newItemName = oldItemName === oldName ? newName : toDebugItemName(newName);
+      next[newItemName] = (next[newItemName] ?? 0) + count;
+      delete next[oldItemName];
+      changed = true;
+    });
+  });
+  return changed ? next : inventoryCounts;
+};
 const ITEM_MENU_NORMAL_ITEMS: Record<string, string[]> = {
-  '消耗品': ['気付け水', ...BATTLE_CONSUMABLE_ITEMS.map(item => item.name)],
+  '消耗品': [...BATTLE_CONSUMABLE_ITEMS.map(item => item.name)],
   '素材': Array.from(new Set([
     '木材', '川魚の鱗', 'モグラの爪', 'ウサギの靭帯', '軟らかい銅鉱石', '泥混じりの鉄鉱石', '柔らかな若枝',
     '軽石炭', 'しなやかな軟木', '猪の牙', '熊の剛糸', '良質な鉄鉱石', '堅実な中木',
@@ -1064,10 +1178,10 @@ const ITEM_MENU_BASE_ITEMS: Record<string, string[]> = Object.fromEntries(
 );
 const INITIAL_INVENTORY_COUNTS: Record<string, number> = createDebugInventoryCounts(ALL_NORMAL_ITEM_NAMES);
 const INITIAL_EQUIPPED_ITEMS: Record<string, string> = {
-  '主人公-slot1': toDebugItemName('竹の釣竿'),
-  '主人公-slot2': toDebugItemName('のこぎり'),
-  '主人公-slot3': toDebugItemName('つるはし'),
-  '主人公-slot4': toDebugItemName('農神の指輪'),
+  '主人公-slot1': '',
+  '主人公-slot2': '',
+  '主人公-slot3': '',
+  '主人公-slot4': '',
   'ちびいち-slot1': '',
   'ちびいち-slot2': '',
 };
@@ -1241,6 +1355,64 @@ const CRAFT_RECIPE_CONFIGS: Record<CraftRecipeId, CraftRecipeConfig> = {
   },
 };
 const CRAFT_RECIPE_IDS = Object.keys(CRAFT_RECIPE_CONFIGS) as CraftRecipeId[];
+const ITEM_MENU_CUSTOM_EFFECT_TEXT: Record<string, string> = {
+  '使用済みコンドーム': 'くるみになぜか売却できる何かに使われたゴムです。一体誰が使ったんだろう？サイズが大きいほど高く買い取ってもらえます。',
+  '川魚の鱗': '川魚から取れるきらめく鱗。細工や道具の補強に使え、くるみも喜んで買い取ってくれます。',
+  '木材': '農場設備の修理やクラフトに使う基本素材。まずはこれを集めると開拓が進みます。',
+  'モグラの爪': '地中を掘り進むモグラの丈夫な爪。初級道具の刃や補強材にぴったりです。',
+  'ウサギの靭帯': 'よく跳ねるウサギから取れるしなやかな素材。道具の固定や弦の代わりに使えます。',
+  '猪の牙': '荒ぶる猪の鋭い牙。高級道具や武器に獣の力を宿す素材です。',
+  '猪の硬皮': '刃を通しにくい猪の皮。防具や道具のグリップ補強に向いています。',
+  '熊の剛糸': '熊の体毛からより分けた強い繊維。高級釣竿や装備作りに使います。',
+  '巨獣の鋼角': '巨獣から得られる金属のような角。伝説級の道具を作るための主素材です。',
+  '巨獣の強剛糸': '巨獣の体から取れる極太の繊維。強い衝撃にも耐える希少素材です。',
+  '神獣の絹糸': '山の主が落とす神秘的な糸。伝説級の装備に祝福を通すための素材です。',
+  '農神の指輪': '農場仕事に小さな加護をくれる指輪。畑仕事の成果を底上げしてくれるお守りです。',
+  [FISHING_NUSHI_RING_NAME]: '川のヌシに認められた釣り人の指輪。大物との縁をぐっと引き寄せます。',
+  '木剣': '村で扱いやすいよう削られた木の剣。獣相手の最初の護身用装備です。',
+  '獣殺し': '獣の弱点を狙いやすい重めの剣。強敵との戦いで攻撃力と会心を支えます。',
+  '天の裁き': '山の雷を写したような剣。獣への決定打を狙える終盤向けの武器です。',
+  '毛皮の服': '冷える朝の畑でも動きやすい毛皮服。HPと防御を少し底上げします。',
+  '剛牙の鎧': '獣の牙と硬皮で仕立てた鎧。獣から受ける痛手を抑える頼れる防具です。',
+  '神域の加護': '山奥の神域に伝わる守り具。HPと防御を高め、状態異常にも強くなります。',
+};
+const getItemMenuEffectText = (itemName: string, itemCategory: string): string => {
+  if (!itemName) return 'アイテムを選ぶと、ここに効果や使い道が表示されます。';
+
+  const baseItemName = toBaseItemName(itemName);
+  const customEffectText = ITEM_MENU_CUSTOM_EFFECT_TEXT[baseItemName];
+  if (customEffectText) return customEffectText;
+
+  const battleItem = getBattleConsumableItem(baseItemName);
+  if (battleItem) return battleItem.desc;
+
+  const recipeConfig = CRAFT_RECIPE_CONFIGS[baseItemName as CraftRecipeId];
+  if (recipeConfig) {
+    return `${recipeConfig.output}をクラフトできるようになるレシピです。必要素材はレシピ詳細で確認できます。`;
+  }
+
+  const fish = FISH_ZUKAN_ENTRIES.find(entry => entry.name === baseItemName);
+  if (fish) {
+    return fish.sellable === false
+      ? 'だいじなものとして保管される特別な魚です。図鑑やイベント確認に使います。'
+      : 'くるみに売却できる魚です。サイズが大きいほど高く買い取ってもらえます。';
+  }
+
+  if (LUMBER_ITEM_NAMES.has(baseItemName)) return `${baseItemName}は村の森で取れる木材です。道具作りに使え、太く立派なものほど高値で売れます。`;
+  if (ORE_ITEM_NAMES.has(baseItemName)) return `${baseItemName}は洞窟で掘れる鉱石です。道具作りに使え、重く質の良いものほど高値で売れます。`;
+  if (FARM_HARVEST_ITEM_NAMES.has(baseItemName)) return `${baseItemName}は農場で育った実りです。くるみに売れば借金返済の大事な資金になります。`;
+
+  if (isFishingRodName(baseItemName)) return '釣りで使う装備です。上位の釣竿ほど狙える魚が増えます。';
+  if (isSawName(baseItemName)) return '伐採で使う装備です。上位ののこぎりほど良い木材を狙えます。';
+  if (isPickaxeName(baseItemName)) return '採掘で使う装備です。上位のつるはしほど希少な鉱石を狙えます。';
+
+  if (itemCategory === '素材') return `${baseItemName}は開拓やクラフトに使える素材です。今すぐ使わなくても、村での生活を進めるほど出番が増えます。`;
+  if (itemCategory === '装備品') return `${baseItemName}は装備メニューで身につけられる品です。畑仕事、探索、戦闘のどこかで力を貸してくれます。`;
+  if (itemCategory === '売却品') return `${baseItemName}はくるみに売却できる品です。今日の稼ぎとして返済資金に回せます。`;
+  if (itemCategory === 'だいじなもの') return `${baseItemName}は村での進行に関わる大切な品です。なくさないように保管されています。`;
+
+  return `${baseItemName}ははらませ村で見つけた品です。詳しい使い道が分かるまで、大事に持っておきましょう。`;
+};
 const FISHING_TUTORIAL_KURUMI_ZONE = { x: 1366, y: 636, w: 44, h: 62 };
 const FISHING_TUTORIAL_KURUMI_LABEL_W = 210;
 const FISHING_TUTORIAL_KURUMI_LABEL_H = 54;
@@ -1455,7 +1627,7 @@ const COMPANION_TRAIL_DELAY_FRAMES = 18;
 const COMPANION_FOLLOW_DISTANCE = 54;
 const DEBUG_INITIAL_GIRL_TRUST = 20; // 最終ビルドでは 0 に戻す
 const DEBUG_APPEARED_GIRL_IDS = new Set(
-  GIRL_DATA.filter(girl => girl.id !== 'saffy').map(girl => girl.id)
+  GIRL_DATA.map(girl => girl.id)
 ); // 最終ビルドでは空に戻す
 const CRAFT_SUCCESS_SOUND_SRC = '/se/craft.mp3';
 const LOGGING_SUCCESS_SOUND_SRC = '/se/success.mp3';
@@ -1525,9 +1697,9 @@ const createFishingTargetSize = (fish: FishZukanEntry, biteScore: number, biteCo
   return Number((fish.sizeMin + (fish.sizeMax - fish.sizeMin) * sizeRatio).toFixed(1));
 };
 const INITIAL_DEBT_BY_DIFFICULTY: Readonly<Record<GameDifficulty, number>> = {
-  easy: 5_000_000,
-  normal: 20_000_000,
-  hard: 100_000_000,
+  easy: 1_500_000,
+  normal: 10_000_000,
+  hard: 30_000_000,
 };
 const DEFAULT_REPAYMENT_CYCLE_DAYS = 7;
 const EXHAUSTED_ACTION_MESSAGE = '疲れてこれ以上行動できない。自宅のベッドで休もう。';
@@ -1543,6 +1715,20 @@ const FARM_TRUST_BONUS_TIERS = [
 const getFarmTrustBonus = (trust: number) => (
   FARM_TRUST_BONUS_TIERS.find(tier => trust >= tier.minTrust) ?? FARM_TRUST_BONUS_TIERS[FARM_TRUST_BONUS_TIERS.length - 1]
 );
+const getFarmQualityMultiplier = (quality: number): number => {
+  if (quality >= 100) return 1.25;
+  if (quality >= 75) return 1.20;
+  if (quality >= 50) return 1.10;
+  if (quality >= 25) return 1.00;
+  return 0.90;
+};
+const getFarmQualityLabel = (quality: number): string => {
+  if (quality >= 100) return '最高品質';
+  if (quality >= 75) return '極上';
+  if (quality >= 50) return '上質';
+  if (quality >= 25) return '良い';
+  return 'ふつう';
+};
 type CompanionHarvestModifier = {
   multiplier: number;
   isFutureLoverBonusEligible: boolean;
@@ -1804,6 +1990,11 @@ const createInitialFarmGirls = (): FarmGirlSaveState[] => GIRL_DATA.map(girl => 
   cardRevealed: DEBUG_APPEARED_GIRL_IDS.has(girl.id),
   plantedDay: null,
   growthProgress: 0,
+  quality: DEBUG_APPEARED_GIRL_IDS.has(girl.id) ? 50 : 0,
+  careDay: null,
+  caressCount: 0,
+  fingerCount: 0,
+  fertilizeCount: 0,
   lastHarvestDay: null,
   trust: DEBUG_INITIAL_GIRL_TRUST,
   unlockedTrustEventIds: [],
@@ -1838,6 +2029,13 @@ const normalizeFarmGirls = (raw: unknown): FarmGirlSaveState[] => {
         : entry.state === 'appeared' || entry.state === 'companion' || entry.state === 'lover',
       plantedDay: typeof entry.plantedDay === 'number' && Number.isInteger(entry.plantedDay) && entry.plantedDay > 0 ? entry.plantedDay : null,
       growthProgress: typeof entry.growthProgress === 'number' && Number.isFinite(entry.growthProgress) ? clampNumber(entry.growthProgress, 0, 100) : 0,
+      quality: typeof entry.quality === 'number' && Number.isFinite(entry.quality)
+        ? clampNumber(Math.round(entry.quality), 0, 100)
+        : entry.state === 'appeared' || entry.state === 'companion' || entry.state === 'lover' ? 50 : 0,
+      careDay: typeof entry.careDay === 'number' && Number.isInteger(entry.careDay) && entry.careDay > 0 ? entry.careDay : null,
+      caressCount: typeof entry.caressCount === 'number' && Number.isInteger(entry.caressCount) && entry.caressCount >= 0 ? entry.caressCount : 0,
+      fingerCount: typeof entry.fingerCount === 'number' && Number.isInteger(entry.fingerCount) && entry.fingerCount >= 0 ? entry.fingerCount : 0,
+      fertilizeCount: typeof entry.fertilizeCount === 'number' && Number.isInteger(entry.fertilizeCount) && entry.fertilizeCount >= 0 ? entry.fertilizeCount : 0,
       lastHarvestDay: typeof entry.lastHarvestDay === 'number' && Number.isInteger(entry.lastHarvestDay) && entry.lastHarvestDay > 0 ? entry.lastHarvestDay : null,
       trust: DEBUG_INITIAL_GIRL_TRUST,
       unlockedTrustEventIds: Array.isArray(entry.unlockedTrustEventIds)
@@ -1855,7 +2053,7 @@ const normalizeOwnedGirlSeeds = (raw: unknown): string[] => {
   const savedSeeds = Array.isArray(raw)
     ? raw.filter((seedId): seedId is string => typeof seedId === 'string')
     : [];
-  return Array.from(new Set([...INITIAL_OWNED_GIRL_SEEDS, ...savedSeeds]));
+  return Array.from(new Set(savedSeeds));
 };
 const createInitialFarmFieldSlots = (difficultyId: GameDifficulty): FarmFieldSlotState[] => (
   getInitiallyUnlockedFarmFieldConfigs(difficultyId).flatMap(config => (
@@ -1903,9 +2101,9 @@ const isFarmGirlDuplicateBlocked = (farmGirls: readonly FarmGirlSaveState[], gir
   return farmGirls.some(girl => girl.girlId === girlId && FARM_GIRL_ACTIVE_STATES.includes(girl.state));
 };
 const INTEREST_RATE_RANGE_BY_DIFFICULTY: Readonly<Record<GameDifficulty, { min: number; max: number }>> = {
-  easy: { min: 1.0, max: 3.2 },
-  normal: { min: 1.5, max: 4.2 },
-  hard: { min: 2.0, max: 5.0 },
+  easy: { min: 0.5, max: 1.2 },
+  normal: { min: 1.2, max: 2.2 },
+  hard: { min: 1.0, max: 2.5 },
 };
 const FARM_CREDIT_INTEREST_DISCOUNTS = [
   { min: 80, discount: 1.2 },
@@ -1918,9 +2116,9 @@ const MISSED_REPAYMENT_PENALTY_RATE = 0.5;
 const MIN_INTEREST_RATE = 0.5;
 const MAX_INTEREST_RATE = 8.0;
 const MINIMUM_REPAYMENT_BY_DIFFICULTY: Readonly<Record<GameDifficulty, number>> = {
-  easy: 100_000,
-  normal: 300_000,
-  hard: 1_000_000,
+  easy: 50_000,
+  normal: 200_000,
+  hard: 500_000,
 };
 const ADDITIONAL_REPAYMENT_OPTIONS = [50_000, 100_000, 300_000] as const;
 type HeroLevel = 1 | 2 | 3 | 4 | 5;
@@ -1970,9 +2168,9 @@ const createWeeklyInterestRate = (
   return Number(clampNumber(rate, MIN_INTEREST_RATE, MAX_INTEREST_RATE).toFixed(1));
 };
 const DIFFICULTY_OPTIONS: { id: GameDifficulty; label: string; debt: number; desc: string }[] = [
-  { id: 'easy', label: 'イージー', debt: INITIAL_DEBT_BY_DIFFICULTY.easy, desc: '借金額 500万円' },
-  { id: 'normal', label: 'ノーマル', debt: INITIAL_DEBT_BY_DIFFICULTY.normal, desc: '借金額 2000万円' },
-  { id: 'hard', label: 'ハード', debt: INITIAL_DEBT_BY_DIFFICULTY.hard, desc: '借金額 1億円' },
+  { id: 'easy', label: 'イージー', debt: INITIAL_DEBT_BY_DIFFICULTY.easy, desc: '借金額 150万円' },
+  { id: 'normal', label: 'ノーマル', debt: INITIAL_DEBT_BY_DIFFICULTY.normal, desc: '借金額 1000万円' },
+  { id: 'hard', label: 'ハード', debt: INITIAL_DEBT_BY_DIFFICULTY.hard, desc: '借金額 3000万円' },
 ];
 const DEFAULT_DEBT = getInitialDebtAmount('hard');
 
@@ -2005,6 +2203,8 @@ export default function App() {
   const keys = useRef<{ [key: string]: boolean }>({});
   const posRef = useRef(pos);
   useEffect(() => { posRef.current = pos; }, [pos]);
+  const [topSplashVisible, setTopSplashVisible] = useState(true);
+  const [circleIntroVisible, setCircleIntroVisible] = useState(false);
   const [bootMode, setBootMode] = useState<'title' | 'loadingSave' | 'playing'>('title');
   const [titlePanelMode, setTitlePanelMode] = useState<'none' | 'new' | 'difficulty' | 'load' | 'endless' | 'config'>('none');
   const [currentSaveSlot, setCurrentSaveSlot] = useState(1);
@@ -2017,6 +2217,14 @@ export default function App() {
   const [pendingDeleteSaveSlot, setPendingDeleteSaveSlot] = useState<number | null>(null);
   const [pendingOverwriteSaveSlot, setPendingOverwriteSaveSlot] = useState<number | null>(null);
   const [missingSaveSlot, setMissingSaveSlot] = useState<number | null>(null);
+  // 新規開始時だけ表示する導入。既存セーブや通常プレイには影響させない。
+  const [prologueOpen, setPrologueOpen] = useState(false);
+  const [prologuePage, setProloguePage] = useState(0);
+  const [prologueRingReveal, setPrologueRingReveal] = useState(false);
+  const [prologueRingRevealReady, setPrologueRingRevealReady] = useState(false);
+  const [nextObjective, setNextObjective] = useState<string | null>(null);
+  const [openingMapTransitionCount, setOpeningMapTransitionCount] = useState(0);
+  const prologueInputLockedRef = useRef(false);
   const autoSaveBlockedSlotsRef = useRef<Set<number>>(new Set());
 
   const [setupMode, setSetupMode] = useState<'none' | 'animation' | 'collision' | 'hideArea' | 'doors' | 'footstep' | 'crops' | 'bed' | 'bathTub'>('none');
@@ -2068,6 +2276,17 @@ export default function App() {
     boxShadow: '0 18px 36px rgba(0,0,0,0.22), inset 0 1px 0 rgba(255,241,210,0.12)',
     backdropFilter: 'blur(6px)',
   };
+  // キーボードで現在操作している「領域」そのものを黄色い枠で示す。
+  // 個々の選択肢ではなく、矢印キーが届くボックス全体を囲う。
+  const menuKeyboardFocusStyle = (isActive: boolean): React.CSSProperties => (
+    isActive
+      ? {
+          outline: '3px solid #fff200',
+          outlineOffset: '3px',
+          boxShadow: '0 0 22px rgba(255, 242, 0, 0.58), inset 0 0 0 1px rgba(255, 249, 170, 0.72)',
+        }
+      : {}
+  );
   const menuTinyLabelStyle: React.CSSProperties = {
     color: '#dda15e',
     fontSize: 11,
@@ -2111,6 +2330,23 @@ export default function App() {
     cardImg: FARM_GIRL_CARD_IMAGES[girl.id] ?? FARM_GIRL_CARD_BACK_SRC,
     detailImg: FARM_GIRL_DETAIL_IMAGES[girl.id] ?? FARM_GIRL_CARD_BACK_SRC,
   }));
+  const farmGirlEquipmentComments: Record<string, string> = {
+    chibiichi: '小さな体で一生懸命ついてきてくれる、最初の相棒。畑でも探索でも、そばにいるだけで少し心強い。',
+    mel: '甘く落ち着いた雰囲気でユウを支えるメロンの苗娘。無理をしがちな場面ほど、やさしく背中を押してくれる。',
+    ruby: '明るく元気なトマトの苗娘。前向きな勢いで、重たい空気もぱっと軽くしてくれる。',
+    viola: '静かな色気と芯の強さを持つブドウの苗娘。落ち着いた判断で探索を支えてくれる。',
+    nazuna: '素朴で面倒見のいいなすの苗娘。田舎暮らしに慣れないユウを、自然体で助けてくれる。',
+    kabune: 'まっすぐで頼もしいかぶの苗娘。足元を固めるように、堅実なサポートをしてくれる。',
+    caro: '軽やかで反応の早いにんじんの苗娘。テンポよく動きたい時に頼れる同行者。',
+    theta: '不思議な運を連れてくるしいたけの苗娘。見落としそうな拾い物や好機に気づかせてくれる。',
+    cure: '清らかな雰囲気のきゅうりの苗娘。疲れた時ほど、そっと癒やしてくれる存在。',
+    shiro: '落ち着いた守りの気配を持つだいこんの苗娘。危ない場面でユウをしっかり支える。',
+    momona: 'やわらかく華やかなももの苗娘。場を明るくし、ユウの気持ちを前向きにしてくれる。',
+    pan: 'どっしり頼れるかぼちゃの苗娘。小さな盾のように、ユウの前に立って守ってくれる。',
+    puti: '竜の実のような力を秘めた苗娘。ここぞという時に大きな一押しをくれる。',
+    roma: '少し変わった感性を持つロマネスコの苗娘。珍しいものを見つける勘が鋭い。',
+    saffy: '黄金色の気配をまとったサフランの苗娘。苦しい返済生活にも希望を灯してくれる。',
+  };
   const [itemMenuTab, setItemMenuTab] = useState('消耗品');
   const itemMenuTabRef = useRef('消耗品');
   const [selectedItemName, setSelectedItemName] = useState('いやし草もち');
@@ -2124,6 +2360,12 @@ export default function App() {
   const equippedItemsRef = useRef(equippedItems);
   const [selectedSkillName, setSelectedSkillName] = useState('battle_hp_up');
   const selectedSkillNameRef = useRef('battle_hp_up');
+  const [selectedSkillCategory, setSelectedSkillCategory] = useState<HeroSkillCategory>('farm');
+  const selectedSkillCategoryRef = useRef<HeroSkillCategory>('farm');
+  const [pendingSkillUnlockId, setPendingSkillUnlockId] = useState<string | null>(null);
+  const [skillUnlockChoice, setSkillUnlockChoice] = useState<'yes' | 'no'>('yes');
+  const [skillUnlockNotice, setSkillUnlockNotice] = useState<string | null>(null);
+  const [skillUnlockSparkles, setSkillUnlockSparkles] = useState(false);
   const [selectedStatusGirlIndex, setSelectedStatusGirlIndex] = useState(0);
   const selectedStatusGirlIndexRef = useRef(0);
   const [selectedFarmGirlIndex, setSelectedFarmGirlIndex] = useState(0);
@@ -2132,7 +2374,7 @@ export default function App() {
   const [farmGirlDetailOpen, setFarmGirlDetailOpen] = useState(false);
   const [farmGirls, setFarmGirls] = useState<FarmGirlSaveState[]>(createInitialFarmGirls);
   const [revealingFarmGirlIds, setRevealingFarmGirlIds] = useState<string[]>([]);
-  const [ownedGirlSeeds, setOwnedGirlSeeds] = useState<string[]>(() => [...INITIAL_OWNED_GIRL_SEEDS]);
+  const [ownedGirlSeeds, setOwnedGirlSeeds] = useState<string[]>([]);
   const [farmFieldSlots, setFarmFieldSlots] = useState<FarmFieldSlotState[]>(() => createInitialFarmFieldSlots('hard'));
   const [plantingSeedId, setPlantingSeedId] = useState<string | null>(null);
   const [farmSlotInteractionStage, setFarmSlotInteractionStage] = useState<FarmSlotInteractionStage | null>(null);
@@ -2169,8 +2411,8 @@ export default function App() {
   const [craftMiniGameResult, setCraftMiniGameResult] = useState<'success' | 'fail' | null>(null);
   const [selectedFarmFacilityIndex, setSelectedFarmFacilityIndex] = useState(0);
   const selectedFarmFacilityIndexRef = useRef(0);
-  const [zukanFilter, setZukanFilter] = useState('通常');
-  const zukanFilterRef = useRef('通常');
+  const [zukanFilter, setZukanFilter] = useState('苗娘');
+  const zukanFilterRef = useRef('苗娘');
   const [selectedZukanIndex, setSelectedZukanIndex] = useState(0);
   const selectedZukanIndexRef = useRef(0);
   const [caughtFishIds, setCaughtFishIds] = useState<string[]>([]);
@@ -2292,6 +2534,39 @@ export default function App() {
     ));
     setDialogMessage(`${skill.name}を習得した！`);
   };
+  const requestHeroSkillUnlock = (skillId: string) => {
+    const skill = getHeroSkillById(skillId);
+    if (!skill || hasHeroSkill(skillId)) return;
+    if (heroSP < skill.costSP) {
+      setSkillUnlockNotice(`SPが足りません。\n必要SP：${skill.costSP} / 現在SP：${heroSP}`);
+      return;
+    }
+    if (!canUnlockHeroSkill(skillId)) {
+      setSkillUnlockNotice(`${skill.name}はまだ取得できません。\n${getHeroSkillById(skill.requiredSkillIds[0] ?? '')?.name ?? '必要条件'}を確認してください。`);
+      return;
+    }
+    setSkillUnlockChoice('yes');
+    setPendingSkillUnlockId(skillId);
+  };
+  const confirmHeroSkillUnlock = () => {
+    const skillId = pendingSkillUnlockId;
+    if (!skillId) return;
+    if (skillUnlockChoice === 'no') {
+      setPendingSkillUnlockId(null);
+      return;
+    }
+    const skill = getHeroSkillById(skillId);
+    if (!skill || !canUnlockHeroSkill(skillId)) {
+      setPendingSkillUnlockId(null);
+      setSkillUnlockNotice('取得条件が変わったため、習得できませんでした。');
+      return;
+    }
+    unlockHeroSkill(skillId);
+    playUiSound('/se/cure.mp3');
+    setPendingSkillUnlockId(null);
+    setSkillUnlockSparkles(true);
+    window.setTimeout(() => setSkillUnlockSparkles(false), 1100);
+  };
   const [shopItems, setShopItems] = useState<ShopItem[]>([
     ...BATTLE_CONSUMABLE_ITEMS.map(item => ({
       name: item.name,
@@ -2380,13 +2655,18 @@ export default function App() {
     const stock = inventoryCounts[crop.harvestItemName] ?? 0;
     if (stock <= 0) return [];
     const farmGirl = farmGirls.find(girl => girl.girlId === crop.girlId);
-    const price = getFarmHarvestSellPrice(crop, getFarmTrustBonus(farmGirl?.trust ?? 0).sellMultiplier);
+    const quality = farmGirl?.quality ?? 50;
+    const price = getFarmHarvestSellPrice(
+      crop,
+      getFarmTrustBonus(farmGirl?.trust ?? 0).sellMultiplier,
+      getFarmQualityMultiplier(quality),
+    );
     return [{
       name: crop.harvestItemName,
       price,
       stock,
       type: '売る',
-      desc: `${crop.harvestItemName}。農場で収穫した作物です。`,
+      desc: `${crop.harvestItemName}。品質 ${quality}（${getFarmQualityLabel(quality)}）の農場収穫物です。`,
     }];
   });
   const battleMaterialShopItems = Object.entries(BEAST_DROP_SELL_PRICES).flatMap<ShopItem>(([name, price]) => {
@@ -2422,8 +2702,9 @@ export default function App() {
       return next.length === prev.length ? prev : next;
     });
     setInventoryCounts(prev => {
-      const next = { ...prev };
+      const next = migrateInventoryItemNames(prev);
       let changed = false;
+      if (next !== prev) changed = true;
       REMOVED_LEGACY_ITEM_VARIANTS.forEach(itemName => {
         if ((next[itemName] ?? 0) > 0) {
           delete next[itemName];
@@ -2441,6 +2722,15 @@ export default function App() {
     if (REMOVED_LEGACY_ITEM_VARIANTS.includes(selectedItemName)) {
       setSelectedItemName('いやし草もち');
       selectedItemNameRef.current = 'いやし草もち';
+    } else {
+      const renamedSelectedItemName = LEGACY_ITEM_NAME_RENAMES[toBaseItemName(selectedItemName)];
+      if (renamedSelectedItemName) {
+        const nextSelectedItemName = selectedItemName === toDebugItemName(toBaseItemName(selectedItemName))
+          ? toDebugItemName(renamedSelectedItemName)
+          : renamedSelectedItemName;
+        setSelectedItemName(nextSelectedItemName);
+        selectedItemNameRef.current = nextSelectedItemName;
+      }
     }
   }, [inventoryCounts, selectedItemName]);
 
@@ -2452,18 +2742,26 @@ export default function App() {
       ['素早さ', 10],
       ['魅力', 14],
     ];
-    const zukanCards = Array.from({ length: 15 }).map((_, index) => ['通常', '妊娠', 'レア', '未入手'][index % 4]);
+    const zukanGirlCards = Array.from({ length: 20 }).map((_, index) => {
+      const girl = menuGirls[index];
+      const farmGirl = girl ? farmGirls.find(entry => entry.girlId === girl.id) : undefined;
+      const unlocked = Boolean(farmGirl?.cardRevealed);
+      return { girl, unlocked };
+    });
     const itemByTab = createItemMenuItems(inventoryCounts);
     const getOwnedMenuItems = (items: string[]) => items.filter(name => (inventoryCounts[name] ?? 0) > 0);
     const selectedTabItems = getOwnedMenuItems(itemByTab[itemMenuTab] ?? itemByTab['消耗品']);
     const activeItem = selectedTabItems.includes(selectedItemName) ? selectedItemName : selectedTabItems[0] ?? '';
     const activeRecipe = activeItem ? RECIPE_DETAILS[activeItem] : undefined;
+    const activeItemEffectText = craftRecipeSelectMode
+      ? '作りたいレシピを選んでください。'
+      : getItemMenuEffectText(activeItem, itemMenuTab);
 
     if (id === 'item') {
       return (
         <>
           <div className="grid grid-cols-[190px_1fr_260px] gap-4 h-full">
-            <div className="flex flex-col gap-2">
+            <div className="flex flex-col gap-2 rounded-2xl" style={menuKeyboardFocusStyle(menuFocusArea === 'content' && menuContentFocus === 'primary')}>
               {tabs.map((tab, index) => (
                 <button
                   key={tab}
@@ -2479,7 +2777,7 @@ export default function App() {
                 </button>
               ))}
             </div>
-            <div style={menuPanelBaseStyle}>
+            <div style={{ ...menuPanelBaseStyle, ...menuKeyboardFocusStyle(menuFocusArea === 'content' && menuContentFocus === 'secondary') }}>
               {selectedTabItems.length > 0 ? (
                 <div className="grid grid-cols-2 gap-3">
                   {selectedTabItems.map((name, index) => (
@@ -2506,7 +2804,7 @@ export default function App() {
                         if (RECIPE_DETAILS[name]) openRecipeDetail(name);
                       }
                     }}
-                    className={`flex justify-between items-center px-4 py-3 border rounded cursor-pointer text-left ${activeItem === name ? 'bg-[#bc6c25]/45 border-white' : 'bg-black/35 border-[#5a3010] hover:bg-[#3a2418]'}`}
+                    className={`flex justify-between items-center px-4 py-3 border rounded cursor-pointer text-left ${activeItem === name ? 'bg-[#bc6c25]/45 border-white ring-4 ring-[#ffd166]/70 shadow-[0_0_18px_rgba(255,209,102,0.42)]' : 'bg-black/35 border-[#5a3010] hover:bg-[#3a2418]'}`}
                   >
                     <span className="text-[#fdf6e3] font-bold">{name}</span>
                     <span className="text-[#dda15e] text-sm">x{inventoryCounts[name] ?? 0}</span>
@@ -2524,7 +2822,7 @@ export default function App() {
               <div className="text-[#fdf6e3] text-2xl font-bold">{activeItem || '未所持'}</div>
               <div className="text-[#c8a87a] leading-relaxed">
                 カテゴリ: {itemMenuTab}<br />
-                {craftRecipeSelectMode ? '作りたいレシピを選んでください。' : '使用・確認・整理の対象になります。'}
+                効果: {activeItemEffectText}
               </div>
               {craftRecipeSelectMode && (
                 <button
@@ -2551,9 +2849,11 @@ export default function App() {
     }
 
     if (id === 'equipment') {
+      const companionEquipmentGirl = companionGirlId ? GIRL_DATA.find(girl => girl.id === companionGirlId) : undefined;
       const equipmentCharacters = [
         {
-          label: '主人公',
+          slotOwner: '主人公',
+          label: 'ユウ',
           img: '/img/player.png?v=20260616-player-1',
           level: 1,
           role: '農具・探索',
@@ -2566,24 +2866,25 @@ export default function App() {
             equippedItems['主人公-slot4'] || '未装備',
           ],
           stats: [12, 8, 10, 14],
-          description: '農具と探索を担当します。装備で移動や作業効率を伸ばせます。',
+          description: '都会から来た純粋な少年。\n爺ちゃんのエロい遺言を真に受けて田舎へ。\n借金地獄に突き落とされながらも、娘たちを孕ませ育てて\n完済を目指す頑張り屋！',
         },
-        ...(companionGirlId === 'chibiichi' ? [{
-          label: 'ちびいち',
-          img: '/img/chibiichi.png?v=20260616-restore-2',
+        ...(companionEquipmentGirl ? [{
+          slotOwner: companionEquipmentGirl.girlName,
+          label: companionEquipmentGirl.girlName,
+          img: FARM_GIRL_CARD_IMAGES[companionEquipmentGirl.id] ?? '/img/nae.png',
           level: 1,
-          role: '農場サポート',
-          affinity: 2,
+          role: '',
+          affinity: menuGirls.find(girl => girl.id === companionEquipmentGirl.id)?.affinity ?? 1,
           slotLabels: ['slot1', 'slot2'],
           slots: [
-            equippedItems['ちびいち-slot1'] || '未装備',
-            equippedItems['ちびいち-slot2'] || '未装備',
+            equippedItems[`${companionEquipmentGirl.girlName}-slot1`] || '未装備',
+            equippedItems[`${companionEquipmentGirl.girlName}-slot2`] || '未装備',
           ],
           stats: [6, 5, 16, 18],
-          description: 'サポート役として農場を手伝います。素早さと魅力が高めです。',
+          description: farmGirlEquipmentComments[companionEquipmentGirl.id] ?? `${companionEquipmentGirl.girlName}が同行中。ユウの旅をそばで支えてくれます。`,
         }] : []),
       ];
-      const selectedEquipmentCharacter = equipmentCharacters.find(char => selectedEquipmentSlot.startsWith(char.label)) ?? equipmentCharacters[0];
+      const selectedEquipmentCharacter = equipmentCharacters.find(char => selectedEquipmentSlot.startsWith(char.slotOwner)) ?? equipmentCharacters[0];
       const selectedEquipmentSlotMatch = /slot(\d+)$/.exec(selectedEquipmentSlot);
       const selectedEquipmentSlotIndex = selectedEquipmentSlotMatch ? Math.max(0, Number(selectedEquipmentSlotMatch[1]) - 1) : 0;
       const selectedEquipmentSlotLabel = selectedEquipmentCharacter.slotLabels[selectedEquipmentSlotIndex] ?? `slot${selectedEquipmentSlotIndex + 1}`;
@@ -2603,15 +2904,15 @@ export default function App() {
       ));
       return (
         <div className="grid h-full min-h-0 grid-cols-[58%_1fr] gap-5 pb-10">
-          <div style={menuPanelBaseStyle} className="grid h-full min-h-0 grid-cols-2 gap-4 overflow-hidden">
+          <div style={{ ...menuPanelBaseStyle, ...menuKeyboardFocusStyle(menuFocusArea === 'content' && menuContentFocus === 'primary') }} className="grid h-full min-h-0 grid-cols-2 gap-4 overflow-hidden">
             {equipmentCharacters.map((char) => (
               <button
-                key={char.label}
+                key={char.slotOwner}
                 type="button"
-                onPointerDown={() => { setMenuFocusArea('content'); setMenuContentFocus('primary'); setSelectedEquipmentSlot(`${char.label}-slot1`); }}
-                onMouseEnter={() => { if (!selectedEquipmentSlot.startsWith(char.label)) playCursorSound(); }}
-                onClick={() => { playFixSound(); setMenuFocusArea('content'); setMenuContentFocus('primary'); setEquipmentActionOpen(false); setSelectedEquipmentSlot(`${char.label}-slot1`); }}
-                className={`farm-menu-character-stage relative flex cursor-pointer flex-col items-center justify-end overflow-hidden border p-4 pb-6 ${selectedEquipmentSlot.startsWith(char.label) ? 'is-selected border-white ring-4 ring-[#ffd166]/50' : 'border-[#5a3010]'}`}
+                onPointerDown={() => { setMenuFocusArea('content'); setMenuContentFocus('primary'); setSelectedEquipmentSlot(`${char.slotOwner}-slot1`); }}
+                onMouseEnter={() => { if (!selectedEquipmentSlot.startsWith(char.slotOwner)) playCursorSound(); }}
+                onClick={() => { playFixSound(); setMenuFocusArea('content'); setMenuContentFocus('primary'); setEquipmentActionOpen(false); setSelectedEquipmentSlot(`${char.slotOwner}-slot1`); }}
+                className={`farm-menu-character-stage relative flex cursor-pointer flex-col items-center justify-end overflow-hidden border p-4 pb-6 ${selectedEquipmentSlot.startsWith(char.slotOwner) ? 'is-selected border-white ring-4 ring-[#ffd166]/50' : 'border-[#5a3010]'}`}
               >
                 <div className="absolute inset-x-8 bottom-24 h-28 rounded-full bg-black/30 blur-xl" />
                 <img src={char.img} className="relative z-10 max-h-[545px] min-h-0 w-full flex-1 object-contain drop-shadow-[0_18px_26px_rgba(0,0,0,0.45)]" alt={char.label} />
@@ -2622,22 +2923,21 @@ export default function App() {
               </button>
             ))}
           </div>
-          <div style={menuPanelBaseStyle} className="flex min-h-0 flex-col gap-4 overflow-hidden">
-              <div key={selectedEquipmentCharacter.label} className="flex min-h-0 flex-1 flex-col">
+          <div style={{ ...menuPanelBaseStyle, ...menuKeyboardFocusStyle(menuFocusArea === 'content' && menuContentFocus === 'secondary') }} className="flex min-h-0 flex-col gap-4 overflow-hidden">
+              <div key={selectedEquipmentCharacter.slotOwner} className="flex min-h-0 flex-1 flex-col">
                 <div className="flex items-start gap-3 mb-4">
                   <div className="w-20 h-24 rounded border border-[#f1c27d]/60 bg-black/35 overflow-hidden flex items-end justify-center">
                     <img src={selectedEquipmentCharacter.img} className="max-h-full w-full object-contain" alt={selectedEquipmentCharacter.label} />
                   </div>
                   <div className="min-w-0">
                     <div className="text-[#fdf6e3] text-3xl font-bold leading-tight">{selectedEquipmentCharacter.label}</div>
-                    <div className="mt-1 text-[#dda15e] text-sm font-bold">Lv {selectedEquipmentCharacter.level} / {selectedEquipmentCharacter.role}</div>
                     <div className="mt-1 text-xl">{renderStars(selectedEquipmentCharacter.affinity)}</div>
                   </div>
                 </div>
               <div className="grid grid-cols-2 gap-2">
                 {selectedEquipmentCharacter.slots.map((item, slotIndex) => {
                   const slot = `slot${slotIndex + 1}`;
-                  const slotId = `${selectedEquipmentCharacter.label}-${slot}`;
+                  const slotId = `${selectedEquipmentCharacter.slotOwner}-${slot}`;
                   return (
                   <button
                     key={slot}
@@ -2727,7 +3027,7 @@ export default function App() {
                   </div>
                 ))}
               </div>
-              <div className="mt-5 bg-black/30 border border-[#5a3010] rounded p-4 text-[#c8a87a] leading-relaxed">
+              <div className="mt-5 whitespace-pre-line bg-black/30 border border-[#5a3010] rounded p-4 text-[#c8a87a] leading-relaxed">
                 {selectedEquipmentCharacter.description}
               </div>
             </div>
@@ -2751,50 +3051,109 @@ export default function App() {
         const missingSkill = skill.requiredSkillIds.find(requiredSkillId => !hasHeroSkill(requiredSkillId));
         return missingSkill ? `${getHeroSkillById(missingSkill)?.name ?? missingSkill} が必要` : '取得可能';
       };
+      const selectedCategorySkills = getHeroSkillsByCategory(selectedSkillCategory).filter(isHeroSkillVisible);
+      const selectTreeSkill = (skill: HeroSkillData) => {
+        playFixSound();
+        setMenuFocusArea('content');
+        setMenuContentFocus('primary');
+        setSelectedSkillName(skill.id);
+      };
+      const selectTreeCategory = (category: HeroSkillCategory) => {
+        playFixSound();
+        setSelectedSkillCategory(category);
+        const firstSkill = getHeroSkillsByCategory(category).find(isHeroSkillVisible);
+        if (firstSkill) setSelectedSkillName(firstSkill.id);
+      };
+      const categoryIcons: Record<HeroSkillCategory, string> = {
+        farm: '🌾', gather: '🧭', battle: '⚔', companion: '♡', special: '✦',
+      };
+      const nodeLeft = (column: number) => 13 + column * 29;
+      const nodeTop = (row: number) => 10 + row * 16;
       return (
         <div className="grid grid-cols-[1fr_320px] gap-4 h-full">
           <div style={menuPanelBaseStyle} className="overflow-hidden">
             <div className="mb-3 flex items-center justify-between">
               <div>
-                <div className="text-[#fdf6e3] text-2xl font-bold">主人公スキルツリー</div>
-                <div className="text-[#c8a87a] text-sm">SPを使って主人公の育成方針を選ぼう</div>
+                <div className="text-[#fdf6e3] text-3xl font-bold">主人公スキルツリー</div>
+                <div className="text-[#c8a87a] text-base">SPを使って主人公の育成方針を選ぼう</div>
               </div>
-              <div className="rounded border border-[#ffd166]/70 bg-black/35 px-3 py-2 text-[#ffd166] font-bold">SP：{heroSP}</div>
+              <div className="rounded border border-[#ffd166]/70 bg-black/35 px-4 py-2 text-lg text-[#ffd166] font-bold">SP：{heroSP}</div>
             </div>
-            <div className="grid h-[640px] grid-cols-5 gap-2 overflow-y-auto pr-1">
-              {HERO_SKILL_CATEGORIES.map(category => (
-                <div key={category} className="rounded border border-[#5a3010] bg-black/25 p-2">
-                  <div className="mb-3 text-center text-sm font-bold text-[#ffd166]">{HERO_SKILL_CATEGORY_LABELS[category]}</div>
-                  <div className="space-y-2">
-                    {getHeroSkillsByCategory(category).filter(isHeroSkillVisible).map(skill => {
-                      const isSelected = selectedSkill?.id === skill.id;
-                      const isUnlocked = hasHeroSkill(skill.id);
-                      return (
-                        <button
-                          key={skill.id}
-                          type="button"
-                          onPointerDown={() => { setMenuFocusArea('content'); setMenuContentFocus('primary'); setSelectedSkillName(skill.id); }}
-                          onMouseEnter={() => { if (!isSelected) playCursorSound(); }}
-                          onClick={() => { playFixSound(); setMenuFocusArea('content'); setMenuContentFocus('primary'); setSelectedSkillName(skill.id); }}
-                          className={`w-full rounded border px-2 py-2 text-left transition ${
-                            isSelected
-                              ? 'border-white bg-[#bc6c25]/70 shadow-[0_0_14px_rgba(255,209,102,0.25)]'
-                              : isUnlocked
-                                ? 'border-[#a3b18a] bg-[#4a5823]/82 hover:bg-[#60732d]'
-                                : 'border-[#5a3010] bg-[#1a100d]/88 hover:bg-[#3a2418]'
-                          }`}
-                        >
-                          <div className="flex items-center justify-between gap-1">
-                            <span className="text-sm font-bold text-[#fdf6e3]">{skill.name}</span>
-                            {isUnlocked && <span className="shrink-0 text-[#86efac]">✓</span>}
-                          </div>
-                          <div className="mt-1 text-[11px] font-bold text-[#c8a87a]">SP {skill.costSP}</div>
-                        </button>
-                      );
-                    })}
-                  </div>
+            <div className="grid h-[560px] grid-cols-[210px_minmax(0,1fr)] gap-3">
+              <div className="flex min-h-0 flex-col rounded border border-[#5a3010] bg-black/25 p-3" style={menuKeyboardFocusStyle(menuFocusArea === 'content' && menuContentFocus === 'primary')}>
+                <div className="mb-3 px-2 text-base font-black text-[#c8a87a]">系統</div>
+                <div className="flex min-h-0 flex-1 flex-col gap-2">
+                  {HERO_SKILL_CATEGORIES.map(category => (
+                    <button
+                      key={category}
+                      type="button"
+                      onPointerDown={(event) => { event.stopPropagation(); selectTreeCategory(category); }}
+                      onClick={(event) => event.stopPropagation()}
+                      className={`flex min-h-0 flex-1 w-full items-center gap-3 border px-4 py-3 text-left text-base font-black ${
+                        selectedSkillCategory === category
+                          ? 'border-[#fff1b8] bg-[#8d4e22] text-[#fff7dc] ring-4 ring-[#ffd166]/70 shadow-[0_0_20px_rgba(255,209,102,0.5)]'
+                          : 'border-[#5a3010] bg-black/30 text-[#d7b98a] hover:bg-[#3a2418]'
+                      }`}
+                    >
+                      <span className="grid h-10 w-10 shrink-0 place-items-center rounded border border-white/25 bg-black/25 text-xl">{categoryIcons[category]}</span>
+                      {HERO_SKILL_CATEGORY_LABELS[category]}
+                    </button>
+                  ))}
                 </div>
-              ))}
+              </div>
+              <div className="relative overflow-hidden rounded border-2 border-[#76502c] bg-[radial-gradient(circle_at_50%_0%,rgba(213,149,81,0.2),transparent_46%),linear-gradient(135deg,rgba(46,28,18,0.96),rgba(18,13,11,0.96))]" style={menuKeyboardFocusStyle(menuFocusArea === 'content' && menuContentFocus === 'secondary')}>
+                <div className="absolute inset-x-0 top-0 z-10 flex items-center justify-between border-b border-[#76502c]/80 bg-black/35 px-4 py-3">
+                  <div className="flex items-center gap-2 text-xl font-black text-[#fff1b8]"><span className="text-2xl">{categoryIcons[selectedSkillCategory]}</span>{HERO_SKILL_CATEGORY_LABELS[selectedSkillCategory]}スキル</div>
+                  <div className="text-sm font-bold text-[#c8a87a]">接続線は前提スキルを示します</div>
+                </div>
+                <svg className="absolute inset-0 h-full w-full" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+                  {selectedCategorySkills.flatMap(skill => skill.treeParentIds.map(parentId => {
+                    const parent = selectedCategorySkills.find(candidate => candidate.id === parentId);
+                    if (!parent) return null;
+                    const active = hasHeroSkill(parent.id) && (hasHeroSkill(skill.id) || canUnlockHeroSkill(skill.id));
+                    return <line key={`${parent.id}-${skill.id}`} x1={nodeLeft(parent.treeColumn)} y1={nodeTop(parent.treeRow)} x2={nodeLeft(skill.treeColumn)} y2={nodeTop(skill.treeRow)} stroke={active ? '#ffd166' : '#5a4032'} strokeWidth="0.45" />;
+                  }))}
+                </svg>
+                {selectedCategorySkills.map(skill => {
+                  const isSelected = selectedSkill?.id === skill.id;
+                  const isUnlocked = hasHeroSkill(skill.id);
+                  const canUnlock = canUnlockHeroSkill(skill.id);
+                  return (
+                    <button
+                      key={skill.id}
+                      type="button"
+                      onPointerDown={(event) => { event.stopPropagation(); setMenuFocusArea('content'); setMenuContentFocus('secondary'); selectTreeSkill(skill); }}
+                      onMouseEnter={() => { if (!isSelected) playCursorSound(); }}
+                      onClick={(event) => event.stopPropagation()}
+                      style={{ left: `${nodeLeft(skill.treeColumn)}%`, top: `${nodeTop(skill.treeRow)}%` }}
+                      className={`absolute z-10 grid h-28 w-32 -translate-x-1/2 -translate-y-1/2 place-items-center border-2 p-2 text-center transition ${
+                        isSelected
+                          ? 'border-white bg-[#a75a27] ring-4 ring-[#fff1a8]/75 shadow-[0_0_0_3px_rgba(255,209,102,0.3),0_0_22px_rgba(255,209,102,0.5)]'
+                          : isUnlocked
+                            ? 'border-[#93d178] bg-[#36522c] shadow-[0_0_14px_rgba(147,209,120,0.2)]'
+                            : canUnlock
+                              ? 'border-[#7be0d3] bg-[#1e5a58] hover:bg-[#28736f]'
+                              : 'border-[#5a4032] bg-[#1a100d]/90 hover:bg-[#3a2418]'
+                      }`}
+                    >
+                      <span className={`absolute -top-3 rounded-full border px-2 py-1 text-[11px] font-black leading-none shadow-md ${
+                        isUnlocked
+                          ? 'border-[#bbf7a5] bg-[#245b2c] text-[#eaffd6]'
+                          : 'border-[#d69a6a] bg-[#5d2d1d] text-[#ffe1c6]'
+                      }`}>
+                        {isUnlocked ? '取得済み' : '未取得'}
+                      </span>
+                      <span className={`grid h-11 w-11 place-items-center rounded-full border text-3xl leading-none ${
+                        isUnlocked
+                          ? 'border-[#bbf7a5] bg-[#245b2c] text-[#efffdc]'
+                          : 'border-[#a76a49] bg-[#301a14] text-[#eab88f]'
+                      }`}>{skill.icon}</span>
+                      <span className="mt-1 text-sm font-black leading-tight text-[#fff7dc]">{skill.name}</span>
+                      <span className="text-xs font-bold text-[#ffd166]">SP {skill.costSP}</span>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           </div>
           <div style={menuPanelBaseStyle} className="flex flex-col gap-3">
@@ -2816,8 +3175,8 @@ export default function App() {
                 </div>
                 <button
                   type="button"
-                  disabled={!canUnlockHeroSkill(selectedSkill.id)}
-                  onClick={() => { playFixSound(); unlockHeroSkill(selectedSkill.id); }}
+                  disabled={hasHeroSkill(selectedSkill.id)}
+                  onClick={() => { playFixSound(); requestHeroSkillUnlock(selectedSkill.id); }}
                   className="rounded border-2 border-[#a3b18a] bg-[#4a5823] px-4 py-3 font-bold text-[#fff7dc] transition hover:bg-[#60732d] disabled:cursor-not-allowed disabled:border-[#5a3010] disabled:bg-black/30 disabled:text-[#8f7b63]"
                 >
                   {hasHeroSkill(selectedSkill.id) ? '✓ 取得済み' : `SP ${selectedSkill.costSP} で取得`}
@@ -2832,18 +3191,11 @@ export default function App() {
     if (id === 'farm') {
       const selectedFarmGirl = menuGirls[selectedFarmGirlIndex] ?? menuGirls[0];
       const selectedGirlData = GIRL_DATA.find(girl => girl.id === selectedFarmGirl.id);
-      const selectedGirlSeed = selectedGirlData
-        ? GIRL_SEED_ACQUISITION_DATA.find(seed => seed.girlId === selectedGirlData.id)
-        : undefined;
       const selectedFarmGirlState = selectedGirlData
         ? farmGirls.find(girl => girl.girlId === selectedGirlData.id)
         : undefined;
       const selectedFarmGirlIsVisible = Boolean(selectedFarmGirlState?.cardRevealed);
-      const selectedGirlSeedOwned = selectedGirlSeed ? ownedGirlSeeds.includes(selectedGirlSeed.seedId) : false;
       const selectedHarvestInfo = selectedGirlData ? getFarmGirlHarvestInfo(selectedGirlData.id) : null;
-      const selectedNextTrustEvent = selectedGirlData && selectedFarmGirlState
-        ? selectedGirlData.trustEvents.find(event => !selectedFarmGirlState.unlockedTrustEventIds.includes(event.eventId))
-        : undefined;
       const selectedTrustBonus = getFarmTrustBonus(selectedFarmGirlState?.trust ?? 0);
       const selectedGirlCanBecomeCompanion = Boolean(
         selectedGirlData &&
@@ -2864,7 +3216,6 @@ export default function App() {
         ? GIRL_SEED_ACQUISITION_DATA.find(seed => seed.seedId === plantingSeedId)
         : undefined;
       const plantableFarmFieldSlots = getPlantableFarmFieldSlots();
-      const unlockTierLabels = { initial: '初期解放', mid: '中盤解放', final: '終盤解放' } as const;
       const farmGirlStateLabels: Record<FarmGirlState, string> = {
         none: '未出現',
         planted: '植え付け中',
@@ -2882,113 +3233,21 @@ export default function App() {
         }
         return farmGirlStateLabels[state];
       };
-      const ownedSeedIds = Array.from(new Set(ownedGirlSeeds));
-      const ownedGirlSeedRows = ownedSeedIds.flatMap(seedId => {
-        const seedData = GIRL_SEED_ACQUISITION_DATA.find(seed => seed.seedId === seedId);
-        if (!seedData) return [];
-        const girl = GIRL_DATA.find(entry => entry.id === seedData.girlId);
-        const crop = FARM_GIRL_CROP_DATA.find(entry => entry.girlId === seedData.girlId);
-        const farmGirl = farmGirls.find(entry => entry.girlId === seedData.girlId);
-        const canPlant = (farmGirl?.state ?? 'none') === 'none' && !isFarmGirlDuplicateBlocked(farmGirls, seedData.girlId);
-        const harvestInfo = getFarmGirlHarvestInfo(seedData.girlId);
-        const trustBonus = getFarmTrustBonus(farmGirl?.trust ?? 0);
-        const companionHarvestModifier = getCompanionHarvestModifier(
-          companionGirlId === seedData.girlId,
-          farmGirl?.trust ?? 0,
-        );
-        const affectedHarvestMultiplier = getAffectedHarvestMultiplier(farmGirl?.condition ?? 'normal', difficulty);
-        return [{
-          seedId,
-          girlId: seedData.girlId,
-          seedName: seedData.seedName,
-          girlName: girl?.girlName ?? seedData.girlId,
-          cropName: girl?.cropName ?? crop?.harvestItemName ?? '未設定',
-          unlockTier: unlockTierLabels[girl?.unlockTier ?? crop?.unlockTier ?? 'initial'],
-          state: getFarmGirlStateDisplay(seedData.girlId, farmGirl?.state ?? 'none'),
-          canPlant,
-          canHarvest: harvestInfo.canHarvest,
-          companionHarvestMultiplier: companionHarvestModifier.multiplier,
-          daysUntilHarvest: harvestInfo.daysUntilHarvest,
-          harvestItemName: crop?.harvestItemName ?? '未設定',
-          harvestAmount: crop ? getFarmHarvestAmount(crop.baseHarvestAmount, farmGirl?.trust ?? 0, companionHarvestModifier.multiplier * affectedHarvestMultiplier) : 0,
-          harvestPrice: crop ? getFarmHarvestSellPrice(crop, trustBonus.sellMultiplier) : 0,
-          harvestMultiplier: trustBonus.harvestMultiplier,
-          sellMultiplier: trustBonus.sellMultiplier,
-          plantAvailability: canPlant
-            ? '植え付け可'
-            : '重複不可',
-        }];
-      });
-      const farmOverviewItems = [
-        ['主人公成長度', 'heroStars'],
-        ['SP', `${heroSP}`],
-        ['次の成長条件', nextHeroLevelRequirementText],
-        ...(isEndlessNurseryMode()
-          ? [['借金', 'なし'], ['返済', 'なし']]
-          : [
-            ['現在金利', formatInterestRate(currentWeeklyInterestRate)],
-            ['農場信用度', `${farmCredit}`],
-            ['信用補正', `-${formatInterestRate(farmCreditInterestDiscount)}`],
-            ['返済遅延補正', `+${formatInterestRate(missedRepaymentPenalty)}`],
-            ['次回返済まで', `あと${daysUntilRepayment}日`],
-            ['借金残額', `¥${debtAmount.toLocaleString()}`],
-          ]),
-        ['経過日数', `${currentDay} 日`],
-        ['行動回数', actionCountLabel],
-      ];
-      const collectionCompletionRate = getCollectionCompletionRate();
-      const endlessCompletionTitle = getEndlessCompletionTitle(collectionCompletionRate);
-      const farmFacilityItems = ['柵 Lv1', '電気柵 未設置', '箱罠 x2'];
-      const farmInfoItems = [...farmOverviewItems, ...farmFacilityItems.map(item => ['設備', item])];
+      const selectedFarmGirlStatusText = selectedGirlData
+        ? getFarmGirlStateDisplay(selectedGirlData.id, selectedFarmGirlState?.state ?? 'none')
+        : farmGirlStateLabels[selectedFarmGirlState?.state ?? 'none'];
+      const selectedFarmGirlConditionText = selectedFarmGirlState?.condition === 'affected'
+        ? `${selectedFarmGirlStatusText} / 傷つき`
+        : selectedFarmGirlStatusText;
+      const selectedSeedlingCareIsToday = selectedFarmGirlState?.careDay === currentDay;
+      const selectedSeedlingCareCounts = {
+        caress: selectedSeedlingCareIsToday ? selectedFarmGirlState?.caressCount ?? 0 : 0,
+        finger: selectedSeedlingCareIsToday ? selectedFarmGirlState?.fingerCount ?? 0 : 0,
+        fertilize: selectedSeedlingCareIsToday ? selectedFarmGirlState?.fertilizeCount ?? 0 : 0,
+      };
       return (
-        <div className="relative grid h-full min-h-0 grid-cols-[220px_1fr_280px] gap-4">
-          <div style={menuPanelBaseStyle} className="farm-menu-scroll-area flex min-h-0 flex-col gap-3 overflow-y-auto pr-2">
-            {farmOverviewItems.map(([label, value], index) => (
-              <button
-                key={label}
-                type="button"
-                onMouseEnter={() => { if (selectedFarmFacilityIndex !== index) playCursorSound(); }}
-                onClick={() => { playFixSound(); setMenuFocusArea('content'); setMenuContentFocus('primary'); setSelectedFarmFacilityIndex(index); }}
-                className={`text-left cursor-pointer rounded p-3 ${selectedFarmFacilityIndex === index ? 'bg-[#bc6c25]/45 border border-white' : 'bg-black/30 border border-[#5a3010]/70 hover:bg-[#3a2418]'}`}
-              >
-                <div style={menuTinyLabelStyle}>{label}</div>
-                {label === '主人公成長度' ? (
-                  <div className="mt-1 flex text-lg leading-tight" aria-label={`主人公成長度 ${heroLevel} / ${MAX_HERO_LEVEL}`}>
-                    {getHeroStarDisplay(heroLevel).map((isUnlocked, starIndex) => (
-                      <span key={starIndex} className={isUnlocked ? 'text-[#ffd45a]' : 'text-[#6b7280]'}>★</span>
-                    ))}
-                  </div>
-                ) : label === '次の成長条件' ? (
-                  <div className="text-[#fdf6e3] text-xs font-bold leading-snug">{value}</div>
-                ) : (
-                  <div className="text-[#fdf6e3] text-lg font-bold whitespace-nowrap leading-tight">{value}</div>
-                )}
-              </button>
-            ))}
-            {isEndlessNurseryMode() && (
-              <div className="shrink-0 rounded border border-[#d8a8ff]/65 bg-[#2a1231]/72 p-3 text-xs font-bold text-[#f4ddff]">
-                <div className="text-sm font-black text-[#f5c9ff]">∞ 無限苗床記録</div>
-                <div className="mt-2 grid grid-cols-2 gap-x-2 gap-y-1 text-[#dcc6e8]">
-                  <span>経過日数</span><span className="text-right text-[#fff5fd]">{endlessStats.daysPlayed}</span>
-                  <span>総収穫数</span><span className="text-right text-[#fff5fd]">{endlessStats.totalHarvestCount}</span>
-                  <span>総釣果数</span><span className="text-right text-[#fff5fd]">{endlessStats.totalFishCaught}</span>
-                  <span>総伐採数</span><span className="text-right text-[#fff5fd]">{endlessStats.totalTreesCut}</span>
-                  <span>総採掘数</span><span className="text-right text-[#fff5fd]">{endlessStats.totalOresMined}</span>
-                  <span>討伐数</span><span className="text-right text-[#fff5fd]">{endlessStats.totalBeastsDefeated}</span>
-                  <span>娘収集率</span><span className="text-right text-[#fff5fd]">{Math.round((collectionProgress.collectedGirlIds.length / GIRL_DATA.length) * 100)}%</span>
-                  <span>全体達成率</span><span className="text-right text-[#ffd166]">{collectionCompletionRate}%</span>
-                </div>
-                <div className="mt-2 border-t border-[#d8a8ff]/25 pt-2 text-center text-[#ffd166]">{endlessCompletionTitle}</div>
-              </div>
-            )}
-            <div className="mt-auto bg-[#1d120f]/80 border border-[#76502c]/70 rounded p-3">
-              <div style={menuTinyLabelStyle}>選択中</div>
-              <div className="text-[#fdf6e3] text-2xl font-bold">{selectedFarmGirl.name}</div>
-              <div className="mt-1 text-lg">{renderStars(selectedFarmGirl.affinity)}</div>
-              <div className="mt-2 text-[#d7b98a] text-sm leading-relaxed">{selectedFarmGirl.trait} / {selectedFarmGirl.stage}</div>
-            </div>
-          </div>
-          <div style={menuPanelBaseStyle} className="flex min-h-0 flex-col gap-3 overflow-hidden">
+        <div className="relative grid h-full min-h-0 grid-cols-[minmax(0,1fr)_280px] gap-4">
+          <div style={{ ...menuPanelBaseStyle, ...menuKeyboardFocusStyle(menuFocusArea === 'content' && menuContentFocus === 'secondary') }} className="flex min-h-0 flex-col gap-3 overflow-hidden">
             <div className="flex items-end justify-between gap-3">
               <div>
                 <div style={menuTinyLabelStyle}>娘カード一覧</div>
@@ -3001,8 +3260,8 @@ export default function App() {
                 ⚠ 警戒中
               </div>
             )}
-            <div className="grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_270px] gap-3 overflow-hidden">
-              <div className="farm-girl-card-grid grid min-h-0 grid-cols-3 gap-3 overflow-y-auto pr-2">
+            <div className="min-h-0 flex-1 overflow-hidden">
+              <div className="farm-girl-card-grid grid min-h-0 h-full grid-cols-5 gap-3 overflow-y-auto pr-2">
                 {menuGirls.map((girl, index) => (
                   (() => {
                     const farmGirl = farmGirls.find(entry => entry.girlId === girl.id);
@@ -3069,84 +3328,9 @@ export default function App() {
                   })()
                 ))}
               </div>
-              <div className="farm-menu-scroll-area min-h-0 overflow-y-auto rounded border border-[#5a3010]/80 bg-black/25 p-3 pr-2">
-                <div className="mb-2 flex items-center justify-between gap-3">
-                  <div>
-                    <div style={menuTinyLabelStyle}>所持している娘苗</div>
-                    <div className="text-[#fdf6e3] text-xs font-bold">解放済み畑へ植え付け可能</div>
-                  </div>
-                  <div className="rounded border border-[#ffd166]/55 bg-black/35 px-2 py-1 text-xs font-bold text-[#ffd166]">
-                    {ownedGirlSeedRows.length} 種
-                  </div>
-                </div>
-                <div className="grid gap-2 pr-1">
-                  {ownedGirlSeedRows.map(seed => (
-                    <div
-                      key={seed.seedId}
-                      className="rounded border border-[#76502c]/70 bg-[#1d120f]/75 px-3 py-2"
-                    >
-                      <div className="min-w-0">
-                        <div className="truncate text-sm font-black text-[#fff7dc]">{seed.seedName}</div>
-                        <div className="mt-1 text-xs font-bold text-[#d7b98a]">
-                          {seed.girlName} / {seed.cropName}
-                        </div>
-                      </div>
-                      <div className="mt-2 grid grid-cols-2 gap-2 text-[11px] font-bold leading-relaxed">
-                        <div className="rounded bg-black/25 px-2 py-1 text-[#ffd166]">{seed.unlockTier}</div>
-                        <div className="rounded bg-black/25 px-2 py-1 text-[#a3b18a]">状態: {seed.state}</div>
-                      </div>
-                      <button
-                        type="button"
-                        disabled={!seed.canPlant}
-                        onMouseEnter={() => { if (seed.canPlant) playCursorSound(); }}
-                        onClick={() => {
-                          if (!seed.canPlant) return;
-                          playFixSound();
-                          setPlantingSeedId(seed.seedId);
-                        }}
-                        className={`mt-2 w-full rounded border px-3 py-1 text-[11px] font-black transition-colors ${
-                          seed.canPlant
-                            ? 'border-[#ffd166]/75 bg-[#4a5823]/80 text-[#fff7dc] hover:bg-[#60732d]'
-                            : 'border-[#76502c]/70 bg-black/40 text-[#8f7b63] disabled:cursor-not-allowed'
-                        }`}
-                      >
-                        {seed.plantAvailability}
-                      </button>
-                      {seed.state === '出現中' && (
-                        <button
-                          type="button"
-                          disabled={!seed.canHarvest || seed.companionHarvestMultiplier === 0}
-                          onMouseEnter={() => { if (seed.canHarvest && seed.companionHarvestMultiplier > 0) playCursorSound(); }}
-                          onClick={() => {
-                            if (!seed.canHarvest || seed.companionHarvestMultiplier === 0) return;
-                            playFixSound();
-                            harvestFarmGirl(seed.girlId);
-                          }}
-                          className={`mt-2 w-full rounded border px-3 py-1 text-[11px] font-black transition-colors ${
-                            seed.canHarvest && seed.companionHarvestMultiplier > 0
-                              ? 'border-[#86efac]/80 bg-[#14532d]/85 text-[#f0fdf4] hover:bg-[#166534]'
-                              : 'border-[#76502c]/70 bg-black/40 text-[#8f7b63] disabled:cursor-not-allowed'
-                          }`}
-                        >
-                          {seed.companionHarvestMultiplier === 0
-                            ? '同行中のため収穫できません'
-                            : seed.canHarvest
-                            ? `収穫 ${seed.harvestItemName} x${seed.harvestAmount}`
-                            : `次回収穫まであと${seed.daysUntilHarvest ?? 0}日`}
-                        </button>
-                      )}
-                      {seed.state === '出現中' && (
-                        <div className="mt-1 text-[10px] font-bold text-[#c8a87a]">
-                          売却目安: {seed.harvestPrice.toLocaleString()}G / 個
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
             </div>
           </div>
-          <div style={menuPanelBaseStyle} className="farm-menu-scroll-area flex min-h-0 flex-col gap-3 overflow-y-auto pr-2">
+          <div style={{ ...menuPanelBaseStyle, ...menuKeyboardFocusStyle(menuFocusArea === 'content' && menuContentFocus === 'primary') }} className="farm-menu-scroll-area flex min-h-0 flex-col gap-3 overflow-y-auto pr-2">
             <div className="farm-girl-card-preview relative overflow-hidden rounded border border-[#f1c27d]/70">
               <img
                 src={selectedFarmGirlIsVisible ? selectedFarmGirl.cardImg : '/img/nae.png'}
@@ -3173,46 +3357,58 @@ export default function App() {
                   <div className="text-[#ffd45a] text-lg font-bold">{selectedFarmGirl.affinity} / 5</div>
                 </div>
                 <div className="rounded bg-black/25 px-2 py-2">
-                  <div className="text-[#c8a87a] text-xs">性格</div>
-                  <div className="text-[#fdf6e3] font-bold">{selectedFarmGirl.trait}</div>
-                </div>
-                <div className="rounded bg-black/25 px-2 py-2">
                   <div className="text-[#c8a87a] text-xs">状態</div>
-                  <div className="text-[#fdf6e3] font-bold">{selectedFarmGirl.stage}</div>
+                  <div className="text-[#fdf6e3] font-bold">{selectedFarmGirlConditionText}</div>
                 </div>
-                <div className="rounded bg-black/25 px-2 py-2">
-                  <div className="text-[#c8a87a] text-xs">娘苗所持</div>
-                  <div className="text-[#fdf6e3] font-bold">{selectedGirlSeedOwned ? 'あり' : 'なし'}</div>
-                </div>
-                <div className="rounded bg-black/25 px-2 py-2">
-                  <div className="text-[#c8a87a] text-xs">現在状態</div>
-                  <div className="text-[#fdf6e3] font-bold">
-                    {selectedGirlData
-                      ? getFarmGirlStateDisplay(selectedGirlData.id, selectedFarmGirlState?.state ?? 'none')
-                      : farmGirlStateLabels[selectedFarmGirlState?.state ?? 'none']}
-                  </div>
-                </div>
-                {selectedFarmGirlState && (
+                {selectedFarmGirlState?.condition === 'affected' && (
                   <div className="col-span-2 rounded bg-black/25 px-2 py-2">
-                    <div className="text-[#c8a87a] text-xs">状態</div>
-                    <div className={`mt-1 font-bold ${selectedFarmGirlState.condition === 'affected' ? 'text-[#f4c7ff]' : 'text-[#fdf6e3]'}`}>
-                      {selectedFarmGirlState.condition === 'affected' ? '傷つき' : '通常'}
+                    <div className="text-xs font-bold text-[#d8c4e8]">看病すると回復できます</div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        playFixSound();
+                        careForFarmGirl(selectedFarmGirlState.girlId);
+                      }}
+                      className="mt-2 rounded border border-[#d8a8ff]/80 bg-[#5b276a]/80 px-3 py-1.5 text-xs font-black text-[#fff5fd] transition hover:bg-[#7d388f]"
+                    >
+                      看病する（AP 1）
+                    </button>
+                  </div>
+                )}
+                {selectedGirlData && selectedFarmGirlState?.state === 'growing' && (
+                  <div className="col-span-2 rounded bg-black/25 px-2 py-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="text-[#c8a87a] text-xs">苗のお世話</div>
+                      <div className="text-xs font-bold text-[#ffd166]">品質 {selectedFarmGirlState.quality} / 100（{getFarmQualityLabel(selectedFarmGirlState.quality)}）</div>
                     </div>
-                    {selectedFarmGirlState.condition === 'affected' && (
-                      <>
-                        <div className="mt-1 text-xs font-bold text-[#d8c4e8]">看病すると回復できます</div>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            playFixSound();
-                            careForFarmGirl(selectedFarmGirlState.girlId);
-                          }}
-                          className="mt-2 rounded border border-[#d8a8ff]/80 bg-[#5b276a]/80 px-3 py-1.5 text-xs font-black text-[#fff5fd] transition hover:bg-[#7d388f]"
-                        >
-                          看病する（AP 1）
-                        </button>
-                      </>
-                    )}
+                    <div className="mt-1 text-[11px] font-bold text-[#a3b18a]">品質は擬人化後の作物売値に反映されます。</div>
+                    <div className="mt-2 grid grid-cols-3 gap-2">
+                      <button
+                        type="button"
+                        disabled={selectedSeedlingCareCounts.caress >= 1 || currentAP <= 0}
+                        onClick={() => { playFixSound(); careForSeedling(selectedGirlData.id, 'caress'); }}
+                        className="rounded border border-[#e5a6c8]/80 bg-[#6d3157]/80 px-2 py-2 text-xs font-black text-[#fff1f7] transition hover:bg-[#8d4170] disabled:cursor-not-allowed disabled:opacity-45"
+                      >
+                        愛撫<br />+3〜6 品質
+                      </button>
+                      <button
+                        type="button"
+                        disabled={selectedSeedlingCareCounts.finger >= 1 || currentAP <= 0}
+                        onClick={() => { playFixSound(); careForSeedling(selectedGirlData.id, 'finger'); }}
+                        className="rounded border border-[#c7a6e5]/80 bg-[#4c356e]/80 px-2 py-2 text-xs font-black text-[#f6efff] transition hover:bg-[#62458b] disabled:cursor-not-allowed disabled:opacity-45"
+                      >
+                        指入れ<br />+6〜10 品質
+                      </button>
+                      <button
+                        type="button"
+                        disabled={selectedSeedlingCareCounts.fertilize >= 1 || currentAP <= 0}
+                        onClick={() => { playFixSound(); careForSeedling(selectedGirlData.id, 'fertilize'); }}
+                        className="rounded border border-[#a3d977]/80 bg-[#3f6528]/80 px-2 py-2 text-xs font-black text-[#f1ffe4] transition hover:bg-[#517f34] disabled:cursor-not-allowed disabled:opacity-45"
+                      >
+                        肥料注入<br />成長 +1日
+                      </button>
+                    </div>
+                    <div className="mt-2 text-[10px] font-bold text-[#c8a87a]">各お世話は苗ごとに1日1回・AP 1を消費します。</div>
                   </div>
                 )}
                 {selectedGirlData && selectedFarmGirlState && (
@@ -3261,11 +3457,6 @@ export default function App() {
                     <div className="mt-1 text-sm font-bold text-[#fdf6e3]">
                       信頼度 {selectedFarmGirlState.trust} / 100
                     </div>
-                    <div className="mt-1 text-xs font-bold text-[#ffd166]">
-                      {selectedNextTrustEvent
-                        ? `次のイベント：${selectedNextTrustEvent.trust}まであと${Math.max(0, selectedNextTrustEvent.trust - selectedFarmGirlState.trust)}`
-                        : '信頼イベントはすべて解放済み'}
-                    </div>
                     <div className="mt-2 grid grid-cols-2 gap-2 text-xs font-bold">
                       <div className="rounded bg-black/25 px-2 py-1 text-[#a3b18a]">
                         収穫量補正：×{selectedTrustBonus.harvestMultiplier}
@@ -3279,6 +3470,11 @@ export default function App() {
                         </div>
                       )}
                     </div>
+                    {selectedFarmGirlState.state === 'appeared' && (
+                      <div className="mt-2 rounded bg-black/25 px-2 py-1 text-xs font-bold text-[#f0d58a]">
+                        作物品質：{selectedFarmGirlState.quality} / 100（{getFarmQualityLabel(selectedFarmGirlState.quality)}・売値 ×{getFarmQualityMultiplier(selectedFarmGirlState.quality)}）
+                      </div>
+                    )}
                   </div>
                 )}
                 {selectedGirlData && selectedHarvestInfo?.crop && selectedFarmGirlState?.state === 'appeared' && (
@@ -3312,25 +3508,6 @@ export default function App() {
                   </div>
                 )}
               </div>
-            </div>
-            <div className="grid grid-cols-1 gap-2">
-              {farmFacilityItems.map((item, index) => {
-                const facilityIndex = farmOverviewItems.length + index;
-                return (
-                <button
-                  key={item}
-                  type="button"
-                  onMouseEnter={() => { if (selectedFarmFacilityIndex !== facilityIndex) playCursorSound(); }}
-                  onClick={() => { playFixSound(); setMenuFocusArea('content'); setMenuContentFocus('primary'); setSelectedFarmFacilityIndex(facilityIndex); }}
-                  className={`text-left cursor-pointer rounded px-3 py-2 text-[#fdf6e3] font-bold ${selectedFarmFacilityIndex === facilityIndex ? 'bg-[#bc6c25]/45 border border-white' : 'bg-black/30 border border-[#5a3010]/70 hover:bg-[#3a2418]'}`}
-                >
-                  {item}
-                </button>
-              )})}
-            </div>
-            <div className="bg-black/30 border border-[#5a3010]/70 rounded px-3 py-2 text-[#d7b98a] text-sm">
-              <div style={menuTinyLabelStyle}>選択中の農場項目</div>
-              <div className="mt-1 text-[#fdf6e3] font-bold">{farmInfoItems[selectedFarmFacilityIndex]?.[0]}: {farmInfoItems[selectedFarmFacilityIndex]?.[1]}</div>
             </div>
           </div>
           {plantingSeedData && (
@@ -3379,7 +3556,7 @@ export default function App() {
                   </div>
                 )}
                 <div className="mt-4 text-xs font-bold leading-relaxed text-[#c8a87a]">
-                  ※植え付け後も娘苗は恒久アンロックとして所持したままです。APは消費しません。
+                  ※植え付け後も苗娘は恒久アンロックとして所持したままです。APは消費しません。
                 </div>
               </div>
             </div>
@@ -3390,22 +3567,11 @@ export default function App() {
 
     if (id === 'zukan') {
       const isFishZukan = zukanFilter === '魚';
-      const zukanFilters = ['通常', '魚', '妊娠', 'レアリティ', '未入手'];
-      const selectedFish = FISH_ZUKAN_ENTRIES[Math.min(selectedZukanIndex, FISH_ZUKAN_ENTRIES.length - 1)];
-      const selectedFishCaught = !!selectedFish && caughtFishIds.includes(selectedFish.id);
-      const selectedFishSizeHistory = selectedFish ? fishInventorySizes[selectedFish.name] ?? [] : [];
-      const selectedFishBestSizeFromHistory = selectedFishSizeHistory.length > 0 ? Math.max(...selectedFishSizeHistory) : undefined;
-      const selectedFishBestSize = selectedFish ? fishBestSizes[selectedFish.id] ?? selectedFishBestSizeFromHistory : undefined;
-      const selectedFishIsNushiCaught = !!selectedFish && (
-        nushiCaughtFishIds.includes(selectedFish.id) ||
-        (selectedFishBestSize !== undefined && isNushiSize(selectedFish, selectedFishBestSize))
-      );
-      const selectedFishHasUpdate = !!selectedFish && fishSizeUpdatedIds.includes(selectedFish.id);
-      const fishProgress = Math.round((caughtFishIds.length / FISH_ZUKAN_ENTRIES.length) * 100);
+      const zukanFilters = ['苗娘', '魚'];
 
       return (
         <div className="flex flex-col gap-3 h-full">
-          <div className="flex gap-2">
+          <div className="flex gap-2 rounded-lg" style={menuKeyboardFocusStyle(menuFocusArea === 'content' && menuContentFocus === 'primary')}>
             {zukanFilters.map((filter) => (
               <button
                 key={filter}
@@ -3413,17 +3579,17 @@ export default function App() {
                 onPointerDown={() => { setMenuFocusArea('content'); setMenuContentFocus('primary'); setZukanFilter(filter); setSelectedZukanIndex(0); }}
                 onMouseEnter={() => { if (zukanFilter !== filter) playCursorSound(); }}
                 onClick={() => { playFixSound(); setMenuFocusArea('content'); setMenuContentFocus('primary'); setZukanFilter(filter); setSelectedZukanIndex(0); }}
-                className={`px-3 py-2 rounded border font-bold cursor-pointer ${zukanFilter === filter ? 'bg-[#bc6c25] border-white text-white' : 'bg-black/35 border-[#5a3010] text-[#dda15e] hover:bg-[#3a2418]'}`}
+                className={`px-3 py-2 rounded border font-bold cursor-pointer ${zukanFilter === filter ? 'bg-[#bc6c25] border-white text-white ring-4 ring-[#ffd166]/70 shadow-[0_0_18px_rgba(255,209,102,0.42)]' : 'bg-black/35 border-[#5a3010] text-[#dda15e] hover:bg-[#3a2418]'}`}
               >
                 {filter}
               </button>
             ))}
           </div>
           <div
-            style={menuPanelBaseStyle}
+            style={{ ...menuPanelBaseStyle, ...menuKeyboardFocusStyle(menuFocusArea === 'content' && menuContentFocus === 'secondary') }}
             className={isFishZukan
               ? 'grid min-h-0 flex-1 grid-cols-5 auto-rows-[190px] gap-2 overflow-y-auto pr-2'
-              : 'grid grid-cols-5 gap-2 flex-1'
+              : 'grid min-h-0 flex-1 grid-cols-5 auto-rows-[200px] gap-3 overflow-y-auto pr-2'
             }
           >
             {isFishZukan ? FISH_ZUKAN_ENTRIES.map((fish, index) => {
@@ -3443,7 +3609,7 @@ export default function App() {
                   onPointerDown={() => { setMenuFocusArea('content'); setMenuContentFocus('secondary'); setSelectedZukanIndex(index); }}
                   onMouseEnter={() => { if (selectedZukanIndex !== index) playCursorSound(); }}
                   onClick={() => { playFixSound(); setMenuFocusArea('content'); setMenuContentFocus('secondary'); setSelectedZukanIndex(index); }}
-                  className={`relative overflow-hidden rounded-lg border p-2 text-left cursor-pointer transition-colors ${selectedZukanIndex === index ? 'bg-[#bc6c25]/45 border-white' : 'bg-black/35 border-[#5a3010] hover:bg-[#3a2418]'}`}
+                  className={`relative overflow-hidden rounded-lg border p-2 text-left cursor-pointer transition-colors ${selectedZukanIndex === index ? 'bg-[#bc6c25]/45 border-white ring-4 ring-[#ffd166]/70 shadow-[0_0_18px_rgba(255,209,102,0.42)]' : 'bg-black/35 border-[#5a3010] hover:bg-[#3a2418]'}`}
                 >
                   <div className="relative z-10 flex h-full flex-col justify-between gap-2">
                     <div className="flex items-center justify-between">
@@ -3475,55 +3641,31 @@ export default function App() {
                   </div>
                 </button>
               );
-            }) : zukanCards.map((kind, index) => (
+            }) : zukanGirlCards.map(({ girl, unlocked }, index) => (
                 <button
-                  key={`${kind}-${index}`}
+                  key={girl?.id ?? `empty-${index}`}
                   type="button"
                   onPointerDown={() => { setMenuFocusArea('content'); setMenuContentFocus('secondary'); setSelectedZukanIndex(index); }}
                   onMouseEnter={() => { if (selectedZukanIndex !== index) playCursorSound(); }}
                   onClick={() => { playFixSound(); setMenuFocusArea('content'); setMenuContentFocus('secondary'); setSelectedZukanIndex(index); }}
-                  className={`text-left rounded p-2 flex flex-col justify-between cursor-pointer ${selectedZukanIndex === index ? 'bg-[#bc6c25]/45 border border-white' : 'bg-black/35 border border-[#5a3010] hover:bg-[#3a2418]'}`}
+                  className={`relative overflow-hidden rounded-lg border p-2 text-left cursor-pointer ${selectedZukanIndex === index ? 'bg-[#bc6c25]/45 border-white ring-4 ring-[#ffd166]/70 shadow-[0_0_18px_rgba(255,209,102,0.42)]' : 'bg-black/35 border-[#5a3010] hover:bg-[#3a2418]'}`}
                 >
-                  <div className="text-[#fdf6e3] font-bold">No.{index + 1}</div>
-                  <div className="text-[#dda15e] text-xs">{kind}</div>
-                  <div className="text-[10px] text-[#a3b18a]">プロフィール / 回想</div>
+                  {girl && unlocked ? (
+                    <>
+                      <img src={girl.cardImg} alt={girl.name} className="absolute inset-0 h-full w-full object-contain p-2" />
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/5 to-transparent" />
+                      <div className="absolute left-2 right-2 bottom-2 rounded bg-black/58 px-2 py-1">
+                        <div className="text-[#fdf6e3] text-sm font-black leading-tight">{girl.name}</div>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="flex h-full flex-col items-center justify-center rounded border border-[#5a3010]/70 bg-black/35 text-center">
+                      <div className="text-[#dda15e] text-xs font-bold">No.{index + 1}</div>
+                      <div className="mt-2 text-[#8f7b63] text-lg font-black">未解放</div>
+                    </div>
+                  )}
                 </button>
               ))}
-          </div>
-          <div className="bg-black/30 rounded p-3 border border-[#5a3010]">
-            {isFishZukan ? (
-              <div className="flex flex-wrap items-center gap-3">
-                <div className="text-[#fdf6e3] font-bold">No.{selectedFish?.no ?? 1} {selectedFishCaught ? selectedFish?.name : '？？？？'}</div>
-                {selectedFish && (
-                  <div className="rounded-full border border-[#67e8f9]/45 bg-[#0f2430]/80 px-3 py-1 text-sm font-bold text-[#67e8f9]">
-                    難度 {selectedFish.level} / {selectedFish.fixedSize ? `${selectedFish.fixedSize.toFixed(1)}cm固定` : `${selectedFish.sizeMin}-${selectedFish.sizeMax}cm`}
-                  </div>
-                )}
-                <div className="rounded-full border border-[#ffd166]/60 bg-[#2d1b15]/80 px-3 py-1 text-sm font-bold text-[#ffd166] shadow-[inset_0_1px_0_rgba(255,255,255,0.12)]">
-                  最大の釣果: {selectedFishCaught && selectedFishBestSize ? `${selectedFishBestSize.toFixed(1)}cm` : '--.-cm'}
-                </div>
-                {selectedFishHasUpdate && (
-                  <div className="rounded-full border border-[#67e8f9]/80 bg-[linear-gradient(135deg,#67e8f9,#ffd166)] px-4 py-1 text-sm font-black text-[#21110b] shadow-[0_0_18px_rgba(103,232,249,0.62),inset_0_1px_0_rgba(255,255,255,0.45)]">
-                    NEW RECORD
-                  </div>
-                )}
-                {selectedFishIsNushiCaught && (
-                  <div className="rounded-full border border-[#fff7ad] bg-[linear-gradient(135deg,#fff7ad,#ffd166_42%,#67e8f9)] px-4 py-1 text-sm font-black text-[#2d1b15] shadow-[0_0_18px_rgba(255,209,102,0.82),0_0_26px_rgba(103,232,249,0.48),inset_0_1px_0_rgba(255,255,255,0.55)]">
-                    ヌシ
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div className="text-[#fdf6e3] font-bold">No.{selectedZukanIndex + 1} 詳細</div>
-            )}
-            <div className="text-[#dda15e] text-sm">
-              {isFishZukan
-                ? (selectedFishCaught ? '釣りで発見済み。画像が図鑑に登録されました。' : 'まだ釣っていません。釣り上げると魚の画像が表示されます。')
-                : `フィルタ: ${zukanFilter} / シーン回想を選択できます。`}
-            </div>
-          </div>
-          <div className="h-5 bg-black/50 border border-[#5a3010] rounded overflow-hidden">
-            <div className="h-full bg-[#bc6c25]" style={{ width: isFishZukan ? `${fishProgress}%` : '32%' }} />
           </div>
         </div>
       );
@@ -3536,7 +3678,7 @@ export default function App() {
     ];
 
     return (
-      <div className="grid grid-cols-3 gap-3 h-full">
+      <div className="grid grid-cols-3 gap-3 h-full rounded-2xl" style={menuKeyboardFocusStyle(menuFocusArea === 'content' && menuContentFocus === 'primary')}>
         {systemActions.map((action, index) => (
 	          <button
 	            key={action.label}
@@ -3658,6 +3800,7 @@ export default function App() {
   useEffect(() => { selectedEquipmentOptionIndexRef.current = selectedEquipmentOptionIndex; }, [selectedEquipmentOptionIndex]);
   useEffect(() => { setSelectedEquipmentOptionIndex(0); }, [selectedEquipmentSlot, equipmentActionOpen]);
   useEffect(() => { selectedSkillNameRef.current = selectedSkillName; }, [selectedSkillName]);
+  useEffect(() => { selectedSkillCategoryRef.current = selectedSkillCategory; }, [selectedSkillCategory]);
   useEffect(() => { selectedStatusGirlIndexRef.current = selectedStatusGirlIndex; }, [selectedStatusGirlIndex]);
   useEffect(() => { selectedFarmGirlIndexRef.current = selectedFarmGirlIndex; }, [selectedFarmGirlIndex]);
   useEffect(() => { selectedFarmFacilityIndexRef.current = selectedFarmFacilityIndex; }, [selectedFarmFacilityIndex]);
@@ -3821,9 +3964,17 @@ export default function App() {
   const [kurumiIntroAskedTopics, setKurumiIntroAskedTopics] = useState<KurumiIntroTopicId[]>([]);
   const [kurumiIntroCompletedDay, setKurumiIntroCompletedDay] = useState<number | null>(null);
   const [kurumiIntroClosing, setKurumiIntroClosing] = useState(false);
+  const [hasReceivedKurumiStarterSeeds, setHasReceivedKurumiStarterSeeds] = useState(false);
+  const [seedPlantTutorialOpen, setSeedPlantTutorialOpen] = useState(false);
+  const [seedPlantTutorialStepIndex, setSeedPlantTutorialStepIndex] = useState(0);
+  const [seedAfterPlantTutorialCompleted, setSeedAfterPlantTutorialCompleted] = useState(false);
+  const [seedAfterPlantTutorialOpen, setSeedAfterPlantTutorialOpen] = useState(false);
+  const [seedAfterPlantTutorialStepIndex, setSeedAfterPlantTutorialStepIndex] = useState(0);
   const shopTradePoseTimerRef = useRef<number | null>(null);
   const kurumiTradeRewardTimerRef = useRef<number | null>(null);
   const kurumiIntroCloseTimerRef = useRef<number | null>(null);
+  const seedPlantTutorialVoiceRef = useRef<HTMLAudioElement | null>(null);
+  const seedAfterPlantTutorialVoiceRef = useRef<HTMLAudioElement | null>(null);
   const fishingTutorialVoiceRef = useRef<HTMLAudioElement | null>(null);
   const sawCraftTutorialVoiceRef = useRef<HTMLAudioElement | null>(null);
   const sawCraftTutorialIntroVoiceKeyRef = useRef<string | null>(null);
@@ -3910,7 +4061,7 @@ export default function App() {
   const [selectedInspectSpotId, setSelectedInspectSpotId] = useState<string | null>(null);
 
   // Debug Panel Draggable Position State
-  const [debugPanelPos, setDebugPanelPos] = useState({ x: 1920 - DEBUG_PANEL_WIDTH - 16, y: 76 });
+  const [debugPanelPos, setDebugPanelPos] = useState({ x: 1920 - DEBUG_PANEL_WIDTH - 16, y: 108 });
   const [isDraggingDebug, setIsDraggingDebug] = useState(false);
   const debugDragStart = useRef({ x: 0, y: 0 });
 
@@ -3941,9 +4092,9 @@ export default function App() {
   const opacityMap = [0.1, 0.3, 0.5, 0.75, 1.0];
 
   // 音量設定 (BGM, SE, VOICE)
-  const [bgmVolume, setBgmVolume] = useState<number>(0.2);
-  const [seVolume, setSeVolume] = useState<number>(0.2);
-  const [voiceVolume, setVoiceVolume] = useState<number>(0.8);
+  const [bgmVolume, setBgmVolume] = useState<number>(DEFAULT_MASTER_VOLUME);
+  const [seVolume, setSeVolume] = useState<number>(DEFAULT_MASTER_VOLUME);
+  const [voiceVolume, setVoiceVolume] = useState<number>(DEFAULT_MASTER_VOLUME);
   const [textDisplaySpeedLevel, setTextDisplaySpeedLevel] = useState<number>(3);
   const [audioGains, setAudioGains] = useState<Record<string, number>>(DEFAULT_AUDIO_GAINS);
   const [mapBgmSources, setMapBgmSources] = useState<Record<GameMap, string>>(DEFAULT_MAP_BGM_SOURCES);
@@ -3978,6 +4129,11 @@ export default function App() {
   const audioGainsRef = useRef<Record<string, number>>(audioGains);
   const eventAudioRefs = useRef<HTMLAudioElement[]>([]);
   const kurumiIntroVoiceRef = useRef<HTMLAudioElement | null>(null);
+  const prologueBgmRef = useRef<HTMLAudioElement | null>(null);
+  const prologueVoiceRef = useRef<HTMLAudioElement | null>(null);
+  const topSplashAudioRef = useRef<HTMLAudioElement | null>(null);
+  const titleRandomVoiceRef = useRef<HTMLAudioElement | null>(null);
+  const titleRandomVoicePlayedRef = useRef(false);
   const triggeredAutoEventIdsRef = useRef<Set<string>>(new Set());
   useEffect(() => {
      seVolumeRef.current = seVolume;
@@ -4032,8 +4188,8 @@ export default function App() {
   }, [debugDialogueOverrides]);
 
   useEffect(() => {
-     movementLockedRef.current = sleepPromptVisible || craftPromptVisible || fishingPromptVisible || miningPromptVisible || loggingPromptVisible || fishingMiniGameOpen || miningMiniGameOpen || miningRhythmRecording || craftMiniGameOpen || fishingTutorialOpen || fishingTutorialEndingOpen || sawCraftTutorialIntroOpen || sawCraftTutorialShedDialogueOpen || gatheringTutorialOpen || miningTutorialOpen || kurumiShopOpen || kurumiIntroOpen || isSleepSequenceActive || beastAttackPending || repaymentEventPending || battlePreviewOpen || farmSlotInteractionStage !== null;
-  }, [sleepPromptVisible, craftPromptVisible, fishingPromptVisible, miningPromptVisible, loggingPromptVisible, fishingMiniGameOpen, miningMiniGameOpen, miningRhythmRecording, craftMiniGameOpen, fishingTutorialOpen, fishingTutorialEndingOpen, sawCraftTutorialIntroOpen, sawCraftTutorialShedDialogueOpen, gatheringTutorialOpen, miningTutorialOpen, kurumiShopOpen, kurumiIntroOpen, isSleepSequenceActive, beastAttackPending, repaymentEventPending, battlePreviewOpen, farmSlotInteractionStage]);
+     movementLockedRef.current = sleepPromptVisible || craftPromptVisible || fishingPromptVisible || miningPromptVisible || loggingPromptVisible || fishingMiniGameOpen || miningMiniGameOpen || miningRhythmRecording || craftMiniGameOpen || fishingTutorialOpen || fishingTutorialEndingOpen || sawCraftTutorialIntroOpen || sawCraftTutorialShedDialogueOpen || gatheringTutorialOpen || miningTutorialOpen || kurumiShopOpen || kurumiIntroOpen || seedPlantTutorialOpen || seedAfterPlantTutorialOpen || isSleepSequenceActive || beastAttackPending || repaymentEventPending || battlePreviewOpen || farmSlotInteractionStage !== null;
+  }, [sleepPromptVisible, craftPromptVisible, fishingPromptVisible, miningPromptVisible, loggingPromptVisible, fishingMiniGameOpen, miningMiniGameOpen, miningRhythmRecording, craftMiniGameOpen, fishingTutorialOpen, fishingTutorialEndingOpen, sawCraftTutorialIntroOpen, sawCraftTutorialShedDialogueOpen, gatheringTutorialOpen, miningTutorialOpen, kurumiShopOpen, kurumiIntroOpen, seedPlantTutorialOpen, seedAfterPlantTutorialOpen, isSleepSequenceActive, beastAttackPending, repaymentEventPending, battlePreviewOpen, farmSlotInteractionStage]);
 
   useEffect(() => {
      if (sleepPromptVisible || craftPromptVisible || fishingPromptVisible || miningPromptVisible || loggingPromptVisible) {
@@ -4646,9 +4802,9 @@ export default function App() {
             });
             setDoors(ensureRequiredRouteDoors(migratedDoors));
           }
-	          if (typeof data.bgmVolume === 'number') setBgmVolume(data.bgmVolume);
-	          if (typeof data.seVolume === 'number') setSeVolume(data.seVolume);
-	          if (typeof data.voiceVolume === 'number') setVoiceVolume(data.voiceVolume);
+	          setBgmVolume(DEFAULT_MASTER_VOLUME);
+	          setSeVolume(DEFAULT_MASTER_VOLUME);
+	          setVoiceVolume(DEFAULT_MASTER_VOLUME);
 	          const loadedDifficulty = typeof data.difficulty === 'string' && DIFFICULTY_OPTIONS.some(option => option.id === data.difficulty)
 	            ? data.difficulty as GameDifficulty
 	            : 'hard';
@@ -4744,7 +4900,14 @@ export default function App() {
 	              : loadedInterestCycleIndex
 	          );
 	          setFarmGirls(normalizeFarmGirls(data.farmGirls));
-	          setOwnedGirlSeeds(normalizeOwnedGirlSeeds(data.ownedGirlSeeds));
+	          const loadedOwnedGirlSeeds = normalizeOwnedGirlSeeds(data.ownedGirlSeeds);
+	          setOwnedGirlSeeds(loadedOwnedGirlSeeds);
+	          setHasReceivedKurumiStarterSeeds(
+	            typeof data.hasReceivedKurumiStarterSeeds === 'boolean'
+	              ? data.hasReceivedKurumiStarterSeeds
+	              : INITIAL_OWNED_GIRL_SEEDS.some(seedId => loadedOwnedGirlSeeds.includes(seedId))
+	          );
+	          setSeedAfterPlantTutorialCompleted(typeof data.seedAfterPlantTutorialCompleted === 'boolean' ? data.seedAfterPlantTutorialCompleted : false);
 	          setFarmFieldSlots(normalizeFarmFieldSlots(data.farmFieldSlots, loadedDifficulty));
 	          setCurrentAP(
 	            typeof data.currentAP === 'number' && Number.isInteger(data.currentAP) && data.currentAP >= 0
@@ -4833,7 +4996,7 @@ export default function App() {
           }
           if (data.inventoryCounts && typeof data.inventoryCounts === 'object') {
             const parsedInventoryCounts = data.inventoryCounts as Record<string, unknown>;
-            setInventoryCounts(prev => ({
+            setInventoryCounts(prev => migrateInventoryItemNames({
               ...prev,
               ...Object.fromEntries(
                 Object.entries(parsedInventoryCounts).filter(([, count]) => (
@@ -4954,6 +5117,13 @@ export default function App() {
           ) {
             setKurumiIntroCompletedDay(data.kurumiIntroCompletedDay);
           }
+          setOpeningMapTransitionCount(
+            typeof data.openingMapTransitionCount === 'number' &&
+            Number.isInteger(data.openingMapTransitionCount) &&
+            data.openingMapTransitionCount >= 0
+              ? data.openingMapTransitionCount
+              : 0
+          );
           if (
             data.bathTubMaskZone &&
             typeof data.bathTubMaskZone.x === 'number' &&
@@ -4970,6 +5140,9 @@ export default function App() {
           }
           setTurn(0);
           setGold(5000);
+          setBgmVolume(DEFAULT_MASTER_VOLUME);
+          setSeVolume(DEFAULT_MASTER_VOLUME);
+          setVoiceVolume(DEFAULT_MASTER_VOLUME);
           const difficultyOption = DIFFICULTY_OPTIONS.find(option => option.id === pendingNewGameDifficulty) ?? DIFFICULTY_OPTIONS[2];
           setDifficulty(difficultyOption.id);
           setGameMode(pendingNewGameMode);
@@ -4997,7 +5170,13 @@ export default function App() {
           setKurumiTradeTotal(0);
           setShownKurumiTradeRewardThresholds([]);
           setFarmGirls(createInitialFarmGirls());
-          setOwnedGirlSeeds([...INITIAL_OWNED_GIRL_SEEDS]);
+          setOwnedGirlSeeds([]);
+          setHasReceivedKurumiStarterSeeds(false);
+          setSeedPlantTutorialOpen(false);
+          setSeedPlantTutorialStepIndex(0);
+          setSeedAfterPlantTutorialCompleted(false);
+          setSeedAfterPlantTutorialOpen(false);
+          setSeedAfterPlantTutorialStepIndex(0);
           setFarmFieldSlots(createInitialFarmFieldSlots(difficultyOption.id));
           setPlantingSeedId(null);
           setKurumiIntroAskedTopics([]);
@@ -5024,13 +5203,19 @@ export default function App() {
           setGatheringTutorialChoice(null);
           setIsFishingTutorialRun(false);
           setFishingTutorialResult(null);
+          setNextObjective(null);
+          setOpeningMapTransitionCount(0);
+          setProloguePage(0);
+          setPrologueRingReveal(false);
+          setPrologueRingRevealReady(false);
+          setPrologueOpen(pendingNewGameMode === 'story');
           setInventoryCounts({ ...INITIAL_INVENTORY_COUNTS });
           setEquippedItems({ ...INITIAL_EQUIPPED_ITEMS });
           equippedItemsRef.current = { ...INITIAL_EQUIPPED_ITEMS };
           setCurrentMap('farm');
           currentMapRef.current = 'farm';
-          setPos({ x: 960, y: 540 });
-          posRef.current = { x: 960, y: 540 };
+          setPos({ ...NEW_GAME_START_POSITION });
+          posRef.current = { ...NEW_GAME_START_POSITION };
           setDir('down');
           setDialogMessage(DEFAULT_SYSTEM_MESSAGE);
           setShowDialog(false);
@@ -5080,6 +5265,8 @@ export default function App() {
     interestRateCycleIndex,
     farmGirls,
     ownedGirlSeeds,
+    hasReceivedKurumiStarterSeeds,
+    seedAfterPlantTutorialCompleted,
     farmFieldSlots,
     currentAP,
     maxAPPerTimeSlot,
@@ -5127,6 +5314,7 @@ export default function App() {
     gatheringTutorialChoice,
     kurumiIntroAskedTopics,
     kurumiIntroCompletedDay,
+    openingMapTransitionCount,
     bathTubMaskZone
   });
 
@@ -5222,6 +5410,7 @@ export default function App() {
     setSystemSlotMode('none');
     setTitlePanelMode('none');
     setMenuOpen(false);
+    titleRandomVoicePlayedRef.current = false;
     setBootMode('title');
   };
 
@@ -5287,6 +5476,7 @@ export default function App() {
     interestRateCycleIndex,
     farmGirls,
     ownedGirlSeeds,
+    hasReceivedKurumiStarterSeeds,
     farmFieldSlots,
     difficulty,
     zones,
@@ -5331,6 +5521,7 @@ export default function App() {
     gatheringTutorialChoice,
     kurumiIntroAskedTopics,
     kurumiIntroCompletedDay,
+    openingMapTransitionCount,
     bathTubMaskZone
   ]);
 
@@ -6383,6 +6574,113 @@ export default function App() {
     requestAnimationFrame(fade);
   };
 
+  const stopPrologueVoice = () => {
+    if (!prologueVoiceRef.current) return;
+    prologueVoiceRef.current.pause();
+    prologueVoiceRef.current.currentTime = 0;
+    prologueVoiceRef.current = null;
+  };
+
+  const finishPrologue = () => {
+    stopPrologueVoice();
+    fadeOutAudio(prologueBgmRef.current, 1200);
+    window.setTimeout(() => {
+      prologueBgmRef.current = null;
+    }, 1200);
+    setPrologueOpen(false);
+    setNextObjective(OPENING_WALK_OBJECTIVE);
+    setDialogMessage(OPENING_WALK_OBJECTIVE);
+  };
+
+  const advancePrologue = () => {
+    if (prologueInputLockedRef.current) return;
+    prologueInputLockedRef.current = true;
+    window.setTimeout(() => {
+      prologueInputLockedRef.current = false;
+    }, 400);
+
+    if (prologueRingReveal) {
+      if (!prologueRingRevealReady) return;
+      playFixSound();
+      setPrologueRingReveal(false);
+      setPrologueRingRevealReady(false);
+      setProloguePage(4);
+      return;
+    }
+    if (prologuePage === 3) {
+      setPrologueRingRevealReady(false);
+      setPrologueRingReveal(true);
+      playUiSound('/se/cure.mp3');
+      return;
+    }
+    if (prologuePage < PROLOGUE_LETTERS.length - 1) {
+      playFixSound();
+      setProloguePage(page => page + 1);
+      return;
+    }
+    if (prologuePage === PROLOGUE_LETTERS.length - 1) {
+      playFixSound();
+      stopPrologueVoice();
+      fadeOutAudio(prologueBgmRef.current, 1200);
+      window.setTimeout(() => {
+        prologueBgmRef.current = null;
+      }, 1200);
+      setProloguePage(PROLOGUE_LETTERS.length);
+      return;
+    }
+    finishPrologue();
+  };
+
+  const goBackPrologueLetter = () => {
+    if (prologueInputLockedRef.current || prologuePage <= 0 || prologuePage >= PROLOGUE_LETTERS.length) return;
+    prologueInputLockedRef.current = true;
+    window.setTimeout(() => {
+      prologueInputLockedRef.current = false;
+    }, 400);
+    playFixSound();
+    setProloguePage(page => Math.max(0, page - 1));
+  };
+
+  useEffect(() => {
+    if (!prologueRingReveal) return;
+    const readyTimer = window.setTimeout(() => {
+      setPrologueRingRevealReady(true);
+    }, 3000);
+    return () => window.clearTimeout(readyTimer);
+  }, [prologueRingReveal]);
+
+  useEffect(() => {
+    if (!prologueOpen || prologuePage >= PROLOGUE_LETTERS.length) return;
+    if (!prologueBgmRef.current) {
+      const audio = new Audio('/bgm/jii.mp3');
+      audio.loop = true;
+      audio.volume = getEffectiveVolume('/bgm/jii.mp3', bgmVolume, audioGainsRef.current);
+      prologueBgmRef.current = audio;
+      audio.play().catch(err => console.log('Prologue BGM autoplay blocked', err));
+      return;
+    }
+    prologueBgmRef.current.volume = getEffectiveVolume('/bgm/jii.mp3', bgmVolume, audioGainsRef.current);
+  }, [prologueOpen, bgmVolume, audioGains]);
+
+  useEffect(() => {
+    if (!prologueOpen || prologuePage >= PROLOGUE_LETTERS.length) return;
+    stopPrologueVoice();
+    prologueVoiceRef.current = playVoiceSound(PROLOGUE_LETTERS[prologuePage]?.voiceSrc ?? '');
+  }, [prologueOpen, prologuePage]);
+
+  useEffect(() => {
+    if (!prologueOpen) return;
+    const handlePrologueKeyDown = (event: KeyboardEvent) => {
+      if (event.repeat) return;
+      if (event.key !== 'Enter' && event.key !== ' ' && event.key !== 'Escape') return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      advancePrologue();
+    };
+    window.addEventListener('keydown', handlePrologueKeyDown, true);
+    return () => window.removeEventListener('keydown', handlePrologueKeyDown, true);
+  }, [prologueOpen, prologuePage]);
+
   const playKurumiIntroVoice = (src: string) => {
     if (kurumiIntroVoiceRef.current) {
       kurumiIntroVoiceRef.current.pause();
@@ -6416,6 +6714,40 @@ export default function App() {
   const formatInterestRate = (rate: number) => `${rate.toFixed(1)}%`;
   const addOwnedGirlSeed = (seedId: string) => {
     setOwnedGirlSeeds(prev => prev.includes(seedId) ? prev : [...prev, seedId]);
+  };
+  const stopSeedPlantTutorialVoice = () => {
+    if (!seedPlantTutorialVoiceRef.current) return;
+    seedPlantTutorialVoiceRef.current.pause();
+    seedPlantTutorialVoiceRef.current.currentTime = 0;
+    seedPlantTutorialVoiceRef.current = null;
+  };
+  const playSeedPlantTutorialVoice = (stepIndex: number) => {
+    stopSeedPlantTutorialVoice();
+    const voiceSrc = SEED_PLANT_TUTORIAL_VOICE_SRCS[stepIndex];
+    if (!voiceSrc) return;
+    seedPlantTutorialVoiceRef.current = playVoiceSound(voiceSrc);
+  };
+  const stopSeedAfterPlantTutorialVoice = () => {
+    if (!seedAfterPlantTutorialVoiceRef.current) return;
+    seedAfterPlantTutorialVoiceRef.current.pause();
+    seedAfterPlantTutorialVoiceRef.current.currentTime = 0;
+    seedAfterPlantTutorialVoiceRef.current = null;
+  };
+  const playSeedAfterPlantTutorialVoice = (stepIndex: number) => {
+    stopSeedAfterPlantTutorialVoice();
+    const voiceSrc = SEED_AFTER_PLANT_TUTORIAL_STEPS[stepIndex]?.voiceSrc;
+    if (!voiceSrc) return;
+    seedAfterPlantTutorialVoiceRef.current = playVoiceSound(voiceSrc);
+  };
+  const grantKurumiStarterSeeds = () => {
+    if (hasReceivedKurumiStarterSeeds) return;
+    setOwnedGirlSeeds(prev => Array.from(new Set([...prev, ...INITIAL_OWNED_GIRL_SEEDS])));
+    setHasReceivedKurumiStarterSeeds(true);
+    setSeedPlantTutorialStepIndex(0);
+    setSeedPlantTutorialOpen(true);
+    playSeedPlantTutorialVoice(0);
+    setNextObjective(STARTER_SEED_OBJECTIVE);
+    setDialogMessage(STARTER_SEED_OBJECTIVE);
   };
   const getFarmFieldLabel = (fieldId: FieldId) => fieldId === 'left' ? '左畑' : '右畑';
   const getPlantableFarmFieldSlots = () => farmFieldSlots.filter(slot => slot.girlId === null && slot.state === 'none');
@@ -6497,10 +6829,64 @@ export default function App() {
         : `${girl?.girlName ?? crop.seedName}から${crop.harvestItemName}を${harvestAmount}個収穫しました。信頼度 +${trustGain}`
     );
   };
+  const careForSeedling = (girlId: string, action: 'caress' | 'finger' | 'fertilize') => {
+    const farmGirl = farmGirls.find(girl => girl.girlId === girlId);
+    const crop = FARM_GIRL_CROP_DATA.find(entry => entry.girlId === girlId);
+    if (!farmGirl || !crop || farmGirl.state !== 'growing') {
+      setDialogMessage('成長中の苗娘にだけお世話できます。');
+      return;
+    }
+    if (currentAP <= 0) {
+      setDialogMessage(EXHAUSTED_ACTION_MESSAGE);
+      return;
+    }
+    const currentCount = farmGirl.careDay === currentDay
+      ? action === 'caress' ? farmGirl.caressCount : action === 'finger' ? farmGirl.fingerCount : farmGirl.fertilizeCount
+      : 0;
+    if (currentCount >= 1) {
+      setDialogMessage('このお世話は今日はもう行いました。');
+      return;
+    }
+
+    const qualityGain = action === 'caress'
+      ? 3 + Math.floor(Math.random() * 4)
+      : action === 'finger'
+        ? 6 + Math.floor(Math.random() * 5)
+        : 0;
+    const nextGrowthProgress = action === 'fertilize'
+      ? Math.min(crop.growthDays, farmGirl.growthProgress + 1)
+      : farmGirl.growthProgress;
+    const hasAppeared = nextGrowthProgress >= crop.growthDays;
+    consumeAPForAction();
+    setFarmGirls(previous => previous.map(girl => {
+      if (girl.girlId !== girlId) return girl;
+      const isSameDay = girl.careDay === currentDay;
+      return {
+        ...girl,
+        growthProgress: nextGrowthProgress,
+        state: hasAppeared ? 'appeared' : girl.state,
+        quality: clampNumber(girl.quality + qualityGain, 0, 100),
+        careDay: currentDay,
+        caressCount: action === 'caress' ? (isSameDay ? girl.caressCount : 0) + 1 : (isSameDay ? girl.caressCount : 0),
+        fingerCount: action === 'finger' ? (isSameDay ? girl.fingerCount : 0) + 1 : (isSameDay ? girl.fingerCount : 0),
+        fertilizeCount: action === 'fertilize' ? (isSameDay ? girl.fertilizeCount : 0) + 1 : (isSameDay ? girl.fertilizeCount : 0),
+      };
+    }));
+    if (hasAppeared) {
+      setFarmFieldSlots(previous => previous.map(slot => (
+        slot.girlId === girlId ? { ...slot, state: 'appeared' } : slot
+      )));
+    }
+    const actionLabel = action === 'caress' ? '愛撫' : action === 'finger' ? '指入れ' : '肥料注入';
+    const result = action === 'fertilize'
+      ? `成長度が1日進みました${hasAppeared ? '。擬人化しました！' : '。'}`
+      : `品質が${qualityGain}上がりました。`;
+    setDialogMessage(`${actionLabel}：${result}`);
+  };
   const plantGirlSeedToSlot = (seedId: string, fieldId: FieldId, slotIndex: number) => {
     const seedData = GIRL_SEED_ACQUISITION_DATA.find(seed => seed.seedId === seedId);
     if (!seedData || !ownedGirlSeeds.includes(seedId)) {
-      setDialogMessage('この娘苗はまだ所持していません。');
+      setDialogMessage('この苗娘はまだ所持していません。');
       return;
     }
 
@@ -6529,6 +6915,11 @@ export default function App() {
           cardRevealed: false,
           plantedDay: currentDay,
           growthProgress: 0,
+          quality: 30 + Math.floor(Math.random() * 11),
+          careDay: null,
+          caressCount: 0,
+          fingerCount: 0,
+          fertilizeCount: 0,
           lastHarvestDay: null,
         }
         : girl
@@ -6880,6 +7271,7 @@ export default function App() {
     return [
       ...createOptions('釣り説明', FISHING_TUTORIAL_STEPS),
       ...createOptions('釣り後会話', FISHING_TUTORIAL_END_STEPS),
+      ...createOptions('苗娘植え後会話', SEED_AFTER_PLANT_TUTORIAL_STEPS),
       ...createOptions('のこぎり会話', SAW_CRAFT_TUTORIAL_STEPS),
       ...createOptions('つるはし会話', PICKAXE_CRAFT_TUTORIAL_STEPS),
       ...createOptions('小屋会話', SAW_CRAFT_SHED_TUTORIAL_STEPS),
@@ -6891,9 +7283,18 @@ export default function App() {
   }, [debugDialogueOverrides]);
   const isKurumiShopUnlocked = kurumiIntroCompletedDay !== null && currentDay > kurumiIntroCompletedDay;
   const hasAskedAllKurumiIntroTopics = KURUMI_INTRO_TOPIC_IDS.every(id => kurumiIntroAskedTopics.includes(id));
+  const isOpeningWalkObjectiveActive = (
+    bootMode === 'playing' &&
+    currentDay === 1 &&
+    kurumiIntroCompletedDay === null &&
+    nextObjective === OPENING_WALK_OBJECTIVE &&
+    openingMapTransitionCount < OPENING_MAP_TRANSITIONS_BEFORE_KURUMI
+  );
   const shouldShowFishingTutorialKurumi = bootMode === 'playing' && currentMap === 'farm' && currentDay === 2 && !fishingTutorialCompleted;
+  const shouldOfferSeedAfterPlantTutorial = farmFieldSlots.some(slot => slot.girlId && slot.state === 'growing') && !seedAfterPlantTutorialCompleted;
   const currentFishingTutorialStep = FISHING_TUTORIAL_STEPS[fishingTutorialStepIndex] ?? FISHING_TUTORIAL_STEPS[0];
   const currentFishingTutorialEndingStep = FISHING_TUTORIAL_END_STEPS[fishingTutorialEndingStepIndex] ?? FISHING_TUTORIAL_END_STEPS[0];
+  const currentSeedAfterPlantTutorialStep = SEED_AFTER_PLANT_TUTORIAL_STEPS[seedAfterPlantTutorialStepIndex] ?? SEED_AFTER_PLANT_TUTORIAL_STEPS[0];
   const currentLoggingTutorialStep = LOGGING_TUTORIAL_STEPS[loggingTutorialStepIndex] ?? LOGGING_TUTORIAL_STEPS[0];
   const currentMiningTutorialStep = MINING_TUTORIAL_STEPS[miningTutorialStepIndex] ?? MINING_TUTORIAL_STEPS[0];
   const currentCraftTutorialSteps = craftTutorialRecipeName === '【レシピ】つるはし'
@@ -6906,6 +7307,73 @@ export default function App() {
     : GATHERING_TUTORIAL_COMMON_STEPS;
   const currentGatheringTutorialStep = currentGatheringTutorialSteps[gatheringTutorialStepIndex] ?? currentGatheringTutorialSteps[0];
   const isGatheringTutorialChoiceStep = gatheringTutorialChoice === null && gatheringTutorialStepIndex === GATHERING_TUTORIAL_COMMON_STEPS.length - 1;
+  const hudObjective = useMemo(() => {
+    if (bootMode !== 'playing' || prologueOpen) return null;
+    if (isOpeningWalkObjectiveActive) return OPENING_WALK_OBJECTIVE;
+    const hasUnplantedStarterSeed = INITIAL_OWNED_GIRL_SEEDS.some(seedId => {
+      const seed = GIRL_SEED_ACQUISITION_DATA.find(entry => entry.seedId === seedId);
+      return seed && ownedGirlSeeds.includes(seedId) && !farmFieldSlots.some(slot => slot.girlId === seed.girlId);
+    });
+    if (kurumiIntroOpen) return hasAskedAllKurumiIntroTopics ? 'くるみとの会話を終えよう！' : 'くるみに気になることを一通り聞こう！';
+    if (seedPlantTutorialOpen) return 'くるみから苗娘の植え方を教わろう！';
+    if (seedAfterPlantTutorialOpen) return 'くるみから畑の見方を教わろう！';
+    if (fishingTutorialOpen) return 'くるみの釣り説明を聞こう！';
+    if (fishingMiniGameOpen && isFishingTutorialRun) return '釣りの練習を成功させよう！';
+    if (fishingTutorialEndingOpen) return 'くるみの話を最後まで聞こう！';
+    if (sawCraftTutorialIntroOpen) return 'くるみからクラフトの説明を聞こう！';
+    if (sawCraftTutorialReady) return 'クラフト小屋でくるみに話しかけよう！';
+    if (sawCraftTutorialShedDialogueOpen) return '小屋でくるみの説明を聞こう！';
+    if (sawCraftTutorialWorkbenchReady) return 'クラフト台で道具を作ろう！';
+    if (craftMiniGameOpen) return 'クラフトを成功させよう！';
+    if (gatheringTutorialOpen) return 'くるみから採取のコツを聞こう！';
+    if (loggingTutorialOpen) return '伐採の説明を聞こう！';
+    if (loggingMiniGameOpen && isLoggingTutorialRun) return '伐採の練習を成功させよう！';
+    if (miningTutorialOpen) return '採掘の説明を聞こう！';
+    if (miningMiniGameOpen) return '採掘リズムに集中しよう！';
+    if (kurumiIntroCompletedDay === null) return KURUMI_INTRO_OBJECTIVE;
+    if (hasReceivedKurumiStarterSeeds && hasUnplantedStarterSeed) return STARTER_SEED_OBJECTIVE;
+    if (shouldOfferSeedAfterPlantTutorial) return 'くるみに植えた苗娘の様子を聞こう！';
+    if (currentDay <= kurumiIntroCompletedDay) return '明日、橋の近くでくるみに釣りを教わろう！';
+    if (!fishingTutorialCompleted) return '橋の近くにいるくるみに釣りを教わろう！';
+    if (!sawCraftTutorialCompleted) return 'くるみからレシピを買って道具を作ろう！';
+    if (!gatheringTutorialCompleted) return 'くるみに採取のコツを聞こう！';
+    if (!loggingTutorialCompleted && gatheringTutorialChoice === 'logging') return '伐採できる木を探して、のこぎりを使ってみよう！';
+    if (!miningTutorialCompleted && gatheringTutorialChoice === 'mining') return 'ポストの下にある岩を調べて採掘してみよう！';
+    return '畑を育てて返済資金を稼ごう！';
+  }, [
+    bootMode,
+    prologueOpen,
+    isOpeningWalkObjectiveActive,
+    kurumiIntroOpen,
+    hasAskedAllKurumiIntroTopics,
+    fishingTutorialOpen,
+    fishingMiniGameOpen,
+    isFishingTutorialRun,
+    fishingTutorialEndingOpen,
+    sawCraftTutorialIntroOpen,
+    sawCraftTutorialReady,
+    sawCraftTutorialShedDialogueOpen,
+    sawCraftTutorialWorkbenchReady,
+    craftMiniGameOpen,
+    gatheringTutorialOpen,
+    loggingTutorialOpen,
+    loggingMiniGameOpen,
+    isLoggingTutorialRun,
+    miningTutorialOpen,
+    miningMiniGameOpen,
+    kurumiIntroCompletedDay,
+    hasReceivedKurumiStarterSeeds,
+    seedPlantTutorialOpen,
+    ownedGirlSeeds,
+    farmFieldSlots,
+    currentDay,
+    fishingTutorialCompleted,
+    sawCraftTutorialCompleted,
+    gatheringTutorialCompleted,
+    loggingTutorialCompleted,
+    miningTutorialCompleted,
+    gatheringTutorialChoice,
+  ]);
   const activeAutoEventMessages = activeAutoEventSpot
      ? (activeAutoEventSpot.texts?.length ? activeAutoEventSpot.texts : [activeAutoEventSpot.text || activeAutoEventSpot.label || 'イベントが発生しました。'])
      : [];
@@ -7239,6 +7707,51 @@ export default function App() {
     );
   };
 
+  const renderSeedAfterPlantTutorialVisual = () => {
+    const plantedSlot = farmFieldSlots.find(slot => slot.girlId && slot.state === 'growing') ?? farmFieldSlots.find(slot => slot.girlId);
+    const girlId = plantedSlot?.girlId ?? INITIAL_OWNED_GIRL_SEEDS
+      .map(seedId => GIRL_SEED_ACQUISITION_DATA.find(seed => seed.seedId === seedId)?.girlId)
+      .find(Boolean) ?? null;
+    const seed = GIRL_SEED_ACQUISITION_DATA.find(entry => entry.girlId === girlId);
+    const crop = FARM_GIRL_CROP_DATA.find(entry => entry.girlId === girlId);
+    const farmGirl = farmGirls.find(entry => entry.girlId === girlId);
+    const growthProgress = farmGirl?.growthProgress ?? 0;
+    const growthDays = crop?.growthDays ?? 2;
+    const fieldLabel = plantedSlot ? `${getFarmFieldLabel(plantedSlot.fieldId)} ${plantedSlot.slotIndex}` : '畑';
+    const isGrowthDaysStep = currentSeedAfterPlantTutorialStep.id === 'growth_days';
+    const isCareStep = currentSeedAfterPlantTutorialStep.id === 'care';
+
+    return (
+      <div className="absolute inset-x-7 bottom-10 h-[440px] overflow-hidden rounded-xl border-2 border-[#ffd166]/70 bg-[linear-gradient(180deg,rgba(73,44,16,0.96),rgba(26,16,13,0.98))] shadow-[inset_0_0_28px_rgba(0,0,0,0.65)]">
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_50%_58%,rgba(132,86,32,0.75),rgba(37,24,15,0.96)_68%)]" />
+        <div className="absolute left-1/2 top-[54%] h-[230px] w-[360px] -translate-x-1/2 -translate-y-1/2 rotate-[-4deg] rounded-[45%] border-4 border-[#7c4a1f] bg-[repeating-linear-gradient(90deg,#3f2714_0_24px,#5d3719_24px_48px)] shadow-[inset_0_10px_25px_rgba(0,0,0,0.55),0_20px_30px_rgba(0,0,0,0.45)]" />
+        <div className="absolute left-1/2 top-[48%] h-[132px] w-[116px] -translate-x-1/2 -translate-y-1/2 rounded-2xl border-4 border-[#ffd166] bg-[#1a100d]/92 p-2 shadow-[0_0_24px_rgba(255,209,102,0.5)]">
+          <img src="/img/nae.png" alt={seed?.seedName ?? '苗娘'} className="h-full w-full object-contain drop-shadow-[0_10px_12px_rgba(0,0,0,0.55)]" />
+        </div>
+        <div className="absolute inset-x-5 top-5 rounded-xl border border-[#ffd166]/60 bg-[#1a100d]/90 px-4 py-3 text-center shadow-xl">
+          <div className="text-sm font-black tracking-[0.18em] text-[#ffd166]">PLANTED SEED</div>
+          <div className="mt-1 text-2xl font-black text-[#fff7dc]">{seed?.seedName ?? '苗娘'} / {fieldLabel}</div>
+        </div>
+        <div className={`absolute left-7 right-7 bottom-6 grid gap-3 ${isCareStep ? 'grid-cols-3' : 'grid-cols-2'}`}>
+          <div className={`rounded-lg border px-3 py-3 text-center font-black shadow-lg ${isGrowthDaysStep ? 'scale-105 border-[#fff3b0] bg-[#9a5a1d] text-white' : 'border-[#ffd166]/60 bg-black/55 text-[#ffe8a3]'}`}>
+            <div className="text-xs tracking-[0.14em] text-[#ffd166]">成長中</div>
+            <div className="mt-1 text-2xl">{growthProgress}/{growthDays}日</div>
+          </div>
+          <div className={`rounded-lg border px-3 py-3 text-center font-black shadow-lg ${!isGrowthDaysStep && !isCareStep ? 'scale-105 border-[#fff3b0] bg-[#4a5823] text-white' : 'border-[#ffd166]/60 bg-black/55 text-[#ffe8a3]'}`}>
+            <div className="text-xs tracking-[0.14em] text-[#ffd166]">品質</div>
+            <div className="mt-1 text-2xl">{farmGirl?.quality ?? 30}</div>
+          </div>
+          {isCareStep && (
+            <div className="scale-105 rounded-lg border border-[#fff3b0] bg-[#5a3010] px-3 py-3 text-center font-black text-white shadow-lg">
+              <div className="text-xs tracking-[0.14em] text-[#ffd166]">お世話</div>
+              <div className="mt-1 text-xl">収穫まで可</div>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
   const renderLoggingTutorialVisual = () => {
     if (currentLoggingTutorialStep.id === 'direction') {
       return (
@@ -7468,6 +7981,18 @@ export default function App() {
            fishingTutorialVoiceRef.current.pause();
            fishingTutorialVoiceRef.current = null;
         }
+        if (seedPlantTutorialVoiceRef.current) {
+           seedPlantTutorialVoiceRef.current.pause();
+           seedPlantTutorialVoiceRef.current = null;
+        }
+        if (seedAfterPlantTutorialVoiceRef.current) {
+           seedAfterPlantTutorialVoiceRef.current.pause();
+           seedAfterPlantTutorialVoiceRef.current = null;
+        }
+        if (titleRandomVoiceRef.current) {
+           titleRandomVoiceRef.current.pause();
+           titleRandomVoiceRef.current = null;
+        }
         if (fishingNushiVoiceRef.current) {
            fishingNushiVoiceRef.current.pause();
            fishingNushiVoiceRef.current = null;
@@ -7531,6 +8056,10 @@ export default function App() {
      const hasPickaxeTool = (inventoryCounts['つるはし'] ?? 0) > 0;
      const isGatheringTutorialReady = hasSawRecipe && hasPickaxeRecipe && hasSawTool && hasPickaxeTool;
      const needsGatheringTutorialGuide = !gatheringTutorialCompleted || !loggingTutorialCompleted || !miningTutorialCompleted;
+     if (shouldOfferSeedAfterPlantTutorial) {
+        openSeedAfterPlantTutorial();
+        return;
+     }
      if (isGatheringTutorialReady && needsGatheringTutorialGuide) {
         startGatheringTutorial();
         return;
@@ -7559,6 +8088,7 @@ export default function App() {
         setKurumiIntroClosing(false);
         kurumiIntroVoiceRef.current = null;
         kurumiIntroCloseTimerRef.current = null;
+        grantKurumiStarterSeeds();
      }, KURUMI_INTRO_CLOSE_FADE_MS);
   };
 
@@ -7584,6 +8114,49 @@ export default function App() {
         }
         return next;
      });
+  };
+  const closeSeedPlantTutorial = () => {
+     playFixSound();
+     stopSeedPlantTutorialVoice();
+     setSeedPlantTutorialOpen(false);
+     setSeedPlantTutorialStepIndex(0);
+     setDialogMessage(STARTER_SEED_OBJECTIVE);
+  };
+  const advanceSeedPlantTutorial = () => {
+     playFixSound();
+     if (seedPlantTutorialStepIndex >= SEED_PLANT_TUTORIAL_STEPS.length - 1) {
+        closeSeedPlantTutorial();
+        return;
+     }
+     const nextStepIndex = Math.min(SEED_PLANT_TUTORIAL_STEPS.length - 1, seedPlantTutorialStepIndex + 1);
+     setSeedPlantTutorialStepIndex(nextStepIndex);
+     playSeedPlantTutorialVoice(nextStepIndex);
+  };
+  const openSeedAfterPlantTutorial = () => {
+     stopSeedPlantTutorialVoice();
+     stopSeedAfterPlantTutorialVoice();
+     setSeedAfterPlantTutorialStepIndex(0);
+     setSeedAfterPlantTutorialOpen(true);
+     playSeedAfterPlantTutorialVoice(0);
+     setDialogMessage('くるみが植えた苗娘の様子を説明します。');
+  };
+  const closeSeedAfterPlantTutorial = (withSound = true) => {
+     if (withSound) playFixSound();
+     stopSeedAfterPlantTutorialVoice();
+     setSeedAfterPlantTutorialOpen(false);
+     setSeedAfterPlantTutorialStepIndex(0);
+     setSeedAfterPlantTutorialCompleted(true);
+     setDialogMessage('明日また苗娘の様子を見に行こう。');
+  };
+  const advanceSeedAfterPlantTutorial = () => {
+     playFixSound();
+     const nextStepIndex = seedAfterPlantTutorialStepIndex + 1;
+     if (nextStepIndex >= SEED_AFTER_PLANT_TUTORIAL_STEPS.length) {
+        closeSeedAfterPlantTutorial(false);
+        return;
+     }
+     setSeedAfterPlantTutorialStepIndex(nextStepIndex);
+     playSeedAfterPlantTutorialVoice(nextStepIndex);
   };
   const openRecipeDetail = (recipeName: string) => {
      if (!RECIPE_DETAILS[recipeName]) return false;
@@ -8856,7 +9429,7 @@ export default function App() {
     fadeOutEventAudio();
     if (autoEventBgmMutedRef.current) {
       autoEventBgmMutedRef.current = false;
-      const targetVolume = getEffectiveVolume(bgmSourceRef.current, bgmVolume, audioGainsRef.current);
+      const targetVolume = getBgmEffectiveVolume(bgmSourceRef.current, bgmVolume, audioGainsRef.current);
       fadeBgmTo(targetVolume, 900);
     }
     setActiveAutoEventSpot(null);
@@ -9056,7 +9629,7 @@ export default function App() {
     setClickTargetMarker(null);
     setSleepFadeOpacity(0);
 
-    const houseBgmTarget = getEffectiveVolume(bgmSourceRef.current, bgmVolume, audioGainsRef.current);
+    const houseBgmTarget = getBgmEffectiveVolume(bgmSourceRef.current, bgmVolume, audioGainsRef.current);
     fadeBgmTo(0, 2000);
     playSleepSound('/bgm/yado.mp3');
 
@@ -9990,14 +10563,85 @@ export default function App() {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
+  useEffect(() => {
+    if (!topSplashVisible) return;
+    const audio = new Audio('/se/top.wav');
+    audio.volume = getEffectiveVolume('/se/top.wav', seVolumeRef.current, audioGainsRef.current);
+    topSplashAudioRef.current = audio;
+    audio.play().catch(err => console.log('Top splash audio autoplay blocked', err));
+    return () => {
+      audio.pause();
+      audio.currentTime = 0;
+      if (topSplashAudioRef.current === audio) topSplashAudioRef.current = null;
+    };
+  }, [topSplashVisible]);
+
+  useEffect(() => {
+    const isTitleVisible = bootMode === 'title' && !topSplashVisible && !circleIntroVisible;
+    if (!isTitleVisible) {
+      if (titleRandomVoiceRef.current) {
+        titleRandomVoiceRef.current.pause();
+        titleRandomVoiceRef.current.currentTime = 0;
+        titleRandomVoiceRef.current = null;
+      }
+      return;
+    }
+    if (titleRandomVoicePlayedRef.current) return;
+
+    titleRandomVoicePlayedRef.current = true;
+    const voiceSrc = TITLE_RANDOM_VOICE_SRCS[Math.floor(Math.random() * TITLE_RANDOM_VOICE_SRCS.length)];
+    titleRandomVoiceRef.current = playVoiceSound(voiceSrc);
+  }, [bootMode, topSplashVisible, circleIntroVisible]);
+
+  const closeTopSplash = () => {
+    if (!topSplashVisible) return;
+    const audio = topSplashAudioRef.current;
+    if (audio) {
+      audio.pause();
+      audio.currentTime = 0;
+      topSplashAudioRef.current = null;
+    }
+    setTopSplashVisible(false);
+    setCircleIntroVisible(true);
+  };
+
+  const closeCircleIntro = () => {
+    if (!circleIntroVisible) return;
+    titleRandomVoicePlayedRef.current = false;
+    setCircleIntroVisible(false);
+  };
+
+  useEffect(() => {
+    if (!topSplashVisible) return;
+    const handleTopSplashKeyDown = (event: KeyboardEvent) => {
+      if (event.repeat) return;
+      event.preventDefault();
+      closeTopSplash();
+    };
+    window.addEventListener('keydown', handleTopSplashKeyDown, true);
+    return () => window.removeEventListener('keydown', handleTopSplashKeyDown, true);
+  }, [topSplashVisible]);
+
+  useEffect(() => {
+    if (!circleIntroVisible) return;
+    const handleCircleIntroKeyDown = (event: KeyboardEvent) => {
+      if (event.repeat) return;
+      event.preventDefault();
+      closeCircleIntro();
+    };
+    window.addEventListener('keydown', handleCircleIntroKeyDown, true);
+    return () => window.removeEventListener('keydown', handleCircleIntroKeyDown, true);
+  }, [circleIntroVisible]);
+
   // BGMの初期化と自動再生処理
   useEffect(() => {
     const audio = new Audio(TITLE_BGM_SRC);
     audio.loop = true;
-    audio.volume = getEffectiveVolume(TITLE_BGM_SRC, bgmVolume, audioGainsRef.current);
+    audio.volume = getBgmEffectiveVolume(TITLE_BGM_SRC, bgmVolume, audioGainsRef.current);
     bgmRef.current = audio;
 
     const startBgm = () => {
+      if (topSplashVisible || circleIntroVisible) return;
       audio.play().then(() => {
         bgmStartedRef.current = true;
         window.removeEventListener('click', startBgm);
@@ -10018,12 +10662,16 @@ export default function App() {
       window.removeEventListener('click', startBgm);
       window.removeEventListener('keydown', startBgm);
     };
-  }, []);
+  }, [topSplashVisible, circleIntroVisible]);
 
   // マップに応じてBGMを切り替える
   useEffect(() => {
     const audio = bgmRef.current;
     if (!audio) return;
+    if (prologueOpen) {
+      audio.pause();
+      return;
+    }
     if (battlePreviewOpen) return;
     if (fishingMiniGameOpen || wasFishingBgmActiveRef.current || loggingMiniGameOpen || wasLoggingBgmActiveRef.current || miningMiniGameOpen) return;
     if (activeAutoEventSpot) return;
@@ -10041,12 +10689,12 @@ export default function App() {
       : TITLE_BGM_SRC;
     if (bgmSourceRef.current === nextSource) return;
 
-    const shouldResume = bgmStartedRef.current && !audio.paused;
+    const shouldResume = bgmStartedRef.current;
     bgmSourceRef.current = nextSource;
     audio.pause();
     audio.src = nextSource;
     audio.loop = true;
-    audio.volume = getEffectiveVolume(nextSource, bgmVolume, audioGainsRef.current);
+    audio.volume = getBgmEffectiveVolume(nextSource, bgmVolume, audioGainsRef.current);
     audio.currentTime = 0;
 
     if (shouldResume) {
@@ -10056,7 +10704,7 @@ export default function App() {
         console.log("BGM switch autoplay blocked", err);
       });
     }
-  }, [bootMode, currentMap, bgmVolume, audioGains, mapBgmSources, kurumiShopOpen, kurumiIntroOpen, fishingTutorialOpen, fishingTutorialEndingOpen, sawCraftTutorialIntroOpen, sawCraftTutorialShedDialogueOpen, gatheringTutorialOpen, fishingMiniGameOpen, loggingMiniGameOpen, miningMiniGameOpen, battlePreviewOpen, activeAutoEventSpot]);
+  }, [bootMode, currentMap, bgmVolume, audioGains, mapBgmSources, kurumiShopOpen, kurumiIntroOpen, fishingTutorialOpen, fishingTutorialEndingOpen, sawCraftTutorialIntroOpen, sawCraftTutorialShedDialogueOpen, gatheringTutorialOpen, fishingMiniGameOpen, loggingMiniGameOpen, miningMiniGameOpen, battlePreviewOpen, activeAutoEventSpot, prologueOpen]);
 
   useEffect(() => {
     const audio = bgmRef.current;
@@ -10124,7 +10772,7 @@ export default function App() {
     if (fishingMiniGameOpen || wasFishingBgmActiveRef.current || loggingMiniGameOpen || wasLoggingBgmActiveRef.current || miningMiniGameOpen) return;
     if (activeAutoEventSpot) return;
     if (bgmRef.current && !bgmFadingRef.current) {
-      bgmRef.current.volume = getEffectiveVolume(bgmSourceRef.current, bgmVolume, audioGainsRef.current);
+      bgmRef.current.volume = getBgmEffectiveVolume(bgmSourceRef.current, bgmVolume, audioGainsRef.current);
     }
   }, [bgmVolume, audioGains, fishingMiniGameOpen, loggingMiniGameOpen, miningMiniGameOpen, battlePreviewOpen, activeAutoEventSpot]);
 
@@ -10388,6 +11036,40 @@ export default function App() {
       }
 
       if (bootMode !== 'playing') {
+        return;
+      }
+
+      // 確認ダイアログが開いている間は、背後のスキルツリーへキー入力を渡さない。
+      if (pendingSkillUnlockId) {
+        if (e.repeat) return;
+        if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+          e.preventDefault();
+          const nextChoice = e.key === 'ArrowLeft' ? 'yes' : 'no';
+          if (skillUnlockChoice !== nextChoice) playCursorSound();
+          setSkillUnlockChoice(nextChoice);
+          return;
+        }
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          playFixSound();
+          confirmHeroSkillUnlock();
+          return;
+        }
+        if (e.key === 'Escape') {
+          e.preventDefault();
+          playFixSound();
+          setPendingSkillUnlockId(null);
+          return;
+        }
+        return;
+      }
+
+      if (skillUnlockNotice || skillUnlockSparkles) {
+        if (e.key === 'Enter' || e.key === ' ' || e.key === 'Escape') {
+          e.preventDefault();
+          playFixSound();
+          setSkillUnlockNotice(null);
+        }
         return;
       }
 
@@ -10661,6 +11343,21 @@ export default function App() {
         return;
       }
 
+      if (seedAfterPlantTutorialOpen) {
+        if (e.repeat) return;
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          advanceSeedAfterPlantTutorial();
+          return;
+        }
+        if (e.key === 'Escape') {
+          e.preventDefault();
+          closeSeedAfterPlantTutorial();
+          return;
+        }
+        return;
+      }
+
       if (fishingTutorialEndingOpen) {
         if (e.repeat) return;
         if (e.key === 'Enter' || e.key === ' ') {
@@ -10724,6 +11421,21 @@ export default function App() {
         if (e.key === 'Escape') {
           e.preventDefault();
           closeKurumiIntro();
+          return;
+        }
+        return;
+      }
+
+      if (seedPlantTutorialOpen) {
+        if (e.repeat) return;
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          advanceSeedPlantTutorial();
+          return;
+        }
+        if (e.key === 'Escape') {
+          e.preventDefault();
+          closeSeedPlantTutorial();
           return;
         }
         return;
@@ -10938,6 +11650,7 @@ export default function App() {
         }
         const currentKurumi = zones.find(zone => (
           zone.type === 'kurumi' &&
+          !isOpeningWalkObjectiveActive &&
           !sawCraftTutorialReady &&
           (!zone.map || zone.map === currentMapRef.current) &&
           isAnimZoneVisibleAtTime(zone, timeOfDay)
@@ -11042,24 +11755,56 @@ export default function App() {
           }
 
           if (currentMenuItem.id === 'status') {
-            const skillNodesForKeys = HERO_SKILL_DATA
-              .filter(skill => !skill.isHidden || (
+            const categories = HERO_SKILL_CATEGORIES;
+            const activeCategory = selectedSkillCategoryRef.current;
+            const visibleSkills = getHeroSkillsByCategory(activeCategory).filter(skill => (
+              !skill.isHidden || (
                 heroLevel >= skill.requiredHeroLevel &&
                 skill.requiredSkillIds.every(requiredSkillId => unlockedHeroSkills.includes(requiredSkillId))
-              ))
-              .map(skill => skill.id);
-            const skillIndex = Math.max(0, skillNodesForKeys.indexOf(selectedSkillNameRef.current));
-            if (e.key === 'ArrowLeft' && skillIndex < 5) {
-              setMenuFocusArea('nav');
+              )
+            ));
+            if (menuContentFocusRef.current === 'primary') {
+              const categoryIndex = Math.max(0, categories.indexOf(activeCategory));
+              if (e.key === 'ArrowLeft') {
+                setMenuFocusArea('nav');
+                return;
+              }
+              if (e.key === 'ArrowRight') {
+                const firstSkill = visibleSkills[0];
+                if (firstSkill) setSelectedSkillName(firstSkill.id);
+                setMenuContentFocus('secondary');
+                return;
+              }
+              const nextCategory = categories[Math.max(0, Math.min(categories.length - 1, categoryIndex + (e.key === 'ArrowDown' ? 1 : -1)))];
+              setSelectedSkillCategory(nextCategory);
+              const firstSkill = getHeroSkillsByCategory(nextCategory).find(skill => !skill.isHidden);
+              if (firstSkill) setSelectedSkillName(firstSkill.id);
               return;
             }
-            setMenuContentFocus('primary');
-            setSelectedSkillName(skillNodesForKeys[moveGridIndex(skillIndex, e.key, 5, skillNodesForKeys.length)]);
+            if (e.key === 'ArrowLeft' && (getHeroSkillById(selectedSkillNameRef.current)?.treeColumn ?? 0) === 0) {
+              setMenuContentFocus('primary');
+              return;
+            }
+            const currentSkill = visibleSkills.find(skill => skill.id === selectedSkillNameRef.current) ?? visibleSkills[0];
+            if (!currentSkill) return;
+            const candidates = visibleSkills.filter(skill => {
+              if (skill.id === currentSkill.id) return false;
+              if (e.key === 'ArrowLeft') return skill.treeColumn < currentSkill.treeColumn;
+              if (e.key === 'ArrowRight') return skill.treeColumn > currentSkill.treeColumn;
+              if (e.key === 'ArrowUp') return skill.treeRow < currentSkill.treeRow;
+              return skill.treeRow > currentSkill.treeRow;
+            });
+            const nextSkill = candidates.sort((left, right) => {
+              const leftDistance = Math.abs(left.treeColumn - currentSkill.treeColumn) + Math.abs(left.treeRow - currentSkill.treeRow);
+              const rightDistance = Math.abs(right.treeColumn - currentSkill.treeColumn) + Math.abs(right.treeRow - currentSkill.treeRow);
+              return leftDistance - rightDistance;
+            })[0];
+            if (nextSkill) setSelectedSkillName(nextSkill.id);
             return;
           }
 
           if (currentMenuItem.id === 'zukan') {
-            const filters = ['通常', '魚', '妊娠', 'レアリティ', '未入手'];
+            const filters = ['苗娘', '魚'];
             const filterIndex = Math.max(0, filters.indexOf(zukanFilterRef.current));
             if (menuContentFocusRef.current === 'primary') {
               if (e.key === 'ArrowLeft' && filterIndex === 0) {
@@ -11075,7 +11820,7 @@ export default function App() {
             }
 
             const currentIndex = selectedZukanIndexRef.current;
-            const zukanLength = zukanFilterRef.current === '魚' ? FISH_ZUKAN_ENTRIES.length : 15;
+            const zukanLength = zukanFilterRef.current === '魚' ? FISH_ZUKAN_ENTRIES.length : 20;
             const zukanColumnCount = 5;
             if (e.key === 'ArrowUp' && currentIndex < zukanColumnCount) {
               setMenuContentFocus('primary');
@@ -11120,7 +11865,8 @@ export default function App() {
           }
 
           if (currentMenuItem.id === 'equipment') {
-            const equipmentLabels = ['主人公', 'ちびいち'];
+            const companionEquipmentLabel = companionGirlId ? GIRL_DATA.find(girl => girl.id === companionGirlId)?.girlName : undefined;
+            const equipmentLabels = ['主人公', ...(companionEquipmentLabel ? [companionEquipmentLabel] : [])];
             const currentIndex = Math.max(0, equipmentLabels.findIndex(label => selectedEquipmentSlotRef.current.startsWith(label)));
             const slotCounts: Record<string, number> = { '主人公': 4, 'ちびいち': 2 };
             const currentLabel = equipmentLabels[currentIndex];
@@ -11209,31 +11955,20 @@ export default function App() {
           }
 
           if (currentMenuItem.id === 'farm') {
-            const facilityCount = 8;
-            if (menuContentFocusRef.current === 'primary') {
-              const currentIndex = selectedFarmFacilityIndexRef.current;
-              if (e.key === 'ArrowLeft') {
-                setMenuFocusArea('nav');
-              } else if (e.key === 'ArrowRight') {
-                setMenuContentFocus('secondary');
-              } else if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
-                setSelectedFarmFacilityIndex(Math.max(0, Math.min(facilityCount - 1, currentIndex + (e.key === 'ArrowDown' ? 1 : -1))));
-              }
-              return;
-            }
-
             const currentIndex = selectedFarmGirlIndexRef.current;
-            if (e.key === 'ArrowLeft' && currentIndex % 5 === 0) {
-              setMenuContentFocus('primary');
+            const farmGirlColumnCount = 5;
+            if (e.key === 'ArrowLeft' && currentIndex % farmGirlColumnCount === 0) {
+              setMenuFocusArea('nav');
               return;
             }
-            setSelectedFarmGirlIndex(moveGridIndex(currentIndex, e.key, 5, 15));
+            setMenuContentFocus('secondary');
+            setSelectedFarmGirlIndex(moveGridIndex(currentIndex, e.key, farmGirlColumnCount, menuGirls.length));
             return;
           }
 
           if (currentMenuItem.id === 'zukan') {
             const currentIndex = selectedZukanIndexRef.current;
-            const zukanLength = zukanFilterRef.current === '魚' ? FISH_ZUKAN_ENTRIES.length : 15;
+            const zukanLength = zukanFilterRef.current === '魚' ? FISH_ZUKAN_ENTRIES.length : 20;
             const zukanColumnCount = 5;
             if (e.key === 'ArrowLeft' && currentIndex % zukanColumnCount === 0) {
               setMenuFocusArea('nav');
@@ -11266,7 +12001,8 @@ export default function App() {
               return currentItems[(currentIndex + moveBy + currentItems.length) % currentItems.length];
             });
           } else if (currentMenuItem.id === 'equipment') {
-            const equipmentLabels = ['主人公', 'ちびいち'];
+            const companionEquipmentLabel = companionGirlId ? GIRL_DATA.find(girl => girl.id === companionGirlId)?.girlName : undefined;
+            const equipmentLabels = ['主人公', ...(companionEquipmentLabel ? [companionEquipmentLabel] : [])];
             const currentIndex = Math.max(0, equipmentLabels.findIndex(label => selectedEquipmentSlotRef.current.startsWith(label)));
             const nextLabel = equipmentLabels[(currentIndex + moveBy + equipmentLabels.length) % equipmentLabels.length];
             setSelectedEquipmentSlot(`${nextLabel}-slot1`);
@@ -11275,7 +12011,7 @@ export default function App() {
           } else if (currentMenuItem.id === 'farm') {
             setSelectedFarmGirlIndex(prev => (prev + moveBy + 15) % 15);
           } else if (currentMenuItem.id === 'zukan') {
-            const zukanLength = zukanFilterRef.current === '魚' ? FISH_ZUKAN_ENTRIES.length : 15;
+            const zukanLength = zukanFilterRef.current === '魚' ? FISH_ZUKAN_ENTRIES.length : 20;
             setSelectedZukanIndex(prev => (prev + moveBy + zukanLength) % zukanLength);
           } else if (currentMenuItem.id === 'system') {
             const actions = ['セーブ', 'ロード', 'タイトルへ戻る'];
@@ -11287,27 +12023,10 @@ export default function App() {
           e.preventDefault();
           playFixSound();
           if (currentMenuItem.id === 'farm') {
-            if (menuContentFocusRef.current === 'primary') {
-              const farmInfoItems = [
-                ['現在金利', formatInterestRate(currentWeeklyInterestRate)],
-                ['農場信用度', `${farmCredit}`],
-                ['信用補正', `-${formatInterestRate(farmCreditInterestDiscount)}`],
-                ['返済遅延補正', `+${formatInterestRate(missedRepaymentPenalty)}`],
-                ['次回返済まで', `あと${daysUntilRepayment}日`],
-                ['借金残額', `¥${debtAmount.toLocaleString()}`],
-                ['経過日数', `${currentDay} 日`],
-                ['設備', '柵 Lv1'],
-                ['設備', '電気柵 未設置'],
-                ['設備', '箱罠 x2'],
-              ];
-              const selectedInfo = farmInfoItems[selectedFarmFacilityIndexRef.current];
-              if (selectedInfo) setDialogMessage(`${selectedInfo[0]}: ${selectedInfo[1]}`);
-            } else {
-              const selectedName = menuGirls[selectedFarmGirlIndexRef.current]?.name;
-              if (selectedName) {
-                setFarmGirlDetailOpen(true);
-                setDialogMessage(`${selectedName}の詳細情報を表示しました。`);
-              }
+            const selectedName = menuGirls[selectedFarmGirlIndexRef.current]?.name;
+            if (selectedName) {
+              setFarmGirlDetailOpen(true);
+              setDialogMessage(`${selectedName}の詳細情報を表示しました。`);
             }
           } else if (currentMenuItem.id === 'item') {
             if (craftRecipeSelectMode && itemMenuTabRef.current === 'だいじなもの') {
@@ -11322,7 +12041,8 @@ export default function App() {
               setEquipmentActionOpen(true);
               return;
             }
-            const equipmentLabels = ['主人公', 'ちびいち'];
+            const companionEquipmentLabel = companionGirlId ? GIRL_DATA.find(girl => girl.id === companionGirlId)?.girlName : undefined;
+            const equipmentLabels = ['主人公', ...(companionEquipmentLabel ? [companionEquipmentLabel] : [])];
             const currentIndex = Math.max(0, equipmentLabels.findIndex(label => selectedEquipmentSlotRef.current.startsWith(label)));
             const currentLabel = equipmentLabels[currentIndex];
             const currentSlotMatch = /slot(\d+)$/.exec(selectedEquipmentSlotRef.current);
@@ -11359,7 +12079,13 @@ export default function App() {
               setDialogMessage('装備できるアイテムがありません。');
             }
           } else if (currentMenuItem.id === 'status') {
-            setDialogMessage(`${selectedSkillNameRef.current}を確認しました。`);
+            if (menuContentFocusRef.current === 'primary') {
+              const firstSkill = getHeroSkillsByCategory(selectedSkillCategoryRef.current)[0];
+              if (firstSkill) setSelectedSkillName(firstSkill.id);
+              setMenuContentFocus('secondary');
+            } else {
+              requestHeroSkillUnlock(selectedSkillNameRef.current);
+            }
           } else if (currentMenuItem.id === 'zukan') {
             if (zukanFilterRef.current === '魚') {
               const fish = FISH_ZUKAN_ENTRIES[selectedZukanIndexRef.current];
@@ -11750,20 +12476,42 @@ export default function App() {
         if (canWarp) {
           const currentDoors = doorsRef.current.filter(d => d.map === currentMapRef.current);
           for (const d of currentDoors) {
-             // プレイヤーの足元の衝突判定矩形（[x - 15, x + 15] x [y - 10, y]）と扉の矩形（[d.x, d.x + d.w] x [d.y, d.y + d.h]）の交差判定を行います。
-             // これにより、扉の手前に衝突判定の壁があっても、プレイヤーが少し重なるだけでワープできるようになります。
-             const pLeft = nx - 15;
-             const pRight = nx + 15;
-             const pTop = ny - 10;
-             const pBottom = ny;
-             
-             if (pRight >= d.x && pLeft <= d.x + d.w && pBottom >= d.y && pTop <= d.y + d.h) {
+             // 扉は足元の中心点だけで判定する。矩形の重なり判定だと、
+             // 扉の横や壁越しで端だけ触れた時にもワープしてしまう。
+             const footX = nx;
+             const footY = ny;
+             const hasValidDoorSize = d.w > 0 && d.h > 0;
+
+             if (
+                hasValidDoorSize &&
+                footX >= d.x &&
+                footX <= d.x + d.w &&
+                footY >= d.y &&
+                footY <= d.y + d.h
+             ) {
                 lastWarpedAtRef.current = performance.now();
                 playDoorSound();
                 setCurrentMap(d.targetMap);
                 currentMapRef.current = d.targetMap; // 即座にRefも更新し、次フレームの判定ズレを防ぐ
                 currentX = d.spawnX;
                 currentY = d.spawnY;
+                setOpeningMapTransitionCount(prev => {
+                  if (
+                    bootMode === 'playing' &&
+                    currentDay === 1 &&
+                    kurumiIntroCompletedDay === null &&
+                    nextObjective === OPENING_WALK_OBJECTIVE &&
+                    prev < OPENING_MAP_TRANSITIONS_BEFORE_KURUMI
+                  ) {
+                    const nextCount = prev + 1;
+                    if (nextCount >= OPENING_MAP_TRANSITIONS_BEFORE_KURUMI) {
+                      setNextObjective(KURUMI_INTRO_OBJECTIVE);
+                      setDialogMessage(KURUMI_INTRO_OBJECTIVE);
+                    }
+                    return nextCount;
+                  }
+                  return prev;
+                });
                 clickTargetRef.current = null; // ワープ後はクリック移動キャンセル
                 setClickTargetMarker(null);
                 warped = true;
@@ -11881,10 +12629,13 @@ export default function App() {
         currentY >= point.y &&
         currentY - 34 <= point.y + point.h
       ));
+      const hasEquippedSaw = ['主人公-slot2', '主人公-slot3'].some(slotId => (
+        equippedItemsRef.current[slotId]?.includes('のこぎり')
+      ));
       if (!touchedLoggingPoint) {
         setActiveLoggingPointId(null);
         loggingPromptBlockedRef.current = false;
-      } else if (!loggingPromptBlockedRef.current && !loggingPromptVisible && !isInBed && !isInWorkbench && !isInFishingPoint && !isAPActionExhausted) {
+      } else if (!loggingPromptBlockedRef.current && !loggingPromptVisible && !isInBed && !isInWorkbench && !isInFishingPoint && hasEquippedSaw && !isAPActionExhausted) {
         moved = false;
         clickTargetRef.current = null;
         setClickTargetMarker(null);
@@ -11942,7 +12693,7 @@ export default function App() {
       window.removeEventListener('keydown', handleKeyDown); window.removeEventListener('keyup', handleKeyUp);
       cancelAnimationFrame(animationFrameId);
     };
-  }, [setupMode, bedTiles, workbenchTiles, fishingTiles, miningTiles, depletedMiningPointIds, activeMiningPointId, loggingTiles, activeLoggingPoints, activeLoggingPointId, sleepPromptVisible, craftPromptVisible, fishingPromptVisible, miningPromptVisible, loggingPromptVisible, confirmPromptChoice, pendingDeleteSaveSlot, pendingOverwriteSaveSlot, activeAutoEventSpot, activeAutoEventMessage, activeAutoEventMessageIndex, activeAutoEventMessages, displayedAutoEventMessage, turn, currentAP, kurumiShopOpen, kurumiIntroOpen, kurumiIntroSelectedIndex, kurumiIntroAskedTopics, kurumiIntroCompletedDay, selectedShopControl, selectedShopItemIndex, shopItems, gold, equipmentActionOpen, equippedItems, inventoryCounts, caughtFishIds, fishingMiniGameOpen, fishingMiniGameStage, miningMiniGameOpen, isFishingResultInputLocked, fishingTutorialOpen, fishingTutorialEndingOpen, fishingTutorialEndingStepIndex, sawCraftTutorialIntroOpen, sawCraftTutorialIntroStepIndex, sawCraftTutorialReady, sawCraftTutorialShedDialogueOpen, sawCraftTutorialWorkbenchReady, selectedFishingTutorialAction, selectedFishingResultAction, recipeDetailOpen, farmGirlDetailOpen, bootMode, timeOfDay, battlePreviewOpen, battlePreviewState, battleIntroPhase, battleItemPanelOpen, battleItemSelectionStep, selectedBattleCommandIndex, selectedBattleItemIndex, selectedBattleItemTargetIndex]);
+  }, [setupMode, bedTiles, workbenchTiles, fishingTiles, miningTiles, depletedMiningPointIds, activeMiningPointId, loggingTiles, activeLoggingPoints, activeLoggingPointId, sleepPromptVisible, craftPromptVisible, fishingPromptVisible, miningPromptVisible, loggingPromptVisible, confirmPromptChoice, pendingDeleteSaveSlot, pendingOverwriteSaveSlot, activeAutoEventSpot, activeAutoEventMessage, activeAutoEventMessageIndex, activeAutoEventMessages, displayedAutoEventMessage, turn, currentAP, kurumiShopOpen, kurumiIntroOpen, kurumiIntroSelectedIndex, kurumiIntroAskedTopics, kurumiIntroCompletedDay, seedPlantTutorialOpen, seedPlantTutorialStepIndex, seedAfterPlantTutorialOpen, seedAfterPlantTutorialStepIndex, selectedShopControl, selectedShopItemIndex, shopItems, gold, equipmentActionOpen, equippedItems, inventoryCounts, caughtFishIds, fishingMiniGameOpen, fishingMiniGameStage, miningMiniGameOpen, isFishingResultInputLocked, fishingTutorialOpen, fishingTutorialEndingOpen, fishingTutorialEndingStepIndex, sawCraftTutorialIntroOpen, sawCraftTutorialIntroStepIndex, sawCraftTutorialReady, sawCraftTutorialShedDialogueOpen, sawCraftTutorialWorkbenchReady, selectedFishingTutorialAction, selectedFishingResultAction, recipeDetailOpen, farmGirlDetailOpen, bootMode, timeOfDay, isOpeningWalkObjectiveActive, currentDay, nextObjective, battlePreviewOpen, battlePreviewState, battleIntroPhase, battleItemPanelOpen, battleItemSelectionStep, selectedBattleCommandIndex, selectedBattleItemIndex, selectedBattleItemTargetIndex]);
 
   // Zone creation states
   const [dragStart, setDragStart] = useState<{ x: number, y: number } | null>(null);
@@ -12859,6 +13610,41 @@ export default function App() {
     <div className="min-h-screen bg-[#111] flex items-center justify-center p-4 py-8 overflow-hidden select-none" style={{ fontFamily: '"DotGothic16", sans-serif' }}>
       <div style={{ width: 1920 * scale, height: 1156 * scale, position: 'relative' }}>
         <div className="w-[1920px] bg-[#9bb869] border-[8px] border-[#222] rounded-md flex flex-col relative overflow-hidden shadow-2xl" style={{ height: '1156px', transform: `scale(${scale})`, transformOrigin: 'top left' }}>
+          {topSplashVisible && (
+            <button
+              type="button"
+              aria-label="トップ画面を閉じてタイトルへ進む"
+              onPointerDown={(event) => {
+                event.preventDefault();
+                closeTopSplash();
+              }}
+              className="absolute inset-0 z-[500] cursor-pointer bg-black p-0"
+            >
+              <img src="/img/top.jpg" alt="" className="h-full w-full object-cover" />
+            </button>
+          )}
+          {circleIntroVisible && (
+            <button
+              type="button"
+              aria-label="イントロ動画をスキップしてタイトルへ進む"
+              onPointerDown={(event) => {
+                event.preventDefault();
+                closeCircleIntro();
+              }}
+              className="absolute inset-0 z-[500] cursor-pointer bg-black p-0"
+            >
+              <video
+                src={CIRCLE_INTRO_VIDEO_SRC}
+                className="h-full w-full object-cover"
+                autoPlay
+                playsInline
+                onLoadedMetadata={(event) => {
+                  event.currentTarget.volume = DEFAULT_MASTER_VOLUME;
+                }}
+                onEnded={closeCircleIntro}
+              />
+            </button>
+          )}
           {bootMode !== 'playing' && (
             <div className="absolute inset-0 z-[300] flex items-center justify-center bg-black">
               <div className="relative aspect-[1672/941] w-full max-h-full overflow-hidden bg-black">
@@ -13178,53 +13964,61 @@ export default function App() {
           )}
 	          
 	        {/* Header UI */}
-        <div className="h-[74px] bg-[#2d1b15] border-b-[4px] border-[#bc6c25] flex items-center justify-between px-6 z-40 text-[#fdf6e3]">
-          <div className="flex flex-col gap-1">
-            <div className="flex flex-wrap items-center gap-x-8 gap-y-1 text-lg">
-              <span className="flex items-center gap-2">
-                <span className="text-[#a3b18a] text-sm mt-1">DAY</span> 
-                {currentDay}日目
+        <div className="h-[74px] bg-[#2d1b15] border-b-[4px] border-[#bc6c25] flex items-center px-5 z-40 text-[#fdf6e3]">
+          <div className="flex min-w-0 flex-1 items-center gap-4 overflow-hidden text-lg font-black">
+            <span className="flex shrink-0 items-baseline gap-1.5">
+              <span className="text-sm text-[#a3b18a]">DAY</span>
+              <span className="text-2xl">{currentDay}日目</span>
+            </span>
+            <span className="flex shrink-0 items-baseline gap-1.5 text-[#f4a261]">
+              <span className="text-sm text-[#fdf6e3]">TIME</span>
+              <span className="text-2xl">{timeLabels[timeOfDay]}</span>
+            </span>
+            <span className="flex shrink-0 items-baseline gap-1.5 text-[#a3b18a]">
+              <span className="text-sm text-[#fdf6e3]">AP</span>
+              <span className="text-2xl">{actionCountLabel}</span>
+            </span>
+            <span className="flex shrink-0 items-baseline gap-1.5 text-[#dda15e]">
+              <span className="text-sm text-[#fdf6e3]">GOLD</span>
+              <span className="text-2xl">{gold.toLocaleString()} G</span>
+            </span>
+            {isEndlessNurseryMode() ? (
+              <span className="shrink-0 rounded border border-[#f4c7ff]/55 bg-[#421a4d]/65 px-2.5 py-1 text-base text-[#f4c7ff]">借金なし / 返済なし</span>
+            ) : (
+              <span className="shrink-0 rounded border border-[#ffdd99]/45 bg-[#3a2508]/70 px-2.5 py-1 text-base text-[#ffdd99]">
+                借金 ¥{debtAmount.toLocaleString()} / 返済まであと{daysUntilRepayment}日
               </span>
-              <span className="flex items-center gap-2 text-[#f4a261]">
-                <span className="text-[#fdf6e3] text-sm mt-1">TIME</span> 
-                {timeLabels[timeOfDay]}
+            )}
+            <span className="shrink-0 text-base text-[#a5d8ff]">同行：{companionGirlName ?? 'なし'}</span>
+            <span className="flex shrink-0 items-center gap-1.5" aria-label={`主人公成長度 ${heroLevel} / ${MAX_HERO_LEVEL}、SP ${heroSP}`}>
+              <span className="text-xl tracking-tight">
+                {getHeroStarDisplay(heroLevel).map((isUnlocked, starIndex) => (
+                  <span key={starIndex} className={isUnlocked ? 'text-[#ffd45a]' : 'text-[#6b7280]'}>★</span>
+                ))}
               </span>
-              <span className="flex items-center gap-2 text-[#a3b18a]">
-                <span className="text-[#fdf6e3] text-sm mt-1">AP</span> {actionCountLabel}
+              <span className="text-sm font-bold text-[#d8c4a5]">SP:{heroSP}</span>
+            </span>
+            {hudObjective && (
+              <span className="min-w-0 flex-1 truncate rounded border border-[#ffd166]/80 bg-[#4a310b]/88 px-3 py-1.5 text-base text-[#fff1a8] shadow-[0_0_14px_rgba(255,209,102,0.22)]">
+                NEXT　{hudObjective}
               </span>
-              <span className="flex items-center gap-2 text-[#dda15e]">
-                <span className="text-[#fdf6e3] text-sm mt-1">GOLD</span> {gold.toLocaleString()} G
+            )}
+            {hasBeastPremonition && (
+              <span className="shrink-0 text-base text-[#ffd166] drop-shadow-[0_0_8px_rgba(255,209,102,0.45)]">
+                {mountainLordAttackPending ? '⚠ 巨大な気配' : '⚠ 獣の気配'}
               </span>
-              <span className="flex flex-col leading-none" aria-label={`主人公成長度 ${heroLevel} / ${MAX_HERO_LEVEL}、SP ${heroSP}`}>
-                <span className="text-base tracking-tight">
-                  {getHeroStarDisplay(heroLevel).map((isUnlocked, starIndex) => (
-                    <span key={starIndex} className={isUnlocked ? 'text-[#ffd45a]' : 'text-[#6b7280]'}>★</span>
-                  ))}
-                </span>
-                <span className="mt-1 text-xs font-bold text-[#d8c4a5]">SP：{heroSP}</span>
-              </span>
-            </div>
-            <div className="flex flex-wrap items-center gap-x-8 gap-y-1 text-sm font-bold">
-              {isEndlessNurseryMode() ? (
-                <>
-                  <span className="text-[#f4c7ff]">借金：なし</span>
-                  <span className="text-[#f4c7ff]">返済：なし</span>
-                </>
-              ) : (
-                <>
-                  <span className="text-[#ffdd99]">借金：¥{debtAmount.toLocaleString()}</span>
-                  <span className="text-[#fdf6e3]">返済まで：あと{daysUntilRepayment}日</span>
-                </>
-              )}
-              <span className="text-[#a5d8ff]">同行：{companionGirlName ?? 'なし'}</span>
-              {hasBeastPremonition && (
-                <span className="text-[#ffd166] drop-shadow-[0_0_8px_rgba(255,209,102,0.45)]">
-                  {mountainLordAttackPending ? '⚠ これまでの獣とは違う、巨大な気配がある' : '⚠ 獣が近くにいる気配がする'}
-                </span>
-              )}
-            </div>
+            )}
           </div>
-          <div className="flex flex-wrap items-center justify-end gap-2">
+        </div>
+
+        {bootMode === 'playing' && (
+          <div className="absolute right-4 top-[84px] z-[45] flex flex-wrap items-center justify-end gap-2 text-[#fdf6e3]">
+             <button
+               onClick={openBattlePreview}
+               className="px-3 py-1 text-sm border-2 bg-[#5a3010] border-[#dda15e] text-[#fdf6e3] hover:bg-[#7a4317] shadow-sm font-bold cursor-pointer"
+             >
+               ⚔️ 戦闘テスト
+             </button>
              <label className="flex items-center gap-1 text-xs font-bold text-[#fdf6e3]">
                敵
                <select
@@ -13256,12 +14050,6 @@ export default function App() {
                  ))}
                </select>
              </label>
-             <button
-               onClick={openBattlePreview}
-               className="px-3 py-1 text-sm border-2 bg-[#5a3010] border-[#dda15e] text-[#fdf6e3] hover:bg-[#7a4317] shadow-sm font-bold cursor-pointer"
-             >
-               ⚔️ 戦闘テスト
-             </button>
              <button onClick={() => setSetupMode(setupMode === 'animation' ? 'none' : 'animation')} className={`px-3 py-1 text-sm border-2 ${setupMode === 'animation' ? 'bg-[#bc6c25] border-white' : 'bg-[#4a5823] border-[#a3b18a]'} shadow-sm`}>
                🎬 アニメ領域設定
              </button>
@@ -13287,7 +14075,7 @@ export default function App() {
                🚪 扉設定
              </button>
           </div>
-        </div>
+        )}
 
         {/* Map */}
         <div 
@@ -13364,7 +14152,7 @@ export default function App() {
                        : `成長中 ${farmGirl?.growthProgress ?? 0}/${crop?.growthDays ?? '?'}日`;
                     const actualSlotName = slot.state === 'appeared'
                        ? girl?.girlName ?? '娘'
-                       : seed?.seedName ?? '娘苗';
+                       : seed?.seedName ?? '苗娘';
                     const slotName = actualSlotName;
                     const isNtr = farmGirl?.condition === 'affected';
                     const isCompanion = companionGirlId === slot.girlId;
@@ -13525,6 +14313,7 @@ export default function App() {
               zones={zones.filter(z => (
                  (!z.map || z.map === currentMap) &&
                  isAnimZoneVisibleAtTime(z, timeOfDay) &&
+                 !(isOpeningWalkObjectiveActive && z.type === 'kurumi') &&
                  !(shouldShowFishingTutorialKurumi && z.type === 'kurumi') &&
                  !(sawCraftTutorialReady && z.type === 'kurumi')
               ))} 
@@ -14643,7 +15432,16 @@ export default function App() {
 
                   <div className="grid min-h-0 flex-1 grid-cols-[260px_1fr]">
                     {/* メニューアイテムリスト */}
-                    <div style={{ padding: '14px 10px', borderRight: '1px solid rgba(255,221,166,0.14)', background: 'rgba(8, 8, 8, 0.16)' }}>
+                    <div
+                      style={{
+                        padding: '14px 10px 14px 16px',
+                        borderRight: '1px solid rgba(255,221,166,0.14)',
+                        background: 'rgba(8, 8, 8, 0.16)',
+                        ...menuKeyboardFocusStyle(menuFocusArea === 'nav'),
+                        // 外側に出した outline は親の overflow: hidden で左辺が切れるため、左メニューでは内側に描画する。
+                        outlineOffset: menuFocusArea === 'nav' ? '-3px' : undefined,
+                      }}
+                    >
                       {MENU_ITEMS.map((item, idx) => {
                         const isSelected = menuSelectedIndex === idx;
                         return (
@@ -16137,6 +16935,42 @@ export default function App() {
            </div>
         )}
 
+        {seedAfterPlantTutorialOpen && (
+           <div className="absolute inset-0 z-[88] flex items-center justify-center bg-black/55 px-8">
+              <div className="grid h-[690px] w-[1120px] grid-cols-[1fr_390px] overflow-hidden rounded-2xl border-[4px] border-[#ffd166] bg-[#1a100d]/96 text-[#fdf6e3] shadow-2xl">
+                 <div className="flex min-h-0 flex-col gap-4 p-8">
+                    <div>
+                       <div className="text-sm font-bold tracking-[0.28em] text-[#ffd166]">SEED CHECK</div>
+                       <div className="mt-2 text-3xl font-black">植えた苗娘を見てみよう</div>
+                    </div>
+                    <div className="min-h-[260px] flex-1 whitespace-pre-line rounded-xl border-2 border-[#bc6c25]/70 bg-[#2d1b15]/85 p-5 text-[21px] font-bold leading-[1.48]">
+                       くるみ
+                       {'\n'}「{getDebugDialogueMessage(currentSeedAfterPlantTutorialStep.debugKey, currentSeedAfterPlantTutorialStep.message)}」
+                    </div>
+                    <div className="flex items-center justify-between gap-4">
+                       <div className="text-sm font-bold text-[#c8a87a]">
+                          {seedAfterPlantTutorialStepIndex + 1} / {SEED_AFTER_PLANT_TUTORIAL_STEPS.length}
+                       </div>
+                       <button
+                          type="button"
+                          onClick={advanceSeedAfterPlantTutorial}
+                          className="rounded-lg border-2 border-[#fff3b0] bg-[#9a5a1d] px-7 py-2 text-sm font-black text-white shadow-[0_0_18px_rgba(255,209,102,0.55)] transition hover:bg-[#b45309]"
+                       >
+                          {seedAfterPlantTutorialStepIndex >= SEED_AFTER_PLANT_TUTORIAL_STEPS.length - 1 ? 'おわり' : '次へ'}
+                       </button>
+                    </div>
+                 </div>
+                 <div className="relative border-l border-[#ffd166]/45 bg-gradient-to-b from-[#3b2418] to-[#160d0a]">
+                    <div className="absolute left-8 right-8 top-8 z-10 rounded-2xl border-2 border-[#f1c27d]/80 bg-[#fdf6e3]/95 px-6 py-4 text-[#2d1b15] shadow-xl">
+                       <div className="text-2xl font-black tracking-wide">くるみ</div>
+                       <div className="mt-1 text-[19px] font-bold leading-snug">畑の見方を覚えよっ！</div>
+                    </div>
+                    {renderSeedAfterPlantTutorialVisual()}
+                 </div>
+              </div>
+           </div>
+        )}
+
         {fishingTutorialEndingOpen && (
            <div className="absolute inset-0 z-[88] flex items-center justify-center bg-black/55 px-8">
               <div className="grid h-[620px] w-[1080px] grid-cols-[1fr_380px] overflow-hidden rounded-2xl border-[4px] border-[#dda15e] bg-[#1a100d]/96 text-[#fdf6e3] shadow-2xl">
@@ -16313,6 +17147,53 @@ export default function App() {
                        src="/img/kurumi.png"
                        alt="くるみ"
                        className="absolute inset-x-0 bottom-0 mx-auto h-[610px] w-[500px] object-contain object-bottom drop-shadow-[0_28px_32px_rgba(0,0,0,0.6)]"
+                    />
+                 </div>
+              </div>
+           </div>
+        )}
+
+        {seedPlantTutorialOpen && (
+           <div className="absolute inset-0 z-[90] flex items-center justify-center bg-black/58 px-8">
+              <div className="grid h-[620px] w-[980px] grid-cols-[1fr_360px] overflow-hidden rounded-2xl border-[4px] border-[#ffd166] bg-[#1a100d]/97 text-[#fdf6e3] shadow-2xl">
+                 <div className="flex min-h-0 flex-col p-8">
+                    <div className="text-sm font-bold tracking-[0.28em] text-[#86efac]">SEED TUTORIAL</div>
+                    <div className="mt-2 text-3xl font-black text-[#fff3b0]">苗娘を植えてみよう</div>
+                    <div className="mt-6 flex-1 whitespace-pre-line rounded-xl border-2 border-[#bc6c25]/70 bg-[#2d1b15]/82 p-6 text-[22px] font-black leading-[1.65]">
+                       {SEED_PLANT_TUTORIAL_STEPS[seedPlantTutorialStepIndex]}
+                    </div>
+                    {seedPlantTutorialStepIndex === 0 && (
+                       <div className="mt-4 grid grid-cols-3 gap-3 text-center text-base font-black text-[#fff7dc]">
+                          {INITIAL_OWNED_GIRL_SEEDS.map(seedId => {
+                             const seed = GIRL_SEED_ACQUISITION_DATA.find(entry => entry.seedId === seedId);
+                             return (
+                                <div key={seedId} className="rounded-xl border-2 border-[#ffd166]/65 bg-[#4a310b]/85 px-3 py-3">
+                                   {seed?.seedName ?? seedId}
+                                </div>
+                             );
+                          })}
+                       </div>
+                    )}
+                    <div className="mt-6 flex items-center justify-between">
+                       <div className="text-sm font-bold text-[#c8a87a]">{seedPlantTutorialStepIndex + 1} / {SEED_PLANT_TUTORIAL_STEPS.length}</div>
+                       <button
+                          type="button"
+                          onClick={advanceSeedPlantTutorial}
+                          className="rounded-xl border-2 border-[#fff3b0] bg-[#9a5a1d] px-8 py-3 text-lg font-black text-white shadow-[0_0_18px_rgba(255,209,102,0.35)] transition hover:bg-[#b45309]"
+                       >
+                          {seedPlantTutorialStepIndex >= SEED_PLANT_TUTORIAL_STEPS.length - 1 ? '植えに行く' : '次へ'}
+                       </button>
+                    </div>
+                 </div>
+                 <div className="relative border-l border-[#bc6c25]/60 bg-gradient-to-b from-[#3b2418] to-[#160d0a]">
+                    <div className="absolute left-7 right-7 top-8 z-10 rounded-2xl border-2 border-[#f1c27d]/80 bg-[#fdf6e3]/95 px-5 py-4 text-[#2d1b15] shadow-xl">
+                       <div className="text-2xl font-black tracking-wide">くるみ</div>
+                       <div className="mt-1 text-[18px] font-bold leading-snug">まずは苗娘を植えてみよう！</div>
+                    </div>
+                    <img
+                       src="/img/kurumi.png"
+                       alt="くるみ"
+                       className="absolute inset-x-0 bottom-0 mx-auto h-[520px] w-[390px] object-contain object-bottom drop-shadow-[0_28px_32px_rgba(0,0,0,0.6)]"
                     />
                  </div>
               </div>
@@ -16901,10 +17782,10 @@ export default function App() {
           const title = farmSlotInteractionStage === 'confirmHarvest'
             ? '収穫しますか？'
             : farmSlotInteractionStage === 'confirmPlant'
-              ? '娘苗を植える？'
+              ? '苗娘を植える？'
               : farmSlotInteractionStage === 'confirmSeed'
-                ? `${pendingSeed?.seedName ?? '娘苗'}を植えますか？`
-                : '植える娘苗を選んでください';
+                ? `${pendingSeed?.seedName ?? '苗娘'}を植えますか？`
+                : '植える苗娘を選んでください';
           const confirmAction = (choice: 'yes' | 'no') => {
             if (choice === 'no') {
               closeFarmSlotInteraction();
@@ -17009,6 +17890,8 @@ export default function App() {
            debugPanelPos={debugPanelPos}
            handleDebugDragStart={handleDebugDragStart}
            setTurn={setTurn}
+           heroSP={heroSP}
+           setHeroSP={setHeroSP}
            onStartMiningMiniGameTest={(bgmSource) => {
              setMenuOpen(false);
              menuOpenRef.current = false;
@@ -17291,6 +18174,87 @@ export default function App() {
               </div>
            </div>
         , document.body)}
+        {prologueOpen && createPortal(
+          <div className="fixed inset-0 z-[10100] flex items-center justify-center overflow-hidden bg-black px-6 py-8 text-[#3b2212]">
+            <div
+              className="absolute inset-0 bg-cover bg-center"
+              style={{ backgroundImage: 'url(/img/jiihaikei.jpg)' }}
+              aria-hidden="true"
+            />
+            {prologueRingReveal ? (
+              <button
+                type="button"
+                onClick={advancePrologue}
+                disabled={!prologueRingRevealReady}
+                className={`relative h-full w-full max-w-[1120px] transition-opacity duration-1000 ${prologueRingRevealReady ? 'cursor-pointer opacity-100' : 'cursor-wait opacity-100'}`}
+                aria-label={prologueRingRevealReady ? '指輪と家の鍵の演出を閉じる' : '指輪と家の鍵の演出'}
+              >
+                <span className="prologue-image-frame absolute left-1/2 top-1/2 block w-[min(92vw,1120px)] -translate-x-1/2 -translate-y-1/2 opacity-0 transition-opacity duration-1000">
+                  <img
+                    src="/img/yubiwa.jpg"
+                    alt="古びた農神の指輪と家の鍵"
+                    className="block max-h-[86vh] w-full object-contain"
+                    ref={image => {
+                      if (image) requestAnimationFrame(() => image.parentElement?.classList.replace('opacity-0', 'opacity-100'));
+                    }}
+                  />
+                  <span className="absolute bottom-[7%] left-1/2 z-10 w-[min(82%,760px)] -translate-x-1/2 rounded-2xl border-2 border-[#fff1a8] bg-[#2b170d]/88 px-6 py-4 text-center text-[clamp(18px,2vw,28px)] font-black leading-snug text-[#fff7dc] shadow-[0_12px_28px_rgba(0,0,0,0.62)]">
+                    よく見ると、封筒の中にもう1通の手紙が入っていた！
+                  </span>
+                </span>
+                <span className={`absolute bottom-[4%] left-1/2 -translate-x-1/2 whitespace-nowrap rounded bg-black/55 px-5 py-2 text-lg font-black text-[#fff7dc] transition-opacity duration-300 ${prologueRingRevealReady ? 'opacity-100' : 'opacity-0'}`}>
+                  クリック / Enter で続ける
+                </span>
+              </button>
+            ) : prologuePage < PROLOGUE_LETTERS.length ? (
+              <div className="relative h-full w-full max-w-[1120px]">
+                <div className="absolute left-1/2 top-1/2 h-[min(92vh,820px)] w-[min(92vw,1080px)] -translate-x-1/2 -translate-y-1/2 bg-contain bg-center bg-no-repeat drop-shadow-[0_24px_36px_rgba(0,0,0,0.78)]" style={{ backgroundImage: 'url(/img/jiitegami.png)' }}>
+                  <div className="absolute left-[29%] right-[29%] top-[17%] bottom-[16%] flex flex-col overflow-hidden font-['DotGothic16']">
+                    <div className="mb-2 text-center text-[clamp(10px,0.9vw,14px)] font-black text-[#6a3a18]/80">
+                      手紙 {prologuePage + 1} / 6
+                    </div>
+                    <div className="whitespace-pre-line break-words text-center text-[clamp(13px,1.35vw,20px)] font-black leading-[1.7] tracking-normal">
+                      {PROLOGUE_LETTERS[prologuePage].text}
+                    </div>
+                    <div className="mt-auto flex justify-center gap-4">
+                      <button
+                        type="button"
+                        onClick={goBackPrologueLetter}
+                        disabled={prologuePage <= 0}
+                        className="rounded border-2 border-[#6b3b18] bg-[#d8b170]/85 px-7 py-3 text-lg font-black text-[#3b2212] shadow-md transition hover:bg-[#efd39b] disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:bg-[#d8b170]/85"
+                      >
+                        戻る
+                      </button>
+                      <button type="button" onClick={advancePrologue} className="rounded border-2 border-[#6b3b18] bg-[#f7dfaf]/90 px-8 py-3 text-lg font-black text-[#3b2212] shadow-md transition hover:bg-[#fff2ca]">
+                        {prologuePage === PROLOGUE_LETTERS.length - 1 ? '手紙を閉じる' : '次へ'}　Enter
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="relative w-full max-w-[920px] rounded-2xl border-4 border-[#ffd166] bg-[linear-gradient(180deg,rgba(43,24,14,.96),rgba(16,9,7,.98))] p-10 text-center text-[#fff7dc] shadow-[0_26px_80px_rgba(0,0,0,.8)]">
+                <div className="text-3xl font-black text-[#ffd166]">孕ませ村へ</div>
+                <div className="mt-8 whitespace-pre-line text-2xl font-black leading-relaxed">女の子と毎日イチャイチャできると思っていたユウに{`\n`}この後、莫大な借金地獄が待っていようとは...。{`\n`}その重大さにユウはまだ、気がついていないのだった......</div>
+                <button type="button" onClick={finishPrologue} className="mt-10 rounded border-2 border-[#fff1a8] bg-[#6b3b18] px-10 py-4 text-xl font-black text-[#fff7dc] transition hover:bg-[#8b4d22]">Enter</button>
+              </div>
+            )}
+          </div>, document.body)}
+        {(pendingSkillUnlockId || skillUnlockNotice || skillUnlockSparkles) && createPortal(
+          <div className="fixed inset-0 z-[10020] flex items-center justify-center bg-black/65 px-6">
+            {skillUnlockSparkles && <div className="pointer-events-none absolute inset-0 animate-pulse bg-[radial-gradient(circle_at_20%_25%,rgba(255,255,255,.95)_0_2px,transparent_3px),radial-gradient(circle_at_75%_22%,rgba(255,209,102,.95)_0_3px,transparent_5px),radial-gradient(circle_at_40%_75%,rgba(255,173,222,.9)_0_3px,transparent_5px)]" />}
+            <div className="relative w-full max-w-md border-2 border-[#ffd166] bg-[#24140f] p-6 text-[#fff7dc] shadow-[0_20px_70px_rgba(0,0,0,.75)]">
+              {pendingSkillUnlockId ? (() => {
+                const skill = getHeroSkillById(pendingSkillUnlockId);
+                if (!skill) return null;
+                return <>
+                  <div className="text-center text-2xl font-black text-[#ffd166]">スキルを習得しますか？</div>
+                  <div className="mt-4 rounded border border-[#76502c] bg-black/30 p-4"><div className="text-xl font-black">{skill.name}</div><div className="mt-2 text-sm text-[#d7b98a]">SP {skill.costSP} を消費します</div></div>
+                  <div className="mt-5 grid grid-cols-2 gap-3"><button type="button" onMouseEnter={() => setSkillUnlockChoice('yes')} onClick={() => { setSkillUnlockChoice('yes'); confirmHeroSkillUnlock(); }} className={`border px-4 py-3 font-black transition ${skillUnlockChoice === 'yes' ? 'border-white bg-[#14532d] ring-4 ring-[#ffd166]/80 shadow-[0_0_22px_rgba(255,209,102,0.55)]' : 'border-[#86efac] bg-[#14532d]/65'}`}>はい</button><button type="button" onMouseEnter={() => setSkillUnlockChoice('no')} onClick={() => { setSkillUnlockChoice('no'); setPendingSkillUnlockId(null); }} className={`border px-4 py-3 font-black transition ${skillUnlockChoice === 'no' ? 'border-white bg-[#6b3b18] ring-4 ring-[#ffd166]/80 shadow-[0_0_22px_rgba(255,209,102,0.55)]' : 'border-[#c8a87a] bg-black/30'}`}>いいえ</button></div>
+                </>;
+              })() : skillUnlockNotice ? <><div className="text-center text-xl font-black text-[#ffcf8a]">スキルを習得できません</div><div className="mt-4 whitespace-pre-line rounded border border-[#76502c] bg-black/30 p-4 text-center font-bold">{skillUnlockNotice}</div><button type="button" onClick={() => setSkillUnlockNotice(null)} className="mt-5 w-full border border-[#ffd166] bg-[#6b3b18] px-4 py-3 font-black">閉じる</button></> : <div className="py-12 text-center text-3xl font-black text-[#fff1a8]">スキル習得！</div>}
+            </div>
+          </div>, document.body)}
       </div>
      </div>
     </div>

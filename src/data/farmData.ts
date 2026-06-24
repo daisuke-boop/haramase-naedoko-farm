@@ -53,7 +53,7 @@ export const getFarmHarvestSellPrice = (
 export const FARM_GIRL_CROP_DATA: readonly FarmGirlCropData[] = [
   {
     girlId: 'chibiichi',
-    seedName: 'いちごの娘苗',
+    seedName: 'いちごの苗娘',
     harvestItemName: 'ちびいちのいちご',
     unlockTier: 'initial',
     growthDays: 2,
@@ -65,8 +65,8 @@ export const FARM_GIRL_CROP_DATA: readonly FarmGirlCropData[] = [
   },
   {
     girlId: 'mel',
-    seedName: 'メロンの娘苗',
-    harvestItemName: 'めるのメロン',
+    seedName: 'メロンの苗娘',
+    harvestItemName: 'メルのメロン',
     unlockTier: 'initial',
     growthDays: 3,
     harvestIntervalDays: 3,
@@ -77,7 +77,7 @@ export const FARM_GIRL_CROP_DATA: readonly FarmGirlCropData[] = [
   },
   {
     girlId: 'ruby',
-    seedName: 'トマトの娘苗',
+    seedName: 'トマトの苗娘',
     harvestItemName: 'ルビーのトマト',
     unlockTier: 'initial',
     growthDays: 2,
@@ -89,7 +89,7 @@ export const FARM_GIRL_CROP_DATA: readonly FarmGirlCropData[] = [
   },
   {
     girlId: 'viola',
-    seedName: 'ブドウの娘苗',
+    seedName: 'ブドウの苗娘',
     harvestItemName: 'ヴィオラのブドウ',
     unlockTier: 'mid',
     growthDays: 4,
@@ -101,7 +101,7 @@ export const FARM_GIRL_CROP_DATA: readonly FarmGirlCropData[] = [
   },
   {
     girlId: 'nazuna',
-    seedName: 'なすの娘苗',
+    seedName: 'なすの苗娘',
     harvestItemName: 'ナズナのなす',
     unlockTier: 'mid',
     growthDays: 3,
@@ -113,7 +113,7 @@ export const FARM_GIRL_CROP_DATA: readonly FarmGirlCropData[] = [
   },
   {
     girlId: 'kabune',
-    seedName: 'かぶの娘苗',
+    seedName: 'かぶの苗娘',
     harvestItemName: 'かぶねのかぶ',
     unlockTier: 'mid',
     growthDays: 2,
@@ -125,7 +125,7 @@ export const FARM_GIRL_CROP_DATA: readonly FarmGirlCropData[] = [
   },
   {
     girlId: 'caro',
-    seedName: 'にんじんの娘苗',
+    seedName: 'にんじんの苗娘',
     harvestItemName: 'キャロのにんじん',
     unlockTier: 'mid',
     growthDays: 3,
@@ -137,7 +137,7 @@ export const FARM_GIRL_CROP_DATA: readonly FarmGirlCropData[] = [
   },
   {
     girlId: 'theta',
-    seedName: 'しいたけの娘苗',
+    seedName: 'しいたけの苗娘',
     harvestItemName: 'シータのしいたけ',
     unlockTier: 'mid',
     growthDays: 4,
@@ -149,7 +149,7 @@ export const FARM_GIRL_CROP_DATA: readonly FarmGirlCropData[] = [
   },
   {
     girlId: 'cure',
-    seedName: 'きゅうりの娘苗',
+    seedName: 'きゅうりの苗娘',
     harvestItemName: 'キュアのきゅうり',
     unlockTier: 'mid',
     growthDays: 3,
@@ -161,7 +161,7 @@ export const FARM_GIRL_CROP_DATA: readonly FarmGirlCropData[] = [
   },
   {
     girlId: 'shiro',
-    seedName: 'だいこんの娘苗',
+    seedName: 'だいこんの苗娘',
     harvestItemName: 'シロのだいこん',
     unlockTier: 'mid',
     growthDays: 3,
@@ -173,7 +173,7 @@ export const FARM_GIRL_CROP_DATA: readonly FarmGirlCropData[] = [
   },
   {
     girlId: 'momona',
-    seedName: 'ももの娘苗',
+    seedName: 'ももの苗娘',
     harvestItemName: 'ももなのもも',
     unlockTier: 'mid',
     growthDays: 5,
@@ -185,8 +185,8 @@ export const FARM_GIRL_CROP_DATA: readonly FarmGirlCropData[] = [
   },
   {
     girlId: 'pan',
-    seedName: 'かぼちゃの娘苗',
-    harvestItemName: 'ぱんちゃんのかぼちゃ',
+    seedName: 'かぼちゃの苗娘',
+    harvestItemName: 'パンのかぼちゃ',
     unlockTier: 'mid',
     growthDays: 5,
     harvestIntervalDays: 4,
@@ -197,7 +197,7 @@ export const FARM_GIRL_CROP_DATA: readonly FarmGirlCropData[] = [
   },
   {
     girlId: 'puti',
-    seedName: 'ドラフルの娘苗',
+    seedName: 'ドラフルの苗娘',
     harvestItemName: 'プティのドラゴンフルーツ',
     unlockTier: 'final',
     growthDays: 6,
@@ -209,7 +209,7 @@ export const FARM_GIRL_CROP_DATA: readonly FarmGirlCropData[] = [
   },
   {
     girlId: 'roma',
-    seedName: 'ロマネの娘苗',
+    seedName: 'ロマネの苗娘',
     harvestItemName: 'ロマのロマネスコ',
     unlockTier: 'final',
     growthDays: 6,
@@ -221,8 +221,8 @@ export const FARM_GIRL_CROP_DATA: readonly FarmGirlCropData[] = [
   },
   {
     girlId: 'saffy',
-    seedName: 'サフランの娘苗',
-    harvestItemName: 'サフィーのサフラン',
+    seedName: 'サフランの苗娘',
+    harvestItemName: 'サフィのサフラン',
     unlockTier: 'final',
     growthDays: 7,
     harvestIntervalDays: 5,

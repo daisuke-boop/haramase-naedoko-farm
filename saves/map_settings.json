@@ -287,7 +287,7 @@
       "x": 870,
       "y": 0,
       "w": 140,
-      "h": 40,
+      "h": 80,
       "spawnX": 950,
       "spawnY": 1040
     },
@@ -27350,7 +27350,12 @@
     "farm_53,34": true,
     "farm_53,35": true,
     "farm_55,32": true,
-    "farm_56,32": true
+    "farm_56,32": true,
+    "farm_95,45": true,
+    "farm_96,45": true,
+    "farm_97,45": true,
+    "farm_98,45": true,
+    "farm_99,45": true
   },
   "hideAreaTiles": {
     "farm_1,27": true,

@@ -27,6 +27,8 @@ type DebugPanelProps = {
   debugPanelPos: { x: number; y: number };
   handleDebugDragStart: (e: React.PointerEvent) => void;
   setTurn: React.Dispatch<React.SetStateAction<number>>;
+  heroSP: number;
+  setHeroSP: React.Dispatch<React.SetStateAction<number>>;
   onStartMiningMiniGameTest: (bgmSource: string) => void;
   onStartMiningRhythmRecording: (bgmSource: string) => void;
   miningRhythmOptions: readonly MiningBgmRhythmOption[];
@@ -82,6 +84,8 @@ const DebugPanel = ({
   debugPanelPos,
   handleDebugDragStart,
   setTurn,
+  heroSP,
+  setHeroSP,
   onStartMiningMiniGameTest,
   onStartMiningRhythmRecording,
   miningRhythmOptions,
@@ -212,6 +216,14 @@ const DebugPanel = ({
             >
               夜 🌙
             </button>
+          </div>
+          <div className="rounded border border-violet-400/70 bg-violet-950/45 p-2">
+            <div className="mb-1 flex items-center justify-between font-black text-violet-100"><span>スキルSP</span><span>{heroSP} SP</span></div>
+            <div className="grid grid-cols-3 gap-1">
+              <button type="button" onClick={() => setHeroSP(value => Math.max(0, value - 1))} className="rounded border border-violet-300/60 bg-black/30 py-1 font-black hover:bg-violet-800">-1</button>
+              <button type="button" onClick={() => setHeroSP(value => value + 1)} className="rounded border border-violet-300/60 bg-violet-800/70 py-1 font-black hover:bg-violet-700">+1</button>
+              <button type="button" onClick={() => setHeroSP(value => value + 10)} className="rounded border border-violet-200 bg-violet-700 py-1 font-black hover:bg-violet-600">+10</button>
+            </div>
           </div>
 
           <button
