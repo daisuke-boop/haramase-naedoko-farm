@@ -100,7 +100,7 @@ import {
   selectOreRewardWithPerformance,
   type PickaxeName,
 } from './data/miningData';
-import { FARM_GIRL_CROP_DATA, getFarmHarvestSellPrice } from './data/farmData';
+import { FARM_GIRL_CROP_DATA, getFarmHarvestSellPrice, type FarmGirlCropData } from './data/farmData';
 import { getFarmFieldConfig, getInitiallyUnlockedFarmFieldConfigs, isFarmFieldInitiallyUnlocked } from './data/farmFieldData';
 import { GIRL_DATA } from './data/girlData';
 import { GIRL_SEED_ACQUISITION_DATA, INITIAL_OWNED_GIRL_SEEDS } from './data/girlSeedAcquisitionData';
@@ -2607,6 +2607,33 @@ export default function App() {
     ? GIRL_DATA.find(girl => girl.id === companionGirlId)?.girlName ?? companionGirlId
     : null;
   const hasHeroSkill = (skillId: string) => unlockedHeroSkills.includes(skillId);
+  const getHeroSkillMultiplier = (skillId: string, percentBonus: number) => (
+    hasHeroSkill(skillId) ? 1 + percentBonus / 100 : 1
+  );
+  const getSkillAdjustedWeeklyInterestRate = (rate: number) => (
+    Number(clampNumber(rate - (hasHeroSkill('farm_interest_down') ? 0.3 : 0), MIN_INTEREST_RATE, MAX_INTEREST_RATE).toFixed(1))
+  );
+  const getSkillAdjustedCompanionHarvestModifier = (isCompanion: boolean, trust: number): CompanionHarvestModifier => {
+    if (!hasHeroSkill('companion_harvest_penalty_down')) return getCompanionHarvestModifier(isCompanion, trust);
+    if (!isCompanion) return { multiplier: 1, isFutureLoverBonusEligible: false };
+    if (trust >= 80) return { multiplier: 1, isFutureLoverBonusEligible: trust >= 100 };
+    if (trust >= 60) return { multiplier: 0.9, isFutureLoverBonusEligible: false };
+    if (trust >= 40) return { multiplier: 0.7, isFutureLoverBonusEligible: false };
+    if (trust >= 20) return { multiplier: 0.35, isFutureLoverBonusEligible: false };
+    return { multiplier: 0, isFutureLoverBonusEligible: false };
+  };
+  const getSkillAdjustedTrustGain = (condition: FarmGirlCondition) => (
+    Math.max(1, Math.round(getAffectedTrustGain(condition) * getHeroSkillMultiplier('companion_trust_up', 25)))
+  );
+  const getSkillAdjustedSeedlingCareLimit = (
+    action: 'caress' | 'finger' | 'fertilize',
+    crop: Pick<FarmGirlCropData, 'growthDays'>,
+  ) => {
+    if (action === 'caress' && hasHeroSkill('farm_caress')) return 2;
+    if (action === 'finger' && hasHeroSkill('farm_fingering')) return 2;
+    if (action === 'fertilize' && hasHeroSkill('farm_abstinence') && crop.growthDays >= 5) return 2;
+    return 1;
+  };
   const canUnlockHeroSkill = (skillId: string) => {
     const skill = getHeroSkillById(skillId);
     if (!skill || hasHeroSkill(skillId)) return false;
@@ -2749,6 +2776,7 @@ export default function App() {
       crop,
       getFarmTrustBonus(farmGirl?.trust ?? 0).sellMultiplier,
       getFarmQualityMultiplier(quality),
+      getHeroSkillMultiplier('farm_sell_up', 8),
     );
     return [{
       name: crop.harvestItemName,
@@ -3194,7 +3222,7 @@ export default function App() {
         }
         const column = sheetIndex % 5;
         const row = Math.floor(sheetIndex / 5);
-        const iconZoom = 1.25;
+        const iconZoom = 1.12;
         const iconOffset = (iconZoom - 1) * 50;
         return (
           <span className={`relative grid place-items-center overflow-hidden ${className}`} aria-hidden="true">
@@ -3439,6 +3467,9 @@ export default function App() {
         : undefined;
       const selectedFarmGirlIsVisible = Boolean(selectedFarmGirlState?.cardRevealed);
       const selectedHarvestInfo = selectedGirlData ? getFarmGirlHarvestInfo(selectedGirlData.id) : null;
+      const selectedSeedlingCrop = selectedGirlData
+        ? FARM_GIRL_CROP_DATA.find(crop => crop.girlId === selectedGirlData.id)
+        : undefined;
       const selectedTrustBonus = getFarmTrustBonus(selectedFarmGirlState?.trust ?? 0);
       const selectedGirlCanBecomeCompanion = Boolean(
         selectedGirlData &&
@@ -3447,7 +3478,7 @@ export default function App() {
         selectedFarmGirlState.condition !== 'affected'
       );
       const selectedGirlIsCompanion = Boolean(selectedGirlData && companionGirlId === selectedGirlData.id);
-      const selectedCompanionHarvestModifier = getCompanionHarvestModifier(
+      const selectedCompanionHarvestModifier = getSkillAdjustedCompanionHarvestModifier(
         selectedGirlIsCompanion,
         selectedFarmGirlState?.trust ?? 0,
       );
@@ -3488,6 +3519,13 @@ export default function App() {
         finger: selectedSeedlingCareIsToday ? selectedFarmGirlState?.fingerCount ?? 0 : 0,
         fertilize: selectedSeedlingCareIsToday ? selectedFarmGirlState?.fertilizeCount ?? 0 : 0,
       };
+      const selectedSeedlingCareLimits = selectedSeedlingCrop
+        ? {
+          caress: getSkillAdjustedSeedlingCareLimit('caress', selectedSeedlingCrop),
+          finger: getSkillAdjustedSeedlingCareLimit('finger', selectedSeedlingCrop),
+          fertilize: getSkillAdjustedSeedlingCareLimit('fertilize', selectedSeedlingCrop),
+        }
+        : { caress: 1, finger: 1, fertilize: 1 };
       return (
         <div className="relative grid h-full min-h-0 grid-cols-[minmax(0,1fr)_420px] gap-4">
           <div style={{ ...menuPanelBaseStyle, ...menuKeyboardFocusStyle(menuFocusArea === 'content' && menuContentFocus === 'secondary') }} className="flex min-h-0 flex-col gap-3 overflow-hidden">
@@ -3611,7 +3649,7 @@ export default function App() {
                       }}
                       className="mt-2 rounded border border-[#d8a8ff]/80 bg-[#5b276a]/80 px-4 py-2 text-sm font-black text-[#fff5fd] transition hover:bg-[#7d388f]"
                     >
-                      看病する（AP 1）
+                      看病する（{hasHeroSkill('special_life_understanding') ? 'AP 0' : 'AP 1'}）
                     </button>
                   </div>
                 )}
@@ -3625,7 +3663,7 @@ export default function App() {
                     <div className="mt-3 grid grid-cols-3 gap-3">
                       <button
                         type="button"
-                        disabled={selectedSeedlingCareCounts.caress >= 1 || currentAP <= 0}
+                        disabled={selectedSeedlingCareCounts.caress >= selectedSeedlingCareLimits.caress || currentAP <= 0}
                         onClick={() => { playFixSound(); careForSeedling(selectedGirlData.id, 'caress'); }}
                         className="rounded border border-[#e5a6c8]/80 bg-[#6d3157]/80 px-3 py-3 text-sm font-black text-[#fff1f7] transition hover:bg-[#8d4170] disabled:cursor-not-allowed disabled:opacity-45"
                       >
@@ -3633,7 +3671,7 @@ export default function App() {
                       </button>
                       <button
                         type="button"
-                        disabled={selectedSeedlingCareCounts.finger >= 1 || currentAP <= 0}
+                        disabled={selectedSeedlingCareCounts.finger >= selectedSeedlingCareLimits.finger || currentAP <= 0}
                         onClick={() => { playFixSound(); careForSeedling(selectedGirlData.id, 'finger'); }}
                         className="rounded border border-[#c7a6e5]/80 bg-[#4c356e]/80 px-3 py-3 text-sm font-black text-[#f6efff] transition hover:bg-[#62458b] disabled:cursor-not-allowed disabled:opacity-45"
                       >
@@ -3641,7 +3679,7 @@ export default function App() {
                       </button>
                       <button
                         type="button"
-                        disabled={selectedSeedlingCareCounts.fertilize >= 1 || currentAP <= 0}
+                        disabled={selectedSeedlingCareCounts.fertilize >= selectedSeedlingCareLimits.fertilize || currentAP <= 0}
                         onClick={() => { playFixSound(); careForSeedling(selectedGirlData.id, 'fertilize'); }}
                         className="rounded border border-[#a3d977]/80 bg-[#3f6528]/80 px-3 py-3 text-sm font-black text-[#f1ffe4] transition hover:bg-[#517f34] disabled:cursor-not-allowed disabled:opacity-45"
                       >
@@ -3725,7 +3763,7 @@ export default function App() {
                         {selectedCompanionHarvestModifier.multiplier === 0
                           ? '同行中のため収穫できません'
                           : selectedHarvestInfo.canHarvest
-                          ? `${selectedHarvestInfo.crop.harvestItemName} x${getFarmHarvestAmount(selectedHarvestInfo.crop.baseHarvestAmount, selectedFarmGirlState.trust, selectedCompanionHarvestModifier.multiplier * selectedAffectedHarvestMultiplier)}`
+                          ? `${selectedHarvestInfo.crop.harvestItemName} x${getFarmHarvestAmount(selectedHarvestInfo.crop.baseHarvestAmount, selectedFarmGirlState.trust, selectedCompanionHarvestModifier.multiplier * selectedAffectedHarvestMultiplier * getHeroSkillMultiplier('farm_harvest_up', 5))}`
                           : `次回収穫まであと${selectedHarvestInfo.daysUntilHarvest ?? 0}日`}
                       </div>
                       <button
@@ -6120,8 +6158,13 @@ export default function App() {
     const completedGirlNames = completedGirlIds.map(girlId => (
       GIRL_DATA.find(girl => girl.id === girlId)?.girlName ?? girlId
     ));
+    const affectedRecoveryDays = hasHeroSkill('special_life_understanding') ? 2 : 3;
     const recoveredGirlIds = farmGirls
-      .filter(girl => girl.condition === 'affected' && girl.conditionDay !== null && nextDay - girl.conditionDay >= 3)
+      .filter(girl => (
+        girl.condition === 'affected' &&
+        girl.conditionDay !== null &&
+        nextDay - girl.conditionDay >= affectedRecoveryDays
+      ))
       .map(girl => girl.girlId);
     const recoveredGirlNames = recoveredGirlIds.map(girlId => (
       GIRL_DATA.find(girl => girl.id === girlId)?.girlName ?? girlId
@@ -7215,7 +7258,7 @@ export default function App() {
     }
 
     const trustBeforeHarvest = farmGirl?.trust ?? girl?.initialTrust ?? 0;
-    const companionHarvestModifier = getCompanionHarvestModifier(companionGirlId === girlId, trustBeforeHarvest);
+    const companionHarvestModifier = getSkillAdjustedCompanionHarvestModifier(companionGirlId === girlId, trustBeforeHarvest);
     if (companionHarvestModifier.multiplier === 0) {
       setDialogMessage('同行中のため収穫できません');
       return;
@@ -7223,9 +7266,11 @@ export default function App() {
     const harvestAmount = getFarmHarvestAmount(
       crop.baseHarvestAmount,
       trustBeforeHarvest,
-      companionHarvestModifier.multiplier * getAffectedHarvestMultiplier(farmGirl?.condition ?? 'normal', difficulty),
+      companionHarvestModifier.multiplier *
+        getAffectedHarvestMultiplier(farmGirl?.condition ?? 'normal', difficulty) *
+        getHeroSkillMultiplier('farm_harvest_up', 5),
     );
-    const trustGain = getAffectedTrustGain(farmGirl?.condition ?? 'normal');
+    const trustGain = getSkillAdjustedTrustGain(farmGirl?.condition ?? 'normal');
     const nextTrust = Math.min(100, (farmGirl?.trust ?? girl?.initialTrust ?? 0) + trustGain);
     const newlyUnlockedTrustEvents = girl?.trustEvents.filter(event => (
       nextTrust >= event.trust && !(farmGirl?.unlockedTrustEventIds ?? []).includes(event.eventId)
@@ -7281,16 +7326,18 @@ export default function App() {
     const currentCount = farmGirl.careDay === currentDay
       ? action === 'caress' ? farmGirl.caressCount : action === 'finger' ? farmGirl.fingerCount : farmGirl.fertilizeCount
       : 0;
-    if (currentCount >= 1) {
+    const careLimit = getSkillAdjustedSeedlingCareLimit(action, crop);
+    if (currentCount >= careLimit) {
       setDialogMessage('このお世話は今日はもう行いました。');
       return;
     }
 
-    const qualityGain = action === 'caress'
+    const baseQualityGain = action === 'caress'
       ? 3 + Math.floor(Math.random() * 4)
       : action === 'finger'
         ? 6 + Math.floor(Math.random() * 5)
         : 0;
+    const qualityGain = currentCount >= 1 ? Math.max(1, Math.round(baseQualityGain * 0.5)) : baseQualityGain;
     const nextGrowthProgress = action === 'fertilize'
       ? Math.min(crop.growthDays, farmGirl.growthProgress + 1)
       : farmGirl.growthProgress;
@@ -7345,6 +7392,11 @@ export default function App() {
       return;
     }
 
+    const initialQuality = clampNumber(
+      30 + Math.floor(Math.random() * 11) + (hasHeroSkill('farm_seedling_care') ? 5 : 0),
+      0,
+      100,
+    );
     setFarmGirls(prev => prev.map(girl => (
       girl.girlId === seedData.girlId
         ? {
@@ -7353,7 +7405,7 @@ export default function App() {
           cardRevealed: false,
           plantedDay: currentDay,
           growthProgress: 0,
-          quality: 30 + Math.floor(Math.random() * 11),
+          quality: initialQuality,
           careDay: null,
           caressCount: 0,
           fingerCount: 0,
@@ -7584,7 +7636,8 @@ export default function App() {
       setDialogMessage(isMountainLordAttack ? '畑の向こうから、重い足音が響いてくる……' : 'なんだか嫌な予感がする……');
     }
   };
-  const currentRepaymentInterest = Math.round(debtAmount * (currentWeeklyInterestRate / 100));
+  const skillAdjustedWeeklyInterestRate = getSkillAdjustedWeeklyInterestRate(currentWeeklyInterestRate);
+  const currentRepaymentInterest = Math.round(debtAmount * (skillAdjustedWeeklyInterestRate / 100));
   const currentMinimumRepayment = Math.min(MINIMUM_REPAYMENT_BY_DIFFICULTY[difficulty], debtAmount);
   const nextScheduledRepayment = currentMinimumRepayment + currentRepaymentInterest;
   const finishRepaymentEvent = (nextFarmCredit: number, nextMissedRepaymentCount: number, message: string) => {
@@ -7669,12 +7722,12 @@ export default function App() {
   const careForFarmGirl = (girlId: string) => {
     const targetGirl = farmGirls.find(girl => girl.girlId === girlId);
     if (!targetGirl || targetGirl.condition !== 'affected') return;
-    if (currentAP <= 0) {
+    if (!hasHeroSkill('special_life_understanding') && currentAP <= 0) {
       setDialogMessage(timeOfDay === 'night' ? EXHAUSTED_ACTION_MESSAGE : '疲れていて看病できない');
       return;
     }
 
-    consumeAPForAction();
+    if (!hasHeroSkill('special_life_understanding')) consumeAPForAction();
     setFarmGirls(previous => previous.map(girl => (
       girl.girlId === girlId
         ? {
@@ -17270,7 +17323,7 @@ export default function App() {
               <div className="mt-5 grid grid-cols-2 gap-3 rounded-lg border border-[#76502c] bg-black/30 p-4 text-sm font-bold">
                 <div>借金残額 <span className="float-right text-[#ffdd99]">¥{debtAmount.toLocaleString()}</span></div>
                 <div>所持金 <span className="float-right text-[#ffd166]">¥{gold.toLocaleString()}</span></div>
-                <div>現在金利 <span className="float-right">{formatInterestRate(currentWeeklyInterestRate)}</span></div>
+                <div>現在金利 <span className="float-right">{formatInterestRate(skillAdjustedWeeklyInterestRate)}</span></div>
                 <div>今回利息 <span className="float-right text-[#ffdd99]">¥{currentRepaymentInterest.toLocaleString()}</span></div>
                 <div>最低返済額 <span className="float-right">¥{currentMinimumRepayment.toLocaleString()}</span></div>
                 <div>農場信用度 <span className="float-right">{farmCredit}</span></div>
