@@ -21,14 +21,27 @@ type MiningBgmRhythmOption = {
   label: string;
 };
 type FarmPlantButtonPlacement = { offsetX: number; offsetY: number };
+type DebugGirlAffinityEntry = {
+  id: string;
+  name: string;
+  affinity: number;
+};
 
 type DebugPanelProps = {
   setupMode: SetupMode;
   debugPanelPos: { x: number; y: number };
   handleDebugDragStart: (e: React.PointerEvent) => void;
   setTurn: React.Dispatch<React.SetStateAction<number>>;
+  heroLevel: number;
+  setDebugHeroLevel: (level: number) => void;
   heroSP: number;
   setHeroSP: React.Dispatch<React.SetStateAction<number>>;
+  debugGirlAffinities: readonly DebugGirlAffinityEntry[];
+  adjustDebugGirlAffinity: (girlId: string, delta: number) => void;
+  currentHeroSkillCategoryLabel: string;
+  unlockedHeroSkillCount: number;
+  onUnlockCurrentHeroSkillCategory: () => void;
+  onResetCurrentHeroSkillCategory: () => void;
   onStartMiningMiniGameTest: (bgmSource: string) => void;
   onStartMiningRhythmRecording: (bgmSource: string) => void;
   miningRhythmOptions: readonly MiningBgmRhythmOption[];
@@ -84,8 +97,16 @@ const DebugPanel = ({
   debugPanelPos,
   handleDebugDragStart,
   setTurn,
+  heroLevel,
+  setDebugHeroLevel,
   heroSP,
   setHeroSP,
+  debugGirlAffinities,
+  adjustDebugGirlAffinity,
+  currentHeroSkillCategoryLabel,
+  unlockedHeroSkillCount,
+  onUnlockCurrentHeroSkillCategory,
+  onResetCurrentHeroSkillCategory,
   onStartMiningMiniGameTest,
   onStartMiningRhythmRecording,
   miningRhythmOptions,
@@ -141,6 +162,8 @@ const DebugPanel = ({
   const [debugDialogueDraft, setDebugDialogueDraft] = React.useState(selectedDebugDialogue?.currentMessage ?? '');
   const [bulkAudioGain, setBulkAudioGain] = React.useState(selectedAudioGain);
   const [selectedMiningRhythmSource, setSelectedMiningRhythmSource] = React.useState(miningRhythmOptions[0]?.src ?? '');
+  const [selectedAffinityGirlId, setSelectedAffinityGirlId] = React.useState(debugGirlAffinities[0]?.id ?? '');
+  const selectedAffinityGirl = debugGirlAffinities.find(girl => girl.id === selectedAffinityGirlId) ?? debugGirlAffinities[0];
   const selectedMiningRhythmCount = miningRhythmTimingCounts[selectedMiningRhythmSource] ?? 0;
   const totalMiningRhythmCount = Object.values(miningRhythmTimingCounts).reduce((sum, count) => sum + count, 0);
 
@@ -152,6 +175,12 @@ const DebugPanel = ({
     if (!selectedDebugDialogue) return;
     setDebugDialogueDraft(selectedDebugDialogue.currentMessage);
   }, [selectedDebugDialogue?.key, selectedDebugDialogue?.currentMessage, debugDialogueOptions]);
+
+  React.useEffect(() => {
+    if (!selectedAffinityGirl && debugGirlAffinities[0]) {
+      setSelectedAffinityGirlId(debugGirlAffinities[0].id);
+    }
+  }, [selectedAffinityGirl?.id, debugGirlAffinities]);
 
   const stopDebugPropagation = (e: React.SyntheticEvent) => {
     e.stopPropagation();
@@ -217,12 +246,79 @@ const DebugPanel = ({
               夜 🌙
             </button>
           </div>
+          <div className="rounded border border-amber-400/70 bg-amber-950/35 p-2">
+            <div className="mb-1 flex items-center justify-between font-black text-amber-100">
+              <span>星デバッグ</span>
+              <span>主人公 ★{heroLevel}/5</span>
+            </div>
+            <div className="grid grid-cols-4 gap-1">
+              <button type="button" onClick={() => setDebugHeroLevel(heroLevel - 1)} className="rounded border border-amber-300/60 bg-black/30 py-1 font-black hover:bg-amber-800">主-1</button>
+              <button type="button" onClick={() => setDebugHeroLevel(heroLevel + 1)} className="rounded border border-amber-300/60 bg-amber-800/70 py-1 font-black hover:bg-amber-700">主+1</button>
+              <button type="button" onClick={() => setDebugHeroLevel(1)} className="rounded border border-amber-300/60 bg-black/30 py-1 font-black hover:bg-amber-800">主1</button>
+              <button type="button" onClick={() => setDebugHeroLevel(5)} className="rounded border border-amber-200 bg-amber-700 py-1 font-black hover:bg-amber-600">主5</button>
+            </div>
+            <div className="mt-2 rounded border border-amber-300/30 bg-black/25 p-1.5">
+              <select
+                value={selectedAffinityGirl?.id ?? ''}
+                onChange={(event) => setSelectedAffinityGirlId(event.target.value)}
+                className="mb-1 w-full rounded border border-amber-300/60 bg-[#2d1b15] px-1 py-1 text-[10px] font-bold text-amber-100"
+              >
+                {debugGirlAffinities.map(girl => (
+                  <option key={girl.id} value={girl.id}>{girl.name} ★{girl.affinity}/5</option>
+                ))}
+              </select>
+              <div className="mb-1 flex items-center justify-between text-[10px] font-black text-amber-100">
+                <span className="min-w-0 truncate">{selectedAffinityGirl?.name ?? '娘'}</span>
+                <span>★{selectedAffinityGirl?.affinity ?? 1}/5</span>
+              </div>
+              <div className="grid grid-cols-2 gap-1">
+                <button
+                  type="button"
+                  disabled={!selectedAffinityGirl}
+                  onClick={() => selectedAffinityGirl && adjustDebugGirlAffinity(selectedAffinityGirl.id, -1)}
+                  className="rounded border border-amber-300/60 bg-black/30 py-1 font-black hover:bg-amber-800 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  娘-1
+                </button>
+                <button
+                  type="button"
+                  disabled={!selectedAffinityGirl}
+                  onClick={() => selectedAffinityGirl && adjustDebugGirlAffinity(selectedAffinityGirl.id, 1)}
+                  className="rounded border border-amber-300/60 bg-amber-800/70 py-1 font-black hover:bg-amber-700 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  娘+1
+                </button>
+              </div>
+            </div>
+          </div>
           <div className="rounded border border-violet-400/70 bg-violet-950/45 p-2">
             <div className="mb-1 flex items-center justify-between font-black text-violet-100"><span>スキルSP</span><span>{heroSP} SP</span></div>
             <div className="grid grid-cols-3 gap-1">
               <button type="button" onClick={() => setHeroSP(value => Math.max(0, value - 1))} className="rounded border border-violet-300/60 bg-black/30 py-1 font-black hover:bg-violet-800">-1</button>
               <button type="button" onClick={() => setHeroSP(value => value + 1)} className="rounded border border-violet-300/60 bg-violet-800/70 py-1 font-black hover:bg-violet-700">+1</button>
               <button type="button" onClick={() => setHeroSP(value => value + 10)} className="rounded border border-violet-200 bg-violet-700 py-1 font-black hover:bg-violet-600">+10</button>
+            </div>
+            <div className="mt-2 rounded border border-violet-300/30 bg-black/25 p-1.5">
+              <div className="mb-1 flex items-center justify-between gap-1 text-[10px] font-black text-violet-100">
+                <span>{currentHeroSkillCategoryLabel}</span>
+                <span>{unlockedHeroSkillCount}取得</span>
+              </div>
+              <div className="grid grid-cols-2 gap-1">
+                <button
+                  type="button"
+                  onClick={onUnlockCurrentHeroSkillCategory}
+                  className="rounded border border-violet-200/80 bg-violet-700/80 py-1 text-[10px] font-black text-white hover:bg-violet-600"
+                >
+                  系統取得
+                </button>
+                <button
+                  type="button"
+                  onClick={onResetCurrentHeroSkillCategory}
+                  className="rounded border border-red-200/80 bg-red-800/75 py-1 text-[10px] font-black text-white hover:bg-red-700"
+                >
+                  系統解除
+                </button>
+              </div>
             </div>
           </div>
 

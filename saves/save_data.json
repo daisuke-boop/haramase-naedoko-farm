@@ -1,6 +1,6 @@
 {
   "saveSchemaVersion": 2,
-  "turn": 0,
+  "turn": 4,
   "gold": 5000,
   "gameMode": "story",
   "hasUnlockedEndlessNurseryMode": false,
@@ -29,9 +29,36 @@
   "farmCredit": 0,
   "successfulRepaymentCount": 0,
   "missedRepaymentCount": 0,
-  "heroLevel": 1,
-  "heroSP": 0,
-  "unlockedHeroSkills": [],
+  "heroLevel": 4,
+  "heroSP": 10,
+  "debugGirlAffinities": {},
+  "unlockedHeroSkills": [
+    "gather_fishing_rare_up",
+    "gather_mining_rare_up",
+    "gather_lumber_rare_up",
+    "gather_tool_care",
+    "companion_trust_up",
+    "companion_harvest_penalty_down",
+    "companion_battle_support",
+    "special_life_understanding",
+    "special_hybrid_cultivation",
+    "special_adaptation_research",
+    "special_hybrid_blessing",
+    "farm_seedling_care",
+    "farm_quality_eye",
+    "farm_caress",
+    "farm_fingering",
+    "farm_abstinence",
+    "farm_harvest_up",
+    "farm_sell_up",
+    "farm_interest_down",
+    "battle_hp_up",
+    "battle_damage_reduce",
+    "battle_enemy_attack_down_trap",
+    "battle_enemy_defense_down_trap",
+    "battle_beast_damage_up",
+    "battle_companion_regen"
+  ],
   "hasBeastPremonition": false,
   "premonitionDay": null,
   "scheduledBeastAttackDay": null,
@@ -44,7 +71,7 @@
     {
       "girlId": "chibiichi",
       "state": "appeared",
-      "cardRevealed": true,
+      "cardRevealed": false,
       "plantedDay": 1,
       "growthProgress": 0,
       "quality": 30,
@@ -57,12 +84,13 @@
       "unlockedTrustEventIds": [],
       "condition": "normal",
       "conditionDay": null,
-      "conditionSource": null
+      "conditionSource": null,
+      "hybridAdapted": false
     },
     {
       "girlId": "mel",
       "state": "appeared",
-      "cardRevealed": true,
+      "cardRevealed": false,
       "plantedDay": 1,
       "growthProgress": 0,
       "quality": 36,
@@ -75,12 +103,13 @@
       "unlockedTrustEventIds": [],
       "condition": "normal",
       "conditionDay": null,
-      "conditionSource": null
+      "conditionSource": null,
+      "hybridAdapted": false
     },
     {
       "girlId": "ruby",
       "state": "appeared",
-      "cardRevealed": true,
+      "cardRevealed": false,
       "plantedDay": 1,
       "growthProgress": 0,
       "quality": 38,
@@ -93,12 +122,13 @@
       "unlockedTrustEventIds": [],
       "condition": "normal",
       "conditionDay": null,
-      "conditionSource": null
+      "conditionSource": null,
+      "hybridAdapted": false
     },
     {
       "girlId": "viola",
       "state": "appeared",
-      "cardRevealed": true,
+      "cardRevealed": false,
       "plantedDay": null,
       "growthProgress": 0,
       "quality": 50,
@@ -111,12 +141,13 @@
       "unlockedTrustEventIds": [],
       "condition": "normal",
       "conditionDay": null,
-      "conditionSource": null
+      "conditionSource": null,
+      "hybridAdapted": false
     },
     {
       "girlId": "nazuna",
       "state": "appeared",
-      "cardRevealed": true,
+      "cardRevealed": false,
       "plantedDay": null,
       "growthProgress": 0,
       "quality": 50,
@@ -129,12 +160,13 @@
       "unlockedTrustEventIds": [],
       "condition": "normal",
       "conditionDay": null,
-      "conditionSource": null
+      "conditionSource": null,
+      "hybridAdapted": false
     },
     {
       "girlId": "kabune",
       "state": "appeared",
-      "cardRevealed": true,
+      "cardRevealed": false,
       "plantedDay": null,
       "growthProgress": 0,
       "quality": 50,
@@ -147,12 +179,13 @@
       "unlockedTrustEventIds": [],
       "condition": "normal",
       "conditionDay": null,
-      "conditionSource": null
+      "conditionSource": null,
+      "hybridAdapted": false
     },
     {
       "girlId": "caro",
       "state": "appeared",
-      "cardRevealed": true,
+      "cardRevealed": false,
       "plantedDay": null,
       "growthProgress": 0,
       "quality": 50,
@@ -165,12 +198,13 @@
       "unlockedTrustEventIds": [],
       "condition": "normal",
       "conditionDay": null,
-      "conditionSource": null
+      "conditionSource": null,
+      "hybridAdapted": false
     },
     {
       "girlId": "theta",
       "state": "appeared",
-      "cardRevealed": true,
+      "cardRevealed": false,
       "plantedDay": null,
       "growthProgress": 0,
       "quality": 50,
@@ -183,12 +217,13 @@
       "unlockedTrustEventIds": [],
       "condition": "normal",
       "conditionDay": null,
-      "conditionSource": null
+      "conditionSource": null,
+      "hybridAdapted": false
     },
     {
       "girlId": "cure",
       "state": "appeared",
-      "cardRevealed": true,
+      "cardRevealed": false,
       "plantedDay": null,
       "growthProgress": 0,
       "quality": 50,
@@ -201,12 +236,13 @@
       "unlockedTrustEventIds": [],
       "condition": "normal",
       "conditionDay": null,
-      "conditionSource": null
+      "conditionSource": null,
+      "hybridAdapted": false
     },
     {
       "girlId": "shiro",
       "state": "appeared",
-      "cardRevealed": true,
+      "cardRevealed": false,
       "plantedDay": null,
       "growthProgress": 0,
       "quality": 50,
@@ -219,12 +255,13 @@
       "unlockedTrustEventIds": [],
       "condition": "normal",
       "conditionDay": null,
-      "conditionSource": null
+      "conditionSource": null,
+      "hybridAdapted": false
     },
     {
       "girlId": "momona",
       "state": "appeared",
-      "cardRevealed": true,
+      "cardRevealed": false,
       "plantedDay": null,
       "growthProgress": 0,
       "quality": 50,
@@ -237,12 +274,13 @@
       "unlockedTrustEventIds": [],
       "condition": "normal",
       "conditionDay": null,
-      "conditionSource": null
+      "conditionSource": null,
+      "hybridAdapted": false
     },
     {
       "girlId": "pan",
       "state": "appeared",
-      "cardRevealed": true,
+      "cardRevealed": false,
       "plantedDay": null,
       "growthProgress": 0,
       "quality": 50,
@@ -255,12 +293,13 @@
       "unlockedTrustEventIds": [],
       "condition": "normal",
       "conditionDay": null,
-      "conditionSource": null
+      "conditionSource": null,
+      "hybridAdapted": false
     },
     {
       "girlId": "puti",
       "state": "appeared",
-      "cardRevealed": true,
+      "cardRevealed": false,
       "plantedDay": null,
       "growthProgress": 0,
       "quality": 50,
@@ -273,12 +312,13 @@
       "unlockedTrustEventIds": [],
       "condition": "normal",
       "conditionDay": null,
-      "conditionSource": null
+      "conditionSource": null,
+      "hybridAdapted": false
     },
     {
       "girlId": "roma",
       "state": "appeared",
-      "cardRevealed": true,
+      "cardRevealed": false,
       "plantedDay": null,
       "growthProgress": 0,
       "quality": 50,
@@ -291,12 +331,13 @@
       "unlockedTrustEventIds": [],
       "condition": "normal",
       "conditionDay": null,
-      "conditionSource": null
+      "conditionSource": null,
+      "hybridAdapted": false
     },
     {
       "girlId": "saffy",
       "state": "appeared",
-      "cardRevealed": true,
+      "cardRevealed": false,
       "plantedDay": null,
       "growthProgress": 0,
       "quality": 50,
@@ -309,7 +350,8 @@
       "unlockedTrustEventIds": [],
       "condition": "normal",
       "conditionDay": null,
-      "conditionSource": null
+      "conditionSource": null,
+      "hybridAdapted": false
     }
   ],
   "ownedGirlSeeds": [
@@ -45316,24 +45358,36 @@
     "プティのドラゴンフルーツ（デバッグ用）": 1,
     "ロマのロマネスコ（デバッグ用）": 1,
     "サフィのサフラン（デバッグ用）": 1,
-    "竹の釣竿": 0
+    "竹の釣竿": 1,
+    "鋭い牙": 1,
+    "神獣の角": 4,
+    "神獣の絹糸": 3,
+    "枝": 1
   },
   "equippedItems": {
-    "主人公-slot1": "",
+    "主人公-slot1": "竹の釣竿",
     "主人公-slot2": "",
     "主人公-slot3": "",
-    "主人公-slot4": "",
+    "主人公-slot4": "剛牙の鎧（デバッグ用）",
     "ちびいち-slot1": "",
     "ちびいち-slot2": ""
   },
-  "caughtFishIds": [],
+  "caughtFishIds": [
+    "eda"
+  ],
   "nushiCaughtFishIds": [],
-  "fishBestSizes": {},
-  "fishInventorySizes": {},
+  "fishBestSizes": {
+    "eda": 7.9
+  },
+  "fishInventorySizes": {
+    "枝": [
+      7.9
+    ]
+  },
   "lumberInventorySizes": {},
   "oreInventoryWeights": {},
   "depletedMiningPointIds": {},
-  "fishingTutorialCompleted": false,
+  "fishingTutorialCompleted": true,
   "craftTutorialRecipeName": "【レシピ】のこぎり",
   "sawCraftTutorialReady": false,
   "sawCraftTutorialWorkbenchReady": false,

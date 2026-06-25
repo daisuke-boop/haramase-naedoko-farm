@@ -73,6 +73,28 @@ export const selectLumberReward = (sawName: SawName, random = Math.random): Lumb
   return weighted[weighted.length - 1]?.lumber ?? LUMBER_DATA[0];
 };
 
+export const selectLumberRewardWithBonus = (
+  sawName: SawName,
+  rareRateMultiplier = 1,
+  random = Math.random,
+): LumberData => {
+  const weighted = LUMBER_DATA
+    .map((lumber, index) => ({
+      lumber,
+      weight: (SAW_LUMBER_WEIGHTS[sawName][lumber.id] ?? 0) * (index === 0 ? 1 : rareRateMultiplier),
+    }))
+    .filter(entry => entry.weight > 0);
+  const totalWeight = weighted.reduce((sum, entry) => sum + entry.weight, 0);
+  let roll = random() * totalWeight;
+
+  for (const entry of weighted) {
+    roll -= entry.weight;
+    if (roll <= 0) return entry.lumber;
+  }
+
+  return weighted[weighted.length - 1]?.lumber ?? LUMBER_DATA[0];
+};
+
 export const createLumberSize = (lumber: LumberData, random = Math.random): number => (
   Number((lumber.minSize + (lumber.maxSize - lumber.minSize) * random()).toFixed(1))
 );
@@ -93,8 +115,10 @@ export const createLumberRewards = (
   sawName: SawName,
   count: number,
   random = Math.random,
+  options: { rareRateMultiplier?: number; minSizeFloorBonus?: number } = {},
 ): LumberReward[] => Array.from({ length: count }, () => {
-  const lumber = selectLumberReward(sawName, random);
-  return { lumber, size: createLumberSize(lumber, random) };
+  const lumber = selectLumberRewardWithBonus(sawName, options.rareRateMultiplier ?? 1, random);
+  const minSize = lumber.minSize + (lumber.maxSize - lumber.minSize) * (options.minSizeFloorBonus ?? 0);
+  return { lumber, size: Math.max(Number(minSize.toFixed(1)), createLumberSize(lumber, random)) };
 });
 import { getItemCountIncludingDebug, toBaseItemName } from './debugItemData';

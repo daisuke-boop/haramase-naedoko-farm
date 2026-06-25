@@ -159,7 +159,7 @@ export const GIRL_DATA: readonly GirlData[] = [
   {
     id: 'pan',
     cropName: 'かぼちゃ',
-    girlName: 'パン',
+    girlName: 'ぱん',
     unlockTier: 'mid',
     initialTrust: 0,
     combatRole: 'HP・防御補助',

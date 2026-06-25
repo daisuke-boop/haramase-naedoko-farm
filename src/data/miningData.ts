@@ -141,6 +141,7 @@ export const selectOreRewardWithPerformance = (
   pickaxe: PickaxeName,
   miningGauge: number,
   fullCombo: boolean,
+  rareRateMultiplier = 1,
   random = Math.random,
 ): OreData => {
   const bonus = getMiningPerformanceBonus(miningGauge, fullCombo);
@@ -148,6 +149,7 @@ export const selectOreRewardWithPerformance = (
     const baseWeight = PICKAXE_ORE_WEIGHTS[pickaxe][ore.id] ?? 0;
     if (baseWeight <= 0) return { ore, weight: 0 };
     const rarity = getOreRarityTier(ore.id);
+    const skillMultiplier = rarity === 'normal' ? 1 : rareRateMultiplier;
     const multiplier = rarity === 'topRare'
       ? bonus.topRareMultiplier
       : rarity === 'highRare'
@@ -155,7 +157,7 @@ export const selectOreRewardWithPerformance = (
         : rarity === 'mediumRare'
           ? bonus.mediumRareMultiplier
           : 1;
-    return { ore, weight: baseWeight * multiplier };
+    return { ore, weight: baseWeight * multiplier * skillMultiplier };
   }).filter(entry => entry.weight > 0);
   let roll = random() * weighted.reduce((sum, entry) => sum + entry.weight, 0);
   for (const entry of weighted) {

@@ -159,6 +159,7 @@ export type FishingSelectionParams = {
   rodName: string;
   timeOfDay: TimeOfDay;
   caughtIds?: readonly string[];
+  rareRateMultiplier?: number;
   random?: () => number;
 };
 
@@ -182,6 +183,7 @@ export const selectFishingTargetFish = ({
   rodName,
   timeOfDay,
   caughtIds = [],
+  rareRateMultiplier = 1,
   random = Math.random,
 }: FishingSelectionParams): FishZukanEntry => {
   const candidates = getFishingCandidates({ difficulty, rodName, caughtIds });
@@ -193,6 +195,7 @@ export const selectFishingTargetFish = ({
     weight:
       FISHING_RARITY_BASE_WEIGHTS[fish.rarity] *
       FISHING_TIME_OF_DAY_MODIFIERS[timeOfDay][fish.rarity] *
+      (fish.rarity === 'common' ? 1 : rareRateMultiplier) *
       (FISHING_FISH_WEIGHT_MULTIPLIERS[fish.id] ?? 1),
   }));
   const totalWeight = weighted.reduce((sum, entry) => sum + entry.weight, 0);

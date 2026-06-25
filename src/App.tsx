@@ -687,6 +687,7 @@ type FarmGirlSaveState = {
   condition: FarmGirlCondition;
   conditionDay: number | null;
   conditionSource: string | null;
+  hybridAdapted: boolean;
 };
 
 type FarmFieldSlotState = {
@@ -792,6 +793,7 @@ type BattlePreviewState = {
   partnerDropRateBonus: number;
   healingItemUses: number;
   reviveItemUses: number;
+  bgmSource: string;
 };
 type BattlePartnerSkillDisplay = { partnerId: string; text: string; key: number } | null;
 type BattleItemKind = 'heal' | 'revive';
@@ -816,11 +818,8 @@ const BATTLE_BACKGROUND_SOURCES: Readonly<Record<GameDifficulty, string>> = {
   normal: '/img/battle/battle2.jpg',
   hard: '/img/battle/battle3.jpg',
 };
-const BATTLE_BGM_SOURCES: Readonly<Record<GameDifficulty, string>> = {
-  easy: '/bgm/battle1.mp3',
-  normal: '/bgm/battle2.mp3',
-  hard: '/bgm/battle3.mp3',
-};
+const MOUNTAIN_LORD_BATTLE_BGM_SRC = '/bgm/battle2.mp3';
+const RANDOM_BATTLE_BGM_SOURCES = ['/bgm/battle1.mp3', '/bgm/battle3.mp3'] as const;
 const BATTLE_VICTORY_BGM_SOURCES: Readonly<Record<GameDifficulty, string>> = {
   easy: '/bgm/victory1.wav',
   normal: '/bgm/victory2.wav',
@@ -1698,7 +1697,7 @@ const COMPANION_TRAIL_DELAY_FRAMES = 18;
 const COMPANION_FOLLOW_DISTANCE = 54;
 const DEBUG_INITIAL_GIRL_TRUST = 20; // 最終ビルドでは 0 に戻す
 const DEBUG_APPEARED_GIRL_IDS = new Set(
-  GIRL_DATA.map(girl => girl.id)
+  [] as string[]
 ); // 最終ビルドでは空に戻す
 const CRAFT_SUCCESS_SOUND_SRC = '/se/craft.mp3';
 const LOGGING_SUCCESS_SOUND_SRC = '/se/success.mp3';
@@ -1945,13 +1944,28 @@ const createInitialBattlePreviewState = (
   companionGirlId: string | null = null,
   encounterType: BattleEncounterType = 'test',
   currentHeroLevel: HeroLevel = 1,
+  unlockedHeroSkills: readonly string[] = [],
 ): BattlePreviewState => {
   const heroStats = HERO_BATTLE_STATS_BY_LEVEL[currentHeroLevel];
   const equipmentBonus = getHeroBattleEquipmentBonus(equippedItems);
   const mole = BEAST_BATTLE_DATA.find(beast => beast.id === 'mole') ?? BEAST_BATTLE_DATA[0];
-  const initialBeasts = beastUnits ?? [createBattleUnitFromBeast(mole), null, null];
+  const initialBeasts = (beastUnits ?? [createBattleUnitFromBeast(mole), null, null]).map(beast => {
+    if (!beast) return null;
+    return {
+      ...beast,
+      attack: unlockedHeroSkills.includes('battle_enemy_attack_down_trap')
+        ? Math.max(1, Math.round(beast.attack * 0.9))
+        : beast.attack,
+      defense: unlockedHeroSkills.includes('battle_enemy_defense_down_trap')
+        ? Math.max(0, Math.round(beast.defense * 0.9))
+        : beast.defense,
+    };
+  });
   const companion = createBattleUnitFromCompanionGirl(companionGirlId);
-  const heroMaxHp = heroStats.hp + equipmentBonus.hp;
+  const battleBgmSource = initialBeasts.some(beast => beast?.id === 'mountain_lord')
+    ? MOUNTAIN_LORD_BATTLE_BGM_SRC
+    : RANDOM_BATTLE_BGM_SOURCES[Math.floor(Math.random() * RANDOM_BATTLE_BGM_SOURCES.length)];
+  const heroMaxHp = Math.round((heroStats.hp + equipmentBonus.hp) * (unlockedHeroSkills.includes('battle_hp_up') ? 1.1 : 1));
   const hero: BattlePreviewState['hero'] = {
     id: 'hero',
     name: '主人公',
@@ -1962,15 +1976,18 @@ const createInitialBattlePreviewState = (
     defense: heroStats.defense + equipmentBonus.defense,
     speed: heroStats.speed,
     criticalRate: equipmentBonus.criticalRate,
-    beastDamageMultiplier: equipmentBonus.beastDamageMultiplier,
-    beastDamageReduction: equipmentBonus.beastDamageReduction,
+    beastDamageMultiplier: equipmentBonus.beastDamageMultiplier * (unlockedHeroSkills.includes('battle_beast_damage_up') ? 1.1 : 1),
+    beastDamageReduction: equipmentBonus.beastDamageReduction + (unlockedHeroSkills.includes('battle_damage_reduce') ? 10 : 0),
     statusResistance: equipmentBonus.statusResistance,
     defending: false,
   };
   const allies = [companion, null, null];
   const turnQueue = createBattleTurnQueue(hero, allies, initialBeasts);
   const maxBattleSp = 4 + heroStats.level * 2;
-  const partnerSkillMaxUses = companion ? (PARTNER_SKILL_PREVIEWS[companion.id]?.maxUses ?? 0) : 0;
+  const basePartnerSkillMaxUses = companion ? (PARTNER_SKILL_PREVIEWS[companion.id]?.maxUses ?? 0) : 0;
+  const partnerSkillMaxUses = basePartnerSkillMaxUses > 0 && unlockedHeroSkills.includes('companion_battle_support')
+    ? basePartnerSkillMaxUses + 1
+    : basePartnerSkillMaxUses;
   return {
     hero,
     allies,
@@ -1979,6 +1996,8 @@ const createInitialBattlePreviewState = (
       `${initialBeasts.filter(Boolean).map(beast => beast?.name).join('、')}が現れた！`,
       '主人公は身構えている。',
       ...(companion ? [`${companion.name}が同行している。`] : []),
+      ...(unlockedHeroSkills.includes('battle_enemy_attack_down_trap') ? ['足くくり罠：敵攻撃力を下げた！'] : []),
+      ...(unlockedHeroSkills.includes('battle_enemy_defense_down_trap') ? ['電撃罠：敵防御力を下げた！'] : []),
     ],
     result: 'ongoing',
     loot: [],
@@ -1995,6 +2014,7 @@ const createInitialBattlePreviewState = (
     partnerDropRateBonus: 0,
     healingItemUses: 0,
     reviveItemUses: 0,
+    bgmSource: battleBgmSource,
   };
 };
 const calculateBattleDamage = (
@@ -2075,6 +2095,7 @@ const createInitialFarmGirls = (): FarmGirlSaveState[] => GIRL_DATA.map(girl => 
   condition: 'normal',
   conditionDay: null,
   conditionSource: null,
+  hybridAdapted: false,
 }));
 const normalizeFarmGirls = (raw: unknown): FarmGirlSaveState[] => {
   const rawEntries = Array.isArray(raw) ? raw : [];
@@ -2099,8 +2120,8 @@ const normalizeFarmGirls = (raw: unknown): FarmGirlSaveState[] => {
       cardRevealed: DEBUG_APPEARED_GIRL_IDS.has(girl.id)
         ? true
         : typeof entry.cardRevealed === 'boolean'
-        ? entry.cardRevealed
-        : entry.state === 'appeared' || entry.state === 'companion' || entry.state === 'lover',
+        ? entry.cardRevealed && typeof entry.lastHarvestDay === 'number'
+        : false,
       plantedDay: typeof entry.plantedDay === 'number' && Number.isInteger(entry.plantedDay) && entry.plantedDay > 0 ? entry.plantedDay : null,
       growthProgress: typeof entry.growthProgress === 'number' && Number.isFinite(entry.growthProgress) ? clampNumber(entry.growthProgress, 0, 100) : 0,
       quality: typeof entry.quality === 'number' && Number.isFinite(entry.quality)
@@ -2120,6 +2141,7 @@ const normalizeFarmGirls = (raw: unknown): FarmGirlSaveState[] => {
         ? entry.conditionDay
         : null,
       conditionSource: typeof entry.conditionSource === 'string' ? entry.conditionSource : null,
+      hybridAdapted: typeof entry.hybridAdapted === 'boolean' ? entry.hybridAdapted : false,
     };
   });
 };
@@ -2409,13 +2431,14 @@ export default function App() {
       </span>
     );
   });
+  const [debugGirlAffinities, setDebugGirlAffinities] = useState<Record<string, number>>({});
   const menuGirls = GIRL_DATA.map((girl, index) => ({
     id: girl.id,
     name: girl.girlName,
     trait: ['素直', '内気', '勝気', '甘えん坊', '好奇心旺盛'][index % 5],
     stage: ['未受精', '受精準備', '受精初期'][index % 3],
     level: 1,
-    affinity: 1,
+    affinity: debugGirlAffinities[girl.id] ?? 1,
     cardImg: FARM_GIRL_CARD_IMAGES[girl.id] ?? FARM_GIRL_CARD_BACK_SRC,
     detailImg: FARM_GIRL_DETAIL_IMAGES[girl.id] ?? FARM_GIRL_CARD_BACK_SRC,
   }));
@@ -2634,6 +2657,37 @@ export default function App() {
     if (action === 'fertilize' && hasHeroSkill('farm_abstinence') && crop.growthDays >= 5) return 2;
     return 1;
   };
+  const getHybridCultivationSuccessRate = () => (hasHeroSkill('special_adaptation_research') ? 0.8 : 0.65);
+  const getHybridBlessingMultiplier = (farmGirl?: Pick<FarmGirlSaveState, 'hybridAdapted'> | null) => (
+    farmGirl?.hybridAdapted && hasHeroSkill('special_hybrid_blessing') ? 1.15 : 1
+  );
+  const getSkillAdjustedFarmQuality = (quality: number, farmGirl?: Pick<FarmGirlSaveState, 'hybridAdapted'> | null) => (
+    farmGirl?.hybridAdapted && hasHeroSkill('special_hybrid_blessing') ? Math.max(quality, 60) : quality
+  );
+  const getGatheringRareRateMultiplier = () => (hasHeroSkill('gather_lumber_rare_up') ? 1.05 : 1);
+  const getGatheringMinFloorBonus = () => (hasHeroSkill('gather_tool_care') ? 0.1 : 0);
+  const getSkillAdjustedFishSize = (fish: FishZukanEntry, size: number) => {
+    const minFloorBonus = getGatheringMinFloorBonus();
+    if (minFloorBonus <= 0 || fish.sizeMax <= fish.sizeMin || typeof fish.fixedSize === 'number') return size;
+    const minSize = fish.sizeMin + (fish.sizeMax - fish.sizeMin) * minFloorBonus;
+    return Number(Math.max(size, minSize).toFixed(1));
+  };
+  const applyCompanionRegenPerHeroTurn = (
+    hero: BattlePreviewState['hero'],
+    allies: readonly (BattleUnitState | null)[],
+    turnLogs: string[],
+  ) => {
+    if (!hasHeroSkill('battle_companion_regen')) return;
+    const activeCompanion = allies.find(ally => ally && ally.hp > 0);
+    if (!activeCompanion || hero.hp <= 0 || hero.hp >= hero.maxHp) return;
+    const recoveredHp = Math.min(hero.maxHp - hero.hp, 3 + Math.floor(Math.random() * 3));
+    if (recoveredHp <= 0) return;
+    hero.hp += recoveredHp;
+    turnLogs.push(`母乳分泌促進：主人公のHPが${recoveredHp}回復！`);
+    triggerBattleSupportEffect(hero.id);
+    triggerBattleDamagePopup(hero.id, recoveredHp, false, true);
+    playUiSound(BATTLE_SE_SOURCES.cure);
+  };
   const canUnlockHeroSkill = (skillId: string) => {
     const skill = getHeroSkillById(skillId);
     if (!skill || hasHeroSkill(skillId)) return false;
@@ -2664,10 +2718,10 @@ export default function App() {
     setSkillUnlockChoice('yes');
     setPendingSkillUnlockId(skillId);
   };
-  const confirmHeroSkillUnlock = () => {
-    const skillId = pendingSkillUnlockId;
+  const confirmHeroSkillUnlock = (skillIdOverride?: string, choiceOverride?: 'yes' | 'no') => {
+    const skillId = skillIdOverride ?? pendingSkillUnlockId;
     if (!skillId) return;
-    if (skillUnlockChoice === 'no') {
+    if ((choiceOverride ?? skillUnlockChoice) === 'no') {
       setPendingSkillUnlockId(null);
       return;
     }
@@ -2771,12 +2825,12 @@ export default function App() {
     const stock = inventoryCounts[crop.harvestItemName] ?? 0;
     if (stock <= 0) return [];
     const farmGirl = farmGirls.find(girl => girl.girlId === crop.girlId);
-    const quality = farmGirl?.quality ?? 50;
+    const quality = getSkillAdjustedFarmQuality(farmGirl?.quality ?? 50, farmGirl);
     const price = getFarmHarvestSellPrice(
       crop,
       getFarmTrustBonus(farmGirl?.trust ?? 0).sellMultiplier,
       getFarmQualityMultiplier(quality),
-      getHeroSkillMultiplier('farm_sell_up', 8),
+      getHeroSkillMultiplier('farm_sell_up', 8) * getHybridBlessingMultiplier(farmGirl),
     );
     return [{
       name: crop.harvestItemName,
@@ -2853,12 +2907,6 @@ export default function App() {
 
   const renderMenuDetail = (id: MenuItemId) => {
     const tabs = ['消耗品', '素材', '装備品', '売却品', 'だいじなもの'];
-    const stats = [
-      ['攻撃力', 12],
-      ['防御力', 8],
-      ['素早さ', 10],
-      ['魅力', 14],
-    ];
     const zukanGirlCards = Array.from({ length: 20 }).map((_, index) => {
       const girl = menuGirls[index];
       const farmGirl = girl ? farmGirls.find(entry => entry.girlId === girl.id) : undefined;
@@ -2968,6 +3016,9 @@ export default function App() {
 
     if (id === 'equipment') {
       const companionEquipmentGirl = companionGirlId ? GIRL_DATA.find(girl => girl.id === companionGirlId) : undefined;
+      const heroBattleStats = HERO_BATTLE_STATS_BY_LEVEL[heroLevel];
+      const heroBattleEquipmentBonus = getHeroBattleEquipmentBonus(equippedItems);
+      const heroBattleMaxHp = Math.round((heroBattleStats.hp + heroBattleEquipmentBonus.hp) * (hasHeroSkill('battle_hp_up') ? 1.1 : 1));
       const equipmentCharacters = [
         {
           slotOwner: '主人公',
@@ -2983,7 +3034,12 @@ export default function App() {
             equippedItems['主人公-slot3'] || '未装備',
             equippedItems['主人公-slot4'] || '未装備',
           ],
-          stats: [12, 8, 10, 14],
+          stats: [
+            ['攻撃力', heroBattleStats.attack + heroBattleEquipmentBonus.attack],
+            ['防御力', heroBattleStats.defense + heroBattleEquipmentBonus.defense],
+            ['素早さ', heroBattleStats.speed],
+            ['HP', heroBattleMaxHp],
+          ],
           description: '都会から来た純粋な少年。\n爺ちゃんのエロい遺言を真に受けて田舎へ。\n借金地獄に突き落とされながらも、娘たちを孕ませ育てて\n完済を目指す頑張り屋！',
         },
         ...(companionEquipmentGirl ? [{
@@ -2998,7 +3054,12 @@ export default function App() {
             equippedItems[`${companionEquipmentGirl.girlName}-slot1`] || '未装備',
             equippedItems[`${companionEquipmentGirl.girlName}-slot2`] || '未装備',
           ],
-          stats: [6, 5, 16, 18],
+          stats: [
+            ['攻撃力', 6],
+            ['防御力', 5],
+            ['素早さ', 16],
+            ['HP', 18],
+          ],
           description: farmGirlEquipmentComments[companionEquipmentGirl.id] ?? `${companionEquipmentGirl.girlName}が同行中。ユウの旅をそばで支えてくれます。`,
         }] : []),
       ];
@@ -3020,8 +3081,14 @@ export default function App() {
       const equipableItems = (equipmentOptionsBySlot[selectedEquipmentSlotLabel] ?? []).filter(name => (
         (inventoryCounts[name] ?? 0) > 0 && !equippedItemNames.includes(name)
       ));
+      const showEquipmentPicker = equipmentActionOpen && menuContentFocus === 'secondary' && !selectedEquippedItem;
+      const equipSelectedItem = (name: string) => {
+        playFixSound();
+        setEquippedItems(prev => ({ ...prev, [selectedEquipmentSlot]: name }));
+        setDialogMessage(`${name}を装備しました。`);
+      };
       return (
-        <div className="grid h-full min-h-0 grid-cols-[58%_1fr] gap-5 pb-10">
+        <div className="relative grid h-full min-h-0 grid-cols-[58%_1fr] gap-5 pb-10">
           <div style={{ ...menuPanelBaseStyle, ...menuKeyboardFocusStyle(menuFocusArea === 'content' && menuContentFocus === 'primary') }} className="grid h-full min-h-0 grid-cols-2 gap-4 overflow-hidden">
             {equipmentCharacters.map((char) => (
               <button
@@ -3102,47 +3169,17 @@ export default function App() {
                       </button>
                     </div>
                   ) : (
-                    <div className="mt-3 flex min-h-0 flex-1 flex-col">
-                      <div className="mb-2 text-[#c8a87a] text-sm">装備欄</div>
-                      <div className="grid min-h-0 grid-cols-2 gap-2 overflow-y-auto pr-2">
-                        {equipableItems.length > 0 ? equipableItems.map((name, optionIndex) => (
-                          <button
-                            key={name}
-                            type="button"
-                            data-equipment-option-index={optionIndex}
-                            onPointerDown={(e) => { e.stopPropagation(); setSelectedEquipmentOptionIndex(optionIndex); }}
-                            onClick={() => {
-                              playFixSound();
-                              setEquippedItems(prev => ({ ...prev, [selectedEquipmentSlot]: name }));
-                              setDialogMessage(`${name}を装備しました。`);
-                            }}
-                            className={`relative flex min-h-[62px] items-center justify-between gap-2 rounded border px-4 py-3 pl-8 text-left cursor-pointer hover:bg-[#3a2418] ${
-                              selectedEquipmentOptionIndex === optionIndex
-                                ? 'border-white bg-[#bc6c25]/65 ring-2 ring-[#ffd166] shadow-[0_0_18px_rgba(255,209,102,0.45)]'
-                                : 'border-[#5a3010] bg-[#2d1b15]/72'
-                            }`}
-                          >
-                            {selectedEquipmentOptionIndex === optionIndex && (
-                              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[#ffd166] font-black">▶</span>
-                            )}
-                            <span className="min-w-0 break-keep text-[#fdf6e3] font-bold leading-snug">{name}</span>
-                            <span className="shrink-0 text-[#dda15e] text-sm">x{inventoryCounts[name] ?? 0}</span>
-                          </button>
-                        )) : (
-                          <div className="rounded border border-[#5a3010] bg-black/30 px-4 py-3 text-[#c8a87a]">
-                            装備できるアイテムがありません。
-                          </div>
-                        )}
-                      </div>
+                    <div className="mt-3 rounded border border-[#5a3010] bg-black/30 px-4 py-3 text-[#c8a87a]">
+                      上の大きな装備一覧から選択
                     </div>
                   )}
                 </div>
               )}
               <div className="grid grid-cols-2 gap-2 mt-4">
-                {stats.map(([label], index) => (
+                {selectedEquipmentCharacter.stats.map(([label, value]) => (
                   <div key={label} className="flex justify-between bg-black/25 border border-[#5a3010]/70 rounded px-4 py-3">
                     <span className="text-[#c8a87a]">{label}</span>
-                    <span className="text-[#fdf6e3] text-xl font-bold">{selectedEquipmentCharacter.stats[index]}</span>
+                    <span className="text-[#fdf6e3] text-xl font-bold">{value}</span>
                   </div>
                 ))}
               </div>
@@ -3151,6 +3188,46 @@ export default function App() {
               </div>
             </div>
           </div>
+          {showEquipmentPicker && (
+            <div className="absolute inset-x-6 top-4 z-30 rounded-lg border-2 border-[#ffd166] bg-[#1b100c]/95 p-5 shadow-[0_0_34px_rgba(0,0,0,0.75),0_0_22px_rgba(255,209,102,0.35)]">
+              <div className="mb-4 flex items-start justify-between gap-4">
+                <div>
+                  <div className="text-xs font-black tracking-[0.12em] text-[#dda15e]">装備一覧</div>
+                  <div className="mt-1 text-2xl font-black leading-tight text-[#fff7dc]">{selectedEquipmentSlotLabel}</div>
+                  <div className="mt-1 text-sm font-bold text-[#c8a87a]">{selectedEquipmentCharacter.label}に装備するアイテムを選択</div>
+                </div>
+                <div className="rounded border border-[#5a3010] bg-black/35 px-3 py-2 text-right text-xs font-bold leading-relaxed text-[#d7b98a]">
+                  ↑↓←→ 選択<br />Enter 決定 / Esc 戻る
+                </div>
+              </div>
+              <div className="grid max-h-[300px] grid-cols-3 gap-3 overflow-y-auto pr-2">
+                {equipableItems.length > 0 ? equipableItems.map((name, optionIndex) => (
+                  <button
+                    key={name}
+                    type="button"
+                    data-equipment-option-index={optionIndex}
+                    onPointerDown={(e) => { e.stopPropagation(); setSelectedEquipmentOptionIndex(optionIndex); }}
+                    onClick={() => equipSelectedItem(name)}
+                    className={`relative flex min-h-[76px] items-center justify-between gap-3 rounded border px-4 py-3 pl-9 text-left transition hover:bg-[#3a2418] ${
+                      selectedEquipmentOptionIndex === optionIndex
+                        ? 'border-white bg-[#bc6c25]/75 ring-4 ring-[#ffd166]/75 shadow-[0_0_22px_rgba(255,209,102,0.45)]'
+                        : 'border-[#7a4317] bg-[#2d1b15]/88'
+                    }`}
+                  >
+                    {selectedEquipmentOptionIndex === optionIndex && (
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xl font-black text-[#ffd166]">▶</span>
+                    )}
+                    <span className="min-w-0 break-keep text-base font-black leading-snug text-[#fdf6e3]">{name}</span>
+                    <span className="shrink-0 rounded bg-black/30 px-2 py-1 text-sm font-bold text-[#dda15e]">x{inventoryCounts[name] ?? 0}</span>
+                  </button>
+                )) : (
+                  <div className="col-span-3 rounded border border-[#5a3010] bg-black/35 px-5 py-6 text-center text-lg font-bold text-[#c8a87a]">
+                    装備できるアイテムがありません。
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       );
     }
@@ -3257,6 +3334,10 @@ export default function App() {
           case 'farm_harvest_up':
           case 'farm_sell_up':
           case 'farm_interest_down':
+          case 'battle_enemy_attack_down_trap':
+          case 'battle_enemy_defense_down_trap':
+          case 'battle_beast_damage_up':
+          case 'battle_companion_regen':
           case 'gather_fishing_rare_up':
           case 'gather_mining_rare_up':
           case 'gather_lumber_rare_up':
@@ -3439,7 +3520,9 @@ export default function App() {
             {selectedSkill && (
               <>
                 <div className="rounded border border-[#5a3010] bg-black/25 p-3 text-sm font-bold">
-                  <div className="mb-3 rounded border border-[#ffd166]/50 bg-[#3a2418]/70 px-3 py-2 text-base text-[#ffd166]">{getSkillEffectSummary(selectedSkill)}</div>
+                  {getSkillEffectSummary(selectedSkill) !== selectedSkill.description && (
+                    <div className="mb-3 rounded border border-[#ffd166]/50 bg-[#3a2418]/70 px-3 py-2 text-base text-[#ffd166]">{getSkillEffectSummary(selectedSkill)}</div>
+                  )}
                   <div className="flex items-center justify-between gap-2 text-[#fdf6e3]"><span>必要SP</span>{renderSkillBadge('SP ' + selectedSkill.costSP, 'border-[#ffd166]/85 bg-[#3a2418] text-[#ffd166]')}</div>
                   <div className="mt-2 flex justify-between gap-2 text-[#fdf6e3]"><span>必要成長度</span><span>★{selectedSkill.requiredHeroLevel}</span></div>
                   <div className="mt-2 text-xs text-[#c8a87a]">{getUnlockBlockReason(selectedSkill)}</div>
@@ -3447,6 +3530,12 @@ export default function App() {
                 <button
                   type="button"
                   disabled={hasHeroSkill(selectedSkill.id)}
+                  onPointerDown={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    playFixSound();
+                    requestHeroSkillUnlock(selectedSkill.id);
+                  }}
                   onClick={() => { playFixSound(); requestHeroSkillUnlock(selectedSkill.id); }}
                   className="rounded border-2 border-[#a3b18a] bg-[#4a5823] px-4 py-3 font-bold text-[#fff7dc] transition hover:bg-[#60732d] disabled:cursor-not-allowed disabled:border-[#5a3010] disabled:bg-black/30 disabled:text-[#8f7b63]"
                 >
@@ -3462,10 +3551,52 @@ export default function App() {
     if (id === 'farm') {
       const selectedFarmGirl = menuGirls[selectedFarmGirlIndex] ?? menuGirls[0];
       const selectedGirlData = GIRL_DATA.find(girl => girl.id === selectedFarmGirl.id);
+      const getSeedDataByGirlId = (girlId: string) => GIRL_SEED_ACQUISITION_DATA.find(seed => seed.girlId === girlId);
+      const isFarmGirlSeedOwned = (girlId: string) => {
+        const seed = getSeedDataByGirlId(girlId);
+        return Boolean(seed && ownedGirlSeeds.includes(seed.seedId));
+      };
+      const getFarmGirlCardDisplay = (girlId: string) => {
+        const seed = getSeedDataByGirlId(girlId);
+        const farmGirl = farmGirls.find(entry => entry.girlId === girlId);
+        const isOwnedSeed = Boolean(seed && ownedGirlSeeds.includes(seed.seedId));
+        const isRevealing = revealingFarmGirlIds.includes(girlId);
+        const isGirlRevealed = Boolean(farmGirl?.cardRevealed || isRevealing);
+        if (!isOwnedSeed) {
+          return {
+            imageSrc: FARM_GIRL_CARD_BACK_SRC,
+            imageAlt: '未所持の苗娘カード',
+            label: '？？？？',
+            subLabel: '未所持',
+            showStars: false,
+            showDetail: false,
+            isRevealing: false,
+          };
+        }
+        if (!isGirlRevealed) {
+          return {
+            imageSrc: '/img/nae.png',
+            imageAlt: seed?.seedName ?? '苗娘',
+            label: seed?.seedName ?? '苗娘',
+            subLabel: farmGirl ? getFarmGirlStateDisplay(girlId, farmGirl.state) : '苗所持',
+            showStars: false,
+            showDetail: false,
+            isRevealing,
+          };
+        }
+        return {
+          imageSrc: FARM_GIRL_CARD_IMAGES[girlId] ?? FARM_GIRL_CARD_BACK_SRC,
+          imageAlt: menuGirls.find(girl => girl.id === girlId)?.name ?? seed?.seedName ?? '苗娘',
+          label: menuGirls.find(girl => girl.id === girlId)?.name ?? seed?.seedName ?? '苗娘',
+          subLabel: '娘カード',
+          showStars: true,
+          showDetail: true,
+          isRevealing,
+        };
+      };
       const selectedFarmGirlState = selectedGirlData
         ? farmGirls.find(girl => girl.girlId === selectedGirlData.id)
         : undefined;
-      const selectedFarmGirlIsVisible = Boolean(selectedFarmGirlState?.cardRevealed);
       const selectedHarvestInfo = selectedGirlData ? getFarmGirlHarvestInfo(selectedGirlData.id) : null;
       const selectedSeedlingCrop = selectedGirlData
         ? FARM_GIRL_CROP_DATA.find(crop => crop.girlId === selectedGirlData.id)
@@ -3474,6 +3605,7 @@ export default function App() {
       const selectedGirlCanBecomeCompanion = Boolean(
         selectedGirlData &&
         selectedFarmGirlState?.state === 'appeared' &&
+        selectedFarmGirlState.cardRevealed &&
         selectedFarmGirlState.trust >= 20 &&
         selectedFarmGirlState.condition !== 'affected'
       );
@@ -3486,6 +3618,18 @@ export default function App() {
         selectedFarmGirlState?.condition ?? 'normal',
         difficulty,
       );
+      const selectedFarmGirlEffectiveQuality = getSkillAdjustedFarmQuality(selectedFarmGirlState?.quality ?? 50, selectedFarmGirlState);
+      const selectedFarmGirlQualityMultiplier = getFarmQualityMultiplier(selectedFarmGirlEffectiveQuality);
+      const selectedFarmGirlSellMultiplier =
+        getHeroSkillMultiplier('farm_sell_up', 8) * getHybridBlessingMultiplier(selectedFarmGirlState);
+      const selectedFarmGirlEstimatedSellPrice = selectedSeedlingCrop
+        ? getFarmHarvestSellPrice(
+          selectedSeedlingCrop,
+          getFarmTrustBonus(selectedFarmGirlState?.trust ?? 0).sellMultiplier,
+          selectedFarmGirlQualityMultiplier,
+          selectedFarmGirlSellMultiplier,
+        )
+        : null;
       const plantingSeedData = plantingSeedId
         ? GIRL_SEED_ACQUISITION_DATA.find(seed => seed.seedId === plantingSeedId)
         : undefined;
@@ -3507,6 +3651,7 @@ export default function App() {
         }
         return farmGirlStateLabels[state];
       };
+      const ownedFarmGirlSeedCount = menuGirls.filter(girl => isFarmGirlSeedOwned(girl.id)).length;
       const selectedFarmGirlStatusText = selectedGirlData
         ? getFarmGirlStateDisplay(selectedGirlData.id, selectedFarmGirlState?.state ?? 'none')
         : farmGirlStateLabels[selectedFarmGirlState?.state ?? 'none'];
@@ -3534,7 +3679,7 @@ export default function App() {
                 <div style={menuTinyLabelStyle}>娘カード一覧</div>
                 <div className="text-[#fdf6e3] text-lg font-bold leading-tight">カードで選択・「詳細」で画像表示</div>
               </div>
-              <div className="text-[#d7b98a] text-sm font-bold">{menuGirls.length} / {menuGirls.length}</div>
+              <div className="text-[#d7b98a] text-sm font-bold">{ownedFarmGirlSeedCount} / {menuGirls.length}</div>
             </div>
             {hasBeastPremonition && (
               <div className="rounded-lg border border-[#ffd166]/65 bg-[#3a2508]/80 px-3 py-2 text-sm font-black text-[#ffd166] shadow-[0_0_18px_rgba(255,209,102,0.18)]">
@@ -3546,9 +3691,7 @@ export default function App() {
                 {menuGirls.map((girl, index) => (
                   (() => {
                     const farmGirl = farmGirls.find(entry => entry.girlId === girl.id);
-                    const isRevealing = revealingFarmGirlIds.includes(girl.id);
-                    const showGirlCard = farmGirl?.cardRevealed || isRevealing;
-                    const cardImageSrc = showGirlCard ? girl.cardImg : '/img/nae.png';
+                    const cardDisplay = getFarmGirlCardDisplay(girl.id);
                     return (
                   <div
                     key={girl.id}
@@ -3576,18 +3719,22 @@ export default function App() {
                       aria-label={`${girl.name}を選択`}
                     >
                       <img
-                        src={cardImageSrc}
-                        alt={showGirlCard ? girl.name : `${girl.name}の苗`}
-                        className={`absolute inset-0 h-full w-full object-contain p-1.5 ${isRevealing ? 'farm-girl-card-reveal-image' : ''}`}
+                        src={cardDisplay.imageSrc}
+                        alt={cardDisplay.imageAlt}
+                        className={`absolute inset-0 h-full w-full object-contain p-1.5 ${cardDisplay.isRevealing ? 'farm-girl-card-reveal-image' : ''}`}
                       />
-                      {isRevealing && <div className="farm-girl-card-reveal-sparkles" aria-hidden="true" />}
+                      {cardDisplay.isRevealing && <div className="farm-girl-card-reveal-sparkles" aria-hidden="true" />}
                       <div className="absolute inset-0 bg-gradient-to-t from-black/82 via-black/8 to-transparent" />
                       <div className="absolute left-2 right-2 bottom-2 rounded border border-white/10 bg-black/58 px-2 py-1 pr-14">
-                        <div className="text-[#fff7dc] font-bold text-xs leading-tight">{girl.name}</div>
-                        <div className="text-[9px] text-[#ffd45a] leading-none">{renderStars(girl.affinity)}</div>
+                        <div className="text-[#fff7dc] font-bold text-xs leading-tight">{cardDisplay.label}</div>
+                        {cardDisplay.showStars ? (
+                          <div className="text-[9px] text-[#ffd45a] leading-none">{renderStars(girl.affinity)}</div>
+                        ) : (
+                          <div className="text-[9px] font-bold leading-none text-[#c8a87a]">{cardDisplay.subLabel}</div>
+                        )}
                       </div>
                     </button>
-                    {farmGirl?.cardRevealed && (
+                    {cardDisplay.showDetail && (
                       <button
                         type="button"
                         onPointerDown={(event) => event.stopPropagation()}
@@ -3613,20 +3760,6 @@ export default function App() {
             </div>
           </div>
           <div style={{ ...menuPanelBaseStyle, ...menuKeyboardFocusStyle(menuFocusArea === 'content' && menuContentFocus === 'primary') }} className="farm-menu-scroll-area flex min-h-0 flex-col gap-4 overflow-y-auto pr-2 text-base">
-            <div className="farm-girl-card-preview relative overflow-hidden rounded border border-[#f1c27d]/70">
-              <img
-                src={selectedFarmGirlIsVisible ? selectedFarmGirl.cardImg : '/img/nae.png'}
-                alt={selectedFarmGirlIsVisible ? selectedFarmGirl.name : `${selectedFarmGirl.name}の苗`}
-                className="absolute inset-0 h-full w-full object-contain p-2"
-              />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/82 via-black/10 to-transparent" />
-              <div className="absolute left-3 right-3 bottom-3 rounded bg-black/58 border border-white/10 px-3 py-2">
-                <div className="text-[#fff7dc] text-2xl font-bold leading-tight">
-                  {selectedFarmGirlIsVisible ? selectedFarmGirl.name : '成長待ち'}
-                </div>
-                {selectedFarmGirlIsVisible && <div className="mt-1 text-lg">{renderStars(selectedFarmGirl.affinity)}</div>}
-              </div>
-            </div>
             <div className="bg-black/30 border border-[#5a3010]/70 rounded px-4 py-4">
               <div style={menuTinyLabelStyle}>詳細</div>
               <div className="mt-3 grid grid-cols-2 gap-3 text-base">
@@ -3641,16 +3774,31 @@ export default function App() {
                 {selectedFarmGirlState?.condition === 'affected' && (
                   <div className="col-span-2 rounded bg-black/25 px-4 py-4">
                     <div className="text-sm font-bold text-[#d8c4e8]">看病すると回復できます</div>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        playFixSound();
-                        careForFarmGirl(selectedFarmGirlState.girlId);
-                      }}
-                      className="mt-2 rounded border border-[#d8a8ff]/80 bg-[#5b276a]/80 px-4 py-2 text-sm font-black text-[#fff5fd] transition hover:bg-[#7d388f]"
-                    >
-                      看病する（{hasHeroSkill('special_life_understanding') ? 'AP 0' : 'AP 1'}）
-                    </button>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          playFixSound();
+                          careForFarmGirl(selectedFarmGirlState.girlId);
+                        }}
+                        className="rounded border border-[#d8a8ff]/80 bg-[#5b276a]/80 px-4 py-2 text-sm font-black text-[#fff5fd] transition hover:bg-[#7d388f]"
+                      >
+                        看病する（{hasHeroSkill('special_life_understanding') ? 'AP 0' : 'AP 1'}）
+                      </button>
+                      {hasHeroSkill('special_hybrid_cultivation') && (
+                        <button
+                          type="button"
+                          disabled={selectedFarmGirlState.hybridAdapted}
+                          onClick={() => {
+                            playFixSound();
+                            tryHybridCultivation(selectedFarmGirlState.girlId);
+                          }}
+                          className="rounded border border-[#f0abfc]/80 bg-[#5b214f]/80 px-4 py-2 text-sm font-black text-[#fff0fb] transition hover:bg-[#7b2e6c] disabled:cursor-not-allowed disabled:opacity-45"
+                        >
+                          {selectedFarmGirlState.hybridAdapted ? '混合適応済み' : `混合育成 ${Math.round(getHybridCultivationSuccessRate() * 100)}%`}
+                        </button>
+                      )}
+                    </div>
                   </div>
                 )}
                 {selectedGirlData && selectedFarmGirlState?.state === 'growing' && (
@@ -3724,7 +3872,7 @@ export default function App() {
                     </div>
                     {!selectedGirlIsCompanion && !selectedGirlCanBecomeCompanion && (
                       <div className="mt-2 text-sm text-[#c8a87a]">
-                        同行には「出現中」かつ信頼度20以上が必要です。
+                        同行には娘カード解放・信頼度20以上が必要です。
                       </div>
                     )}
                   </div>
@@ -3750,7 +3898,42 @@ export default function App() {
                     </div>
                     {selectedFarmGirlState.state === 'appeared' && (
                       <div className="mt-2 rounded bg-black/25 px-3 py-2 text-sm font-bold text-[#f0d58a]">
-                        作物品質：{selectedFarmGirlState.quality} / 100（{getFarmQualityLabel(selectedFarmGirlState.quality)}・売値 ×{getFarmQualityMultiplier(selectedFarmGirlState.quality)}）
+                        作物品質：{selectedFarmGirlEffectiveQuality} / 100（{getFarmQualityLabel(selectedFarmGirlEffectiveQuality)}・売値 ×{selectedFarmGirlQualityMultiplier}）
+                      </div>
+                    )}
+                    {selectedFarmGirlState.hybridAdapted && (
+                      <div className="mt-2 rounded border border-[#f0abfc]/45 bg-[#321433]/60 px-3 py-2 text-sm font-bold text-[#ffe4fb]">
+                        <div className="text-xs font-black text-[#f5b8ff]">交雑適性</div>
+                        <div className="mt-1">{hasHeroSkill('special_hybrid_blessing') ? '作物売値 +15% / 品質最低値60' : '混合育成に適応済み'}</div>
+                        {!hasHeroSkill('special_hybrid_blessing') && (
+                          <div className="mt-1 text-xs text-[#d8b4fe]">交雑の恵み取得後に追加効果が発動します。</div>
+                        )}
+                      </div>
+                    )}
+                    {hasHeroSkill('farm_quality_eye') && selectedFarmGirlEstimatedSellPrice !== null && (
+                      <div className="mt-2 rounded border border-[#67e8f9]/45 bg-[#0f3440]/45 px-3 py-2 text-sm font-bold text-[#c9f7ff]">
+                        <div className="text-xs font-black text-[#8ee9f7]">品質眼</div>
+                        <div className="mt-2 grid grid-cols-2 gap-2">
+                          <div className="rounded bg-black/25 px-2 py-1">
+                            <div className="text-[10px] text-[#9fdbe6]">現在品質</div>
+                            <div>{selectedFarmGirlState.quality} / 100</div>
+                          </div>
+                          <div className="rounded bg-black/25 px-2 py-1">
+                            <div className="text-[10px] text-[#9fdbe6]">補正後品質</div>
+                            <div>{selectedFarmGirlEffectiveQuality} / 100</div>
+                          </div>
+                          <div className="rounded bg-black/25 px-2 py-1">
+                            <div className="text-[10px] text-[#9fdbe6]">品質倍率</div>
+                            <div>×{selectedFarmGirlQualityMultiplier}</div>
+                          </div>
+                          <div className="rounded bg-black/25 px-2 py-1">
+                            <div className="text-[10px] text-[#9fdbe6]">売値倍率</div>
+                            <div>×{Number((selectedTrustBonus.sellMultiplier * selectedFarmGirlSellMultiplier).toFixed(2))}</div>
+                          </div>
+                        </div>
+                        <div className="mt-2 rounded border border-[#67e8f9]/30 bg-black/25 px-2 py-1 text-right text-base text-[#e7fbff]">
+                          予想売値 {selectedFarmGirlEstimatedSellPrice.toLocaleString()}G
+                        </div>
                       </div>
                     )}
                   </div>
@@ -4059,22 +4242,6 @@ export default function App() {
   useEffect(() => { menuSelectedIndexRef.current = menuSelectedIndex; }, [menuSelectedIndex]);
   useEffect(() => { menuFocusAreaRef.current = menuFocusArea; }, [menuFocusArea]);
   useEffect(() => { menuContentFocusRef.current = menuContentFocus; }, [menuContentFocus]);
-  useEffect(() => {
-    if (!menuOpen || selectedMenuItem.id !== 'farm') return;
-    const pendingGirlIds = farmGirls
-      .filter(girl => girl.state === 'appeared' && !girl.cardRevealed)
-      .map(girl => girl.girlId);
-    if (pendingGirlIds.length === 0) return;
-
-    setRevealingFarmGirlIds(pendingGirlIds);
-    const revealTimer = window.setTimeout(() => {
-      setFarmGirls(previous => previous.map(girl => (
-        pendingGirlIds.includes(girl.girlId) ? { ...girl, cardRevealed: true } : girl
-      )));
-      setRevealingFarmGirlIds(previous => previous.filter(girlId => !pendingGirlIds.includes(girlId)));
-    }, 1400);
-    return () => window.clearTimeout(revealTimer);
-  }, [farmGirls, menuOpen, selectedMenuItem.id]);
   useEffect(() => { itemMenuTabRef.current = itemMenuTab; }, [itemMenuTab]);
   useEffect(() => { selectedItemNameRef.current = selectedItemName; }, [selectedItemName]);
   useEffect(() => { selectedEquipmentSlotRef.current = selectedEquipmentSlot; }, [selectedEquipmentSlot]);
@@ -4770,7 +4937,10 @@ export default function App() {
         if (caughtFish && !caughtFishIds.includes(caughtFish.id)) {
           setCaughtFishIds(prev => [...prev, caughtFish.id]);
         }
-        const sizeValue = fishingTargetSizeValue ?? createFishingTargetSize(caughtFish, fishingBiteScore, fishingBiteCombo);
+        const sizeValue = getSkillAdjustedFishSize(
+          caughtFish,
+          fishingTargetSizeValue ?? createFishingTargetSize(caughtFish, fishingBiteScore, fishingBiteCombo),
+        );
         const sizeCm = sizeValue.toFixed(1);
         const isNewRecord = !!caughtFish && sizeValue > (fishBestSizes[caughtFish.id] ?? 0);
         if (isNewRecord && caughtFish) {
@@ -5254,6 +5424,15 @@ export default function App() {
 	              ? data.heroSP
 	              : 0
 	          );
+	          setDebugGirlAffinities(
+	            data.debugGirlAffinities && typeof data.debugGirlAffinities === 'object' && !Array.isArray(data.debugGirlAffinities)
+	              ? Object.fromEntries(
+	                Object.entries(data.debugGirlAffinities as Record<string, unknown>)
+	                  .filter(([girlId, value]) => GIRL_DATA.some(girl => girl.id === girlId) && typeof value === 'number' && Number.isInteger(value))
+	                  .map(([girlId, value]) => [girlId, clampNumber(value as number, 1, 5)])
+	              )
+	              : {}
+	          );
 	          setUnlockedHeroSkills(
 	            Array.isArray(data.unlockedHeroSkills)
 	              ? Array.from(new Set(data.unlockedHeroSkills.filter((skillId): skillId is string => (
@@ -5538,6 +5717,7 @@ export default function App() {
           setMissedRepaymentCount(0);
           setHeroLevel(1);
           setHeroSP(0);
+          setDebugGirlAffinities({});
           setUnlockedHeroSkills([]);
           setHasBeastPremonition(false);
           setPremonitionDay(null);
@@ -5658,6 +5838,7 @@ export default function App() {
     missedRepaymentCount,
     heroLevel,
     heroSP,
+    debugGirlAffinities,
     unlockedHeroSkills,
     hasBeastPremonition,
     premonitionDay,
@@ -6105,7 +6286,7 @@ export default function App() {
     setSelectedBattleItemTargetIndex(0);
     const selectedBeast = BEAST_BATTLE_DATA.find(beast => beast.id === battleTestBeastId) ?? BEAST_BATTLE_DATA[0];
     const testBeasts = [createBattleUnitFromBeast(selectedBeast), null, null];
-    setBattlePreviewState(createInitialBattlePreviewState(equippedItems, testBeasts, battleTestPartnerId || null, 'test', heroLevel));
+    setBattlePreviewState(createInitialBattlePreviewState(equippedItems, testBeasts, battleTestPartnerId || null, 'test', heroLevel, unlockedHeroSkills));
     setBattleIntroPhase(3);
     setBattlePreviewOpen(true);
   };
@@ -6132,7 +6313,7 @@ export default function App() {
     setSelectedBattleCommandIndex(0);
     setSelectedBattleItemIndex(0);
     setSelectedBattleItemTargetIndex(0);
-    setBattlePreviewState(createInitialBattlePreviewState(equippedItems, beasts, companionGirlId, encounterType, heroLevel));
+    setBattlePreviewState(createInitialBattlePreviewState(equippedItems, beasts, companionGirlId, encounterType, heroLevel, unlockedHeroSkills));
     setBattleIntroPhase(3);
     setBattlePreviewOpen(true);
   };
@@ -6587,6 +6768,7 @@ export default function App() {
         return { ...prev, hero, allies, beasts, logs: [...prev.logs, ...turnLogs].slice(-12), result, loot, lootGranted: false, battleSp, turn: 'party' };
       }
 
+      applyCompanionRegenPerHeroTurn(hero, allies, turnLogs);
       result = getBattleResult(hero, allies, beasts);
       const loot = result === 'victory' ? rollBattleLoot(beasts, prev.partnerDropRateBonus) : [];
       if (result === 'victory') {
@@ -7275,6 +7457,7 @@ export default function App() {
     const newlyUnlockedTrustEvents = girl?.trustEvents.filter(event => (
       nextTrust >= event.trust && !(farmGirl?.unlockedTrustEventIds ?? []).includes(event.eventId)
     )) ?? [];
+    const isFirstHarvestReveal = !farmGirl?.cardRevealed;
     setInventoryCounts(prev => ({
       ...prev,
       [crop.harvestItemName]: (prev[crop.harvestItemName] ?? 0) + harvestAmount,
@@ -7283,6 +7466,7 @@ export default function App() {
       entry.girlId === girlId
         ? {
           ...entry,
+          cardRevealed: true,
           lastHarvestDay: currentDay,
           trust: Math.min(100, entry.trust + trustGain),
           unlockedTrustEventIds: Array.from(new Set([
@@ -7292,6 +7476,12 @@ export default function App() {
         }
         : entry
     )));
+    if (isFirstHarvestReveal) {
+      setRevealingFarmGirlIds(previous => Array.from(new Set([...previous, girlId])));
+      window.setTimeout(() => {
+        setRevealingFarmGirlIds(previous => previous.filter(revealingGirlId => revealingGirlId !== girlId));
+      }, 1400);
+    }
     incrementEndlessStat('totalHarvestCount', harvestAmount);
     if (newlyUnlockedTrustEvents.length > 0 && isEndlessNurseryMode()) {
       setEndlessStats(previous => ({
@@ -7307,7 +7497,9 @@ export default function App() {
       }));
     }
     setDialogMessage(
-      newlyUnlockedTrustEvents.length > 0
+      isFirstHarvestReveal
+        ? `${girl?.girlName ?? crop.seedName}が初めて収穫できた！\n苗カードが娘カードに変化しました。`
+        : newlyUnlockedTrustEvents.length > 0
         ? `${girl?.girlName ?? crop.seedName}との信頼イベントが解放された！`
         : `${girl?.girlName ?? crop.seedName}から${crop.harvestItemName}を${harvestAmount}個収穫しました。信頼度 +${trustGain}`
     );
@@ -7741,6 +7933,38 @@ export default function App() {
     )));
     const girlName = GIRL_DATA.find(girl => girl.id === girlId)?.girlName ?? girlId;
     setDialogMessage(`${girlName}を看病した。\n少し安心したようだ。`);
+  };
+  const tryHybridCultivation = (girlId: string) => {
+    const targetGirl = farmGirls.find(girl => girl.girlId === girlId);
+    const girlName = GIRL_DATA.find(girl => girl.id === girlId)?.girlName ?? girlId;
+    if (!hasHeroSkill('special_hybrid_cultivation')) {
+      setDialogMessage('混合育成の知識がまだ足りません。');
+      return;
+    }
+    if (!targetGirl || targetGirl.condition !== 'affected') {
+      setDialogMessage('混合育成はNTR後の苗娘にだけ試せます。');
+      return;
+    }
+    if (targetGirl.hybridAdapted) {
+      setDialogMessage(`${girlName}はすでに混合育成に適応しています。\n${hasHeroSkill('special_hybrid_blessing') ? '交雑の恵み：作物売値 +15%、品質最低値60' : '交雑の恵みを取得すると追加効果が発動します。'}`);
+      return;
+    }
+    const successRate = getHybridCultivationSuccessRate();
+    const success = Math.random() < successRate;
+    if (success) {
+      setFarmGirls(previous => previous.map(girl => (
+        girl.girlId === girlId
+          ? {
+            ...girl,
+            hybridAdapted: true,
+            quality: hasHeroSkill('special_hybrid_blessing') ? Math.max(girl.quality, 60) : girl.quality,
+          }
+          : girl
+      )));
+      setDialogMessage(`${girlName}の混合育成に成功した。\n成功率 ${Math.round(successRate * 100)}% / 交雑適性を獲得しました。\n${hasHeroSkill('special_hybrid_blessing') ? '交雑の恵み：作物売値 +15%、品質最低値60' : '交雑の恵みを取得すると追加効果が発動します。'}`);
+      return;
+    }
+    setDialogMessage(`${girlName}の混合育成はまだ安定しなかった。\n成功率 ${Math.round(successRate * 100)}% / もう一度試せます。`);
   };
   const getDebugDialogueMessage = (debugKey: string, defaultMessage: string) => debugDialogueOverrides[debugKey] ?? defaultMessage;
   const saveDebugDialogueOverride = (debugKey: string, message: string) => {
@@ -8978,7 +9202,10 @@ export default function App() {
 
   const grantLoggingRewards = () => {
     const rewardSaw = getHighestOwnedSaw(equippedItemsRef.current, inventoryCounts);
-    const rewards = createLumberRewards(rewardSaw, LOGGING_REWARD_WOOD);
+    const rewards = createLumberRewards(rewardSaw, LOGGING_REWARD_WOOD, Math.random, {
+      rareRateMultiplier: getGatheringRareRateMultiplier(),
+      minSizeFloorBonus: getGatheringMinFloorBonus(),
+    });
     setLoggingResultRewards(rewards);
     setLoggingResultSawName(rewardSaw);
     setInventoryCounts(prev => {
@@ -9201,11 +9428,16 @@ export default function App() {
     }
 
     const pickaxe = getEquippedPickaxe(equippedItemsRef.current);
-    const rewardOre = selectOreRewardWithPerformance(pickaxe, gauge, fullCombo);
+    const rewardOre = selectOreRewardWithPerformance(pickaxe, gauge, fullCombo, getGatheringRareRateMultiplier());
     const quantity = getMiningRewardQuantity(rewardOre.id, gauge);
     const weightMultiplier = getMiningWeightMultiplier(gauge, fullCombo);
+    const minWeightFloor = rewardOre.minWeight + (rewardOre.maxWeight - rewardOre.minWeight) * getGatheringMinFloorBonus();
     const rewardWeights = Array.from({ length: quantity }, () => (
-      Math.max(1, Math.min(Math.round(rewardOre.maxWeight * 1.3), Math.round(createOreWeight(rewardOre) * weightMultiplier)))
+      Math.max(
+        1,
+        Math.round(minWeightFloor),
+        Math.min(Math.round(rewardOre.maxWeight * 1.3), Math.round(createOreWeight(rewardOre) * weightMultiplier)),
+      )
     ));
     const estimatedSellPrice = rewardWeights.reduce((sum, weight) => sum + getOreSellPrice(rewardOre, weight), 0);
     const qualityPercent = Math.round(
@@ -10378,6 +10610,7 @@ export default function App() {
       rodName: equippedFishingRod,
       timeOfDay,
       caughtIds: caughtFishIds,
+      rareRateMultiplier: getGatheringRareRateMultiplier(),
     });
     const sweetRange = createFishingFanSweetRange(targetFish);
 
@@ -11357,7 +11590,7 @@ export default function App() {
     if (!battlePreviewOpen) return;
     if (battlePreviewState.result !== 'ongoing') return;
     cancelBgmFade();
-    const nextSource = BATTLE_BGM_SOURCES[difficulty];
+    const nextSource = battlePreviewState.bgmSource;
     if (bgmSourceRef.current !== nextSource) {
       bgmSourceRef.current = nextSource;
       audio.pause();
@@ -11371,7 +11604,7 @@ export default function App() {
     }).catch((err) => {
       console.log("Battle BGM autoplay blocked", err);
     });
-  }, [battlePreviewOpen, battlePreviewState.result, difficulty, bgmVolume, audioGains]);
+  }, [battlePreviewOpen, battlePreviewState.result, battlePreviewState.bgmSource, bgmVolume, audioGains]);
 
   useEffect(() => {
     const audio = bgmRef.current;
@@ -12519,13 +12752,13 @@ export default function App() {
             const currentSlotIndex = Math.max(0, Math.min((slotCounts[currentLabel] ?? 2) - 1, currentSlotMatch ? Number(currentSlotMatch[1]) - 1 : 0));
             const currentSlot = `slot${currentSlotIndex + 1}`;
             const slotLabelsByCharacter: Record<string, string[]> = {
-              '主人公': ['釣具系', '採取道具系', '採取道具系', 'アクセサリー'],
+              '主人公': ['釣具・武器系', '採取道具系', '採取道具系', 'アクセサリー・防具'],
               'ちびいち': ['slot1', 'slot2'],
             };
             const optionsBySlot: Record<string, string[]> = {
-              '釣具系': withDebugItemVariants(['竹の釣竿', '丈夫な釣竿', '高級釣竿', '伝説の釣り竿']),
+              '釣具・武器系': withDebugItemVariants(['竹の釣竿', '丈夫な釣竿', '高級釣竿', '伝説の釣り竿', '木剣', '獣殺し', '天の裁き']),
               '採取道具系': withDebugItemVariants(['のこぎり', '丈夫なのこぎり', '高級のこぎり', '伝説ののこぎり', 'つるはし', '丈夫なつるはし', '高級つるはし', '伝説のつるはし']),
-              'アクセサリー': withDebugItemVariants(['農神の指輪', FISHING_NUSHI_RING_NAME]),
+              'アクセサリー・防具': withDebugItemVariants(['農神の指輪', FISHING_NUSHI_RING_NAME, '毛皮の服', '剛牙の鎧', '神域の加護']),
               'slot1': ['小さな鈴'],
               'slot2': [],
             };
@@ -12541,11 +12774,11 @@ export default function App() {
               if (!currentEquippedItem && currentEquipableItems.length > 0 && ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
                 setSelectedEquipmentOptionIndex(prev => {
                   const clampedPrev = Math.max(0, Math.min(currentEquipableItems.length - 1, prev));
-                  if (e.key === 'ArrowLeft' && clampedPrev % 2 === 0) {
+                  if (e.key === 'ArrowLeft' && clampedPrev % 3 === 0) {
                     setEquipmentActionOpen(false);
                     return clampedPrev;
                   }
-                  const moveBy = e.key === 'ArrowDown' ? 2 : e.key === 'ArrowUp' ? -2 : e.key === 'ArrowRight' ? 1 : -1;
+                  const moveBy = e.key === 'ArrowDown' ? 3 : e.key === 'ArrowUp' ? -3 : e.key === 'ArrowRight' ? 1 : -1;
                   return Math.max(0, Math.min(currentEquipableItems.length - 1, clampedPrev + moveBy));
                 });
               } else if (e.key === 'ArrowLeft') {
@@ -12693,13 +12926,13 @@ export default function App() {
             const currentSlotMatch = /slot(\d+)$/.exec(selectedEquipmentSlotRef.current);
             const currentSlotIndex = Math.max(0, currentSlotMatch ? Number(currentSlotMatch[1]) - 1 : 0);
             const slotLabelsByCharacter: Record<string, string[]> = {
-              '主人公': ['釣具系', '採取道具系', '採取道具系', 'アクセサリー'],
+              '主人公': ['釣具・武器系', '採取道具系', '採取道具系', 'アクセサリー・防具'],
               'ちびいち': ['slot1', 'slot2'],
             };
             const optionsBySlot: Record<string, string[]> = {
-              '釣具系': withDebugItemVariants(['竹の釣竿', '丈夫な釣竿', '高級釣竿', '伝説の釣り竿']),
+              '釣具・武器系': withDebugItemVariants(['竹の釣竿', '丈夫な釣竿', '高級釣竿', '伝説の釣り竿', '木剣', '獣殺し', '天の裁き']),
               '採取道具系': withDebugItemVariants(['のこぎり', '丈夫なのこぎり', '高級のこぎり', '伝説ののこぎり', 'つるはし', '丈夫なつるはし', '高級つるはし', '伝説のつるはし']),
-              'アクセサリー': withDebugItemVariants(['農神の指輪', FISHING_NUSHI_RING_NAME]),
+              'アクセサリー・防具': withDebugItemVariants(['農神の指輪', FISHING_NUSHI_RING_NAME, '毛皮の服', '剛牙の鎧', '神域の加護']),
               'slot1': ['小さな鈴'],
               'slot2': [],
             };
@@ -14886,7 +15119,8 @@ export default function App() {
                           ? '出現中・収穫可'
                           : `出現中・あと${harvestInfo?.daysUntilHarvest ?? 0}日`
                        : `成長中 ${farmGirl?.growthProgress ?? 0}/${crop?.growthDays ?? '?'}日`;
-                    const actualSlotName = slot.state === 'appeared'
+                    const isGirlCardRevealed = Boolean(farmGirl?.cardRevealed);
+                    const actualSlotName = slot.state === 'appeared' && isGirlCardRevealed
                        ? girl?.girlName ?? '娘'
                        : seed?.seedName ?? '苗娘';
                     const slotName = actualSlotName;
@@ -14935,7 +15169,7 @@ export default function App() {
                                  : 'border-[#ffd166]/85 bg-[#1a100d]/82'
                             }`}>
                               <img
-                                src={slot.state === 'appeared'
+                                src={slot.state === 'appeared' && isGirlCardRevealed
                                   ? FARM_GIRL_CARD_IMAGES[slot.girlId ?? ''] ?? '/img/nae.png'
                                   : '/img/nae.png'}
                                 alt={slotName}
@@ -15459,6 +15693,121 @@ export default function App() {
                  </div>
               );
            })}
+
+           {setupMode === 'none' && (hasHeroSkill('gather_fishing_rare_up') || hasHeroSkill('gather_mining_rare_up')) && (() => {
+              const revealAllGatheringPoints = hasHeroSkill('gather_mining_rare_up');
+              const gatheringRevealRadius = 105;
+              const getDistanceToRect = (x: number, y: number, w: number, h: number) => {
+                 const dx = Math.max(x - pos.x, 0, pos.x - (x + w));
+                 const dy = Math.max(y - pos.y, 0, pos.y - (y + h));
+                 return Math.hypot(dx, dy);
+              };
+              const getGatheringMarkerOpacity = (x: number, y: number, w: number, h: number) => {
+                 if (revealAllGatheringPoints) return 1;
+                 const distance = getDistanceToRect(x, y, w, h);
+                 if (distance > gatheringRevealRadius) return 0;
+                 return 0.42 + (1 - distance / gatheringRevealRadius) * 0.58;
+              };
+              const createTileMarkerGroups = (
+                 tiles: Record<string, boolean>,
+                 type: 'fish' | 'mine',
+                 label: string,
+                 icon: string,
+                 color: string,
+                 isAvailable: (key: string) => boolean = () => true,
+              ) => {
+                 const mapTiles = Object.keys(tiles)
+                    .filter(key => tiles[key] && isAvailable(key))
+                    .map(key => {
+                       const [mapKey, posKey] = key.split('_');
+                       if (mapKey !== currentMap || !posKey) return null;
+                       const [gx, gy] = posKey.split(',').map(Number);
+                       if (!Number.isInteger(gx) || !Number.isInteger(gy)) return null;
+                       return { key, gx, gy };
+                    })
+                    .filter((tile): tile is { key: string; gx: number; gy: number } => tile !== null);
+                 const remaining = new Set(mapTiles.map(tile => tile.key));
+                 const byGrid = new Map(mapTiles.map(tile => [`${tile.gx},${tile.gy}`, tile]));
+                 const groups: Array<{ id: string; label: string; icon: string; x: number; y: number; w: number; h: number; color: string }> = [];
+
+                 mapTiles.forEach(tile => {
+                    if (!remaining.has(tile.key)) return;
+                    const stack = [tile];
+                    const component: typeof mapTiles = [];
+                    remaining.delete(tile.key);
+
+                    while (stack.length > 0) {
+                       const current = stack.pop();
+                       if (!current) continue;
+                       component.push(current);
+                       [
+                          [current.gx + 1, current.gy],
+                          [current.gx - 1, current.gy],
+                          [current.gx, current.gy + 1],
+                          [current.gx, current.gy - 1],
+                       ].forEach(([gx, gy]) => {
+                          const nextTile = byGrid.get(`${gx},${gy}`);
+                          if (!nextTile || !remaining.has(nextTile.key)) return;
+                          remaining.delete(nextTile.key);
+                          stack.push(nextTile);
+                       });
+                    }
+
+                    const xs = component.map(item => item.gx);
+                    const ys = component.map(item => item.gy);
+                    const minX = Math.min(...xs);
+                    const maxX = Math.max(...xs);
+                    const minY = Math.min(...ys);
+                    const maxY = Math.max(...ys);
+                    groups.push({
+                       id: `${type}_${currentMap}_${minX},${minY}_${component.length}`,
+                       label,
+                       icon,
+                       x: minX * TILE_SIZE,
+                       y: minY * TILE_SIZE,
+                       w: (maxX - minX + 1) * TILE_SIZE,
+                       h: (maxY - minY + 1) * TILE_SIZE,
+                       color,
+                    });
+                 });
+
+                 return groups;
+              };
+              const tileMarkerEntries = [
+                 ...createTileMarkerGroups(fishingTiles, 'fish', '釣り', '🎣', '#67e8f9'),
+                 ...createTileMarkerGroups(miningTiles, 'mine', '採掘', '⛏', '#d6d3d1', key => !depletedMiningPointIds[`${timeOfDay}_${key}`]),
+              ];
+              const loggingMarkerEntries = activeLoggingPoints
+                 .filter(point => point.map === currentMap)
+                 .map(point => ({ id: `log_${point.id}`, label: '伐採', icon: '🪓', x: point.x, y: point.y, w: point.w, h: point.h, color: '#86efac' }));
+              return [...tileMarkerEntries, ...loggingMarkerEntries]
+                 .map(point => ({ ...point, opacity: getGatheringMarkerOpacity(point.x, point.y, point.w, point.h) }))
+                 .filter(point => point.opacity > 0)
+                 .map(point => {
+                    const markerX = point.x + point.w / 2;
+                    const markerY = Math.max(30, point.y - 22);
+                    return (
+                       <div
+                          key={point.id}
+                          className="pointer-events-none absolute z-[36] flex -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border-2 bg-black/70 text-base font-black shadow-[0_0_12px_rgba(0,0,0,0.55)]"
+                          style={{
+                             left: markerX,
+                             top: markerY,
+                             width: 34,
+                             height: 34,
+                             borderColor: point.color,
+                             color: point.color,
+                             opacity: point.opacity,
+                             animation: 'doorMarkerFloat 2.2s ease-in-out infinite',
+                          }}
+                          title={point.label}
+                          aria-label={point.label}
+                       >
+                          {point.icon}
+                       </div>
+                    );
+                 });
+           })()}
 
            {/* Inspect / Auto Event Spot Overlay */}
            {setupMode === 'bed' && (selectedEventTileType === 'inspect' || selectedEventTileType === 'auto') && inspectSpots.filter(spot => (
@@ -18637,8 +18986,40 @@ export default function App() {
            debugPanelPos={debugPanelPos}
            handleDebugDragStart={handleDebugDragStart}
            setTurn={setTurn}
+           heroLevel={heroLevel}
+           setDebugHeroLevel={(level) => {
+             setHeroLevel(Math.max(1, Math.min(MAX_HERO_LEVEL, Math.round(level))) as HeroLevel);
+           }}
            heroSP={heroSP}
            setHeroSP={setHeroSP}
+           debugGirlAffinities={menuGirls.map(girl => ({ id: girl.id, name: girl.name, affinity: girl.affinity }))}
+           adjustDebugGirlAffinity={(girlId, delta) => {
+             setDebugGirlAffinities(previous => {
+               const currentAffinity = previous[girlId] ?? 1;
+               return {
+                 ...previous,
+                 [girlId]: Math.max(1, Math.min(5, currentAffinity + delta)),
+               };
+             });
+           }}
+           currentHeroSkillCategoryLabel={HERO_SKILL_CATEGORY_LABELS[selectedSkillCategory]}
+           unlockedHeroSkillCount={unlockedHeroSkills.length}
+           onUnlockCurrentHeroSkillCategory={() => {
+             const categorySkillIds = getHeroSkillsByCategory(selectedSkillCategory)
+               .filter(skill => !skill.isHidden)
+               .map(skill => skill.id);
+             setUnlockedHeroSkills(previous => Array.from(new Set([...previous, ...categorySkillIds])));
+             setDialogMessage(`${HERO_SKILL_CATEGORY_LABELS[selectedSkillCategory]}スキルをデバッグ取得しました。`);
+           }}
+           onResetCurrentHeroSkillCategory={() => {
+             const categorySkillIds = new Set(
+               getHeroSkillsByCategory(selectedSkillCategory)
+                 .filter(skill => !skill.isHidden)
+                 .map(skill => skill.id),
+             );
+             setUnlockedHeroSkills(previous => previous.filter(skillId => !categorySkillIds.has(skillId)));
+             setDialogMessage(`${HERO_SKILL_CATEGORY_LABELS[selectedSkillCategory]}スキルをデバッグ解除しました。`);
+           }}
            onStartMiningMiniGameTest={(bgmSource) => {
              setMenuOpen(false);
              menuOpenRef.current = false;
@@ -18996,7 +19377,7 @@ export default function App() {
                 return <>
                   <div className="text-center text-2xl font-black text-[#ffd166]">スキルを習得しますか？</div>
                   <div className="mt-4 rounded border border-[#76502c] bg-black/30 p-4"><div className="text-xl font-black">{skill.name}</div><div className="mt-2 text-sm text-[#d7b98a]">SP {skill.costSP} を消費します</div></div>
-                  <div className="mt-5 grid grid-cols-2 gap-3"><button type="button" onMouseEnter={() => setSkillUnlockChoice('yes')} onClick={() => { setSkillUnlockChoice('yes'); confirmHeroSkillUnlock(); }} className={`border px-4 py-3 font-black transition ${skillUnlockChoice === 'yes' ? 'border-white bg-[#14532d] ring-4 ring-[#ffd166]/80 shadow-[0_0_22px_rgba(255,209,102,0.55)]' : 'border-[#86efac] bg-[#14532d]/65'}`}>はい</button><button type="button" onMouseEnter={() => setSkillUnlockChoice('no')} onClick={() => { setSkillUnlockChoice('no'); setPendingSkillUnlockId(null); }} className={`border px-4 py-3 font-black transition ${skillUnlockChoice === 'no' ? 'border-white bg-[#6b3b18] ring-4 ring-[#ffd166]/80 shadow-[0_0_22px_rgba(255,209,102,0.55)]' : 'border-[#c8a87a] bg-black/30'}`}>いいえ</button></div>
+                  <div className="mt-5 grid grid-cols-2 gap-3"><button type="button" onMouseEnter={() => setSkillUnlockChoice('yes')} onClick={() => { setSkillUnlockChoice('yes'); confirmHeroSkillUnlock(skill.id, 'yes'); }} className={`border px-4 py-3 font-black transition ${skillUnlockChoice === 'yes' ? 'border-white bg-[#14532d] ring-4 ring-[#ffd166]/80 shadow-[0_0_22px_rgba(255,209,102,0.55)]' : 'border-[#86efac] bg-[#14532d]/65'}`}>はい</button><button type="button" onMouseEnter={() => setSkillUnlockChoice('no')} onClick={() => { setSkillUnlockChoice('no'); setPendingSkillUnlockId(null); }} className={`border px-4 py-3 font-black transition ${skillUnlockChoice === 'no' ? 'border-white bg-[#6b3b18] ring-4 ring-[#ffd166]/80 shadow-[0_0_22px_rgba(255,209,102,0.55)]' : 'border-[#c8a87a] bg-black/30'}`}>いいえ</button></div>
                 </>;
               })() : skillUnlockNotice ? <><div className="text-center text-xl font-black text-[#ffcf8a]">スキルを習得できません</div><div className="mt-4 whitespace-pre-line rounded border border-[#76502c] bg-black/30 p-4 text-center font-bold">{skillUnlockNotice}</div><button type="button" onClick={() => setSkillUnlockNotice(null)} className="mt-5 w-full border border-[#ffd166] bg-[#6b3b18] px-4 py-3 font-black">閉じる</button></> : <div className="py-12 text-center text-3xl font-black text-[#fff1a8]">スキル習得！</div>}
             </div>

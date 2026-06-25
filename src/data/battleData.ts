@@ -99,7 +99,7 @@ export const BEAST_BATTLE_DATA: readonly BeastBattleData[] = [
   { id: 'bear', name: '熊', hp: 140, attack: 19, defense: 8, speed: 6, difficulty: 'normal' },
   { id: 'great_fang_beast', name: '大牙の獣', hp: 190, attack: 24, defense: 11, speed: 9, difficulty: 'normal' },
   { id: 'giant_bear', name: '巨熊', hp: 340, attack: 38, defense: 17, speed: 7, difficulty: 'hard' },
-  { id: 'mountain_lord', name: '山の主', hp: 540, attack: 50, defense: 23, speed: 12, difficulty: 'hard' },
+  { id: 'mountain_lord', name: '山の主', hp: 680, attack: 58, defense: 34, speed: 12, difficulty: 'hard' },
 ] as const;
 
 export const BEAST_DROP_DATA: readonly BeastDropData[] = [
