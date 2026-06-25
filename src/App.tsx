@@ -141,6 +141,8 @@ import type {
 
 const TITLE_START_TRANSITION_MS = 1500;
 const TITLE_START_SOUND_SRC = '/se/start.mp3';
+const CURRENT_SAVE_SCHEMA_VERSION = 2;
+const MIN_DIRECT_LOAD_SAVE_SCHEMA_VERSION = 2;
 
 const getMapBackgroundUrl = (map: GameMap, timeOfDay: TimeOfDay) => {
   const background = mapBackgrounds[map];
@@ -3126,7 +3128,7 @@ export default function App() {
     }
 
     if (id === 'status') {
-      const selectedSkill = getHeroSkillById(selectedSkillName) ?? HERO_SKILL_DATA[0];
+      const rawSelectedSkill = getHeroSkillById(selectedSkillName);
       const isHeroSkillVisible = (skill: HeroSkillData) => (
         !skill.isHidden || (
           heroLevel >= skill.requiredHeroLevel &&
@@ -3141,6 +3143,7 @@ export default function App() {
         return missingSkill ? `${getHeroSkillById(missingSkill)?.name ?? missingSkill} が必要` : '取得可能';
       };
       const selectedCategorySkills = getHeroSkillsByCategory(selectedSkillCategory).filter(isHeroSkillVisible);
+      const selectedSkill = selectedCategorySkills.find(skill => skill.id === rawSelectedSkill?.id) ?? selectedCategorySkills[0] ?? rawSelectedSkill ?? HERO_SKILL_DATA[0];
       const selectTreeSkill = (skill: HeroSkillData) => {
         playFixSound();
         setMenuFocusArea('content');
@@ -3153,9 +3156,6 @@ export default function App() {
         const firstSkill = getHeroSkillsByCategory(category).find(isHeroSkillVisible);
         if (firstSkill) setSelectedSkillName(firstSkill.id);
       };
-      const categoryIcons: Record<HeroSkillCategory, string> = {
-        farm: '🌾', gather: '🧭', battle: '⚔', companion: '♡', special: '✦',
-      };
       const skillIconSheetIndexes: Record<string, number> = {
         farm_harvest_up: 0,
         farm_sell_up: 1,
@@ -3163,45 +3163,156 @@ export default function App() {
         gather_fishing_rare_up: 3,
         gather_mining_rare_up: 4,
         gather_lumber_rare_up: 5,
+        gather_tool_care: 6,
         battle_hp_up: 7,
         battle_damage_reduce: 8,
+        battle_enemy_attack_down_trap: 9,
+        battle_enemy_defense_down_trap: 10,
         battle_beast_damage_up: 11,
+        battle_companion_regen: 12,
         companion_trust_up: 13,
         companion_harvest_penalty_down: 14,
+        companion_battle_support: 15,
         special_life_understanding: 16,
         special_hybrid_cultivation: 17,
+        special_adaptation_research: 18,
+        special_hybrid_blessing: 19,
+        farm_seedling_care: 20,
+        farm_quality_eye: 21,
+        farm_caress: 22,
+        farm_fingering: 23,
+        farm_abstinence: 24,
       };
       const renderSkillIcon = (skill: HeroSkillData, className = '') => {
         const sheetIndex = skillIconSheetIndexes[skill.id];
         if (sheetIndex === undefined) {
           return (
-            <span className={`grid place-items-center text-3xl leading-none ${className}`}>
+            <span className={`grid place-items-center text-4xl leading-none ${className}`}>
               {skill.icon}
             </span>
           );
         }
         const column = sheetIndex % 5;
         const row = Math.floor(sheetIndex / 5);
+        const iconZoom = 1.25;
+        const iconOffset = (iconZoom - 1) * 50;
         return (
-          <span className={`relative block overflow-hidden ${className}`} aria-hidden="true">
-            <img
-              src="/img/skill.png"
-              alt=""
-              className="absolute max-w-none"
-              style={{
-                width: '500%',
-                height: '500%',
-                left: `${-column * 100}%`,
-                top: `${-row * 100}%`,
-              }}
-            />
+          <span className={`relative grid place-items-center overflow-hidden ${className}`} aria-hidden="true">
+            <span className="relative block aspect-[16/9] w-full overflow-hidden">
+              <img
+                src="/img/skill.png"
+                alt=""
+                className="absolute max-w-none"
+                style={{
+                  width: `${500 * iconZoom}%`,
+                  height: 'auto',
+                  left: `${-(column * 100 * iconZoom + iconOffset)}%`,
+                  top: `${-(row * 100 * iconZoom + iconOffset)}%`,
+                }}
+              />
+            </span>
           </span>
         );
       };
-      const nodeLeft = (column: number) => 18 + column * 30;
-      const nodeTop = (row: number) => 10 + row * 16;
+      const renderSkillBadge = (label: string, className = '') => (
+        <span className={`rounded-full border-2 px-2.5 py-1 text-base font-black leading-none shadow-lg ${className}`}>
+          {label}
+        </span>
+      );
+      const getSkillEffectSummary = (skill: HeroSkillData) => {
+        switch (skill.id) {
+          case 'farm_seedling_care':
+          case 'farm_quality_eye':
+          case 'farm_caress':
+          case 'farm_fingering':
+          case 'farm_abstinence':
+          case 'farm_harvest_up':
+          case 'farm_sell_up':
+          case 'farm_interest_down':
+          case 'gather_fishing_rare_up':
+          case 'gather_mining_rare_up':
+          case 'gather_lumber_rare_up':
+          case 'gather_tool_care':
+          case 'companion_trust_up':
+          case 'companion_harvest_penalty_down':
+          case 'companion_battle_support':
+          case 'special_life_understanding':
+          case 'special_hybrid_cultivation':
+          case 'special_adaptation_research':
+          case 'special_hybrid_blessing':
+            return skill.description;
+        }
+        switch (skill.effectType) {
+          case 'sellPricePercent':
+            return `売値 +${skill.effectValue}%`;
+          case 'harvestAmountPercent':
+            return `収穫量 +${skill.effectValue}%`;
+          case 'interestReductionPercent':
+            return `金利 -${skill.effectValue}%`;
+          case 'qualityDailyCapBonus':
+            return skill.effectValue > 0 ? `日次品質上限 +${skill.effectValue}` : '品質系スキルを解放';
+          case 'fertilizerGrowthCapBonus':
+            return `肥料短縮上限 +${skill.effectValue}`;
+          case 'heroHpPercent':
+            return `最大HP +${skill.effectValue}%`;
+          case 'damageReductionPercent':
+            return `被ダメージ -${skill.effectValue}%`;
+          case 'beastDamagePercent':
+            return `獣へのダメージ +${skill.effectValue}%`;
+          case 'enemyAttackDownTrap':
+            return `敵攻撃 -${skill.effectValue}%`;
+          case 'enemyDefenseDownTrap':
+            return `敵防御 -${skill.effectValue}%`;
+          case 'companionRegenPerTurn':
+            return '毎ターン HP 3-5回復';
+          case 'gatheringPointRevealNearby':
+            return '近くの採集点を表示';
+          case 'gatheringPointRevealAll':
+            return '採集点アイコンを表示';
+          case 'lumberRarePercent':
+          case 'fishingRarePercent':
+          case 'miningRarePercent':
+            return `レア率 +${skill.effectValue}%`;
+          case 'gatheringMinSizePercent':
+            return `サイズ/重量最低値 +${skill.effectValue}%`;
+          case 'companionTrustGainPercent':
+            return `同行信頼度 +${skill.effectValue}%`;
+          case 'companionHarvestPenaltyReductionPercent':
+            return `同行収穫ペナルティ軽減 +${skill.effectValue}%`;
+          case 'companionBattleSupportMaxUses':
+            return '戦闘支援回数 +1';
+          case 'specialStateRecoveryBonus':
+            return '看病AP 0 / 回復短縮';
+          case 'unlockHybridCultivation':
+            return '混合育成を解放';
+          case 'hybridSuccessPercent':
+            return `特殊適応成功率 +${skill.effectValue}%`;
+          case 'hybridBlessing':
+            return '交雑適性を付与';
+          case 'nurseryGrowthSupport':
+            return '農場スキルの起点';
+        }
+      };
+      const nodeLeft = (column: number) => 12 + column * 19;
+      const nodeTop = (row: number) => 14 + row * 20;
+      const getShortenedLinePoints = (from: HeroSkillData, to: HeroSkillData) => {
+        const x1 = nodeLeft(from.treeColumn);
+        const y1 = nodeTop(from.treeRow);
+        const x2 = nodeLeft(to.treeColumn);
+        const y2 = nodeTop(to.treeRow);
+        const dx = x2 - x1;
+        const dy = y2 - y1;
+        const distance = Math.hypot(dx, dy) || 1;
+        const shorten = 7;
+        return {
+          x1: x1 + (dx / distance) * shorten,
+          y1: y1 + (dy / distance) * shorten,
+          x2: x2 - (dx / distance) * shorten,
+          y2: y2 - (dy / distance) * shorten,
+        };
+      };
       return (
-        <div className="grid grid-cols-[1fr_320px] gap-4 h-full">
+        <div className="grid grid-cols-[minmax(0,1fr)_260px] gap-3 h-full">
           <div style={menuPanelBaseStyle} className="overflow-hidden">
             <div className="mb-3 flex items-center justify-between">
               <div>
@@ -3210,23 +3321,22 @@ export default function App() {
               </div>
               <div className="rounded border border-[#ffd166]/70 bg-black/35 px-4 py-2 text-lg text-[#ffd166] font-bold">SP：{heroSP}</div>
             </div>
-            <div className="grid h-[560px] grid-cols-[210px_minmax(0,1fr)] gap-3">
-              <div className="flex min-h-0 flex-col rounded border border-[#5a3010] bg-black/25 p-3" style={menuKeyboardFocusStyle(menuFocusArea === 'content' && menuContentFocus === 'primary')}>
-                <div className="mb-3 px-2 text-base font-black text-[#c8a87a]">系統</div>
-                <div className="flex min-h-0 flex-1 flex-col gap-2">
+            <div className="grid h-[620px] grid-cols-[130px_minmax(0,1fr)] gap-3">
+              <div className="flex min-h-0 flex-col rounded border border-[#5a3010] bg-black/25 p-2" style={menuKeyboardFocusStyle(menuFocusArea === 'content' && menuContentFocus === 'primary')}>
+                <div className="mb-2 px-2 text-base font-black text-[#c8a87a]">系統</div>
+                <div className="flex min-h-0 flex-1 flex-col gap-1.5">
                   {HERO_SKILL_CATEGORIES.map(category => (
                     <button
                       key={category}
                       type="button"
                       onPointerDown={(event) => { event.stopPropagation(); selectTreeCategory(category); }}
                       onClick={(event) => event.stopPropagation()}
-                      className={`flex min-h-0 flex-1 w-full items-center gap-3 border px-4 py-3 text-left text-base font-black ${
+                      className={`flex min-h-0 flex-1 w-full items-center justify-center border px-3 py-2 text-center text-lg font-black ${
                         selectedSkillCategory === category
                           ? 'border-[#fff1b8] bg-[#8d4e22] text-[#fff7dc] ring-4 ring-[#ffd166]/70 shadow-[0_0_20px_rgba(255,209,102,0.5)]'
                           : 'border-[#5a3010] bg-black/30 text-[#d7b98a] hover:bg-[#3a2418]'
                       }`}
                     >
-                      <span className="grid h-10 w-10 shrink-0 place-items-center rounded border border-white/25 bg-black/25 text-xl">{categoryIcons[category]}</span>
                       {HERO_SKILL_CATEGORY_LABELS[category]}
                     </button>
                   ))}
@@ -3234,7 +3344,7 @@ export default function App() {
               </div>
               <div className="relative overflow-hidden rounded border-2 border-[#76502c] bg-[radial-gradient(circle_at_50%_0%,rgba(213,149,81,0.2),transparent_46%),linear-gradient(135deg,rgba(46,28,18,0.96),rgba(18,13,11,0.96))]" style={menuKeyboardFocusStyle(menuFocusArea === 'content' && menuContentFocus === 'secondary')}>
                 <div className="absolute inset-x-0 top-0 z-10 flex items-center justify-between border-b border-[#76502c]/80 bg-black/35 px-4 py-3">
-                  <div className="flex items-center gap-2 text-xl font-black text-[#fff1b8]"><span className="text-2xl">{categoryIcons[selectedSkillCategory]}</span>{HERO_SKILL_CATEGORY_LABELS[selectedSkillCategory]}スキル</div>
+                  <div className="flex items-center gap-2 text-2xl font-black text-[#fff1b8]">{HERO_SKILL_CATEGORY_LABELS[selectedSkillCategory]}スキル</div>
                   <div className="text-sm font-bold text-[#c8a87a]">接続線は前提スキルを示します</div>
                 </div>
                 <svg className="absolute inset-0 h-full w-full" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
@@ -3242,7 +3352,8 @@ export default function App() {
                     const parent = selectedCategorySkills.find(candidate => candidate.id === parentId);
                     if (!parent) return null;
                     const active = hasHeroSkill(parent.id) && (hasHeroSkill(skill.id) || canUnlockHeroSkill(skill.id));
-                    return <line key={`${parent.id}-${skill.id}`} x1={nodeLeft(parent.treeColumn)} y1={nodeTop(parent.treeRow)} x2={nodeLeft(skill.treeColumn)} y2={nodeTop(skill.treeRow)} stroke={active ? '#ffd166' : '#5a4032'} strokeWidth="0.45" />;
+                    const line = getShortenedLinePoints(parent, skill);
+                    return <line key={`${parent.id}-${skill.id}`} x1={line.x1} y1={line.y1} x2={line.x2} y2={line.y2} stroke={active ? '#ffd166' : '#5a4032'} strokeWidth="0.45" />;
                   }))}
                 </svg>
                 {selectedCategorySkills.map(skill => {
@@ -3257,7 +3368,7 @@ export default function App() {
                       onMouseEnter={() => { if (!isSelected) playCursorSound(); }}
                       onClick={(event) => event.stopPropagation()}
                       style={{ left: `${nodeLeft(skill.treeColumn)}%`, top: `${nodeTop(skill.treeRow)}%` }}
-                      className={`absolute z-10 grid h-40 w-48 -translate-x-1/2 -translate-y-1/2 grid-rows-[auto_1fr_auto_auto] place-items-center rounded-lg border-2 p-3 text-center transition ${
+                      className={`absolute z-10 grid h-[146px] w-[122px] -translate-x-1/2 -translate-y-1/2 grid-rows-[auto_1fr_auto_auto] place-items-center rounded-lg border-2 p-2 text-center transition ${
                         isSelected
                           ? 'border-white bg-[#a75a27] ring-4 ring-[#fff1a8]/75 shadow-[0_0_0_3px_rgba(255,209,102,0.3),0_0_28px_rgba(255,209,102,0.55)]'
                           : isUnlocked
@@ -3267,22 +3378,15 @@ export default function App() {
                               : 'border-[#5a4032] bg-[#1a100d]/90 hover:bg-[#3a2418]'
                       }`}
                     >
-                      <span className={`absolute -top-6 rounded-full border-2 px-4 py-2 text-[20px] font-black leading-none shadow-lg ${
-                        isUnlocked
-                          ? 'border-[#f0ffd0] bg-[#2f7a2e] text-[#f6ffe9] shadow-[0_0_18px_rgba(216,255,154,0.72)]'
-                          : 'border-[#ffcb9a] bg-[#6b341f] text-[#fff0dc]'
-                      }`}>
-                        {isUnlocked ? '取得済み' : '未取得'}
+                      {renderSkillBadge(
+                        isUnlocked ? '取得済み' : '未取得',
+                        `absolute -top-4 ${isUnlocked ? 'border-[#f0ffd0] bg-[#2f7a2e] text-[#f6ffe9] shadow-[0_0_18px_rgba(216,255,154,0.72)]' : 'border-[#ffcb9a] bg-[#6b341f] text-[#fff0dc]'}`
+                      )}
+                      <span className="mt-2 grid h-[78px] w-[78px] place-items-center overflow-hidden">
+                        {renderSkillIcon(skill, 'h-full w-full rounded-full')}
                       </span>
-                      <span className={`mt-2 grid h-[76px] w-[120px] place-items-center overflow-hidden rounded-md border bg-[#f7e0b5]/10 p-1 shadow-inner ${
-                        isUnlocked
-                          ? 'border-[#efffcf] bg-[#d8ff9a]/20 shadow-[0_0_18px_rgba(216,255,154,0.4)]'
-                          : 'border-[#a76a49]'
-                      }`}>
-                        {renderSkillIcon(skill, 'h-full w-full rounded')}
-                      </span>
-                      <span className="mt-2 text-base font-black leading-tight text-[#fff7dc]">{skill.name}</span>
-                      <span className="text-xs font-bold text-[#ffd166]">SP {skill.costSP}</span>
+                      <span className="mt-1 flex h-10 items-center text-center text-base font-black leading-tight text-[#fff7dc]">{skill.name}</span>
+                      {renderSkillBadge('SP ' + skill.costSP, 'border-[#ffd166]/85 bg-[#3a2418] text-[#ffd166]')}
                     </button>
                   );
                 })}
@@ -3292,8 +3396,8 @@ export default function App() {
           <div style={menuPanelBaseStyle} className="flex flex-col gap-3">
             <div style={menuTinyLabelStyle}>選択スキル</div>
             {selectedSkill && (
-              <div className="grid h-[118px] place-items-center rounded border border-[#76502c] bg-[#f7e0b5]/10 p-2 shadow-inner">
-                {renderSkillIcon(selectedSkill, 'h-full w-full max-w-[190px] rounded')}
+              <div className="grid h-[118px] place-items-center">
+                {renderSkillIcon(selectedSkill, 'h-[112px] w-[112px] rounded-full')}
               </div>
             )}
             <div className="text-[#fdf6e3] text-3xl font-bold">{selectedSkill?.name ?? 'スキル未選択'}</div>
@@ -3301,13 +3405,14 @@ export default function App() {
               <div style={menuTinyLabelStyle}>系統</div>
               <div className="mt-1 text-[#ffd166] text-xl font-bold">{selectedSkill ? HERO_SKILL_CATEGORY_LABELS[selectedSkill.category] : '-'}</div>
             </div>
-            <div className="rounded border border-[#5a3010] bg-black/30 p-3 text-[#c8a87a] leading-relaxed">
+            <div className="rounded border border-[#5a3010] bg-black/30 p-3 text-base font-bold text-[#f3d8a8] leading-relaxed">
               {selectedSkill?.description ?? 'スキルを選択してください。'}
             </div>
             {selectedSkill && (
               <>
                 <div className="rounded border border-[#5a3010] bg-black/25 p-3 text-sm font-bold">
-                  <div className="flex justify-between gap-2 text-[#fdf6e3]"><span>必要SP</span><span className="text-[#ffd166]">{selectedSkill.costSP}</span></div>
+                  <div className="mb-3 rounded border border-[#ffd166]/50 bg-[#3a2418]/70 px-3 py-2 text-base text-[#ffd166]">{getSkillEffectSummary(selectedSkill)}</div>
+                  <div className="flex items-center justify-between gap-2 text-[#fdf6e3]"><span>必要SP</span>{renderSkillBadge('SP ' + selectedSkill.costSP, 'border-[#ffd166]/85 bg-[#3a2418] text-[#ffd166]')}</div>
                   <div className="mt-2 flex justify-between gap-2 text-[#fdf6e3]"><span>必要成長度</span><span>★{selectedSkill.requiredHeroLevel}</span></div>
                   <div className="mt-2 text-xs text-[#c8a87a]">{getUnlockBlockReason(selectedSkill)}</div>
                 </div>
@@ -4859,6 +4964,71 @@ export default function App() {
     };
   };
 
+  const countSaveRecordEntries = (value: unknown) => (
+    value && typeof value === 'object' && !Array.isArray(value)
+      ? Object.keys(value as Record<string, unknown>).length
+      : 0
+  );
+  const countSaveArrayEntries = (value: unknown) => Array.isArray(value) ? value.length : 0;
+  const getSaveMapSettingsFootprint = (data: Record<string, unknown>) => ({
+    zones: countSaveArrayEntries(data.zones),
+    doors: countSaveArrayEntries(data.doors),
+    obstacles: countSaveRecordEntries(data.obstacles),
+    hideAreaTiles: countSaveRecordEntries(data.hideAreaTiles),
+    bedTiles: countSaveRecordEntries(data.bedTiles),
+    workbenchTiles: countSaveRecordEntries(data.workbenchTiles),
+    fishingTiles: countSaveRecordEntries(data.fishingTiles),
+    miningTiles: countSaveRecordEntries(data.miningTiles),
+    loggingTiles: countSaveRecordEntries(data.loggingTiles),
+    inspectSpots: countSaveArrayEntries(data.inspectSpots),
+  });
+  const hasLoadableLegacyMapSettings = (data: Record<string, unknown>) => {
+    const footprint = getSaveMapSettingsFootprint(data);
+    return (
+      footprint.zones >= 8 ||
+      footprint.doors >= 8 ||
+      footprint.obstacles >= 100 ||
+      footprint.hideAreaTiles >= 100 ||
+      footprint.bedTiles >= 10 ||
+      footprint.workbenchTiles >= 5 ||
+      footprint.fishingTiles >= 3 ||
+      footprint.miningTiles >= 3 ||
+      footprint.loggingTiles >= 3 ||
+      footprint.inspectSpots >= 3
+    );
+  };
+  const hasDefaultLargeFieldGrid = (data: Record<string, unknown>) => {
+    const rawGridSizes = data.fieldGridSizes;
+    if (!rawGridSizes || typeof rawGridSizes !== 'object' || Array.isArray(rawGridSizes)) return false;
+    const gridSizes = rawGridSizes as Partial<FieldGridSizeMap>;
+    return (
+      gridSizes.left?.cols === DEFAULT_FIELD_GRID_SIZES.left.cols &&
+      gridSizes.left?.rows === DEFAULT_FIELD_GRID_SIZES.left.rows &&
+      gridSizes.right?.cols === DEFAULT_FIELD_GRID_SIZES.right.cols &&
+      gridSizes.right?.rows === DEFAULT_FIELD_GRID_SIZES.right.rows
+    );
+  };
+  const shouldBlockUnsafeLegacySaveLoad = (data: Record<string, unknown>) => {
+    const schemaVersion = data.saveSchemaVersion;
+    if (typeof schemaVersion === 'number' && schemaVersion >= MIN_DIRECT_LOAD_SAVE_SCHEMA_VERSION) return false;
+    if (hasLoadableLegacyMapSettings(data)) return false;
+
+    const footprint = getSaveMapSettingsFootprint(data);
+    const looksLikeUnconfiguredMap = (
+      footprint.zones <= defaultZones.length &&
+      footprint.doors <= defaultDoors.length &&
+      footprint.obstacles === 0 &&
+      footprint.hideAreaTiles === 0 &&
+      footprint.workbenchTiles === 0 &&
+      footprint.fishingTiles === 0 &&
+      footprint.miningTiles === 0 &&
+      footprint.loggingTiles === 0 &&
+      footprint.inspectSpots === 0
+    );
+
+    return looksLikeUnconfiguredMap || hasDefaultLargeFieldGrid(data);
+  };
+
   const applyMapSettingsSnapshot = (snapshot: ReturnType<typeof createCurrentMapSettingsSnapshot>) => {
     setZones(snapshot.zones);
     setDoors(snapshot.doors);
@@ -4930,6 +5100,22 @@ export default function App() {
         const mapSettingsForNewGame = startingNewGame
           ? createMapSettingsSnapshotFromSave(canonicalMapSettings)
           : null;
+        if (
+          !startingNewGame &&
+          data &&
+          typeof data === 'object' &&
+          !Array.isArray(data) &&
+          Object.keys(data).length > 0 &&
+          shouldBlockUnsafeLegacySaveLoad(data as Record<string, unknown>)
+        ) {
+          console.warn('未設定の古いセーブデータの読み込みを中止しました。');
+          setSystemNotice('古い未設定セーブを検出したため、読み込みを中止しました。データは削除していません。');
+          setStartingNewGame(false);
+          setBootMode('title');
+          setMenuOpen(false);
+          setIsLoading(false);
+          return;
+        }
         if (data && Object.keys(data).length > 0) {
 	          if (
 	            typeof data.turn === 'number' &&
@@ -5291,6 +5477,7 @@ export default function App() {
         if (startingNewGame) {
           const requestedNewGameMode = pendingNewGameModeRef.current;
           const requestedNewGameDifficulty = pendingNewGameDifficultyRef.current;
+          window.localStorage.removeItem(POST_DEBT_NOTICE_SEEN_STORAGE_KEY);
           if (mapSettingsForNewGame) {
             applyMapSettingsSnapshot(mapSettingsForNewGame);
           }
@@ -5417,6 +5604,7 @@ export default function App() {
   }, [bootMode, currentSaveSlot, startingNewGame, pendingNewGameDifficulty, pendingNewGameMode]);
 
   const createSaveData = () => ({
+    saveSchemaVersion: CURRENT_SAVE_SCHEMA_VERSION,
     turn,
     gold,
     gameMode,
@@ -6998,6 +7186,12 @@ export default function App() {
   const getFarmGirlHarvestInfo = (girlId: string) => {
     const farmGirl = farmGirls.find(girl => girl.girlId === girlId);
     const crop = FARM_GIRL_CROP_DATA.find(entry => entry.girlId === girlId);
+    const fieldSlot = farmFieldSlots.find(slot => slot.girlId === girlId);
+    if (fieldSlot && fieldSlot.state !== 'appeared') {
+      const growthProgress = farmGirl?.growthProgress ?? 0;
+      const daysUntilHarvest = crop ? Math.max(1, crop.growthDays - growthProgress) : null;
+      return { canHarvest: false, daysUntilHarvest, crop, farmGirl };
+    }
     if (!farmGirl || !crop || farmGirl.state !== 'appeared') {
       return { canHarvest: false, daysUntilHarvest: null, crop, farmGirl };
     }
@@ -7587,6 +7781,15 @@ export default function App() {
   const hasSawEquippedForHud = ['主人公-slot2', '主人公-slot3'].some(slotId => (
     equippedItems[slotId]?.includes('のこぎり')
   ));
+  const hasFishingRodOwnedForHud = ITEM_MENU_NORMAL_ITEMS['装備品'].some(itemName => (
+    isFishingRodName(itemName) && (inventoryCounts[itemName] ?? 0) > 0
+  ));
+  const hasPickaxeOwnedForHud = ITEM_MENU_NORMAL_ITEMS['装備品'].some(itemName => (
+    isPickaxeName(itemName) && (inventoryCounts[itemName] ?? 0) > 0
+  ));
+  const hasSawOwnedForHud = ITEM_MENU_NORMAL_ITEMS['装備品'].some(itemName => (
+    isSawName(itemName) && (inventoryCounts[itemName] ?? 0) > 0
+  ));
   const hasHarvestableFarmGirl = farmFieldSlots.some(slot => (
     slot.girlId !== null &&
     companionGirlId !== slot.girlId &&
@@ -7621,9 +7824,9 @@ export default function App() {
     if (hasHarvestableFarmGirl) return '収穫できる娘あり';
     if (currentAP > 0 && hasSeedlingCareRemaining) return '苗娘のお世話が残っています';
     if (hasPlantableSeedAndField) return '空き畑に苗を植えられます';
-    if (getIsNearFishingPoint() && !hasFishingRodEquippedForHud) return '釣竿を装備すると釣りできます';
-    if (getNearbyMiningPointIdForHud() && !hasPickaxeEquippedForHud) return 'つるはしを装備すると採掘できます';
-    if (getIsNearLoggingTileForHud() && !hasSawEquippedForHud) return 'のこぎりを装備すると伐採できます';
+    if (getIsNearFishingPoint() && hasFishingRodOwnedForHud && !hasFishingRodEquippedForHud) return '釣竿を装備すると釣りできます';
+    if (getNearbyMiningPointIdForHud() && hasPickaxeOwnedForHud && !hasPickaxeEquippedForHud) return 'つるはしを装備すると採掘できます';
+    if (getIsNearLoggingTileForHud() && hasSawOwnedForHud && !hasSawEquippedForHud) return 'のこぎりを装備すると伐採できます';
     if (hasBeastPremonition) return mountainLordAttackPending ? '巨大な気配に注意' : '畑を警戒中';
     if (hasSellableShopItem) return '売れる品があります';
     if (hasUnlockableHeroSkill) return 'SPでスキル取得できます';
@@ -14710,7 +14913,7 @@ export default function App() {
                                 ? 'border-lime-200 bg-green-700 text-lime-50'
                                 : 'border-white/10 bg-slate-950/65 text-slate-500 grayscale'
                             }`}>
-                              {canHarvest && !isCompanion ? '収穫可 / H' : '収穫可'}
+                              {canHarvest && !isCompanion ? '収穫可 / H' : '収穫不可'}
                             </div>
                           </div>
                        </button>
