@@ -560,7 +560,7 @@ type DebugDialogueStep = {
 type FishingTutorialStep = 'intro' | 'rod' | 'direction' | 'power' | 'bite' | 'hit' | 'result';
 type FishingTutorialResult = 'success' | 'fail' | null;
 type MiningTutorialStep = 'arrows' | 'timing' | 'reward';
-type SeedAfterPlantTutorialStep = 'rooted' | 'growth_days' | 'care';
+type SeedAfterPlantTutorialStep = 'rooted' | 'growth_days' | 'care' | 'secret_book';
 type CraftCircle = { id: number; x: number; y: number; size: number; expiresAt: number; durationMs: number };
 type CraftRecipeId =
   | '【レシピ】のこぎり'
@@ -669,6 +669,12 @@ const ENDLESS_NURSERY_UNLOCK_STORAGE_KEY = 'farm_has_unlocked_endless_nursery_mo
 
 type FarmGirlState = 'none' | 'planted' | 'growing' | 'appeared' | 'companion' | 'lover';
 type FarmGirlCondition = 'normal' | 'affected';
+type FarmCareUnlockStage = 1 | 2 | 3;
+type FarmCareAction = 'caress' | 'finger' | 'fertilize';
+type FarmCareConfirmTarget = {
+  girlId: string;
+  action: FarmCareAction;
+};
 
 type FarmGirlSaveState = {
   girlId: string;
@@ -698,6 +704,20 @@ type FarmFieldSlotState = {
   plantedDay: number | null;
 };
 type FarmSlotInteractionStage = 'confirmHarvest' | 'confirmPlant' | 'selectSeed' | 'confirmSeed';
+const FARM_CARE_UNLOCK_ACTION_LABELS: Readonly<Record<FarmCareAction, string>> = {
+  caress: '愛撫',
+  finger: '指入れ',
+  fertilize: '肥料注入',
+};
+const FARM_CARE_UNLOCK_STAGE_BY_ACTION: Readonly<Record<FarmCareAction, FarmCareUnlockStage>> = {
+  caress: 1,
+  finger: 2,
+  fertilize: 3,
+};
+const normalizeFarmCareUnlockStage = (value: unknown, fallback: FarmCareUnlockStage = 1): FarmCareUnlockStage => (
+  value === 1 || value === 2 || value === 3 ? value : fallback
+);
+const FARM_CARE_ACTION_ORDER: readonly FarmCareAction[] = ['caress', 'finger', 'fertilize'];
 const FARM_SEED_SLOT_PLACEMENTS: Readonly<Record<string, { offsetX: number; offsetY: number; scale: number }>> = {
   left_1: { offsetX: 102, offsetY: 53, scale: 86 },
   left_2: { offsetX: 101, offsetY: 53, scale: 86 },
@@ -986,6 +1006,40 @@ const FARM_GIRL_CARD_IMAGES: Readonly<Record<string, string>> = {
   roma: '/img/roma-card.png',
   saffy: '/img/safi-card.png',
 };
+const FARM_GIRL_SEED_VOICE_SRCS: Readonly<Record<string, string>> = {
+  chibiichi: '/voice/seed/chibiichi.wav',
+  mel: '/voice/seed/mel.wav',
+  ruby: '/voice/seed/ruby.wav',
+  viola: '/voice/seed/viora.wav',
+  nazuna: '/voice/seed/nazuna.wav',
+  kabune: '/voice/seed/kabune.wav',
+  caro: '/voice/seed/kyaro.wav',
+  theta: '/voice/seed/shita.wav',
+  cure: '/voice/seed/kyua.wav',
+  shiro: '/voice/seed/shiro.wav',
+  momona: '/voice/seed/momona.wav',
+  pan: '/voice/seed/pan.wav',
+  puti: '/voice/seed/puthi.wav',
+  roma: '/voice/seed/roma.wav',
+  saffy: '/voice/seed/safi.wav',
+};
+const FARM_GIRL_REVEAL_MESSAGES: Readonly<Record<string, string>> = {
+  chibiichi: '私は、いちごの苗娘　ちびいちだよっ！\n育ててくれてありがとう♡\nこれからユウくんの役に立てるように\nいっぱいいちごを作っていくね！',
+  kabune: '私は、かぶの苗娘　かぶねだよ！\n育ててくれてありがとう♡\nこれからユウくんの役に立てるように\nおいしいかぶを作っていくね！',
+  caro: '私は、にんじんの苗娘キャロだよー！\n育ててくれてうれしいな♡\nこれからユウくんのために\nおいしいにんじんを作っていっくよー！',
+  cure: '私は、きゅうりの苗娘キュアです\n育ててくれてありがとうございます♡\nこれからユウくんのために\nおいしいきゅうり、作っていきますね！',
+  mel: '私は、メロンの苗娘メルですっ\n育ててくれて嬉しいです♡\nこれからユウくんのために\nおいしいメロンをたくさん作っていきますね！',
+  momona: '私は、桃の苗娘ももなだよっ♪\n育ててくれて、ほんとにありがとー♡\nこれからユウくんのために\nあまーい桃をいーっぱい作るね！',
+  nazuna: '私は、なすの苗娘...ナズナと言います♪\n育ててくれて、ほんとうに嬉しいです♡\nこれからユウくんのために\n瑞々しいナスをたっくさん作りますね！',
+  pan: '私はかぼちゃの苗娘...ぱん\n...育ててくれて...ありがと\nこれからユウくんのために\n甘いかぼちゃ...作るね♡',
+  puti: '私はドラゴンフルーツの苗娘プティと申します\nこの度は育ててくれて、ありがとうございます\nこれからユウくんのために\nエキゾチックなドラゴンフルーツを作らせていただきますね！',
+  roma: '私はロマネスコの苗娘ロマですわ！\nこの度は育ててくれて、嬉しいです！ありがとうございます！\nこれからユウくんのために\nとっても美味しいロマネスコ作らせていただきます！',
+  ruby: '私はトマトの苗娘ルビー！\nわたしを育ててくれてありがとっ♪\nこれからユウくんのために\n美味しいトマト作っていくね！',
+  saffy: '私はサフランの苗娘サフィです、ふふっ♪\nわたしを育ててくれてありがとうございます！\nこれからユウくんのために\n精一杯サフランを作っていきますね！',
+  shiro: '私はだいこんの苗娘シロですわっ♪\n私を育ててくれてありがとうございます！\nこれからユウくんのために\n太くて美味しいだいこんを作っていきますね！',
+  viola: 'わたしはぶどうの苗娘ヴィオラ\nわたしを育ててくれてうれしいわ♪\nこれからユウくんのために\nあまいぶどう...作っていきますわね！',
+  theta: 'うち、しいたけの苗娘シータいうねん！\nうちを育ててくれて嬉しいねん♪\nこれからユウくんのために\nうんと、しいたけ作ってくね！',
+};
 const FARM_GIRL_DETAIL_IMAGES: Readonly<Record<string, string>> = {
   chibiichi: '/img/chibiichi-pro.jpg',
   mel: '/img/mel-pro.jpg',
@@ -1046,6 +1100,13 @@ const SEED_AFTER_PLANT_TUTORIAL_STEPS: (DebugDialogueStep & { id: SeedAfterPlant
     debugKey: 'seed_after_plant_tutorial_care',
     message: 'まずは初収穫を目指してみてね！\n収穫までに苗のお世話もすることが出来るから\n色々試してみるといいよ♪\n明日また様子を見に来よっ！\n今日はここまで！また明日ね♡',
     voiceSrc: '/voice/kurumi-seed7.wav',
+  },
+  {
+    id: 'secret_book',
+    debugKey: 'seed_after_plant_tutorial_secret_book',
+    message: 'あっ！忘れるとこだった。\nくるみの秘密帳を渡しとくから\nもしわからないことがあったら\nこれをじっくり読んでみてね！\nくるみの秘密帳はマウスの右クリックか\nキーボードのエムボタンを押すと\nメニューが出てくるから、\nそこから選んでね！',
+    voiceSrc: '/voice/himitsu.wav',
+    imageSrc: '/img/himitsu.jpg',
   },
 ];
 
@@ -2375,6 +2436,7 @@ export default function App() {
     { id: 'status',    label: 'スキルツリー', icon: '🌳' },
     { id: 'farm',      label: '農場',       icon: '🌾' },
     { id: 'zukan',     label: '図鑑',       icon: '📖' },
+    { id: 'kurumiNotebook', label: 'くるみの秘密帳', icon: '📒' },
     { id: 'system',    label: 'システム',   icon: '⚙️' },
   ] as const;
   type MenuItemId = typeof MENU_ITEMS[number]['id'];
@@ -2486,6 +2548,13 @@ export default function App() {
   const [farmGirlDetailOpen, setFarmGirlDetailOpen] = useState(false);
   const [farmGirls, setFarmGirls] = useState<FarmGirlSaveState[]>(createInitialFarmGirls);
   const [revealingFarmGirlIds, setRevealingFarmGirlIds] = useState<string[]>([]);
+  const [farmGirlRevealSpotlightId, setFarmGirlRevealSpotlightId] = useState<string | null>(null);
+  const [farmCareUnlockStage, setFarmCareUnlockStage] = useState<FarmCareUnlockStage>(1);
+  const [farmCareUnlockNoticeAction, setFarmCareUnlockNoticeAction] = useState<FarmCareAction | null>(null);
+  const [selectedFarmCareActionIndex, setSelectedFarmCareActionIndex] = useState(0);
+  const selectedFarmCareActionIndexRef = useRef(0);
+  const [pendingFarmCareConfirm, setPendingFarmCareConfirm] = useState<FarmCareConfirmTarget | null>(null);
+  const [farmCareConfirmChoice, setFarmCareConfirmChoice] = useState<'yes' | 'no'>('yes');
   const [ownedGirlSeeds, setOwnedGirlSeeds] = useState<string[]>([]);
   const [farmFieldSlots, setFarmFieldSlots] = useState<FarmFieldSlotState[]>(() => createInitialFarmFieldSlots('hard'));
   const [plantingSeedId, setPlantingSeedId] = useState<string | null>(null);
@@ -2527,6 +2596,8 @@ export default function App() {
   const zukanFilterRef = useRef('苗娘');
   const [selectedZukanIndex, setSelectedZukanIndex] = useState(0);
   const selectedZukanIndexRef = useRef(0);
+  const [selectedKurumiNotebookIndex, setSelectedKurumiNotebookIndex] = useState(0);
+  const selectedKurumiNotebookIndexRef = useRef(0);
   const [caughtFishIds, setCaughtFishIds] = useState<string[]>([]);
   const [nushiCaughtFishIds, setNushiCaughtFishIds] = useState<string[]>([]);
   const [fishBestSizes, setFishBestSizes] = useState<Record<string, number>>({});
@@ -2649,13 +2720,42 @@ export default function App() {
     Math.max(1, Math.round(getAffectedTrustGain(condition) * getHeroSkillMultiplier('companion_trust_up', 25)))
   );
   const getSkillAdjustedSeedlingCareLimit = (
-    action: 'caress' | 'finger' | 'fertilize',
+    action: FarmCareAction,
     crop: Pick<FarmGirlCropData, 'growthDays'>,
   ) => {
     if (action === 'caress' && hasHeroSkill('farm_caress')) return 2;
     if (action === 'finger' && hasHeroSkill('farm_fingering')) return 2;
     if (action === 'fertilize' && hasHeroSkill('farm_abstinence') && crop.growthDays >= 5) return 2;
     return 1;
+  };
+  const isFarmCareActionUnlocked = (action: FarmCareAction) => (
+    farmCareUnlockStage >= FARM_CARE_UNLOCK_STAGE_BY_ACTION[action]
+  );
+  const getFarmCareLockedMessage = (action: FarmCareAction) => (
+    action === 'finger'
+      ? '指入れは初回収穫後に解放されます。まずは愛撫で苗娘を安心させましょう。'
+      : '肥料注入は2回目の収穫後に解放されます。段階を踏んでお世話を覚えましょう。'
+  );
+  const requestSeedlingCare = (girlId: string, action: FarmCareAction) => {
+    if (!isFarmCareActionUnlocked(action)) {
+      playFixSound();
+      setDialogMessage(getFarmCareLockedMessage(action));
+      return;
+    }
+    setPendingFarmCareConfirm({ girlId, action });
+    setFarmCareConfirmChoice('yes');
+  };
+  const cancelSeedlingCareConfirm = () => {
+    setPendingFarmCareConfirm(null);
+    setFarmCareConfirmChoice('yes');
+  };
+  const confirmSeedlingCare = (choiceOverride?: 'yes' | 'no') => {
+    const choice = choiceOverride ?? farmCareConfirmChoice;
+    const target = pendingFarmCareConfirm;
+    setPendingFarmCareConfirm(null);
+    setFarmCareConfirmChoice('yes');
+    if (!target || choice !== 'yes') return;
+    careForSeedling(target.girlId, target.action);
   };
   const getHybridCultivationSuccessRate = () => (hasHeroSkill('special_adaptation_research') ? 0.8 : 0.65);
   const getHybridBlessingMultiplier = (farmGirl?: Pick<FarmGirlSaveState, 'hybridAdapted'> | null) => (
@@ -3597,6 +3697,12 @@ export default function App() {
       const selectedFarmGirlState = selectedGirlData
         ? farmGirls.find(girl => girl.girlId === selectedGirlData.id)
         : undefined;
+      const selectedFarmGirlFieldSlot = selectedGirlData
+        ? farmFieldSlots.find(slot => slot.girlId === selectedGirlData.id)
+        : undefined;
+      const selectedFarmGirlStateForMenu = selectedFarmGirlState && selectedFarmGirlFieldSlot?.state === 'growing'
+        ? { ...selectedFarmGirlState, state: 'growing' as FarmGirlState }
+        : selectedFarmGirlState;
       const selectedHarvestInfo = selectedGirlData ? getFarmGirlHarvestInfo(selectedGirlData.id) : null;
       const selectedSeedlingCrop = selectedGirlData
         ? FARM_GIRL_CROP_DATA.find(crop => crop.girlId === selectedGirlData.id)
@@ -3604,10 +3710,10 @@ export default function App() {
       const selectedTrustBonus = getFarmTrustBonus(selectedFarmGirlState?.trust ?? 0);
       const selectedGirlCanBecomeCompanion = Boolean(
         selectedGirlData &&
-        selectedFarmGirlState?.state === 'appeared' &&
-        selectedFarmGirlState.cardRevealed &&
-        selectedFarmGirlState.trust >= 20 &&
-        selectedFarmGirlState.condition !== 'affected'
+        selectedFarmGirlStateForMenu?.state === 'appeared' &&
+        selectedFarmGirlStateForMenu.cardRevealed &&
+        selectedFarmGirlStateForMenu.trust >= 20 &&
+        selectedFarmGirlStateForMenu.condition !== 'affected'
       );
       const selectedGirlIsCompanion = Boolean(selectedGirlData && companionGirlId === selectedGirlData.id);
       const selectedCompanionHarvestModifier = getSkillAdjustedCompanionHarvestModifier(
@@ -3645,7 +3751,8 @@ export default function App() {
       const getFarmGirlStateDisplay = (girlId: string, fallbackState: FarmGirlState = 'none') => {
         const farmGirl = farmGirls.find(entry => entry.girlId === girlId);
         const crop = FARM_GIRL_CROP_DATA.find(entry => entry.girlId === girlId);
-        const state = farmGirl?.state ?? fallbackState;
+        const fieldSlot = farmFieldSlots.find(slot => slot.girlId === girlId);
+        const state = fieldSlot?.state === 'growing' ? 'growing' : farmGirl?.state ?? fallbackState;
         if (state === 'growing') {
           return `成長中 ${farmGirl?.growthProgress ?? 0} / ${crop?.growthDays ?? '?'} 日`;
         }
@@ -3653,8 +3760,8 @@ export default function App() {
       };
       const ownedFarmGirlSeedCount = menuGirls.filter(girl => isFarmGirlSeedOwned(girl.id)).length;
       const selectedFarmGirlStatusText = selectedGirlData
-        ? getFarmGirlStateDisplay(selectedGirlData.id, selectedFarmGirlState?.state ?? 'none')
-        : farmGirlStateLabels[selectedFarmGirlState?.state ?? 'none'];
+        ? getFarmGirlStateDisplay(selectedGirlData.id, selectedFarmGirlStateForMenu?.state ?? 'none')
+        : farmGirlStateLabels[selectedFarmGirlStateForMenu?.state ?? 'none'];
       const selectedFarmGirlConditionText = selectedFarmGirlState?.condition === 'affected'
         ? `${selectedFarmGirlStatusText} / 傷つき`
         : selectedFarmGirlStatusText;
@@ -3671,6 +3778,11 @@ export default function App() {
           fertilize: getSkillAdjustedSeedlingCareLimit('fertilize', selectedSeedlingCrop),
         }
         : { caress: 1, finger: 1, fertilize: 1 };
+      const selectedSeedlingCareUnlocked = {
+        caress: isFarmCareActionUnlocked('caress'),
+        finger: isFarmCareActionUnlocked('finger'),
+        fertilize: isFarmCareActionUnlocked('fertilize'),
+      };
       return (
         <div className="relative grid h-full min-h-0 grid-cols-[minmax(0,1fr)_420px] gap-4">
           <div style={{ ...menuPanelBaseStyle, ...menuKeyboardFocusStyle(menuFocusArea === 'content' && menuContentFocus === 'secondary') }} className="flex min-h-0 flex-col gap-3 overflow-hidden">
@@ -3769,7 +3881,7 @@ export default function App() {
                 </div>
                 <div className="rounded bg-black/25 px-4 py-4">
                   <div className="text-[#c8a87a] text-sm font-bold">状態</div>
-                  <div className="mt-1 text-[#fdf6e3] text-xl font-black leading-tight">{selectedFarmGirlConditionText}</div>
+                  <div className="mt-1 whitespace-nowrap text-[#fdf6e3] text-lg font-black leading-tight">{selectedFarmGirlConditionText}</div>
                 </div>
                 {selectedFarmGirlState?.condition === 'affected' && (
                   <div className="col-span-2 rounded bg-black/25 px-4 py-4">
@@ -3801,7 +3913,7 @@ export default function App() {
                     </div>
                   </div>
                 )}
-                {selectedGirlData && selectedFarmGirlState?.state === 'growing' && (
+                {selectedGirlData && selectedFarmGirlStateForMenu?.state === 'growing' && (
                   <div className="col-span-2 rounded bg-black/25 px-4 py-4">
                     <div className="flex items-center justify-between gap-2">
                       <div className="text-[#c8a87a] text-sm font-bold">苗のお世話</div>
@@ -3811,30 +3923,51 @@ export default function App() {
                     <div className="mt-3 grid grid-cols-3 gap-3">
                       <button
                         type="button"
+                        onMouseEnter={() => { if (selectedFarmCareActionIndex !== 0) playCursorSound(); setSelectedFarmCareActionIndex(0); }}
                         disabled={selectedSeedlingCareCounts.caress >= selectedSeedlingCareLimits.caress || currentAP <= 0}
-                        onClick={() => { playFixSound(); careForSeedling(selectedGirlData.id, 'caress'); }}
-                        className="rounded border border-[#e5a6c8]/80 bg-[#6d3157]/80 px-3 py-3 text-sm font-black text-[#fff1f7] transition hover:bg-[#8d4170] disabled:cursor-not-allowed disabled:opacity-45"
+                        onClick={() => { playFixSound(); requestSeedlingCare(selectedGirlData.id, 'caress'); }}
+                        className={`min-h-[74px] rounded border px-2 py-2 text-center text-sm font-black text-[#fff1f7] transition hover:bg-[#8d4170] disabled:cursor-not-allowed disabled:opacity-45 ${selectedFarmCareActionIndex === 0 ? 'border-white bg-[#8d4170] ring-2 ring-[#ffd166]/70' : 'border-[#e5a6c8]/80 bg-[#6d3157]/80'}`}
                       >
-                        愛撫<br />+3〜6 品質
+                        <span className="block">愛撫</span>
+                        <span className="mt-1 block whitespace-nowrap">+3〜6</span>
+                        <span className="block">品質</span>
                       </button>
                       <button
                         type="button"
-                        disabled={selectedSeedlingCareCounts.finger >= selectedSeedlingCareLimits.finger || currentAP <= 0}
-                        onClick={() => { playFixSound(); careForSeedling(selectedGirlData.id, 'finger'); }}
-                        className="rounded border border-[#c7a6e5]/80 bg-[#4c356e]/80 px-3 py-3 text-sm font-black text-[#f6efff] transition hover:bg-[#62458b] disabled:cursor-not-allowed disabled:opacity-45"
+                        onMouseEnter={() => { if (selectedFarmCareActionIndex !== 1) playCursorSound(); setSelectedFarmCareActionIndex(1); }}
+                        disabled={!selectedSeedlingCareUnlocked.finger || selectedSeedlingCareCounts.finger >= selectedSeedlingCareLimits.finger || currentAP <= 0}
+                        onClick={() => { playFixSound(); requestSeedlingCare(selectedGirlData.id, 'finger'); }}
+                        className={`min-h-[74px] rounded border px-2 py-2 text-center text-sm font-black text-[#f6efff] transition hover:bg-[#62458b] disabled:cursor-not-allowed disabled:opacity-45 ${selectedFarmCareActionIndex === 1 ? 'border-white bg-[#62458b] ring-2 ring-[#ffd166]/70' : 'border-[#c7a6e5]/80 bg-[#4c356e]/80'}`}
                       >
-                        指入れ<br />+6〜10 品質
+                        <span className="block">指入れ</span>
+                        {selectedSeedlingCareUnlocked.finger ? (
+                          <>
+                            <span className="mt-1 block whitespace-nowrap">+6〜10</span>
+                            <span className="block">品質</span>
+                          </>
+                        ) : (
+                          <span className="mt-1 block text-[11px] leading-tight">初回収穫で解放</span>
+                        )}
                       </button>
                       <button
                         type="button"
-                        disabled={selectedSeedlingCareCounts.fertilize >= selectedSeedlingCareLimits.fertilize || currentAP <= 0}
-                        onClick={() => { playFixSound(); careForSeedling(selectedGirlData.id, 'fertilize'); }}
-                        className="rounded border border-[#a3d977]/80 bg-[#3f6528]/80 px-3 py-3 text-sm font-black text-[#f1ffe4] transition hover:bg-[#517f34] disabled:cursor-not-allowed disabled:opacity-45"
+                        onMouseEnter={() => { if (selectedFarmCareActionIndex !== 2) playCursorSound(); setSelectedFarmCareActionIndex(2); }}
+                        disabled={!selectedSeedlingCareUnlocked.fertilize || selectedSeedlingCareCounts.fertilize >= selectedSeedlingCareLimits.fertilize || currentAP <= 0}
+                        onClick={() => { playFixSound(); requestSeedlingCare(selectedGirlData.id, 'fertilize'); }}
+                        className={`min-h-[74px] rounded border px-2 py-2 text-center text-sm font-black text-[#f1ffe4] transition hover:bg-[#517f34] disabled:cursor-not-allowed disabled:opacity-45 ${selectedFarmCareActionIndex === 2 ? 'border-white bg-[#517f34] ring-2 ring-[#ffd166]/70' : 'border-[#a3d977]/80 bg-[#3f6528]/80'}`}
                       >
-                        肥料注入<br />成長 +1日
+                        <span className="block">肥料注入</span>
+                        {selectedSeedlingCareUnlocked.fertilize ? (
+                          <>
+                            <span className="mt-1 block whitespace-nowrap">成長</span>
+                            <span className="block">+1日</span>
+                          </>
+                        ) : (
+                          <span className="mt-1 block text-[11px] leading-tight">2回目収穫で解放</span>
+                        )}
                       </button>
                     </div>
-                    <div className="mt-2 text-xs font-bold text-[#c8a87a]">各お世話は苗ごとに1日1回・AP 1を消費します。</div>
+                    <div className="mt-2 text-xs font-bold text-[#c8a87a]">各お世話は苗ごとに1日1回・AP 1を消費します。収穫を重ねると新しいお世話が解放されます。</div>
                   </div>
                 )}
                 {selectedGirlData && selectedFarmGirlState && (
@@ -3896,7 +4029,7 @@ export default function App() {
                         </div>
                       )}
                     </div>
-                    {selectedFarmGirlState.state === 'appeared' && (
+                    {selectedFarmGirlStateForMenu.state === 'appeared' && (
                       <div className="mt-2 rounded bg-black/25 px-3 py-2 text-sm font-bold text-[#f0d58a]">
                         作物品質：{selectedFarmGirlEffectiveQuality} / 100（{getFarmQualityLabel(selectedFarmGirlEffectiveQuality)}・売値 ×{selectedFarmGirlQualityMultiplier}）
                       </div>
@@ -3938,7 +4071,7 @@ export default function App() {
                     )}
                   </div>
                 )}
-                {selectedGirlData && selectedHarvestInfo?.crop && selectedFarmGirlState?.state === 'appeared' && (
+                {selectedGirlData && selectedHarvestInfo?.crop && selectedFarmGirlStateForMenu?.state === 'appeared' && (
                   <div className="col-span-2 rounded bg-black/25 px-4 py-4">
                     <div className="text-[#c8a87a] text-sm font-bold">収穫</div>
                     <div className="mt-1 flex items-center justify-between gap-2">
@@ -4134,7 +4267,429 @@ export default function App() {
       );
     }
 
-    const systemActions = [
+    if (id === 'kurumiNotebook') {
+      const notebookSections = [
+	        {
+	          group: '農場メイン',
+		          icon: '🌱',
+		          title: '苗娘の育て方',
+		          imageSrc: '/img/nae.png',
+		          imageAlt: '苗娘',
+		          lead: '苗娘を植えて、日ごとに成長させ、初回収穫で娘カードを解放する基本の流れです。',
+	          points: [
+	            '農場メニューや畑の近くから、所持している苗娘を空きスロットへ苗植えできます。',
+	            '最初のお世話は「愛撫」だけです。収穫を重ねると「指入れ」「肥料注入」が順番に解放されます。',
+	            '品質は娘化後の作物売値に反映されます。高品質ほど返済用の収入源として強くなります。',
+	            '成長日数に達すると収穫できる状態になり、初回収穫で苗カードが娘カードへ変化します。',
+	          ],
+	        },
+	        {
+	          group: '農場メイン',
+		          icon: '🃏',
+		          title: '娘カードと収穫',
+		          imageSrc: '/img/chibiichi-card.png',
+		          imageAlt: '娘カード',
+		          imagePosition: 'center 8%',
+		          lead: '娘化後の収穫、信頼度、売値の見方をまとめています。',
+	          points: [
+	            '初回収穫で娘カードが解放され、詳細画像や各種情報を見られるようになります。',
+	            '一度娘化した娘は、作物ごとの収穫間隔が経過すると再収穫できます。',
+	            '信頼度が上がると収穫量や売値補正につながります。農場メニューで現在値を確認できます。',
+	            '同行中の娘は収穫できない場合があります。収穫したい時は同行解除も確認しましょう。',
+	          ],
+	        },
+	        {
+	          group: '農場メイン',
+		          icon: '🧺',
+		          title: '畑の増やし方',
+		          imageSrc: '/img/bokujo-hiru.jpg',
+		          imageAlt: '牧場',
+		          lead: '畑スロットや解放状態の考え方です。今後の拡張確認にも使えます。',
+	          points: [
+	            '苗娘は畑スロットに植えます。空きスロットがない場合は収穫や解放状況を確認してください。',
+	            '畑の利用範囲は難易度や進行状況で変わる場合があります。',
+	            '右畑・左畑のように場所が分かれている時は、実際に近づいて植えられる場所を確認すると迷いにくいです。',
+	          ],
+	        },
+	        {
+	          group: '戦闘・同行',
+		          icon: '🐾',
+		          title: '獣との戦闘',
+		          imageSrc: BATTLE_BEAST_SPRITE_SOURCES.mole,
+		          imageAlt: '獣との戦闘',
+		          lead: '畑を守るための戦闘と、装備・回復・報酬の基本です。',
+	          points: [
+	            '獣の気配がある日は、戦闘や畑被害に注意してください。',
+	            '主人公の武器、防具、回復アイテムは戦闘の安定度に直結します。装備メニューで確認できます。',
+	            '勝利すると獣素材などを得られ、クラフトや売却に役立ちます。',
+	            '娘が同行していると、戦闘で支援してくれることがあります。',
+	          ],
+	        },
+	        {
+	          group: '戦闘・同行',
+		          icon: '🤝',
+		          title: '娘同行',
+		          imageSrc: FARM_GIRL_CARD_IMAGES.mel,
+		          imageAlt: '娘同行',
+		          imagePosition: 'center 12%',
+		          lead: '娘カード解放後に使える同行と、戦闘・収穫への影響です。',
+	          points: [
+	            '同行には娘カード解放と信頼度条件が必要です。未解放の苗娘は同行できません。',
+	            '同行中の娘は主人公の後ろをついてきます。戦闘では支援役として参加します。',
+	            '同行中は収穫制限や補正がかかる場合があります。農場メニューの同行欄を確認しましょう。',
+	            '同行する娘の装備や役割は、今後の戦闘準備にも関わります。',
+	          ],
+	        },
+	        {
+	          group: '採取・制作',
+		          icon: '🎣',
+		          title: '釣り',
+		          imageSrc: '/img/fishing1.jpg',
+		          imageAlt: '釣り',
+		          lead: '釣り場で魚を集め、売却や図鑑更新につなげる遊びです。',
+	          points: [
+	            '水辺の釣りポイントで釣りができます。',
+	            'タイミング入力がよいほど、結果が安定しやすくなります。',
+	            '魚は種類やサイズで売値が変わります。図鑑で釣果を確認できます。',
+	            '特別なサイズや条件でヌシ級の魚が見つかることがあります。',
+	          ],
+	        },
+	        {
+	          group: '採取・制作',
+		          icon: '⛏',
+		          title: '採掘',
+		          imageSrc: '/img/saikutuok.jpg',
+		          imageAlt: '採掘',
+		          lead: '洞窟などで鉱石を集め、クラフトや売却に使います。',
+	          points: [
+	            '採掘ポイントではミニゲームの結果に応じて鉱石を入手できます。',
+	            'つるはしランクが高いほど、よりよい採掘結果を狙いやすくなります。',
+	            '鉱石は種類や重さで価値が変わります。結果画面で品質や売却予想を確認しましょう。',
+	          ],
+	        },
+	        {
+	          group: '採取・制作',
+		          icon: '🪓',
+		          title: '伐採',
+		          imageSrc: '/img/treeok.jpg',
+		          imageAlt: '伐採',
+		          lead: '木材を集め、道具作りや売却に使います。',
+	          points: [
+	            '伐採ポイントで木材を入手できます。',
+	            'のこぎりランクが高いほど、報酬や安定度がよくなります。',
+	            '木材はサイズや種類で売値が変わることがあります。',
+	          ],
+	        },
+	        {
+	          group: '採取・制作',
+		          icon: '🛠',
+		          title: 'クラフト',
+		          imageSrc: '/img/koya.jpg',
+		          imageAlt: 'クラフト',
+		          lead: 'レシピと素材を使って、道具や装備を作る機能です。',
+	          points: [
+	            'レシピを入手すると、必要素材をそろえてクラフトできます。',
+	            '釣竿、つるはし、のこぎり、武器、防具などの道具作成はクラフトに含まれます。',
+	            'クラフトミニゲームの結果で成功率が変わります。成功しやすい状態で挑むのが安全です。',
+	          ],
+	        },
+	        {
+	          group: 'ゲーム進行',
+		          icon: '🌳',
+		          title: 'スキルツリー',
+		          imageSrc: '/img/skill.png',
+		          imageAlt: 'スキルツリー',
+		          lead: '主人公の成長度とSPを使って、農場・採取・戦闘を強化します。',
+	          points: [
+	            'SPを消費してスキルを取得します。',
+	            '農場、採取、戦闘、同行、特殊系など、目的に合わせて伸ばせます。',
+	            '取得条件や効果はスキルツリー画面で確認できます。',
+	          ],
+	        },
+	        {
+	          group: 'ゲーム進行',
+		          icon: '💰',
+		          title: '借金と返済',
+		          imageSrc: '/img/kurumi-trade.png',
+		          imageAlt: '売却と返済',
+		          imagePosition: 'center 8%',
+		          lead: '農場経営の大きな目標です。収穫物や採取品を売って返済を進めます。',
+	          points: [
+	            '返済日までの日数と予定額は画面上部で確認できます。',
+	            '売れる品がある時は、くるみの店や売却導線を確認しましょう。',
+	            '作物、魚、鉱石、木材、獣素材など、複数の収入源を組み合わせると安定します。',
+	          ],
+	        },
+	        {
+	          group: 'ゲーム進行',
+		          icon: '📋',
+		          title: 'メニューの使い方',
+		          imageSrc: '/img/save.jpg',
+		          imageAlt: 'メニュー',
+		          lead: '各メニューの役割をざっくり確認できます。',
+	          points: [
+	            'アイテムでは所持品、装備では主人公や同行娘の装備を確認できます。',
+	            '農場では苗娘、娘カード、収穫、同行を確認できます。',
+	            '図鑑では苗娘や魚の収集状況を見られます。',
+	            'システムではセーブ、ロード、音量などを調整できます。',
+	          ],
+	        },
+	        {
+	          group: 'くるみ',
+		          icon: '📔',
+		          title: 'くるみ日記',
+		          imageSrc: '/img/himitsu.jpg',
+		          imageAlt: 'くるみ日記',
+		          lead: 'くるみが書き残した日記です。長い文章は下の欄をスクロールして読めます。',
+	          points: [],
+	          diaryEntries: [
+	            {
+	              date: '2020年3月15日',
+	              body: 'おじいちゃんの家でお手伝い。お茶を淹れてたら後ろから抱きしめられて、\nおっぱいを優しく揉まれた。乳首を指で転がされて声が出ちゃった。\nおじいちゃんの硬くなったものが太ももに当たって、ドキドキした。',
+	            },
+	            {
+	              date: '2020年7月22日',
+	              body: '夏休み。おじいちゃんの膝の上に乗せられて、服の上から胸を触られたり、\nパンツの上から優しくなでられた。\n指でクリをこすられて、何度もびくびくしちゃった。',
+	            },
+	            {
+	              date: '2020年11月8日',
+	              body: '雨の日。布団の中で裸で密着。胸やお尻を撫で回されて、\n指でおまんこを優しく刺激された。\n気持ちよくておじいちゃんの指を濡らしちゃった。',
+	            },
+	            {
+	              date: '2021年2月14日',
+	              body: 'バレンタイン。\nお礼にベッドでいっぱいキスされて、全身を舐め回された。\n指を2本入れて激しく動かされて、声を抑えられなかった。',
+	            },
+	            {
+	              date: '2021年6月3日',
+	              body: '蒸し暑い日。騎乗位みたいに乗せられて、\nおじいちゃんの指で中を掻き回された。\n腰が勝手に動いて、何度もイってしまった。',
+	            },
+	            {
+	              date: '2021年9月19日',
+	              body: 'おじいちゃんが後ろから指を入れてバックみたいにされた。\n激しく動かされて、立ったまま足が震えた。\nおじいちゃんのものを太ももでこすってあげた。',
+	            },
+	            {
+	              date: '2022年1月30日',
+	              body: '雪の日。布団の中でおじいちゃんのあそこを初めて挿れてもらった。\nゆっくり動かされて気持ちよかったけど、最後はお腹の上に熱いのが出た。',
+	            },
+	            {
+	              date: '2022年5月12日',
+	              body: '掃除中、突然後ろから挿入。\n立ったままのまま激しく突かれて、頭が真っ白になった。\n最後に素早く抜かれて太ももにかけられた。',
+	            },
+	            {
+	              date: '2022年8月25日',
+	              body: 'お風呂で一緒に。立ちバックで生で挿れられて、お湯の中で激しくされた。\n気持ちよすぎてイキそうになったけど、最後は外に射精された。',
+	            },
+	            {
+	              date: '2022年12月5日',
+	              body: '年末。ソファーで騎乗位。\n生で深く入れて腰を振ったらすごく気持ちよくて何度もイった。\n最後に慌てて抜かれて、お腹と胸にいっぱい出された。',
+	            },
+	            {
+	              date: '2023年2月18日',
+	              body: 'おじいちゃんの家に行ったら、また優しく抱きしめられて胸を触られた。\n今日はおじいちゃんの指がいつもより丁寧で、\nクリを重点的にこすられてすぐにイっちゃった。',
+	            },
+	            {
+	              date: '2023年5月7日',
+	              body: '春の晴れた日。布団の中で裸で密着してお互い触り合った。\nおじいちゃんの指を3本も入れてもらって、\n激しくかき回されて声が大きくなっちゃった。',
+	            },
+	            {
+	              date: '2023年8月14日',
+	              body: '夏祭りの後。おじいちゃんが後ろから挿れてくれた。\n生でゆっくり動かされて気持ちよかったけど、\n最後は太ももの間に射精された。',
+	            },
+	            {
+	              date: '2023年11月22日',
+	              body: '秋の夜。騎乗位で自分で腰を振った。\n生の感触が気持ちよくて何度もイった。\nおじいちゃんは最後にお腹の上に熱い精液をかけてくれた。',
+	            },
+	            {
+	              date: '22024年3月9日',
+	              body: 'お掃除の途中、立ったまま後ろから挿入。\n少し激しく突かれて頭がぼーっとした。\n最後に素早く抜いてお尻にかけられた。',
+	            },
+	            {
+	              date: '2024年6月30日',
+	              body: '梅雨のじめじめした日。お風呂で生バックされた。\n熱いお湯の中で動かされてすごく感じたけど、外に出してもらった。',
+	            },
+	            {
+	              date: '2024年10月12日',
+	              body: 'おじいちゃんの元気が少し落ちてるみたい。\n今日は指と舌でいっぱい愛されて、何度もイった。\nおじいちゃんのものは少し硬くならなかったけど、優しく抱きしめてもらった。',
+	            },
+	            {
+	              date: '2025年1月25日',
+	              body: '冬の日。挿れてもらおうとしたけど、おじいちゃんがなかなか勃たなくて…。\n結局指でしてもらって満足した。\nおじいちゃん、ごめんねって言って頭を撫でてくれた。',
+	            },
+	            {
+	              date: '2025年4月18日',
+	              body: '桜の季節。おじいちゃんが無理して入れてくれたけど、\n途中で柔らかくなってしまって…。\n最後は私の手で優しくしてあげた。おじいちゃん、寂しそうだった。',
+	            },
+	            {
+	              date: '2025年7月5日',
+	              body: '今日はほとんど勃たなくて、おじいちゃんが落ち込んでた。\n私はおじいちゃんの指と舌だけでいっぱい気持ちよくなって、\n「大好きだよ」って抱きついた。おじいちゃんも嬉しそうに笑ってくれた。',
+	            },
+	            {
+	              date: '2025年8月11日',
+	              body: 'おじいちゃん、最近ますます勃ちにくくなってきてる…。\n今日は指だけでしてもらったけど、物足りなくてちょっと寂しかった。\nおじいちゃんも申し訳なさそうにしてた。',
+	            },
+	            {
+	              date: '2025年10月3日',
+	              body: '秋祭りの後。おじいちゃんが「最近ごめんな」って謝ってきた。\nいつものように優しく触ってもらったけど、\n途中でおじいちゃんが残念そうな顔をしてた。',
+	            },
+	            {
+	              date: '2025年12月20日',
+	              body: '年末。おじいちゃんがぼそっと「孫のユウが近くに住んでるんだ」って話し始めた。\n詳しくは聞けなかったけど、なんだか気になる。',
+	            },
+	            {
+	              date: '2026年2月14日',
+	              body: 'バレンタイン。おじいちゃんがまたユウの話をしてくれた。\n若くて元気いっぱいだって。\n今日はおじいちゃんの指でイったけど、心のどこかでユウのことが気になっちゃった。',
+	            },
+	            {
+	              date: '2026年3月28日',
+	              body: 'おじいちゃんが「ユウは若い割にかなり絶倫らしいぞ」って突然言ってきた。\nびっくりしたけど、顔が熱くなった。おじいちゃんは寂しそうに笑ってた。',
+	            },
+	            {
+	              date: '2026年4月15日',
+	              body: '今日はおじいちゃんがほとんど勃たなくて、手で優しくしてあげた。\nおじいちゃんが「ユウならくるみちゃんをきっと満足させてくれるだろう」って呟いた。\nドキドキした。',
+	            },
+	            {
+	              date: '2026年5月9日',
+	              body: 'おじいちゃんのEDがかなり進んでるみたい。\n今日はほとんど触れ合えなくて、ユウの話ばかり聞かされた。\n若くて逞しくて、朝から晩までできるって…想像しちゃった。',
+	            },
+	            {
+	              date: '2026年5月22日',
+		              body: 'おじいちゃんが本気で「ユウを紹介しようか？」って言ってきた。\n私は恥ずかしくて答えられなかったけど、\nおじいちゃんは「若い絶倫のユウなら、くるみもきっと満足するだろう」って繰り返してた。',
+	            },
+	            {
+	              date: '2026年6月10日',
+	              body: 'おじいちゃんがユウの写真を見せてくれた。\nおじいちゃんは「ユウは性欲が強くて一回じゃ終わらないタイプだぞ。\nくるみちゃんの身体、きっとめちゃくちゃに満足させてくれる」って言って、なんだか複雑な気持ち。',
+	            },
+	            {
+	              date: '2026年6月24日',
+	              body: '今日、おじいちゃんが本格的に「ユウにくるみを任せたい」って言ってきた。\n若い絶倫のユウなら、私を毎日でも何回でもイかせて満足させてくれるだろうって…。\nおじいちゃんの代わりにユウのことを考えるだけで、身体が熱くなっちゃう。',
+	            }
+	          ],
+	        },
+	      ];
+	      const selectedSection = notebookSections[selectedKurumiNotebookIndex] ?? notebookSections[0];
+	      const groups = Array.from(new Set(notebookSections.map(section => section.group)));
+	      const selectedDiaryEntries = 'diaryEntries' in selectedSection ? selectedSection.diaryEntries : null;
+
+	      return (
+	        <div className="grid h-full min-h-0 grid-cols-[330px_minmax(0,1fr)] gap-4">
+	          <div style={{ ...menuPanelBaseStyle, ...menuKeyboardFocusStyle(menuFocusArea === 'content' && menuContentFocus === 'primary') }} className="flex min-h-0 flex-col overflow-hidden p-3">
+	            <div style={menuTinyLabelStyle}>くるみの秘密帳</div>
+	            <div className="mt-1 text-lg font-black leading-tight text-[#fff7dc]">チュートリアル</div>
+	            <div className="mt-3 min-h-0 flex-1 overflow-y-auto pr-2">
+	              {groups.map(group => (
+	                <div key={group} className="mb-3">
+	                  <div className="mb-1 px-2 text-[11px] font-black tracking-[0.16em] text-[#dda15e]">{group}</div>
+	                  <div className="grid gap-2">
+	                    {notebookSections.map((section, index) => section.group === group ? (
+	                      <button
+	                        key={section.title}
+	                        type="button"
+	                        data-kurumi-notebook-index={index}
+	                        onPointerDown={(event) => {
+	                          event.preventDefault();
+	                          event.stopPropagation();
+	                          setMenuFocusArea('content');
+	                          setMenuContentFocus('primary');
+	                          setSelectedKurumiNotebookIndex(index);
+	                        }}
+	                        onMouseEnter={() => { if (selectedKurumiNotebookIndex !== index) playCursorSound(); }}
+	                        onClick={() => {
+	                          playFixSound();
+	                          setMenuFocusArea('content');
+	                          setMenuContentFocus('primary');
+	                          setSelectedKurumiNotebookIndex(index);
+	                        }}
+	                        className={`flex items-center gap-2 rounded border px-3 py-2 text-left transition ${
+	                          selectedKurumiNotebookIndex === index
+	                            ? 'border-white bg-[#bc6c25]/70 text-white ring-4 ring-[#ffd166]/65 shadow-[0_0_18px_rgba(255,209,102,0.38)]'
+	                            : 'border-[#5a3010] bg-black/30 text-[#fdf6e3] hover:bg-[#3a2418]'
+	                        }`}
+	                      >
+	                        <span className="text-xl">{section.icon}</span>
+	                        <span className="min-w-0 flex-1 truncate text-sm font-black">{section.title}</span>
+	                      </button>
+	                    ) : null)}
+	                  </div>
+	                </div>
+	              ))}
+	            </div>
+	          </div>
+	          <div
+	            style={{ ...menuPanelBaseStyle, ...menuKeyboardFocusStyle(menuFocusArea === 'content' && menuContentFocus === 'secondary') }}
+	            className={`min-h-0 p-5 text-[#fdf6e3] ${selectedDiaryEntries ? 'flex flex-col overflow-hidden' : 'overflow-y-auto'}`}
+	          >
+	            <div className={`shrink-0 grid gap-4 ${selectedDiaryEntries ? 'grid-cols-[minmax(0,1fr)_180px]' : 'grid-cols-[minmax(0,1fr)_230px]'}`}>
+	              <div className="min-w-0">
+	                <div className="flex items-start justify-between gap-4">
+	                  <div>
+	                    <div className="text-sm font-black tracking-[0.18em] text-[#ffd166]">{selectedSection.group}</div>
+	                    <div className="mt-1 flex items-center gap-3 text-3xl font-black leading-tight">
+	                      <span>{selectedSection.icon}</span>
+	                      <span>{selectedSection.title}</span>
+	                    </div>
+	                  </div>
+	                  <div className="shrink-0 rounded border border-[#ffd166]/55 bg-black/30 px-3 py-2 text-xs font-bold text-[#ffe8a3]">
+	                    {selectedKurumiNotebookIndex + 1} / {notebookSections.length}
+	                  </div>
+	                </div>
+	                <div className="mt-3 rounded border border-[#86efac]/45 bg-[#123020]/50 px-4 py-2 text-sm font-bold leading-relaxed text-[#e7ffe8]">
+	                  {selectedSection.lead}
+	                </div>
+	              </div>
+	              <div className={`relative overflow-hidden rounded border border-[#ffd166]/55 bg-black/35 shadow-[0_12px_28px_rgba(0,0,0,0.35)] ${selectedDiaryEntries ? 'min-h-[132px]' : 'min-h-[180px]'}`}>
+	                {selectedSection.title === '獣との戦闘' ? (
+	                  <div
+	                    role="img"
+	                    aria-label={selectedSection.imageAlt}
+	                    className="absolute inset-0"
+	                    style={{
+	                      backgroundImage: `url(${selectedSection.imageSrc})`,
+	                      backgroundPosition: '1% 64%',
+	                      backgroundRepeat: 'no-repeat',
+	                      backgroundSize: '520% auto',
+	                    }}
+	                  />
+	                ) : (
+	                  <img
+	                    src={selectedSection.imageSrc}
+	                    alt={selectedSection.imageAlt}
+	                    className="absolute inset-0 h-full w-full object-cover"
+	                    style={{ objectPosition: selectedSection.imagePosition ?? 'center' }}
+	                  />
+	                )}
+	                <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/8 to-transparent" />
+	                <div className="absolute bottom-3 left-3 right-3 rounded border border-white/15 bg-black/58 px-3 py-2 text-sm font-black text-[#fff7dc]">
+	                  {selectedSection.title}
+	                </div>
+	              </div>
+	            </div>
+	            {selectedDiaryEntries ? (
+	              <div className="mt-3 min-h-0 flex-1 overflow-y-auto rounded border border-[#5a3010]/75 bg-black/28 p-4 pr-3">
+	                <div className="space-y-5 whitespace-pre-line text-[#fff7dc]">
+	                  {selectedDiaryEntries.map(entry => (
+	                    <div key={entry.date} className="rounded border border-[#76502c]/70 bg-[#1a100d]/68 px-4 py-4">
+	                      <div className="text-base font-black text-[#ffd166]">{entry.date}</div>
+	                      <div className="mt-2 text-sm font-bold leading-relaxed">{entry.body}</div>
+	                    </div>
+	                  ))}
+	                </div>
+	              </div>
+	            ) : (
+	              <div className="mt-5 grid grid-cols-2 gap-3">
+	                {selectedSection.points.map((point, index) => (
+	                  <div key={point} className="grid grid-cols-[34px_minmax(0,1fr)] gap-3 rounded border border-[#5a3010]/75 bg-black/26 px-4 py-3">
+	                    <div className="flex h-8 w-8 items-center justify-center rounded-full border border-[#ffd166]/70 bg-[#4a310b] text-sm font-black text-[#ffd166]">{index + 1}</div>
+	                    <div className="text-sm font-bold leading-relaxed text-[#fff7dc]">{point}</div>
+	                  </div>
+	                ))}
+	              </div>
+	            )}
+	          </div>
+	        </div>
+	      );
+	    }
+
+	    const systemActions = [
       { label: 'セーブ', bgImage: '/img/save.jpg', action: () => setSystemSlotMode('save') },
       { label: 'ロード', bgImage: '/img/load.jpg', action: () => setSystemSlotMode('load') },
       { label: 'タイトルへ戻る', bgImage: '/img/title.jpg', action: returnToTitle },
@@ -4251,10 +4806,12 @@ export default function App() {
   useEffect(() => { selectedSkillCategoryRef.current = selectedSkillCategory; }, [selectedSkillCategory]);
   useEffect(() => { selectedStatusGirlIndexRef.current = selectedStatusGirlIndex; }, [selectedStatusGirlIndex]);
   useEffect(() => { selectedFarmGirlIndexRef.current = selectedFarmGirlIndex; }, [selectedFarmGirlIndex]);
+  useEffect(() => { selectedFarmCareActionIndexRef.current = selectedFarmCareActionIndex; }, [selectedFarmCareActionIndex]);
   useEffect(() => { selectedFarmFacilityIndexRef.current = selectedFarmFacilityIndex; }, [selectedFarmFacilityIndex]);
-  useEffect(() => { zukanFilterRef.current = zukanFilter; }, [zukanFilter]);
-  useEffect(() => { selectedZukanIndexRef.current = selectedZukanIndex; }, [selectedZukanIndex]);
-  useEffect(() => { systemNoticeRef.current = systemNotice; }, [systemNotice]);
+	  useEffect(() => { zukanFilterRef.current = zukanFilter; }, [zukanFilter]);
+	  useEffect(() => { selectedZukanIndexRef.current = selectedZukanIndex; }, [selectedZukanIndex]);
+	  useEffect(() => { selectedKurumiNotebookIndexRef.current = selectedKurumiNotebookIndex; }, [selectedKurumiNotebookIndex]);
+	  useEffect(() => { systemNoticeRef.current = systemNotice; }, [systemNotice]);
   useEffect(() => { selectedSystemActionIndexRef.current = selectedSystemActionIndex; }, [selectedSystemActionIndex]);
   useEffect(() => { equippedItemsRef.current = equippedItems; }, [equippedItems]);
 
@@ -5456,7 +6013,16 @@ export default function App() {
 	              ? data.interestRateCycleIndex
 	              : loadedInterestCycleIndex
 	          );
-	          setFarmGirls(normalizeFarmGirls(data.farmGirls));
+	          const loadedFarmGirls = normalizeFarmGirls(data.farmGirls);
+	          setFarmGirls(loadedFarmGirls);
+	          const loadedHarvestedGirlCount = loadedFarmGirls.filter(girl => girl.lastHarvestDay !== null).length;
+	          const inferredFarmCareUnlockStage = loadedHarvestedGirlCount >= 2
+	            ? 3
+	            : loadedHarvestedGirlCount >= 1
+	              ? 2
+	              : 1;
+	          setFarmCareUnlockStage(normalizeFarmCareUnlockStage(data.farmCareUnlockStage, inferredFarmCareUnlockStage));
+	          setFarmCareUnlockNoticeAction(null);
 	          const loadedOwnedGirlSeeds = normalizeOwnedGirlSeeds(data.ownedGirlSeeds);
 	          setOwnedGirlSeeds(loadedOwnedGirlSeeds);
 	          setHasReceivedKurumiStarterSeeds(
@@ -5725,6 +6291,8 @@ export default function App() {
           setMountainLordAttackPending(false);
           setBeastAttackPending(false);
           setCompanionGirlId(null);
+          setFarmCareUnlockStage(1);
+          setFarmCareUnlockNoticeAction(null);
           setCurrentWeeklyInterestRate(createWeeklyInterestRate(difficultyOption.id, 0, 0));
           setInterestRateCycleIndex(0);
           setCurrentAP(maxAPPerTimeSlot);
@@ -5849,6 +6417,7 @@ export default function App() {
     currentWeeklyInterestRate,
     interestRateCycleIndex,
     farmGirls,
+    farmCareUnlockStage,
     ownedGirlSeeds,
     hasReceivedKurumiStarterSeeds,
     seedAfterPlantTutorialCompleted,
@@ -6060,6 +6629,7 @@ export default function App() {
     currentWeeklyInterestRate,
     interestRateCycleIndex,
     farmGirls,
+    farmCareUnlockStage,
     ownedGirlSeeds,
     hasReceivedKurumiStarterSeeds,
     farmFieldSlots,
@@ -6650,10 +7220,11 @@ export default function App() {
     const selectors: Partial<Record<MenuItemId, string>> = {
       item: `[data-menu-item-name="${CSS.escape(selectedItemName)}"]`,
       equipment: `[data-equipment-option-index="${selectedEquipmentOptionIndex}"]`,
-      farm: `[data-farm-girl-index="${selectedFarmGirlIndex}"]`,
-      zukan: `[data-zukan-index="${selectedZukanIndex}"]`,
-      system: `[data-system-action-index="${selectedSystemActionIndex}"]`,
-    };
+	      farm: `[data-farm-girl-index="${selectedFarmGirlIndex}"]`,
+	      zukan: `[data-zukan-index="${selectedZukanIndex}"]`,
+	      kurumiNotebook: `[data-kurumi-notebook-index="${selectedKurumiNotebookIndex}"]`,
+	      system: `[data-system-action-index="${selectedSystemActionIndex}"]`,
+	    };
     const selector = selectors[selectedMenuId];
     if (!selector) return;
     document.querySelector<HTMLElement>(selector)?.scrollIntoView({ block: 'nearest' });
@@ -6662,10 +7233,11 @@ export default function App() {
     selectedMenuItem.id,
     selectedItemName,
     selectedEquipmentOptionIndex,
-    selectedFarmGirlIndex,
-    selectedZukanIndex,
-    selectedSystemActionIndex,
-  ]);
+	    selectedFarmGirlIndex,
+	    selectedZukanIndex,
+	    selectedKurumiNotebookIndex,
+	    selectedSystemActionIndex,
+	  ]);
 
   useEffect(() => {
     if (farmSlotInteractionStage !== 'selectSeed') return;
@@ -7478,9 +8050,14 @@ export default function App() {
     )));
     if (isFirstHarvestReveal) {
       setRevealingFarmGirlIds(previous => Array.from(new Set([...previous, girlId])));
+      setFarmGirlRevealSpotlightId(girlId);
+      playVoiceSound(FARM_GIRL_SEED_VOICE_SRCS[girlId]);
       window.setTimeout(() => {
         setRevealingFarmGirlIds(previous => previous.filter(revealingGirlId => revealingGirlId !== girlId));
       }, 1400);
+      window.setTimeout(() => {
+        setFarmGirlRevealSpotlightId(currentGirlId => currentGirlId === girlId ? null : currentGirlId);
+      }, 3200);
     }
     incrementEndlessStat('totalHarvestCount', harvestAmount);
     if (newlyUnlockedTrustEvents.length > 0 && isEndlessNurseryMode()) {
@@ -7496,18 +8073,35 @@ export default function App() {
         ])),
       }));
     }
+    const newlyUnlockedCareAction: FarmCareAction | null = farmCareUnlockStage === 1
+      ? 'finger'
+      : farmCareUnlockStage === 2
+        ? 'fertilize'
+        : null;
+    if (newlyUnlockedCareAction) {
+      setFarmCareUnlockStage(previous => normalizeFarmCareUnlockStage(previous + 1, 3));
+      setFarmCareUnlockNoticeAction(newlyUnlockedCareAction);
+    }
     setDialogMessage(
-      isFirstHarvestReveal
+      newlyUnlockedCareAction
+        ? `新しいお世話「${FARM_CARE_UNLOCK_ACTION_LABELS[newlyUnlockedCareAction]}」が使えるようになりました。`
+        : isFirstHarvestReveal
         ? `${girl?.girlName ?? crop.seedName}が初めて収穫できた！\n苗カードが娘カードに変化しました。`
         : newlyUnlockedTrustEvents.length > 0
         ? `${girl?.girlName ?? crop.seedName}との信頼イベントが解放された！`
         : `${girl?.girlName ?? crop.seedName}から${crop.harvestItemName}を${harvestAmount}個収穫しました。信頼度 +${trustGain}`
     );
   };
-  const careForSeedling = (girlId: string, action: 'caress' | 'finger' | 'fertilize') => {
+  const careForSeedling = (girlId: string, action: FarmCareAction) => {
     const farmGirl = farmGirls.find(girl => girl.girlId === girlId);
     const crop = FARM_GIRL_CROP_DATA.find(entry => entry.girlId === girlId);
-    if (!farmGirl || !crop || farmGirl.state !== 'growing') {
+    const fieldSlot = farmFieldSlots.find(slot => slot.girlId === girlId);
+    const isGrowingInField = fieldSlot?.state === 'growing';
+    if (!isFarmCareActionUnlocked(action)) {
+      setDialogMessage(getFarmCareLockedMessage(action));
+      return;
+    }
+    if (!farmGirl || !crop || (!isGrowingInField && farmGirl.state !== 'growing')) {
       setDialogMessage('成長中の苗娘にだけお世話できます。');
       return;
     }
@@ -7541,7 +8135,7 @@ export default function App() {
       return {
         ...girl,
         growthProgress: nextGrowthProgress,
-        state: hasAppeared ? 'appeared' : girl.state,
+        state: hasAppeared ? 'appeared' : 'growing',
         quality: clampNumber(girl.quality + qualityGain, 0, 100),
         careDay: currentDay,
         caressCount: action === 'caress' ? (isSameDay ? girl.caressCount : 0) + 1 : (isSameDay ? girl.caressCount : 0),
@@ -7554,7 +8148,7 @@ export default function App() {
         slot.girlId === girlId ? { ...slot, state: 'appeared' } : slot
       )));
     }
-    const actionLabel = action === 'caress' ? '愛撫' : action === 'finger' ? '指入れ' : '肥料注入';
+    const actionLabel = FARM_CARE_UNLOCK_ACTION_LABELS[action];
     const result = action === 'fertilize'
       ? `成長度が1日進みました${hasAppeared ? '。擬人化しました！' : '。'}`
       : `品質が${qualityGain}上がりました。`;
@@ -8074,9 +8668,22 @@ export default function App() {
   ));
   const hasSeedlingCareRemaining = farmGirls.some(girl => {
     if (girl.state !== 'growing') return false;
-    const isSameDay = girl.careDay === currentDay;
-    return !isSameDay || girl.caressCount < 1 || girl.fingerCount < 1 || girl.fertilizeCount < 1;
+    const crop = FARM_GIRL_CROP_DATA.find(entry => entry.girlId === girl.girlId);
+    if (!crop) return false;
+    return FARM_CARE_ACTION_ORDER.some(action => {
+      if (!isFarmCareActionUnlocked(action)) return false;
+      const currentCount = girl.careDay === currentDay
+        ? action === 'caress' ? girl.caressCount : action === 'finger' ? girl.fingerCount : girl.fertilizeCount
+        : 0;
+      return currentCount < getSkillAdjustedSeedlingCareLimit(action, crop);
+    });
   });
+  const shouldPromptSeedlingCareFromTutorial = (
+    seedAfterPlantTutorialCompleted &&
+    currentAP > 0 &&
+    hasSeedlingCareRemaining &&
+    farmFieldSlots.some(slot => slot.girlId && slot.state === 'growing')
+  );
   const hasPlantableSeedAndField = (
     getPlantableFarmFieldSlots().length > 0 &&
     ownedGirlSeeds.some(seedId => {
@@ -8162,6 +8769,7 @@ export default function App() {
     if (kurumiIntroCompletedDay === null) return KURUMI_INTRO_OBJECTIVE;
     if (hasReceivedKurumiStarterSeeds && hasUnplantedStarterSeed) return STARTER_SEED_OBJECTIVE;
     if (shouldOfferSeedAfterPlantTutorial) return 'くるみに植えた苗娘の様子を聞こう！';
+    if (shouldPromptSeedlingCareFromTutorial) return '農場メニューから苗のお世話をしてみよう！';
     if (currentDay <= kurumiIntroCompletedDay) return '明日、橋の近くでくるみに釣りを教わろう！';
     if (!fishingTutorialCompleted) return '橋の近くにいるくるみに釣りを教わろう！';
     if (!sawCraftTutorialCompleted) return 'くるみからレシピを買って道具を作ろう！';
@@ -8195,6 +8803,8 @@ export default function App() {
     seedPlantTutorialOpen,
     ownedGirlSeeds,
     farmFieldSlots,
+    seedAfterPlantTutorialCompleted,
+    shouldPromptSeedlingCareFromTutorial,
     currentDay,
     fishingTutorialCompleted,
     sawCraftTutorialCompleted,
@@ -8541,6 +9151,17 @@ export default function App() {
   };
 
   const renderSeedAfterPlantTutorialVisual = () => {
+    if (currentSeedAfterPlantTutorialStep.imageSrc) {
+      return (
+        <div className="absolute inset-7 flex items-center justify-center rounded-xl border-2 border-[#ffd166]/70 bg-black/28 p-3 shadow-[inset_0_0_28px_rgba(0,0,0,0.45)]">
+          <img
+            src={currentSeedAfterPlantTutorialStep.imageSrc}
+            alt="くるみの秘密帳"
+            className="max-h-full max-w-full rounded-xl object-contain drop-shadow-[0_22px_28px_rgba(0,0,0,0.55)]"
+          />
+        </div>
+      );
+    }
     const plantedSlot = farmFieldSlots.find(slot => slot.girlId && slot.state === 'growing') ?? farmFieldSlots.find(slot => slot.girlId);
     const girlId = plantedSlot?.girlId ?? INITIAL_OWNED_GIRL_SEEDS
       .map(seedId => GIRL_SEED_ACQUISITION_DATA.find(seed => seed.seedId === seedId)?.girlId)
@@ -11917,6 +12538,39 @@ export default function App() {
         return;
       }
 
+      if (pendingFarmCareConfirm) {
+        if (e.repeat) return;
+        if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+          e.preventDefault();
+          const nextChoice = e.key === 'ArrowLeft' ? 'yes' : 'no';
+          if (farmCareConfirmChoice !== nextChoice) playCursorSound();
+          setFarmCareConfirmChoice(nextChoice);
+          return;
+        }
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          playFixSound();
+          confirmSeedlingCare();
+          return;
+        }
+        if (e.key === 'Escape') {
+          e.preventDefault();
+          playFixSound();
+          cancelSeedlingCareConfirm();
+          return;
+        }
+        return;
+      }
+
+      if (farmCareUnlockNoticeAction) {
+        if (e.key === 'Enter' || e.key === ' ' || e.key === 'Escape') {
+          e.preventDefault();
+          playFixSound();
+          setFarmCareUnlockNoticeAction(null);
+        }
+        return;
+      }
+
       // 確認ダイアログが開いている間は、背後のスキルツリーへキー入力を渡さない。
       if (pendingSkillUnlockId) {
         if (e.repeat) return;
@@ -12834,9 +13488,30 @@ export default function App() {
 
           if (currentMenuItem.id === 'farm') {
             const currentIndex = selectedFarmGirlIndexRef.current;
+            if (menuContentFocusRef.current === 'primary') {
+              if (e.key === 'ArrowLeft') {
+                setMenuContentFocus('secondary');
+                return;
+              }
+              if (e.key === 'ArrowRight') {
+                setMenuContentFocus('secondary');
+                return;
+              }
+              const nextCareIndex = Math.max(0, Math.min(
+                FARM_CARE_ACTION_ORDER.length - 1,
+                selectedFarmCareActionIndexRef.current + (e.key === 'ArrowDown' ? 1 : e.key === 'ArrowUp' ? -1 : 0),
+              ));
+              if (nextCareIndex !== selectedFarmCareActionIndexRef.current) playCursorSound();
+              setSelectedFarmCareActionIndex(nextCareIndex);
+              return;
+            }
             const farmGirlColumnCount = 5;
             if (e.key === 'ArrowLeft' && currentIndex % farmGirlColumnCount === 0) {
               setMenuFocusArea('nav');
+              return;
+            }
+            if (e.key === 'ArrowRight') {
+              setMenuContentFocus('primary');
               return;
             }
             setMenuContentFocus('secondary');
@@ -12844,19 +13519,38 @@ export default function App() {
             return;
           }
 
-          if (currentMenuItem.id === 'zukan') {
-            const currentIndex = selectedZukanIndexRef.current;
-            const zukanLength = zukanFilterRef.current === '魚' ? FISH_ZUKAN_ENTRIES.length : 20;
+	          if (currentMenuItem.id === 'zukan') {
+	            const currentIndex = selectedZukanIndexRef.current;
+	            const zukanLength = zukanFilterRef.current === '魚' ? FISH_ZUKAN_ENTRIES.length : 20;
             const zukanColumnCount = 5;
             if (e.key === 'ArrowLeft' && currentIndex % zukanColumnCount === 0) {
               setMenuFocusArea('nav');
               return;
             }
-            setSelectedZukanIndex(moveGridIndex(currentIndex, e.key, zukanColumnCount, zukanLength));
-            return;
-          }
+	            setSelectedZukanIndex(moveGridIndex(currentIndex, e.key, zukanColumnCount, zukanLength));
+	            return;
+	          }
 
-          if (currentMenuItem.id === 'system') {
+	          if (currentMenuItem.id === 'kurumiNotebook') {
+	            const currentIndex = selectedKurumiNotebookIndexRef.current;
+	            const notebookLength = 12;
+	            if (e.key === 'ArrowLeft') {
+	              if (menuContentFocusRef.current === 'secondary') {
+	                setMenuContentFocus('primary');
+	              } else {
+	                setMenuFocusArea('nav');
+	              }
+	              return;
+	            }
+	            if (e.key === 'ArrowRight') {
+	              setMenuContentFocus('secondary');
+	              return;
+	            }
+	            setSelectedKurumiNotebookIndex(Math.max(0, Math.min(notebookLength - 1, currentIndex + (e.key === 'ArrowDown' ? 1 : e.key === 'ArrowUp' ? -1 : 0))));
+	            return;
+	          }
+
+	          if (currentMenuItem.id === 'system') {
             const actions = ['セーブ', 'ロード', 'タイトルへ戻る'];
             const currentIndex = selectedSystemActionIndexRef.current;
             if (e.key === 'ArrowLeft' && currentIndex === 0) {
@@ -12888,10 +13582,13 @@ export default function App() {
             setSelectedStatusGirlIndex(prev => (prev + moveBy + 15) % 15);
           } else if (currentMenuItem.id === 'farm') {
             setSelectedFarmGirlIndex(prev => (prev + moveBy + 15) % 15);
-          } else if (currentMenuItem.id === 'zukan') {
-            const zukanLength = zukanFilterRef.current === '魚' ? FISH_ZUKAN_ENTRIES.length : 20;
-            setSelectedZukanIndex(prev => (prev + moveBy + zukanLength) % zukanLength);
-          } else if (currentMenuItem.id === 'system') {
+	          } else if (currentMenuItem.id === 'zukan') {
+	            const zukanLength = zukanFilterRef.current === '魚' ? FISH_ZUKAN_ENTRIES.length : 20;
+	            setSelectedZukanIndex(prev => (prev + moveBy + zukanLength) % zukanLength);
+	          } else if (currentMenuItem.id === 'kurumiNotebook') {
+	            const notebookLength = 12;
+	            setSelectedKurumiNotebookIndex(prev => (prev + moveBy + notebookLength) % notebookLength);
+	          } else if (currentMenuItem.id === 'system') {
             const actions = ['セーブ', 'ロード', 'タイトルへ戻る'];
             const currentIndex = actions.findIndex(action => systemNoticeRef.current.includes(action));
             const nextAction = actions[((currentIndex >= 0 ? currentIndex : 0) + moveBy + actions.length) % actions.length];
@@ -12901,6 +13598,14 @@ export default function App() {
           e.preventDefault();
           playFixSound();
           if (currentMenuItem.id === 'farm') {
+            if (menuContentFocusRef.current === 'primary') {
+              const selectedGirl = menuGirls[selectedFarmGirlIndexRef.current];
+              const selectedCareAction = FARM_CARE_ACTION_ORDER[selectedFarmCareActionIndexRef.current] ?? 'caress';
+              if (selectedGirl) {
+                requestSeedlingCare(selectedGirl.id, selectedCareAction);
+              }
+              return;
+            }
             const selectedName = menuGirls[selectedFarmGirlIndexRef.current]?.name;
             if (selectedName) {
               setFarmGirlDetailOpen(true);
@@ -13634,7 +14339,7 @@ export default function App() {
       window.removeEventListener('keydown', handleKeyDown); window.removeEventListener('keyup', handleKeyUp);
       cancelAnimationFrame(animationFrameId);
     };
-  }, [setupMode, bedTiles, workbenchTiles, fishingTiles, miningTiles, depletedMiningPointIds, activeMiningPointId, loggingTiles, activeLoggingPoints, activeLoggingPointId, sleepPromptVisible, craftPromptVisible, fishingPromptVisible, miningPromptVisible, loggingPromptVisible, confirmPromptChoice, pendingDeleteSaveSlot, pendingOverwriteSaveSlot, activeAutoEventSpot, activeAutoEventMessage, activeAutoEventMessageIndex, activeAutoEventMessages, displayedAutoEventMessage, turn, currentAP, kurumiShopOpen, kurumiIntroOpen, kurumiIntroSelectedIndex, kurumiIntroAskedTopics, kurumiIntroCompletedDay, seedPlantTutorialOpen, seedPlantTutorialStepIndex, seedAfterPlantTutorialOpen, seedAfterPlantTutorialStepIndex, selectedShopControl, selectedShopItemIndex, shopItems, gold, equipmentActionOpen, equippedItems, inventoryCounts, caughtFishIds, fishingMiniGameOpen, fishingMiniGameStage, miningMiniGameOpen, isFishingResultInputLocked, fishingTutorialOpen, fishingTutorialEndingOpen, fishingTutorialEndingStepIndex, sawCraftTutorialIntroOpen, sawCraftTutorialIntroStepIndex, sawCraftTutorialReady, sawCraftTutorialShedDialogueOpen, sawCraftTutorialWorkbenchReady, gatheringTutorialCompleted, gatheringTutorialChoice, miningTutorialCompleted, selectedFishingTutorialAction, selectedFishingResultAction, recipeDetailOpen, farmGirlDetailOpen, bootMode, timeOfDay, isOpeningWalkObjectiveActive, currentDay, nextObjective, battlePreviewOpen, battlePreviewState, battleIntroPhase, battleItemPanelOpen, battleItemSelectionStep, selectedBattleCommandIndex, selectedBattleItemIndex, selectedBattleItemTargetIndex]);
+  }, [setupMode, bedTiles, workbenchTiles, fishingTiles, miningTiles, depletedMiningPointIds, activeMiningPointId, loggingTiles, activeLoggingPoints, activeLoggingPointId, sleepPromptVisible, craftPromptVisible, fishingPromptVisible, miningPromptVisible, loggingPromptVisible, confirmPromptChoice, pendingDeleteSaveSlot, pendingOverwriteSaveSlot, activeAutoEventSpot, activeAutoEventMessage, activeAutoEventMessageIndex, activeAutoEventMessages, displayedAutoEventMessage, turn, currentAP, kurumiShopOpen, kurumiIntroOpen, kurumiIntroSelectedIndex, kurumiIntroAskedTopics, kurumiIntroCompletedDay, seedPlantTutorialOpen, seedPlantTutorialStepIndex, seedAfterPlantTutorialOpen, seedAfterPlantTutorialStepIndex, selectedShopControl, selectedShopItemIndex, shopItems, gold, equipmentActionOpen, equippedItems, inventoryCounts, caughtFishIds, fishingMiniGameOpen, fishingMiniGameStage, miningMiniGameOpen, isFishingResultInputLocked, fishingTutorialOpen, fishingTutorialEndingOpen, fishingTutorialEndingStepIndex, sawCraftTutorialIntroOpen, sawCraftTutorialIntroStepIndex, sawCraftTutorialReady, sawCraftTutorialShedDialogueOpen, sawCraftTutorialWorkbenchReady, gatheringTutorialCompleted, gatheringTutorialChoice, miningTutorialCompleted, selectedFishingTutorialAction, selectedFishingResultAction, recipeDetailOpen, farmGirlDetailOpen, pendingFarmCareConfirm, farmCareConfirmChoice, farmCareUnlockNoticeAction, bootMode, timeOfDay, isOpeningWalkObjectiveActive, currentDay, nextObjective, battlePreviewOpen, battlePreviewState, battleIntroPhase, battleItemPanelOpen, battleItemSelectionStep, selectedBattleCommandIndex, selectedBattleItemIndex, selectedBattleItemTargetIndex]);
 
   // Zone creation states
   const [dragStart, setDragStart] = useState<{ x: number, y: number } | null>(null);
@@ -16565,10 +17270,17 @@ export default function App() {
                             }}
                           >
                             <span style={{ width: 16, color: '#f4a261', opacity: isSelected ? 1 : 0, fontWeight: 'bold' }}>▶</span>
-                            <span style={{ fontSize: 24, lineHeight: 1, flexShrink: 0 }}>{item.icon}</span>
-                            <span style={{ color: isSelected ? '#fdf6e3' : '#c8a87a', fontSize: 20, fontWeight: isSelected ? 'bold' : 'normal', letterSpacing: '0.05em' }}>
-                              {item.label}
-                            </span>
+	                            <span style={{ fontSize: item.id === 'kurumiNotebook' ? 21 : 24, lineHeight: 1, flexShrink: 0 }}>{item.icon}</span>
+	                            <span style={{
+	                              color: isSelected ? '#fdf6e3' : '#c8a87a',
+	                              fontSize: item.id === 'kurumiNotebook' ? 15 : 20,
+	                              fontWeight: isSelected ? 'bold' : 'normal',
+	                              letterSpacing: item.id === 'kurumiNotebook' ? 0 : '0.05em',
+	                              lineHeight: 1.05,
+	                              whiteSpace: 'nowrap',
+	                            }}>
+	                              {item.label}
+	                            </span>
                           </button>
                         );
                       })}
@@ -19216,6 +19928,97 @@ export default function App() {
               </div>
            </div>
         )}
+        {farmGirlRevealSpotlightId && createPortal((() => {
+          const revealGirl = GIRL_DATA.find(girl => girl.id === farmGirlRevealSpotlightId);
+          const imageSrc = FARM_GIRL_CARD_IMAGES[farmGirlRevealSpotlightId];
+          const revealMessage = FARM_GIRL_REVEAL_MESSAGES[farmGirlRevealSpotlightId] ?? `${revealGirl?.girlName ?? '苗娘'}が娘カードになりました。`;
+          if (!revealGirl || !imageSrc) return null;
+          return (
+            <div className="farm-girl-reveal-spotlight fixed inset-0 z-[9998] flex items-center justify-center pointer-events-none" aria-live="polite">
+              <div className="farm-girl-reveal-aurora" aria-hidden="true" />
+              <div className="farm-girl-reveal-sparkle-field" aria-hidden="true">
+                {Array.from({ length: 22 }).map((_, index) => (
+                  <span key={index} style={{ '--sparkle-index': index } as React.CSSProperties} />
+                ))}
+              </div>
+              <div className="farm-girl-reveal-card-wrap">
+                <img
+                  src={imageSrc}
+                  alt={`${revealGirl.girlName} 娘化`}
+                  className="farm-girl-reveal-card-image"
+                />
+                <div className="farm-girl-reveal-name">{revealGirl.girlName}</div>
+              </div>
+              <div className="farm-girl-reveal-message">
+                {revealMessage}
+              </div>
+            </div>
+          );
+        })(), document.body)}
+        {pendingFarmCareConfirm && createPortal((() => {
+          const targetGirl = GIRL_DATA.find(girl => girl.id === pendingFarmCareConfirm.girlId);
+          const actionLabel = FARM_CARE_UNLOCK_ACTION_LABELS[pendingFarmCareConfirm.action];
+          return (
+            <div className="fixed inset-0 z-[10010] flex items-center justify-center bg-black/60 px-6">
+              <div className="relative w-full max-w-md rounded border-2 border-[#ffd166] bg-[#24140f] p-6 text-[#fff7dc] shadow-[0_22px_70px_rgba(0,0,0,.78)]">
+                <div className="text-center text-2xl font-black text-[#ffd166]">お世話しますか？</div>
+                <div className="mt-4 rounded border border-[#76502c] bg-black/30 p-4 text-center">
+                  <div className="text-sm font-bold text-[#c8a87a]">{targetGirl?.girlName ?? '苗娘'}</div>
+                  <div className="mt-2 text-3xl font-black text-[#fff1a8]">{actionLabel}</div>
+                  <div className="mt-3 text-sm font-bold leading-relaxed text-[#fdf6e3]">
+                    APを1消費して、このお世話を実行します。
+                  </div>
+                </div>
+                <div className="mt-5 grid grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    onMouseEnter={() => setFarmCareConfirmChoice('yes')}
+                    onClick={() => {
+                      playFixSound();
+                      confirmSeedlingCare('yes');
+                    }}
+                    className={`rounded border px-4 py-3 font-black transition ${farmCareConfirmChoice === 'yes' ? 'border-white bg-[#14532d] ring-4 ring-[#ffd166]/80 shadow-[0_0_22px_rgba(255,209,102,0.55)]' : 'border-[#86efac] bg-[#14532d]/65'}`}
+                  >
+                    はい
+                  </button>
+                  <button
+                    type="button"
+                    onMouseEnter={() => setFarmCareConfirmChoice('no')}
+                    onClick={() => {
+                      playFixSound();
+                      confirmSeedlingCare('no');
+                    }}
+                    className={`rounded border px-4 py-3 font-black transition ${farmCareConfirmChoice === 'no' ? 'border-white bg-[#6b3b18] ring-4 ring-[#ffd166]/80 shadow-[0_0_22px_rgba(255,209,102,0.55)]' : 'border-[#c8a87a] bg-black/30'}`}
+                  >
+                    いいえ
+                  </button>
+                </div>
+              </div>
+            </div>
+          );
+        })(), document.body)}
+        {farmCareUnlockNoticeAction && createPortal(
+          <div className="fixed inset-0 z-[10005] flex items-center justify-center bg-black/55 px-6" aria-live="polite">
+            <div className="relative w-full max-w-lg rounded border-2 border-[#ffd166] bg-[#24140f] p-7 text-center text-[#fff7dc] shadow-[0_24px_72px_rgba(0,0,0,.78)]">
+              <div className="text-sm font-black tracking-[0.2em] text-[#ffd166]">新しいお世話が解放されました</div>
+              <div className="mt-4 text-3xl font-black text-[#fff1a8]">{FARM_CARE_UNLOCK_ACTION_LABELS[farmCareUnlockNoticeAction]}</div>
+              <div className="mt-4 whitespace-pre-line rounded border border-[#76502c] bg-black/30 px-4 py-4 text-base font-bold leading-relaxed text-[#fdf6e3]">
+                {farmCareUnlockNoticeAction === 'finger'
+                  ? '苗娘との距離が少し近づきました。\nこれからは「愛撫」と「指入れ」を選べます。'
+                  : 'お世話の仕上げを覚えました。\nこれからは「愛撫」「指入れ」「肥料注入」を選べます。'}
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  playFixSound();
+                  setFarmCareUnlockNoticeAction(null);
+                }}
+                className="mt-6 w-full rounded border border-[#ffd166] bg-[#6b3b18] px-5 py-3 text-lg font-black text-[#fff7dc] transition hover:bg-[#8b4d22]"
+              >
+                OK
+              </button>
+            </div>
+          </div>, document.body)}
         {farmGirlDetailOpen && farmGirls.find(girl => girl.girlId === selectedFarmGirlForDetail.id)?.cardRevealed && createPortal(
            <div
               className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/62 px-8 py-6 pointer-events-auto"

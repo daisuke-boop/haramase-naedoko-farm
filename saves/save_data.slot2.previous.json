@@ -39,16 +39,16 @@
   "mountainLordAttackPending": false,
   "beastAttackPending": false,
   "companionGirlId": null,
-  "currentWeeklyInterestRate": 2.2,
+  "currentWeeklyInterestRate": 2.3,
   "interestRateCycleIndex": 0,
   "farmGirls": [
     {
       "girlId": "chibiichi",
-      "state": "growing",
+      "state": "none",
       "cardRevealed": false,
-      "plantedDay": 1,
+      "plantedDay": null,
       "growthProgress": 0,
-      "quality": 32,
+      "quality": 0,
       "careDay": null,
       "caressCount": 0,
       "fingerCount": 0,
@@ -82,11 +82,11 @@
     },
     {
       "girlId": "ruby",
-      "state": "growing",
+      "state": "none",
       "cardRevealed": false,
-      "plantedDay": 1,
+      "plantedDay": null,
       "growthProgress": 0,
-      "quality": 32,
+      "quality": 0,
       "careDay": null,
       "caressCount": 0,
       "fingerCount": 0,
@@ -340,16 +340,16 @@
     {
       "fieldId": "right",
       "slotIndex": 1,
-      "girlId": "chibiichi",
-      "state": "growing",
-      "plantedDay": 1
+      "girlId": null,
+      "state": "none",
+      "plantedDay": null
     },
     {
       "fieldId": "right",
       "slotIndex": 2,
-      "girlId": "ruby",
-      "state": "growing",
-      "plantedDay": 1
+      "girlId": null,
+      "state": "none",
+      "plantedDay": null
     },
     {
       "fieldId": "right",
@@ -736,9 +736,9 @@
     "/bgm/ie.mp3": 0.2,
     "/bgm/fishking.mp3": 2.5,
     "/se/Fireplace.mp3": 0.2,
-    "/voice/kurumi.wav": 0.6,
-    "/bgm/farmbgm.wav": 0.2,
+    "/voice/kurumi.wav": 0.2,
     "/bgm/title.mp3": 0.2,
+    "/bgm/farmbgm.wav": 0.2,
     "/bgm/yado.mp3": 0.2,
     "/bgm/shop.mp3": 0.2,
     "/se/zoon2.wav": 0.2,
@@ -763,9 +763,9 @@
     "/se/chapon.mp3": 0.2,
     "/voice/fish-result.wav": 0.2,
     "/voice/fish-lose.wav": 0.2,
-    "/voice/kurumi-start.wav": 1.5,
-    "/voice/kurumi-start2.wav": 0.9,
-    "/voice/kurumi-start3.wav": 0.72,
+    "/voice/kurumi-start.wav": 0.2,
+    "/voice/kurumi-start2.wav": 0.2,
+    "/voice/kurumi-start3.wav": 0.2,
     "/voice/kurumi-start4.wav": 0.2,
     "/voice/kurumi-start5.wav": 0.2
   },
