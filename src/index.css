@@ -161,6 +161,21 @@ canvas {
     inset 0 0 0 1px rgba(255, 238, 201, 0.12);
 }
 
+.farm-critical-hud {
+  animation: farmCriticalHudPulse 0.78s ease-in-out infinite;
+  box-shadow:
+    0 0 0 2px rgba(255, 255, 255, 0.18),
+    0 0 18px rgba(255, 59, 59, 0.72),
+    inset 0 0 10px rgba(255, 209, 102, 0.18);
+}
+
+.farm-warning-hud {
+  animation: farmWarningHudPulse 1.35s ease-in-out infinite;
+  box-shadow:
+    0 0 14px rgba(255, 209, 102, 0.46),
+    inset 0 0 10px rgba(255, 209, 102, 0.14);
+}
+
 .farm-girl-card-button::before {
   content: "";
   position: absolute;
@@ -203,6 +218,34 @@ canvas {
   100% { opacity: 1; transform: scale(1); filter: brightness(1); }
 }
 
+@keyframes farmCriticalHudPulse {
+  0%, 100% {
+    filter: brightness(1);
+    transform: translateY(0);
+  }
+  50% {
+    filter: brightness(1.55) saturate(1.35);
+    transform: translateY(-1px);
+    box-shadow:
+      0 0 0 2px rgba(255, 255, 255, 0.34),
+      0 0 24px rgba(255, 59, 59, 0.95),
+      0 0 36px rgba(255, 209, 102, 0.42),
+      inset 0 0 14px rgba(255, 209, 102, 0.26);
+  }
+}
+
+@keyframes farmWarningHudPulse {
+  0%, 100% {
+    filter: brightness(1);
+  }
+  50% {
+    filter: brightness(1.28);
+    box-shadow:
+      0 0 20px rgba(255, 209, 102, 0.72),
+      inset 0 0 12px rgba(255, 209, 102, 0.22);
+  }
+}
+
 @keyframes farmGirlCardSparkles {
   0% { opacity: 0; transform: scale(0.65) rotate(-8deg); filter: drop-shadow(0 0 4px #fff); }
   28% { opacity: 1; }
@@ -211,11 +254,61 @@ canvas {
 }
 
 .farm-girl-reveal-spotlight {
-  animation: farmGirlRevealSpotlightFade 3.2s ease both;
+  animation: farmGirlRevealSpotlightHold 0.38s ease both;
   background:
     radial-gradient(circle at 50% 48%, rgba(255, 235, 143, 0.34), transparent 34%),
     radial-gradient(circle at 50% 52%, rgba(255, 128, 197, 0.24), transparent 48%),
     rgba(9, 5, 12, 0.68);
+}
+
+.farm-care-cinematic {
+  animation: farmCareCinematicFade 6.2s ease both;
+  background:
+    radial-gradient(circle at 50% 50%, rgba(255, 218, 118, 0.2), transparent 36%),
+    linear-gradient(90deg, rgba(0, 0, 0, 0.88), rgba(0, 0, 0, 0.42) 34%, rgba(0, 0, 0, 0.42) 66%, rgba(0, 0, 0, 0.88));
+}
+
+.farm-care-cinematic-stage {
+  position: relative;
+  width: min(1180px, 88vw);
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  border: 3px solid rgba(255, 232, 166, 0.86);
+  border-radius: 10px;
+  background: #050403;
+  box-shadow:
+    0 0 0 1px rgba(90, 48, 16, 0.88),
+    0 26px 72px rgba(0, 0, 0, 0.82),
+    0 0 38px rgba(255, 209, 102, 0.32);
+  animation: farmCareCinematicPop 0.32s cubic-bezier(0.2, 0.9, 0.18, 1) both;
+}
+
+.farm-care-cinematic-stage::before,
+.farm-care-cinematic-stage::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  z-index: 2;
+  height: 13%;
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.94), rgba(0, 0, 0, 0));
+  pointer-events: none;
+}
+
+.farm-care-cinematic-stage::before {
+  top: 0;
+}
+
+.farm-care-cinematic-stage::after {
+  bottom: 0;
+  transform: rotate(180deg);
+}
+
+.farm-care-cinematic-video {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .farm-girl-reveal-aurora {
@@ -227,7 +320,7 @@ canvas {
     conic-gradient(from 20deg, rgba(255, 255, 255, 0), rgba(255, 226, 104, 0.42), rgba(255, 128, 197, 0.32), rgba(129, 230, 217, 0.28), rgba(255, 255, 255, 0));
   filter: blur(12px);
   opacity: 0.92;
-  animation: farmGirlRevealAurora 3.2s ease both;
+  animation: farmGirlRevealAuroraHold 3.2s ease both;
 }
 
 .farm-girl-reveal-card-wrap {
@@ -237,7 +330,7 @@ canvas {
   flex-direction: column;
   align-items: center;
   gap: 12px;
-  animation: farmGirlRevealCardPop 3.2s cubic-bezier(0.2, 0.85, 0.16, 1) both;
+  animation: farmGirlRevealCardHold 3.2s cubic-bezier(0.2, 0.85, 0.16, 1) both;
 }
 
 .farm-girl-reveal-card-image {
@@ -288,7 +381,7 @@ canvas {
   text-shadow:
     0 2px 0 rgba(0, 0, 0, 0.72),
     0 0 12px rgba(255, 209, 102, 0.28);
-  animation: farmGirlRevealMessageIn 3.2s cubic-bezier(0.2, 0.85, 0.16, 1) both;
+  animation: farmGirlRevealMessageHold 3.2s cubic-bezier(0.2, 0.85, 0.16, 1) both;
 }
 
 .farm-girl-reveal-sparkle-field {
@@ -333,11 +426,41 @@ canvas {
   100% { opacity: 0; }
 }
 
+@keyframes farmGirlRevealSpotlightHold {
+  0% { opacity: 0; }
+  100% { opacity: 1; }
+}
+
+@keyframes farmCareCinematicFade {
+  0% { opacity: 0; }
+  6%, 88% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+@keyframes farmCareCinematicPop {
+  0% {
+    opacity: 0;
+    transform: scale(1.08);
+    filter: brightness(1.25) contrast(1.12);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+    filter: brightness(1) contrast(1);
+  }
+}
+
 @keyframes farmGirlRevealAurora {
   0% { transform: scale(0.62) rotate(-18deg); opacity: 0; }
   24% { opacity: 0.92; }
   76% { transform: scale(1.1) rotate(18deg); opacity: 0.82; }
   100% { transform: scale(1.24) rotate(28deg); opacity: 0; }
+}
+
+@keyframes farmGirlRevealAuroraHold {
+  0% { transform: scale(0.62) rotate(-18deg); opacity: 0; }
+  24% { opacity: 0.92; }
+  76%, 100% { transform: scale(1.1) rotate(18deg); opacity: 0.82; }
 }
 
 @keyframes farmGirlRevealCardPop {
@@ -346,6 +469,13 @@ canvas {
   42% { transform: translateY(-8px) scale(1.05) rotate(1deg); filter: brightness(1.32) blur(0); }
   76% { opacity: 1; transform: translateY(0) scale(1); filter: brightness(1); }
   100% { opacity: 0; transform: translateY(-18px) scale(0.98); filter: brightness(1.12); }
+}
+
+@keyframes farmGirlRevealCardHold {
+  0% { opacity: 0; transform: translateY(32px) scale(0.82) rotate(-2deg); filter: brightness(2) blur(5px); }
+  18% { opacity: 1; }
+  42% { transform: translateY(-8px) scale(1.05) rotate(1deg); filter: brightness(1.32) blur(0); }
+  76%, 100% { opacity: 1; transform: translateY(0) scale(1); filter: brightness(1); }
 }
 
 @keyframes farmGirlRevealSparkle {
@@ -358,6 +488,11 @@ canvas {
   16% { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); filter: blur(0); }
   78% { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); filter: blur(0); }
   100% { opacity: 0; transform: translateX(-50%) translateY(18px) scale(0.98); filter: blur(2px); }
+}
+
+@keyframes farmGirlRevealMessageHold {
+  0% { opacity: 0; transform: translateX(-50%) translateY(24px) scale(0.96); filter: blur(4px); }
+  16%, 100% { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); filter: blur(0); }
 }
 
 .farm-girl-card-grid,

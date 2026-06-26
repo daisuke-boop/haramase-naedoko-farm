@@ -36,6 +36,9 @@ type DebugPanelProps = {
   setDebugHeroLevel: (level: number) => void;
   heroSP: number;
   setHeroSP: React.Dispatch<React.SetStateAction<number>>;
+  kurumiTrustStars: number;
+  adjustKurumiTrustStars: (delta: number) => void;
+  setKurumiTrustStarsDebug: (stars: number) => void;
   debugGirlAffinities: readonly DebugGirlAffinityEntry[];
   adjustDebugGirlAffinity: (girlId: string, delta: number) => void;
   currentHeroSkillCategoryLabel: string;
@@ -101,6 +104,9 @@ const DebugPanel = ({
   setDebugHeroLevel,
   heroSP,
   setHeroSP,
+  kurumiTrustStars,
+  adjustKurumiTrustStars,
+  setKurumiTrustStarsDebug,
   debugGirlAffinities,
   adjustDebugGirlAffinity,
   currentHeroSkillCategoryLabel,
@@ -258,6 +264,16 @@ const DebugPanel = ({
               <button type="button" onClick={() => setDebugHeroLevel(5)} className="rounded border border-amber-200 bg-amber-700 py-1 font-black hover:bg-amber-600">主5</button>
             </div>
             <div className="mt-2 rounded border border-amber-300/30 bg-black/25 p-1.5">
+              <div className="mb-1 flex items-center justify-between text-[10px] font-black text-amber-100">
+                <span>くるみ</span>
+                <span>★{kurumiTrustStars}/5</span>
+              </div>
+              <div className="mb-2 grid grid-cols-4 gap-1">
+                <button type="button" onClick={() => adjustKurumiTrustStars(-1)} className="rounded border border-pink-300/60 bg-black/30 py-1 font-black hover:bg-pink-900">く-1</button>
+                <button type="button" onClick={() => adjustKurumiTrustStars(1)} className="rounded border border-pink-300/60 bg-pink-900/70 py-1 font-black hover:bg-pink-800">く+1</button>
+                <button type="button" onClick={() => setKurumiTrustStarsDebug(0)} className="rounded border border-pink-300/60 bg-black/30 py-1 font-black hover:bg-pink-900">く0</button>
+                <button type="button" onClick={() => setKurumiTrustStarsDebug(5)} className="rounded border border-pink-200 bg-pink-800 py-1 font-black hover:bg-pink-700">く5</button>
+              </div>
               <select
                 value={selectedAffinityGirl?.id ?? ''}
                 onChange={(event) => setSelectedAffinityGirlId(event.target.value)}

@@ -26,13 +26,33 @@ export type GirlTrustEventUnlockState = {
   unlockedTrustEventIds: string[];
 };
 
-const createTrustEvents = (girlId: string): readonly GirlTrustEvent[] => [
-  { trust: 20, eventId: `${girlId}_trust_20`, label: '初めて心を開く' },
-  { trust: 40, eventId: `${girlId}_trust_40`, label: '日常イベント' },
-  { trust: 60, eventId: `${girlId}_trust_60`, label: '固有スキル解放イベント' },
-  { trust: 80, eventId: `${girlId}_trust_80`, label: '特別な関係イベント' },
-  { trust: 100, eventId: `${girlId}_trust_100`, label: '恋人イベント' },
-];
+const TRUST_MILESTONES: readonly GirlTrustMilestone[] = [20, 40, 60, 80, 100];
+const TRUST_EVENT_LABELS: Readonly<Record<string, readonly string[]>> = {
+  chibiichi: ['はじめてのいちご摘み', '甘い香りの約束', '小さな手の応援', '内緒のジャム作り', '真っ赤な実りの日'],
+  mel: ['木陰のメロン相談', '水やり日和', '涼しい休憩時間', '完熟を待つ夜', '甘い果肉の誓い'],
+  ruby: ['赤い実の挨拶', '畑の見回り隊', '夕焼けトマト畑', '情熱の収穫祭', 'ルビー色の約束'],
+  viola: ['葡萄棚の出会い', '香りをたどって', '月下の試飲会', '紫の秘密', '熟成する想い'],
+  nazuna: ['なす畑の手伝い', '雨上がりの足跡', '台所の作戦会議', '濃紺の夕涼み', 'やわらかな実り'],
+  kabune: ['かぶ畑の小さな声', '土の中の宝探し', '白い根の贈り物', '丸い月の晩', '抜けない絆'],
+  caro: ['にんじん色の朝', '走れ畑道', '元気印の配達', '夕暮れレース', 'まっすぐな気持ち'],
+  theta: ['しいたけ小屋の灯り', '湿った森の約束', '胞子舞う午後', '木陰の研究会', '静かな森の絆'],
+  cure: ['きゅうりの水音', '冷たい差し入れ', '畑の看病係', '夏夜の涼風', '潤いの約束'],
+  shiro: ['だいこん畑の白い影', '雪色の手紙', '根気くらべ', '白月の守り', 'まっ白な誓い'],
+  momona: ['桃色の挨拶', '甘い差し入れ', 'ふわり桃の香り', '秘密の果樹園', '桃色の未来'],
+  pan: ['かぼちゃ畑の灯り', 'ころころ収穫日', '大きな実の相談', '収穫祭の準備', '黄金色の馬車'],
+  puti: ['竜の果実の目覚め', '南国の風', '棘の向こう側', '熱帯夜の約束', '竜果の契り'],
+  roma: ['不思議な渦巻き', '幾何学畑の午後', '緑の迷宮', '螺旋の秘密', '永遠のロマネスコ'],
+  saffy: ['金色の香り', '小さな高級品', '朝露のサフラン', '黄金の取引', '幸運の花糸'],
+};
+
+const createTrustEvents = (girlId: string): readonly GirlTrustEvent[] => {
+  const labels = TRUST_EVENT_LABELS[girlId] ?? ['初めて心を開く', '日常イベント', '固有スキル解放イベント', '特別な関係イベント', '恋人イベント'];
+  return TRUST_MILESTONES.map((trust, index) => ({
+    trust,
+    eventId: `${girlId}_trust_${trust}`,
+    label: labels[index] ?? `信頼度${trust}イベント`,
+  }));
+};
 
 export const GIRL_DATA: readonly GirlData[] = [
   {

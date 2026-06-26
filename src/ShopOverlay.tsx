@@ -23,6 +23,7 @@ type ShopOverlayProps = {
   inventoryCounts: Record<string, number>;
   gold: number;
   kurumiTradeTotal: number;
+  kurumiTrustStars: number;
   isShopTradePose: boolean;
   kurumiRewardImageSrc?: string;
   kurumiRewardMessage?: string;
@@ -44,6 +45,7 @@ const ShopOverlay = ({
   inventoryCounts,
   gold,
   kurumiTradeTotal,
+  kurumiTrustStars,
   isShopTradePose,
   kurumiRewardImageSrc,
   kurumiRewardMessage,
@@ -223,6 +225,18 @@ const ShopOverlay = ({
                           className="absolute inset-x-0 bottom-0 mx-auto h-[500px] w-[410px] object-contain object-bottom opacity-100 drop-shadow-[0_28px_32px_rgba(0,0,0,0.6)] transition-opacity duration-700"
                        />
                     )}
+                    <div className="absolute bottom-5 left-1/2 z-20 flex -translate-x-1/2 gap-1 rounded-full border border-[#f9a8d4]/70 bg-black/45 px-4 py-1.5 shadow-[0_0_18px_rgba(244,114,182,0.35)]">
+                       {Array.from({ length: 5 }).map((_, index) => (
+                          <span
+                             key={index}
+                             className={`text-2xl leading-none drop-shadow-[0_0_8px_rgba(255,255,255,0.35)] ${
+                                index < kurumiTrustStars ? 'text-[#f9a8d4]' : 'text-[#5b3a4a]'
+                             }`}
+                          >
+                             ★
+                          </span>
+                       ))}
+                    </div>
                  </div>
               </div>
            </div>

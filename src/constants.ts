@@ -204,6 +204,8 @@ export const FIREPLACE_SOUND_SRC = '/se/Fireplace.mp3';
 export const UI_CURSOR_SOUND_SRC = '/se/cursor.mp3';
 export const UI_FIX_SOUND_SRC = '/se/fix.mp3';
 export const UI_SUCCESS_SOUND_SRC = '/se/success.mp3';
+export const UI_CLICK_SOUND_SRC = '/se/click.mp3';
+export const UI_SKILL_UNLOCK_SOUND_SRC = '/se/skill.mp3';
 export const BATH_CHANGE_SOUND_SRC = '/se/cloak.mp3';
 export const BATH_SPLASH_SOUND_SRC = '/se/chapon.mp3';
 export const FISH_RESULT_SOUND_SRC = '/voice/fish-result.wav';
@@ -252,6 +254,8 @@ export const AUDIO_FILE_ENTRIES: { src: string; label: string; category: AudioCa
   { src: UI_CURSOR_SOUND_SRC, label: 'SE: カーソル', category: 'se' },
   { src: UI_FIX_SOUND_SRC, label: 'SE: 決定', category: 'se' },
   { src: UI_SUCCESS_SOUND_SRC, label: 'SE: 成功', category: 'se' },
+  { src: UI_CLICK_SOUND_SRC, label: 'SE: お世話解放', category: 'se' },
+  { src: UI_SKILL_UNLOCK_SOUND_SRC, label: 'SE: スキル習得', category: 'se' },
   { src: BATH_CHANGE_SOUND_SRC, label: 'SE: 風呂着替え', category: 'se' },
   { src: BATH_SPLASH_SOUND_SRC, label: 'SE: 風呂ちゃぽん', category: 'se' },
   { src: FISH_RESULT_SOUND_SRC, label: 'VOICE: 釣果', category: 'voice' },

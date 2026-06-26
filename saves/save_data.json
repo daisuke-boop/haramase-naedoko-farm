@@ -39,16 +39,16 @@
   "mountainLordAttackPending": false,
   "beastAttackPending": false,
   "companionGirlId": null,
-  "currentWeeklyInterestRate": 2.2,
+  "currentWeeklyInterestRate": 2.1,
   "interestRateCycleIndex": 0,
   "farmGirls": [
     {
       "girlId": "chibiichi",
-      "state": "growing",
+      "state": "none",
       "cardRevealed": false,
-      "plantedDay": 1,
+      "plantedDay": null,
       "growthProgress": 0,
-      "quality": 32,
+      "quality": 0,
       "careDay": null,
       "caressCount": 0,
       "fingerCount": 0,
@@ -63,11 +63,11 @@
     },
     {
       "girlId": "mel",
-      "state": "growing",
+      "state": "none",
       "cardRevealed": false,
-      "plantedDay": 1,
+      "plantedDay": null,
       "growthProgress": 0,
-      "quality": 33,
+      "quality": 0,
       "careDay": null,
       "caressCount": 0,
       "fingerCount": 0,
@@ -82,11 +82,11 @@
     },
     {
       "girlId": "ruby",
-      "state": "growing",
+      "state": "none",
       "cardRevealed": false,
-      "plantedDay": 1,
+      "plantedDay": null,
       "growthProgress": 0,
-      "quality": 32,
+      "quality": 0,
       "careDay": null,
       "caressCount": 0,
       "fingerCount": 0,
@@ -329,34 +329,31 @@
     }
   ],
   "farmCareUnlockStage": 1,
-  "ownedGirlSeeds": [
-    "ichigo",
-    "melon",
-    "tomato"
-  ],
-  "hasReceivedKurumiStarterSeeds": true,
+  "farmCareFingerUnlockedDay": null,
+  "ownedGirlSeeds": [],
+  "hasReceivedKurumiStarterSeeds": false,
   "seedAfterPlantTutorialCompleted": false,
   "farmFieldSlots": [
     {
       "fieldId": "right",
       "slotIndex": 1,
-      "girlId": "chibiichi",
-      "state": "growing",
-      "plantedDay": 1
+      "girlId": null,
+      "state": "none",
+      "plantedDay": null
     },
     {
       "fieldId": "right",
       "slotIndex": 2,
-      "girlId": "ruby",
-      "state": "growing",
-      "plantedDay": 1
+      "girlId": null,
+      "state": "none",
+      "plantedDay": null
     },
     {
       "fieldId": "right",
       "slotIndex": 3,
-      "girlId": "mel",
-      "state": "growing",
-      "plantedDay": 1
+      "girlId": null,
+      "state": "none",
+      "plantedDay": null
     },
     {
       "fieldId": "right",
@@ -45350,24 +45347,21 @@
   "oreInventoryWeights": {},
   "depletedMiningPointIds": {},
   "fishingTutorialCompleted": false,
-  "craftTutorialRecipeName": "【レシピ】のこぎり",
+  "craftTutorialRecipeName": "【レシピ】つるはし",
   "sawCraftTutorialReady": false,
   "sawCraftTutorialWorkbenchReady": false,
   "sawCraftTutorialCompleted": false,
   "loggingTutorialCompleted": false,
   "miningTutorialCompleted": false,
-  "craftedRecipeIds": [],
+  "craftedRecipeIds": [
+    "【レシピ】のこぎり",
+    "【レシピ】つるはし"
+  ],
   "gatheringTutorialCompleted": false,
   "gatheringTutorialChoice": null,
-  "kurumiIntroAskedTopics": [
-    "village",
-    "debt",
-    "naedoko",
-    "pantsu",
-    "grandpa"
-  ],
-  "kurumiIntroCompletedDay": 1,
-  "openingMapTransitionCount": 2,
+  "kurumiIntroAskedTopics": [],
+  "kurumiIntroCompletedDay": null,
+  "openingMapTransitionCount": 0,
   "bathTubMaskZone": {
     "x": 1260,
     "y": 380,

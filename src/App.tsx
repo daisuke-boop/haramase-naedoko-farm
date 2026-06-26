@@ -50,8 +50,10 @@ import {
   TAKIURA_WATERFALL_POINT,
   TIME_OF_DAY_LABELS,
   TITLE_BGM_SRC,
+  UI_CLICK_SOUND_SRC,
   UI_CURSOR_SOUND_SRC,
   UI_FIX_SOUND_SRC,
+  UI_SKILL_UNLOCK_SOUND_SRC,
   UI_SUCCESS_SOUND_SRC,
   WALL_BUMP_SOUNDS,
   WATERFALL_BASIN_POINT,
@@ -84,6 +86,7 @@ import {
   getHighestOwnedSaw,
   getLumberSellPrice,
   isSawName,
+  type SawName,
 } from './data/lumberData';
 import {
   ORE_DATA,
@@ -96,7 +99,6 @@ import {
   getOreRarityTier,
   getOreSellPrice,
   isPickaxeName,
-  selectOreReward,
   selectOreRewardWithPerformance,
   type PickaxeName,
 } from './data/miningData';
@@ -133,6 +135,7 @@ import type {
   GameMap,
   HideAreaDrawMode,
   MonoAudioGraph,
+  PlayerDirection,
   RectZone,
   TimeOfDay,
   WallBumpSound,
@@ -214,6 +217,7 @@ const POST_DEBT_NOTICE_IMAGE_SRC = '/img/shakuyousho.png';
 const POST_DEBT_NOTICE_SOUND_SRC = '/se/shock.mp3';
 const POST_DEBT_NOTICE_SEEN_STORAGE_KEY = 'farm_post_debt_notice_seen';
 const POST_DEBT_NOTICE_REPEAT_TEXT = 'お爺さんが危ない連中から借りた借用書が入っている。';
+const STORY_ENDING_VIDEO_SRC = '/video/end.mp4';
 const isPostDebtNoticeEvent = (spot: InspectSpot | null) => {
   if (!spot) return false;
   const imageSrc = spot.imageSrc?.trim().replace(/^\/+/, '');
@@ -356,6 +360,11 @@ const ensureRequiredRouteDoors = (doors: WarpDoor[]) => {
 
 const HOUSE_BED_SLEEP_ZONE = { x: 545, y: 345, w: 140, h: 175 };
 const HOUSE_BATH_ZONE: RectZone = { x: 1200, y: 355, w: 150, h: 105 };
+const HOUSE_BATH_ENTRY_ZONE: RectZone = { x: 1125, y: 390, w: 245, h: 88 };
+const HOUSE_BATH_TOILET_EXCLUSION_ZONE: RectZone = { x: 1085, y: 490, w: 285, h: 260 };
+const HOUSE_BATH_TUB_FRONT_POSITION = { x: 1282, y: 455 };
+const HOUSE_BATH_TUB_POSITION = { x: 1282, y: 395 };
+const HOUSE_BATH_TOGETHER_TRUST = 80;
 const DEFAULT_HOUSE_BATH_TUB_MASK_ZONE: RectZone = { x: 1218, y: 372, w: 118, h: 58 };
 
 const defaultZones: AnimZone[] = [
@@ -560,15 +569,21 @@ type DebugDialogueStep = {
 type FishingTutorialStep = 'intro' | 'rod' | 'direction' | 'power' | 'bite' | 'hit' | 'result';
 type FishingTutorialResult = 'success' | 'fail' | null;
 type MiningTutorialStep = 'arrows' | 'timing' | 'reward';
-type SeedAfterPlantTutorialStep = 'rooted' | 'growth_days' | 'care' | 'secret_book';
+type SeedAfterPlantTutorialStep = 'rooted' | 'growth_days' | 'care' | 'secret_book' | 'hud_check';
 type CraftCircle = { id: number; x: number; y: number; size: number; expiresAt: number; durationMs: number };
 type CraftRecipeId =
   | '【レシピ】のこぎり'
   | '【レシピ】つるはし'
+  | '【レシピ】木剣'
+  | '【レシピ】毛皮の服'
   | '【レシピ】丈夫なつるはし'
   | '【レシピ】丈夫なのこぎり'
+  | '【レシピ】獣殺し'
+  | '【レシピ】剛牙の鎧'
   | '【レシピ】高級つるはし'
   | '【レシピ】高級のこぎり'
+  | '【レシピ】天の裁き'
+  | '【レシピ】神域の加護'
   | '【レシピ】伝説のつるはし'
   | '【レシピ】伝説ののこぎり'
   | '【レシピ】丈夫な釣竿'
@@ -640,7 +655,7 @@ const createInitialEndlessStats = (): EndlessStats => ({
 
 const TITLE_IMAGE_SOURCES: Readonly<Record<TitleTheme, string | null>> = {
   default: '/img/titleview.jpg',
-  endlessUnlocked: null,
+  endlessUnlocked: '/img/cleartitle.jpg',
 };
 const CIRCLE_INTRO_VIDEO_SRC = '/voice/circle.mp4';
 const TITLE_RANDOM_VOICE_SRCS = [
@@ -674,6 +689,20 @@ type FarmCareAction = 'caress' | 'finger' | 'fertilize';
 type FarmCareConfirmTarget = {
   girlId: string;
   action: FarmCareAction;
+};
+type FarmHarvestResultNotice = {
+  girlName: string;
+  itemName: string;
+  amount: number;
+  trustGain: number;
+  quality: number;
+  qualityLabel: string;
+  estimatedSellPrice: number;
+};
+type FarmTrustEventNotice = {
+  girlName: string;
+  trust: number;
+  label: string;
 };
 
 type FarmGirlSaveState = {
@@ -750,6 +779,7 @@ type BattleLootEntry = {
 
 type BattlePreviewResult = 'ongoing' | 'victory' | 'defeat' | 'escaped';
 type BattleEncounterType = 'test' | 'beastAttack';
+type BattleTestTargetId = BeastId | 'normal_pack' | 'hard_pack';
 type BattleTurn = 'party' | 'enemy' | 'partner';
 type BattleTurnEntry = {
   kind: BattleTurn;
@@ -782,6 +812,7 @@ type MiningDirection = 'ArrowUp' | 'ArrowDown' | 'ArrowLeft' | 'ArrowRight';
 type MiningRhythmNote = {
   id: number;
   direction: MiningDirection;
+  directions: MiningDirection[];
   hitAt: number;
   judgement: 'PERFECT' | 'GOOD' | 'BAD' | 'MISS' | null;
 };
@@ -790,6 +821,14 @@ type MiningResultReward = {
   quantity: number;
   qualityPercent: number;
   estimatedSellPrice: number;
+};
+type MiningBgmTier = 'easy' | 'hard' | 'rare';
+type MiningPlannedReward = {
+  ore: (typeof ORE_DATA)[number];
+  quantity: number;
+  bgmTier: MiningBgmTier;
+  bgmSource: string;
+  durationMs: number;
 };
 type MiningRhythmTimingsByBgm = Record<string, number[]>;
 
@@ -1040,6 +1079,9 @@ const FARM_GIRL_REVEAL_MESSAGES: Readonly<Record<string, string>> = {
   viola: 'わたしはぶどうの苗娘ヴィオラ\nわたしを育ててくれてうれしいわ♪\nこれからユウくんのために\nあまいぶどう...作っていきますわね！',
   theta: 'うち、しいたけの苗娘シータいうねん！\nうちを育ててくれて嬉しいねん♪\nこれからユウくんのために\nうんと、しいたけ作ってくね！',
 };
+const getFarmGirlSeedbedBirthMessage = (seedName: string) => (
+  `苗娘の力を宿した${seedName.replace(/苗娘$/, '苗')}が生まれた！\nこれからはこの苗をお世話して、作物をたくさん収穫しよう！`
+);
 const FARM_GIRL_DETAIL_IMAGES: Readonly<Record<string, string>> = {
   chibiichi: '/img/chibiichi-pro.jpg',
   mel: '/img/mel-pro.jpg',
@@ -1060,10 +1102,33 @@ const FARM_GIRL_DETAIL_IMAGES: Readonly<Record<string, string>> = {
 const OPEN_FARM_GIRL_CARD_COUNT = Object.keys(FARM_GIRL_CARD_IMAGES).length;
 
 const KURUMI_TRADE_REWARDS: KurumiTradeReward[] = [
-  { threshold: 1000, imageSrc: '/img/kurumi-pantsu.png', message: 'いつもありがとう！お礼だよっ！', voiceSrc: '/voice/kurumi1.wav' },
-  { threshold: 1500, imageSrc: '/img/kurumi-pai.png', message: '嬉しいなーっ♪サービスだよっ！', voiceSrc: '/voice/kurumi2.wav' },
-  { threshold: 2000, imageSrc: '/img/kurumi-hadaka.png', message: 'もう！お兄さんったら！', voiceSrc: '/voice/kurumi3.wav' },
+  { threshold: 5000, imageSrc: '/img/kurumi-pantsu.png', message: 'いつもありがとう！お礼だよっ！', voiceSrc: '/voice/kurumi1.wav' },
+  { threshold: 50000, imageSrc: '/img/kurumi-pai.png', message: '嬉しいなーっ♪サービスだよっ！', voiceSrc: '/voice/kurumi2.wav' },
+  { threshold: 200000, imageSrc: '/img/kurumi-hadaka.png', message: 'もう！お兄さんったら！', voiceSrc: '/voice/kurumi3.wav' },
 ];
+const KURUMI_TRUST_STAR_THRESHOLDS = [5000, 50000, 200000, 500000, 1000000] as const;
+const getKurumiTrustStars = (tradeTotal: number) => (
+  KURUMI_TRUST_STAR_THRESHOLDS.filter(threshold => tradeTotal >= threshold).length
+);
+const KURUMI_TENT_MESSAGES: Readonly<Record<number, string>> = {
+  2: 'すやすやと寝息を立ててくるみは寝ている...そっとしておこう',
+  3: 'こちらに気がついたと思ったが気のせい？今日はやけに薄着だな...',
+  4: '何かゴソゴソ音がする',
+  5: '何か声が聞こえる...',
+};
+const getKurumiTentMessage = (stars: number) => KURUMI_TENT_MESSAGES[Math.min(5, Math.max(0, stars))] ?? 'zzz...';
+const MERMAID_LETTER_EVENT_ID = 'mermaid_letter_hint';
+const MERMAID_LETTER_ITEM_NAME = '手紙の入った空き瓶';
+const MERMAID_LETTER_HINT_MESSAGE = '空き瓶の中に、濡れた手紙が入っていた。\n\n「滝の裏にある小さな地蔵さまは、夜だけ水底の声を聞いてくれる。\n青白く光る鱗を五つ、そっと供えて一晩待ちなさい。\n翌夜、供えものが消えていたなら、深い水辺に道がひらく。\nただし、その声を釣り上げられるのは、伝説を名乗る竿だけ」\n\n人魚に関係する手がかりかもしれない。';
+const MERMAID_LETTER_PAPER_SRC = '/img/recipe.png';
+const ZUKAN_VIDEO_ENTRIES = [
+  { id: 'video_care_fertilize', title: '肥料注入', src: '/video/hiryou.mp4', unlockEventId: 'video_care_fertilize' },
+  { id: 'video_care_caress', title: '愛撫', src: '/video/aibu.mp4', unlockEventId: 'video_care_caress' },
+  { id: 'video_care_finger', title: '指入れ', src: '/video/yubiire.mp4', unlockEventId: 'video_care_finger' },
+  { id: 'video_kurumi_sleep_1', title: 'くるみのテント 星2', src: '/video/kurumisleep1.mp4', unlockEventId: 'video_kurumi_sleep_1' },
+  { id: 'video_kurumi_sleep_2', title: 'くるみのテント 星3', src: '/video/kurumisleep2.mp4', unlockEventId: 'video_kurumi_sleep_2' },
+  { id: 'video_story_end', title: 'エンディング', src: STORY_ENDING_VIDEO_SRC, unlockEventId: 'video_story_end' },
+] as const;
 const KURUMI_INTRO_FIRST_MESSAGE = '私はくるみだよっ！\nはらませ村でいろんなものを取引してるんだー！\nお兄ちゃんは借金がいっぱいあるって聞いたから、\nくるみが色々手伝ってあげるねっ！\n何か聞きたいことはある？';
 const KURUMI_INTRO_TOPICS: { id: KurumiIntroTopicId; label: string; answer: string; voiceSrc?: string }[] = [
   { id: 'village', label: '孕ませ村とは？', answer: '初めて来た人はみーんな\nその名前で驚くみたい。\nくるみは何とも思わないけどねー！\nでも、とってもいいとこだよ♪\nかわいい野菜や果物も育つし、\n釣りしたり洞窟探検したり楽しいとこだよっ！', voiceSrc: KURUMI_START2_SOUND_SRC },
@@ -1108,6 +1173,13 @@ const SEED_AFTER_PLANT_TUTORIAL_STEPS: (DebugDialogueStep & { id: SeedAfterPlant
     voiceSrc: '/voice/himitsu.wav',
     imageSrc: '/img/himitsu.jpg',
   },
+  {
+    id: 'hud_check',
+    debugKey: 'seed_after_plant_tutorial_hud_check',
+    message: 'そ・れ・か・ら！\n画面の一番上に\n重要な情報がたくさん書いてあるから\nいつもチェックするといいよっ♪\n次にやることに迷ったら\n見るってくせをつけるといいかもっ！\nじゃ、また明日ねー♡',
+    voiceSrc: '/voice/himitsu1.wav',
+    imageSrc: '/img/himitsu.jpg',
+  },
 ];
 
 const PROLOGUE_LETTERS: readonly { text: string; voiceSrc: string }[] = [
@@ -1116,7 +1188,7 @@ const PROLOGUE_LETTERS: readonly { text: string; voiceSrc: string }[] = [
   { text: 'ふふ、爺ちゃんの若い頃を思い出すな......\n毎日イチャイチャ、\n娘たちと一緒に暮らせるぞ！\n最高の人生が待ってる。\n絶対に後悔はさせん！', voiceSrc: '/voice/jii03.wav' },
   { text: 'さあ、すぐに村に来い。\n家の鍵と指輪は同封した。\n楽しみにしてるぞ！\n\n爺ちゃんより', voiceSrc: '/voice/jii04.wav' },
   { text: '……あ、そうじゃ！\nすっかり伝えるのを忘れておったわ！\n爺さん、くるみちゃんと遊びすぎて...じゃなくて\n畑の経営に失敗して、結構やばい所に\n莫大な借金を作ってしまったんじゃ！', voiceSrc: '/voice/jii05.wav' },
-  { text: 'じゃから、その畑で「特別な娘たち」を育てて、\n高く売って返済するしか道はないんじゃ！\n一緒に同封した農神の指輪の力は、\nユウの底なしの精力に反応して\n必ずや、、、\nあとは頼んだぞ！てへっ♡', voiceSrc: '/voice/jii06.wav' },
+  { text: 'じゃから、その畑で「特別な娘たち」を育てて、\n高く売って返済するしか道はないんじゃ！\n一緒に同封した農神の指輪の力は、\nユウの底なしの精力に反応して\n必ずや高品質の娘が育つはずじゃ！\nあとは頼んだぞ！てへっ♡', voiceSrc: '/voice/jii06.wav' },
 ];
 
 const FISH_ITEM_NAMES = new Set(FISH_ZUKAN_ENTRIES.map(fish => fish.name));
@@ -1124,20 +1196,45 @@ const LUMBER_ITEM_NAMES = new Set(LUMBER_DATA.map(lumber => lumber.name));
 const ORE_ITEM_NAMES = new Set(ORE_DATA.map(ore => ore.name));
 const FARM_HARVEST_ITEM_NAMES = new Set(FARM_GIRL_CROP_DATA.map(crop => crop.harvestItemName));
 const MINING_RHYTHM_DIRECTIONS: readonly MiningDirection[] = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'];
-const MINING_BGM_SOURCES = {
-  normal: '/bgm/saikutu2.wav?v=20260620-mining-safe',
-  mediumRare: '/bgm/saikutu3.wav?v=20260620-mining-safe',
-  highRare: '/bgm/saikutu1.wav?v=20260620-mining-safe',
-} as const;
+const MINING_EASY_BGM_SOURCES = [
+  '/bgm/mining_easy_1.wav?v=20260626-mining-tier',
+  '/bgm/mining_easy_2.wav?v=20260626-mining-tier',
+  '/bgm/mining_easy_3.wav?v=20260626-mining-tier',
+] as const;
+const MINING_HARD_BGM_SOURCES = [
+  '/bgm/mining_hard_1.mp3?v=20260626-mining-tier',
+  '/bgm/mining_hard_2.mp3?v=20260626-mining-tier',
+  '/bgm/mining_hard_3.mp3?v=20260626-mining-tier',
+] as const;
+const MINING_RARE_BGM_SOURCES = [
+  '/bgm/mining_rare_1.mp3?v=20260626-mining-tier',
+  '/bgm/mining_rare_2.mp3?v=20260626-mining-tier',
+  '/bgm/mining_rare_3.mp3?v=20260626-mining-tier',
+] as const;
+const MINING_BGM_SOURCES_BY_TIER: Readonly<Record<MiningBgmTier, readonly string[]>> = {
+  easy: MINING_EASY_BGM_SOURCES,
+  hard: MINING_HARD_BGM_SOURCES,
+  rare: MINING_RARE_BGM_SOURCES,
+};
+const DEFAULT_MINING_BGM_SOURCE = MINING_EASY_BGM_SOURCES[0];
 const MINING_BGM_OPTIONS = [
-  { id: 'normal', label: '通常鉱石 saikutu2.wav', src: MINING_BGM_SOURCES.normal },
-  { id: 'mediumRare', label: '中レア鉱石 saikutu3.wav', src: MINING_BGM_SOURCES.mediumRare },
-  { id: 'highRare', label: 'レア鉱石 saikutu1.wav', src: MINING_BGM_SOURCES.highRare },
+  { id: 'easy1', label: '簡単 mining_easy_1.wav', src: MINING_EASY_BGM_SOURCES[0] },
+  { id: 'easy2', label: '簡単 mining_easy_2.wav', src: MINING_EASY_BGM_SOURCES[1] },
+  { id: 'easy3', label: '簡単 mining_easy_3.wav', src: MINING_EASY_BGM_SOURCES[2] },
+  { id: 'hard1', label: '難しい mining_hard_1.mp3', src: MINING_HARD_BGM_SOURCES[0] },
+  { id: 'hard2', label: '難しい mining_hard_2.mp3', src: MINING_HARD_BGM_SOURCES[1] },
+  { id: 'hard3', label: '難しい mining_hard_3.mp3', src: MINING_HARD_BGM_SOURCES[2] },
+  { id: 'rare1', label: 'レア mining_rare_1.mp3', src: MINING_RARE_BGM_SOURCES[0] },
+  { id: 'rare2', label: 'レア mining_rare_2.mp3', src: MINING_RARE_BGM_SOURCES[1] },
+  { id: 'rare3', label: 'レア mining_rare_3.mp3', src: MINING_RARE_BGM_SOURCES[2] },
 ] as const;
 const MINING_RHYTHM_STORAGE_KEY = 'farmMiningRhythmTimings';
 const MINING_COUNTDOWN_SECONDS = 3;
 const MINING_NOTE_FALL_MS = 1600;
 const MINING_GAME_DURATION_MS = 10_000;
+const MINING_EXTENDED_GAME_DURATION_MS = 15_000;
+const MINING_MAX_GAME_DURATION_MS = 90_000;
+const MINING_SIMULTANEOUS_INPUT_WINDOW_MS = 240;
 const MINING_JUDGEMENT_LINE_TOP_PERCENT = 68;
 const MINING_NON_FULL_COMBO_MAX_GAUGE = 99;
 const MINING_SE_SOURCES = {
@@ -1163,10 +1260,48 @@ const getMiningArrowLaneLeftPercent = (direction: MiningDirection): number => ({
   ArrowUp: 54,
   ArrowRight: 62,
 }[direction]);
-const getMiningBgmSource = (oreId: string): string => {
-  if (['gold', 'sanctuary_gem'].includes(oreId)) return MINING_BGM_SOURCES.highRare;
-  if (['quality_iron', 'tin', 'silver', 'steel'].includes(oreId)) return MINING_BGM_SOURCES.mediumRare;
-  return MINING_BGM_SOURCES.normal;
+const getMiningBgmTier = (oreId: string, quantity: number): MiningBgmTier => {
+  const rarity = getOreRarityTier(oreId);
+  if (rarity === 'highRare' || rarity === 'topRare') return 'rare';
+  if (rarity === 'mediumRare' || quantity >= 3) return 'hard';
+  return 'easy';
+};
+const getRandomMiningBgmSource = (tier: MiningBgmTier): string => {
+  const sources = MINING_BGM_SOURCES_BY_TIER[tier].length > 0
+    ? MINING_BGM_SOURCES_BY_TIER[tier]
+    : MINING_BGM_SOURCES_BY_TIER.easy;
+  return sources[Math.floor(Math.random() * sources.length)] ?? DEFAULT_MINING_BGM_SOURCE;
+};
+const getMiningGameDurationMs = (tier: MiningBgmTier): number => (
+  tier === 'easy' ? MINING_GAME_DURATION_MS : MINING_EXTENDED_GAME_DURATION_MS
+);
+const clampMiningGameDurationMs = (durationMs: number): number => (
+  Math.max(MINING_GAME_DURATION_MS, Math.min(MINING_MAX_GAME_DURATION_MS, Math.round(durationMs)))
+);
+const getMiningTierLabel = (tier: MiningBgmTier): string => ({
+  easy: '普通',
+  hard: '難しい',
+  rare: 'レア',
+}[tier]);
+const getMiningTierToneClass = (tier: MiningBgmTier): string => ({
+  easy: 'border-[#93c5fd]/70 bg-[#1e3a8a]/72 text-[#dbeafe]',
+  hard: 'border-[#fbbf24]/75 bg-[#78350f]/78 text-[#fef3c7]',
+  rare: 'border-[#f0abfc]/80 bg-[#701a75]/82 text-[#fae8ff]',
+}[tier]);
+const createMiningPlannedReward = (pickaxe: PickaxeName, rareRateMultiplier = 1): MiningPlannedReward => {
+  const roll = Math.random();
+  const plannedGauge = roll < 0.14 ? 95 : roll < 0.42 ? 80 : 50;
+  const plannedFullCombo = Math.random() < 0.18;
+  const ore = selectOreRewardWithPerformance(pickaxe, plannedGauge, plannedFullCombo, rareRateMultiplier);
+  const quantity = getMiningRewardQuantity(ore.id, plannedGauge);
+  const bgmTier = getMiningBgmTier(ore.id, quantity);
+  return {
+    ore,
+    quantity,
+    bgmTier,
+    bgmSource: getRandomMiningBgmSource(bgmTier),
+    durationMs: getMiningGameDurationMs(bgmTier),
+  };
 };
 const getMiningRhythmIntervalMs = (oreId: string): number => {
   if (['muddy_iron', 'soft_copper', 'brittle_lead', 'light_coal'].includes(oreId)) return 850;
@@ -1182,13 +1317,19 @@ const getMiningRhythmDirectionLabel = (direction: MiningDirection): string => ({
 const getRandomMiningDirection = (): MiningDirection => (
   MINING_RHYTHM_DIRECTIONS[Math.floor(Math.random() * MINING_RHYTHM_DIRECTIONS.length)]
 );
+const getRandomMiningDirectionPair = (): [MiningDirection, MiningDirection] => {
+  const first = getRandomMiningDirection();
+  let second = getRandomMiningDirection();
+  while (second === first) second = getRandomMiningDirection();
+  return [first, second];
+};
 const normalizeMiningRhythmTimings = (value: unknown): number[] => (
   Array.isArray(value)
     ? value
       .filter((timing): timing is number => typeof timing === 'number' && Number.isFinite(timing))
-      .filter(timing => timing >= 250 && timing <= MINING_GAME_DURATION_MS - 250)
+      .filter(timing => timing >= 250 && timing <= MINING_MAX_GAME_DURATION_MS - 250)
       .sort((a, b) => a - b)
-      .slice(0, 16)
+      .slice(0, 48)
     : []
 );
 const loadMiningRhythmTimings = (): MiningRhythmTimingsByBgm => {
@@ -1198,7 +1339,7 @@ const loadMiningRhythmTimings = (): MiningRhythmTimingsByBgm => {
     const parsed = JSON.parse(stored);
     if (Array.isArray(parsed)) {
       const legacyTimings = normalizeMiningRhythmTimings(parsed);
-      return legacyTimings.length > 0 ? { [MINING_BGM_SOURCES.normal]: legacyTimings } : {};
+      return legacyTimings.length > 0 ? { [DEFAULT_MINING_BGM_SOURCE]: legacyTimings } : {};
     }
     if (!parsed || typeof parsed !== 'object') return {};
     return Object.fromEntries(
@@ -1282,10 +1423,16 @@ const ITEM_MENU_NORMAL_ITEMS: Record<string, string[]> = {
   'だいじなもの': [
     '【レシピ】のこぎり',
     '【レシピ】つるはし',
+    '【レシピ】木剣',
+    '【レシピ】毛皮の服',
     '【レシピ】丈夫なつるはし',
     '【レシピ】丈夫なのこぎり',
+    '【レシピ】獣殺し',
+    '【レシピ】剛牙の鎧',
     '【レシピ】高級つるはし',
     '【レシピ】高級のこぎり',
+    '【レシピ】天の裁き',
+    '【レシピ】神域の加護',
     '【レシピ】伝説のつるはし',
     '【レシピ】伝説ののこぎり',
     '【レシピ】丈夫な釣竿',
@@ -1351,6 +1498,18 @@ const RECIPE_DETAILS: Record<string, { title: string; materials: string[]; steps
     steps: ['鉄鉱石に爪を刺し、靭帯で固定する。', '枝を十字に組み、柄を作る。'],
     note: '注意：岩を叩くとすぐ鈍る。小石掘りから始めよ。',
   },
+  '【レシピ】木剣': {
+    title: 'レシピ：木剣',
+    materials: ['木材（5）', 'モグラの爪（3）', 'ウサギの靭帯（2）', '柔らかな若枝（2）'],
+    steps: ['木材を削って扱いやすい刀身を作る。', '爪と靭帯で握りを補強し、獣に通る形へ整える。'],
+    note: '獣襲撃に備える最初の護身用武器。',
+  },
+  '【レシピ】毛皮の服': {
+    title: 'レシピ：毛皮の服',
+    materials: ['ウサギの靭帯（5）', 'しなやかな軟木（2）', '木材（3）', '柔らかな若枝（3）'],
+    steps: ['軟木を薄く割って胸当ての芯を作る。', '靭帯で縫い合わせ、動きやすい防具に仕立てる。'],
+    note: '序盤の獣から受ける痛手を和らげる軽い防具。',
+  },
   '【レシピ】丈夫なつるはし': {
     title: 'レシピ：丈夫なつるはし',
     materials: ['モグラの爪（10）', 'ウサギの靭帯（5）', '泥混じりの鉄鉱石（3）', '柔らかな若枝（5）'],
@@ -1363,6 +1522,18 @@ const RECIPE_DETAILS: Record<string, { title: string; materials: string[]; steps
     steps: ['銅鉱石を薄く伸ばし、爪を刃として並べる。', '若枝の柄へ靭帯できつく固定する。'],
     note: 'しなやかな軟木と堅実な中木を狙える中級のこぎり。',
   },
+  '【レシピ】獣殺し': {
+    title: 'レシピ：獣殺し',
+    materials: ['木剣（1）', '猪の牙（5）', '猪の硬皮（2）', '良質な鉄鉱石（3）', '堅実な中木（3）'],
+    steps: ['木剣を芯にして鉄鉱石で刃を重くする。', '猪の牙を刃先へ組み込み、硬皮で握りを補強する。'],
+    note: 'Normal帯の熊や大牙の獣に挑むための中級武器。',
+  },
+  '【レシピ】剛牙の鎧': {
+    title: 'レシピ：剛牙の鎧',
+    materials: ['毛皮の服（1）', '猪の硬皮（5）', '猪の牙（3）', '熊の剛糸（3）', '良質な鉄鉱石（3）'],
+    steps: ['毛皮の服へ硬皮を重ね、急所を守る板を作る。', '牙と熊の剛糸で獣の衝撃に耐えるよう縫い固める。'],
+    note: 'Normal後半からHard入口までの被害を抑える頼れる防具。',
+  },
   '【レシピ】高級つるはし': {
     title: 'レシピ：高級つるはし',
     materials: ['猪の牙（5）', '猪の硬皮（2）', '錫鉱石（3）', '堅実な中木（5）', 'モグラの爪（20）', 'ウサギの靭帯（10）'],
@@ -1374,6 +1545,18 @@ const RECIPE_DETAILS: Record<string, { title: string; materials: string[]; steps
     materials: ['猪の牙（5）', '猪の硬皮（2）', '錫鉱石（3）', '堅実な中木（5）', 'モグラの爪（20）', 'ウサギの靭帯（10）'],
     steps: ['堅実な中木でしならない柄を作る。', '錫鉱石と猪の牙を刃に組み込み、硬皮で握りを補強する。'],
     note: '不朽の鉄木と古代の神木を低確率で狙える上位のこぎり。',
+  },
+  '【レシピ】天の裁き': {
+    title: 'レシピ：天の裁き',
+    materials: ['獣殺し（1）', '巨獣の鋼角（3）', '神獣の角（2）', '金鉱石（5）', '聖域の輝石（2）'],
+    steps: ['獣殺しの刃に鋼角を重ね、金鉱石で刃筋を通す。', '神獣の角と聖域の輝石を埋め込み、強敵へ届く一撃を宿す。'],
+    note: '巨熊や山の主へ挑むための終盤向け武器。',
+  },
+  '【レシピ】神域の加護': {
+    title: 'レシピ：神域の加護',
+    materials: ['剛牙の鎧（1）', '神獣の絹糸（5）', '聖域の結晶（2）', '伝説の雫（1）', '巨獣の強剛糸（3）'],
+    steps: ['剛牙の鎧を神獣の絹糸で縫い直す。', '聖域の結晶と伝説の雫を胸元に留め、山の主に耐える守りへ仕上げる。'],
+    note: '山の主へ挑む前に用意したい最終防具。',
   },
   '【レシピ】伝説のつるはし': {
     title: 'レシピ：伝説のつるはし',
@@ -1421,6 +1604,20 @@ const CRAFT_RECIPE_CONFIGS: Record<CraftRecipeId, CraftRecipeConfig> = {
     circleDurationRangeMs: [1200, 1800],
     scorePerCircle: 9,
   },
+  '【レシピ】木剣': {
+    output: '木剣',
+    materials: { '木材': 5, 'モグラの爪': 3, 'ウサギの靭帯': 2, '柔らかな若枝': 2 },
+    circleCountRange: [5, 7],
+    circleDurationRangeMs: [1800, 2600],
+    scorePerCircle: 16,
+  },
+  '【レシピ】毛皮の服': {
+    output: '毛皮の服',
+    materials: { 'ウサギの靭帯': 5, 'しなやかな軟木': 2, '木材': 3, '柔らかな若枝': 3 },
+    circleCountRange: [5, 7],
+    circleDurationRangeMs: [1800, 2600],
+    scorePerCircle: 16,
+  },
   '【レシピ】丈夫なつるはし': {
     output: '丈夫なつるはし',
     materials: { 'モグラの爪': 10, 'ウサギの靭帯': 5, '泥混じりの鉄鉱石': 3, '柔らかな若枝': 5 },
@@ -1435,6 +1632,20 @@ const CRAFT_RECIPE_CONFIGS: Record<CraftRecipeId, CraftRecipeConfig> = {
     circleDurationRangeMs: [1500, 2200],
     scorePerCircle: 12,
   },
+  '【レシピ】獣殺し': {
+    output: '獣殺し',
+    materials: { '木剣': 1, '猪の牙': 5, '猪の硬皮': 2, '良質な鉄鉱石': 3, '堅実な中木': 3 },
+    circleCountRange: [9, 12],
+    circleDurationRangeMs: [1400, 2100],
+    scorePerCircle: 11,
+  },
+  '【レシピ】剛牙の鎧': {
+    output: '剛牙の鎧',
+    materials: { '毛皮の服': 1, '猪の硬皮': 5, '猪の牙': 3, '熊の剛糸': 3, '良質な鉄鉱石': 3 },
+    circleCountRange: [9, 12],
+    circleDurationRangeMs: [1400, 2100],
+    scorePerCircle: 11,
+  },
   '【レシピ】高級つるはし': {
     output: '高級つるはし',
     materials: { '猪の牙': 5, '猪の硬皮': 2, '錫鉱石': 3, '堅実な中木': 5, 'モグラの爪': 20, 'ウサギの靭帯': 10 },
@@ -1448,6 +1659,20 @@ const CRAFT_RECIPE_CONFIGS: Record<CraftRecipeId, CraftRecipeConfig> = {
     circleCountRange: [10, 13],
     circleDurationRangeMs: [1300, 2000],
     scorePerCircle: 10,
+  },
+  '【レシピ】天の裁き': {
+    output: '天の裁き',
+    materials: { '獣殺し': 1, '巨獣の鋼角': 3, '神獣の角': 2, '金鉱石': 5, '聖域の輝石': 2 },
+    circleCountRange: [12, 15],
+    circleDurationRangeMs: [1100, 1800],
+    scorePerCircle: 8,
+  },
+  '【レシピ】神域の加護': {
+    output: '神域の加護',
+    materials: { '剛牙の鎧': 1, '神獣の絹糸': 5, '聖域の結晶': 2, '伝説の雫': 1, '巨獣の強剛糸': 3 },
+    circleCountRange: [12, 15],
+    circleDurationRangeMs: [1100, 1800],
+    scorePerCircle: 8,
   },
   '【レシピ】伝説のつるはし': {
     output: '伝説のつるはし',
@@ -1486,6 +1711,23 @@ const CRAFT_RECIPE_CONFIGS: Record<CraftRecipeId, CraftRecipeConfig> = {
   },
 };
 const CRAFT_RECIPE_IDS = Object.keys(CRAFT_RECIPE_CONFIGS) as CraftRecipeId[];
+const PROGRESSION_RECIPE_SHOP_ITEMS: ShopItem[] = [
+  { name: '【レシピ】木剣', price: 800, stock: 1, type: '買う', category: 'レシピ', desc: '獣襲撃に備える最初の武器レシピです。' },
+  { name: '【レシピ】毛皮の服', price: 900, stock: 1, type: '買う', category: 'レシピ', desc: '序盤の獣から身を守る防具レシピです。' },
+  { name: '【レシピ】丈夫なつるはし', price: 1500, stock: 1, type: '買う', category: 'レシピ', desc: '採掘チュートリアル後に入荷する中級つるはしのレシピです。' },
+  { name: '【レシピ】丈夫なのこぎり', price: 1500, stock: 1, type: '買う', category: 'レシピ', desc: '伐採チュートリアル後に入荷する中級のこぎりのレシピです。' },
+  { name: '【レシピ】獣殺し', price: 4500, stock: 1, type: '買う', category: 'レシピ', desc: 'Normal帯の獣へ挑むための中級武器レシピです。' },
+  { name: '【レシピ】剛牙の鎧', price: 5500, stock: 1, type: '買う', category: 'レシピ', desc: '熊や大牙の獣に備える中級防具レシピです。' },
+  { name: '【レシピ】高級つるはし', price: 5000, stock: 1, type: '買う', category: 'レシピ', desc: '猪系素材を扱えるようになる上級つるはしのレシピです。' },
+  { name: '【レシピ】高級のこぎり', price: 5000, stock: 1, type: '買う', category: 'レシピ', desc: '猪系素材を扱えるようになる上級のこぎりのレシピです。' },
+  { name: '【レシピ】天の裁き', price: 22000, stock: 1, type: '買う', category: 'レシピ', desc: '巨熊や山の主へ挑むための終盤武器レシピです。' },
+  { name: '【レシピ】神域の加護', price: 30000, stock: 1, type: '買う', category: 'レシピ', desc: '山の主に備える最終防具レシピです。' },
+  { name: '【レシピ】伝説のつるはし', price: 20000, stock: 1, type: '買う', category: 'レシピ', desc: '巨獣系素材を扱えるようになる伝説級つるはしのレシピです。' },
+  { name: '【レシピ】伝説ののこぎり', price: 20000, stock: 1, type: '買う', category: 'レシピ', desc: '巨獣系素材を扱えるようになる伝説級のこぎりのレシピです。' },
+  { name: '【レシピ】丈夫な釣竿', price: 1500, stock: 1, type: '買う', category: 'レシピ', desc: '釣りチュートリアル後に入荷する中級釣竿のレシピです。' },
+  { name: '【レシピ】高級釣竿', price: 6000, stock: 1, type: '買う', category: 'レシピ', desc: 'ヌシや人魚の導線へ進むための上級釣竿のレシピです。' },
+  { name: '【レシピ】伝説の釣り竿', price: 25000, stock: 1, type: '買う', category: 'レシピ', desc: '人魚の手がかりを追うために必要な伝説級釣竿のレシピです。' },
+];
 const ITEM_MENU_CUSTOM_EFFECT_TEXT: Record<string, string> = {
   '使用済みコンドーム': 'くるみになぜか売却できる何かに使われたゴムです。一体誰が使ったんだろう？サイズが大きいほど高く買い取ってもらえます。',
   '川魚の鱗': '川魚から取れるきらめく鱗。細工や道具の補強に使え、くるみも喜んで買い取ってくれます。',
@@ -1667,6 +1909,56 @@ const LOGGING_MINIGAME_CONFIG = {
     normal: 15,
   },
 } as const;
+type LoggingDifficultyTier = 'easy' | 'normal' | 'rare';
+const LOGGING_DIFFICULTY_ZONE_MULTIPLIERS: Record<LoggingDifficultyTier, number> = {
+  easy: 1.45,
+  normal: 1,
+  rare: 0.62,
+};
+const LOGGING_DIFFICULTY_LABELS: Record<LoggingDifficultyTier, string> = {
+  easy: '簡単',
+  normal: '普通',
+  rare: 'レア',
+};
+const LOGGING_DIFFICULTY_TONE_CLASSES: Record<LoggingDifficultyTier, string> = {
+  easy: 'border-[#86efac] bg-[#14532d]/85 text-[#dcfce7]',
+  normal: 'border-[#ffd166] bg-[#7a4317]/85 text-[#fff7ed]',
+  rare: 'border-[#f0abfc] bg-[#701a75]/85 text-[#fae8ff]',
+};
+const getLoggingDifficultyLabel = (tier: LoggingDifficultyTier) => LOGGING_DIFFICULTY_LABELS[tier];
+const getLoggingDifficultyToneClass = (tier: LoggingDifficultyTier) => LOGGING_DIFFICULTY_TONE_CLASSES[tier];
+const getLoggingSweetWidth = (baseWidth: number, tier: LoggingDifficultyTier) => (
+  Math.max(6, Math.min(44, baseWidth * LOGGING_DIFFICULTY_ZONE_MULTIPLIERS[tier]))
+);
+const getLoggingDirectionSweetRange = (tier: LoggingDifficultyTier) => {
+  const baseWidth = LOGGING_MINIGAME_CONFIG.directionSweetMax - LOGGING_MINIGAME_CONFIG.directionSweetMin;
+  const width = getLoggingSweetWidth(baseWidth, tier);
+  return {
+    min: 50 - width / 2,
+    max: 50 + width / 2,
+  };
+};
+const chooseLoggingDifficultyTier = (sawName: SawName, rareRateMultiplier = 1): LoggingDifficultyTier => {
+  if (sawName === 'のこぎり') return Math.random() < 0.78 ? 'easy' : 'normal';
+
+  const rareChanceBySaw: Record<SawName, number> = {
+    'のこぎり': 0,
+    '丈夫なのこぎり': 0.08,
+    '高級のこぎり': 0.18,
+    '伝説ののこぎり': 0.32,
+  };
+  const normalChanceBySaw: Record<SawName, number> = {
+    'のこぎり': 0.22,
+    '丈夫なのこぎり': 0.55,
+    '高級のこぎり': 0.58,
+    '伝説ののこぎり': 0.52,
+  };
+  const rareChance = Math.min(0.55, rareChanceBySaw[sawName] * rareRateMultiplier);
+  const roll = Math.random();
+  if (roll < rareChance) return 'rare';
+  if (roll < rareChance + normalChanceBySaw[sawName]) return 'normal';
+  return 'easy';
+};
 const PICKAXE_CRAFT_TUTORIAL_STEPS: DebugDialogueStep[] = [
   {
     debugKey: 'pickaxe_craft_tutorial_1',
@@ -1925,8 +2217,12 @@ const getHeroBattleEquipmentBonus = (equippedItems: Record<string, string>) => {
       }
     );
 };
-const createBattleUnitFromBeast = (beast: (typeof BEAST_BATTLE_DATA)[number]): BattleUnitState => ({
-  id: beast.id,
+const getBattleBaseBeastId = (unitId: string): BeastId => {
+  const baseId = unitId.replace(/__\d+$/, '');
+  return (BEAST_BATTLE_DATA.some(beast => beast.id === baseId) ? baseId : unitId) as BeastId;
+};
+const createBattleUnitFromBeast = (beast: (typeof BEAST_BATTLE_DATA)[number], instanceIndex = 0): BattleUnitState => ({
+  id: instanceIndex > 0 ? `${beast.id}__${instanceIndex}` : beast.id,
   name: beast.name,
   maxHp: beast.hp,
   hp: beast.hp,
@@ -1938,9 +2234,9 @@ const createRandomBeastUnits = (difficulty: GameDifficulty, allowMountainLord = 
   const count = difficulty === 'easy' ? 1 : difficulty === 'normal' ? 1 + Math.floor(Math.random() * 2) : 2 + Math.floor(Math.random() * 2);
   const candidates = BEAST_BATTLE_DATA.filter(beast => beast.difficulty === difficulty && (allowMountainLord || beast.id !== 'mountain_lord'));
   const fallbackCandidates = candidates.length > 0 ? candidates : BEAST_BATTLE_DATA.filter(beast => DIFFICULTY_ORDER[beast.difficulty] <= DIFFICULTY_ORDER[difficulty]);
-  const beasts = Array.from({ length: count }, () => createBattleUnitFromBeast(fallbackCandidates[Math.floor(Math.random() * fallbackCandidates.length)]));
-  if (beasts.some(beast => beast.id === 'mountain_lord')) {
-    const mountainLord = beasts.find(beast => beast.id === 'mountain_lord') ?? createBattleUnitFromBeast(BEAST_BATTLE_DATA.find(beast => beast.id === 'mountain_lord') ?? fallbackCandidates[0]);
+  const beasts = Array.from({ length: count }, (_, index) => createBattleUnitFromBeast(fallbackCandidates[Math.floor(Math.random() * fallbackCandidates.length)], index));
+  if (beasts.some(beast => getBattleBaseBeastId(beast.id) === 'mountain_lord')) {
+    const mountainLord = beasts.find(beast => getBattleBaseBeastId(beast.id) === 'mountain_lord') ?? createBattleUnitFromBeast(BEAST_BATTLE_DATA.find(beast => beast.id === 'mountain_lord') ?? fallbackCandidates[0]);
     return [mountainLord, null, null];
   }
   return [...beasts, ...Array.from({ length: Math.max(0, 3 - beasts.length) }, () => null)];
@@ -2023,7 +2319,7 @@ const createInitialBattlePreviewState = (
     };
   });
   const companion = createBattleUnitFromCompanionGirl(companionGirlId);
-  const battleBgmSource = initialBeasts.some(beast => beast?.id === 'mountain_lord')
+  const battleBgmSource = initialBeasts.some(beast => beast && getBattleBaseBeastId(beast.id) === 'mountain_lord')
     ? MOUNTAIN_LORD_BATTLE_BGM_SRC
     : RANDOM_BATTLE_BGM_SOURCES[Math.floor(Math.random() * RANDOM_BATTLE_BGM_SOURCES.length)];
   const heroMaxHp = Math.round((heroStats.hp + equipmentBonus.hp) * (unlockedHeroSkills.includes('battle_hp_up') ? 1.1 : 1));
@@ -2094,7 +2390,7 @@ const calculateBattleDamage = (
 const rollBattleLoot = (beasts: readonly (BattleUnitState | null)[], dropRateBonus = 0): BattleLootEntry[] => {
   const defeatedBeasts = beasts.filter((beast): beast is BattleUnitState => Boolean(beast && beast.hp <= 0));
   const highestDifficulty = defeatedBeasts.reduce<GameDifficulty>((highest, beast) => {
-    const beastDifficulty = BEAST_BATTLE_DATA.find(data => data.id === beast.id)?.difficulty ?? 'easy';
+    const beastDifficulty = BEAST_BATTLE_DATA.find(data => data.id === getBattleBaseBeastId(beast.id))?.difficulty ?? 'easy';
     return DIFFICULTY_ORDER[beastDifficulty] > DIFFICULTY_ORDER[highest] ? beastDifficulty : highest;
   }, 'easy');
   const sellValueLimit: Readonly<Record<GameDifficulty, number>> = {
@@ -2105,7 +2401,7 @@ const rollBattleLoot = (beasts: readonly (BattleUnitState | null)[], dropRateBon
   let remainingSellValue = sellValueLimit[highestDifficulty];
   const lootMap = new Map<string, BattleLootEntry>();
   defeatedBeasts.forEach(beast => {
-    const dropData = BEAST_DROP_DATA.find(drop => drop.beastId === beast.id as BeastId);
+    const dropData = BEAST_DROP_DATA.find(drop => drop.beastId === getBattleBaseBeastId(beast.id));
     const successfulDrops = (dropData?.drops ?? [])
       .filter(drop => Math.random() < Math.min(1, drop.dropRate + dropRateBonus))
       .map(drop => ({ drop, order: Math.random() }))
@@ -2421,7 +2717,7 @@ export default function App() {
   const [selectedBattleCommandIndex, setSelectedBattleCommandIndex] = useState(0);
   const [selectedBattleItemIndex, setSelectedBattleItemIndex] = useState(0);
   const [selectedBattleItemTargetIndex, setSelectedBattleItemTargetIndex] = useState(0);
-  const [battleTestBeastId, setBattleTestBeastId] = useState<BeastId>('mole');
+  const [battleTestBeastId, setBattleTestBeastId] = useState<BattleTestTargetId>('mole');
   const [battleTestPartnerId, setBattleTestPartnerId] = useState<string>('');
   const menuOpenRef = useRef(false);
   const [menuSelectedIndex, setMenuSelectedIndex] = useState(3);
@@ -2430,13 +2726,17 @@ export default function App() {
   const menuFocusAreaRef = useRef<'nav' | 'content'>('nav');
   const [menuContentFocus, setMenuContentFocus] = useState<'primary' | 'secondary'>('primary');
   const menuContentFocusRef = useRef<'primary' | 'secondary'>('primary');
+  const [hasKurumiNotebook, setHasKurumiNotebook] = useState(false);
   const MENU_ITEMS = [
     { id: 'item',      label: 'アイテム',   icon: '🎒' },
     { id: 'equipment', label: '装備',       icon: '⚔️' },
     { id: 'status',    label: 'スキルツリー', icon: '🌳' },
     { id: 'farm',      label: '農場',       icon: '🌾' },
     { id: 'zukan',     label: '図鑑',       icon: '📖' },
-    { id: 'kurumiNotebook', label: 'くるみの秘密帳', icon: '📒' },
+    ...(hasKurumiNotebook ? [
+      { id: 'kurumiNotebook', label: 'くるみの秘密帳', icon: '📒' },
+      { id: 'achievement', label: 'アチーブメント', icon: '🏆' },
+    ] : []),
     { id: 'system',    label: 'システム',   icon: '⚙️' },
   ] as const;
   type MenuItemId = typeof MENU_ITEMS[number]['id'];
@@ -2550,11 +2850,16 @@ export default function App() {
   const [revealingFarmGirlIds, setRevealingFarmGirlIds] = useState<string[]>([]);
   const [farmGirlRevealSpotlightId, setFarmGirlRevealSpotlightId] = useState<string | null>(null);
   const [farmCareUnlockStage, setFarmCareUnlockStage] = useState<FarmCareUnlockStage>(1);
+  const [farmCareFingerUnlockedDay, setFarmCareFingerUnlockedDay] = useState<number | null>(null);
   const [farmCareUnlockNoticeAction, setFarmCareUnlockNoticeAction] = useState<FarmCareAction | null>(null);
+  const [pendingFarmCareUnlockNoticeAction, setPendingFarmCareUnlockNoticeAction] = useState<FarmCareAction | null>(null);
+  const [farmHarvestResultNotice, setFarmHarvestResultNotice] = useState<FarmHarvestResultNotice | null>(null);
   const [selectedFarmCareActionIndex, setSelectedFarmCareActionIndex] = useState(0);
   const selectedFarmCareActionIndexRef = useRef(0);
   const [pendingFarmCareConfirm, setPendingFarmCareConfirm] = useState<FarmCareConfirmTarget | null>(null);
   const [farmCareConfirmChoice, setFarmCareConfirmChoice] = useState<'yes' | 'no'>('yes');
+  const [farmCareCinematicAction, setFarmCareCinematicAction] = useState<FarmCareAction | null>(null);
+  const farmCareCinematicTimerRef = useRef<number | null>(null);
   const [ownedGirlSeeds, setOwnedGirlSeeds] = useState<string[]>([]);
   const [farmFieldSlots, setFarmFieldSlots] = useState<FarmFieldSlotState[]>(() => createInitialFarmFieldSlots('hard'));
   const [plantingSeedId, setPlantingSeedId] = useState<string | null>(null);
@@ -2592,8 +2897,8 @@ export default function App() {
   const [craftMiniGameResult, setCraftMiniGameResult] = useState<'success' | 'fail' | null>(null);
   const [selectedFarmFacilityIndex, setSelectedFarmFacilityIndex] = useState(0);
   const selectedFarmFacilityIndexRef = useRef(0);
-  const [zukanFilter, setZukanFilter] = useState('苗娘');
-  const zukanFilterRef = useRef('苗娘');
+  const [zukanFilter, setZukanFilter] = useState('娘');
+  const zukanFilterRef = useRef('娘');
   const [selectedZukanIndex, setSelectedZukanIndex] = useState(0);
   const selectedZukanIndexRef = useRef(0);
   const [selectedKurumiNotebookIndex, setSelectedKurumiNotebookIndex] = useState(0);
@@ -2612,8 +2917,10 @@ export default function App() {
   const [miningCountdown, setMiningCountdown] = useState(MINING_COUNTDOWN_SECONDS);
   const [miningMiniGamePointId, setMiningMiniGamePointId] = useState<string | null>(null);
   const [miningPreviewOre, setMiningPreviewOre] = useState<(typeof ORE_DATA)[number] | null>(null);
+  const [miningPlannedReward, setMiningPlannedReward] = useState<MiningPlannedReward | null>(null);
   const [miningNotes, setMiningNotes] = useState<MiningRhythmNote[]>([]);
   const [miningElapsedMs, setMiningElapsedMs] = useState(0);
+  const [miningGameDurationMs, setMiningGameDurationMs] = useState(MINING_GAME_DURATION_MS);
   const [miningGauge, setMiningGauge] = useState(0);
   const [miningLastJudgement, setMiningLastJudgement] = useState<'PERFECT' | 'GOOD' | 'BAD' | 'MISS' | null>(null);
   const [miningResultText, setMiningResultText] = useState('');
@@ -2627,7 +2934,8 @@ export default function App() {
   const [miningSparkle, setMiningSparkle] = useState<FishingBiteSparkle | null>(null);
   const [miningRhythmTimings, setMiningRhythmTimings] = useState<MiningRhythmTimingsByBgm>(loadMiningRhythmTimings);
   const [miningRhythmRecording, setMiningRhythmRecording] = useState(false);
-  const [miningRhythmRecordingSource, setMiningRhythmRecordingSource] = useState<string>(MINING_BGM_SOURCES.normal);
+  const [miningRhythmCountdown, setMiningRhythmCountdown] = useState<number | null>(null);
+  const [miningRhythmRecordingSource, setMiningRhythmRecordingSource] = useState<string>(DEFAULT_MINING_BGM_SOURCE);
   const [miningRhythmRecordedTimings, setMiningRhythmRecordedTimings] = useState<number[]>([]);
   const [systemNotice, setSystemNotice] = useState('システム項目を選択してください。');
   const systemNoticeRef = useRef('システム項目を選択してください。');
@@ -2646,6 +2954,7 @@ export default function App() {
   const [repaymentEventPending, setRepaymentEventPending] = useState(false);
   const [selectedAdditionalRepayment, setSelectedAdditionalRepayment] = useState<(typeof ADDITIONAL_REPAYMENT_OPTIONS)[number]>(50_000);
   const [storyCleared, setStoryCleared] = useState(false);
+  const [storyEndingVideoOpen, setStoryEndingVideoOpen] = useState(false);
   const [farmCredit, setFarmCredit] = useState(0);
   const [successfulRepaymentCount, setSuccessfulRepaymentCount] = useState(0);
   const [missedRepaymentCount, setMissedRepaymentCount] = useState(0);
@@ -2662,6 +2971,10 @@ export default function App() {
   const [interestRateCycleIndex, setInterestRateCycleIndex] = useState(0);
   const [currentAP, setCurrentAP] = useState(5);
   const [kurumiTradeTotal, setKurumiTradeTotal] = useState(0);
+  const kurumiTrustStars = getKurumiTrustStars(kurumiTradeTotal);
+  const getKurumiTradeTotalForStars = (stars: number) => (
+    stars <= 0 ? 0 : KURUMI_TRUST_STAR_THRESHOLDS[Math.min(5, Math.max(1, stars)) - 1]
+  );
   const [inventoryCounts, setInventoryCounts] = useState<Record<string, number>>(() => ({ ...INITIAL_INVENTORY_COUNTS }));
   const maxAPPerTimeSlot = 5;
   const actionCountLabel = `${currentAP}/${maxAPPerTimeSlot}`;
@@ -2678,9 +2991,24 @@ export default function App() {
     if (!isEndlessNurseryMode()) return;
     setEndlessStats(previous => ({ ...previous, [key]: previous[key] + amount }));
   };
+  const unlockCollectionEvent = (eventId: string) => {
+    setCollectionProgress(previous => (
+      previous.unlockedEventIds.includes(eventId)
+        ? previous
+        : { ...previous, unlockedEventIds: [...previous.unlockedEventIds, eventId] }
+    ));
+  };
+  const openZukanVideo = (entry: (typeof ZUKAN_VIDEO_ENTRIES)[number]) => {
+    playFixSound();
+    unlockCollectionEvent(entry.unlockEventId);
+    setActiveZukanVideo(entry);
+  };
+  const getUnlockedZukanVideoEntries = () => ZUKAN_VIDEO_ENTRIES.filter(entry => (
+    collectionProgress.unlockedEventIds.includes(entry.unlockEventId)
+  ));
   const getCollectionCompletionRate = () => {
     const totalTrustEventCount = GIRL_DATA.reduce((sum, girl) => sum + girl.trustEvents.length, 0);
-    const total = GIRL_DATA.length + FISH_ZUKAN_ENTRIES.length + totalTrustEventCount + BEAST_BATTLE_DATA.length + CRAFT_RECIPE_IDS.length;
+    const total = GIRL_DATA.length + FISH_ZUKAN_ENTRIES.length + totalTrustEventCount + BEAST_BATTLE_DATA.length + CRAFT_RECIPE_IDS.length + ZUKAN_VIDEO_ENTRIES.length;
     const completed =
       collectionProgress.collectedGirlIds.length +
       collectionProgress.caughtFishIds.length +
@@ -2736,10 +3064,58 @@ export default function App() {
       ? '指入れは初回収穫後に解放されます。まずは愛撫で苗娘を安心させましょう。'
       : '肥料注入は2回目の収穫後に解放されます。段階を踏んでお世話を覚えましょう。'
   );
+  const showFarmCareNotice = (message: string) => {
+    setDialogMessage(message);
+    setShowDialog(true);
+  };
+  const getFarmCareCinematicSrc = (action: FarmCareAction) => {
+    if (action === 'caress') return '/video/aibu.mp4';
+    if (action === 'finger') return '/video/yubiire.mp4';
+    return '/video/hiryou.mp4';
+  };
+  const getFarmCareVideoEventId = (action: FarmCareAction) => {
+    if (action === 'caress') return 'video_care_caress';
+    if (action === 'finger') return 'video_care_finger';
+    return 'video_care_fertilize';
+  };
+  const playFarmCareCinematic = (action: FarmCareAction) => {
+    unlockCollectionEvent(getFarmCareVideoEventId(action));
+    if (farmCareCinematicTimerRef.current !== null) {
+      window.clearTimeout(farmCareCinematicTimerRef.current);
+      farmCareCinematicTimerRef.current = null;
+    }
+    setFarmCareCinematicAction(null);
+    window.setTimeout(() => setFarmCareCinematicAction(action), 0);
+    farmCareCinematicTimerRef.current = window.setTimeout(() => {
+      setFarmCareCinematicAction(null);
+      farmCareCinematicTimerRef.current = null;
+    }, 6200);
+  };
   const requestSeedlingCare = (girlId: string, action: FarmCareAction) => {
     if (!isFarmCareActionUnlocked(action)) {
       playFixSound();
-      setDialogMessage(getFarmCareLockedMessage(action));
+      showFarmCareNotice(getFarmCareLockedMessage(action));
+      return;
+    }
+	    const farmGirl = farmGirls.find(girl => girl.girlId === girlId);
+	    const crop = FARM_GIRL_CROP_DATA.find(entry => entry.girlId === girlId);
+	    if (!farmGirl || !crop || !canCareForFarmGirlSeedling(girlId)) {
+	      playFixSound();
+	      showFarmCareNotice('次回収穫を待っている苗娘にだけお世話できます。');
+      return;
+    }
+    if (currentAP <= 0) {
+      playFixSound();
+      showFarmCareNotice('APが足りません。自宅のベッドで休みましょう。');
+      return;
+    }
+    const currentCount = farmGirl.careDay === currentDay
+      ? action === 'caress' ? farmGirl.caressCount : action === 'finger' ? farmGirl.fingerCount : farmGirl.fertilizeCount
+      : 0;
+    const careLimit = getSkillAdjustedSeedlingCareLimit(action, crop);
+    if (currentCount >= careLimit) {
+      playFixSound();
+      showFarmCareNotice('本日のこの苗のお世話は終わりました。');
       return;
     }
     setPendingFarmCareConfirm({ girlId, action });
@@ -2832,7 +3208,7 @@ export default function App() {
       return;
     }
     unlockHeroSkill(skillId);
-    playUiSound('/se/cure.mp3');
+    playUiSound(UI_SKILL_UNLOCK_SOUND_SRC);
     setPendingSkillUnlockId(null);
     setSkillUnlockSparkles(true);
     window.setTimeout(() => setSkillUnlockSparkles(false), 1100);
@@ -2952,21 +3328,15 @@ export default function App() {
       desc: `${name}。装備や道具のクラフトに使える獣素材です。`,
     }];
   });
-  const shopItemsForDisplay = [
-    ...shopItems.filter(item => (
-      item.type === '買う' &&
-      item.stock > 0 &&
-      (getBattleConsumableItem(item.name)?.unlockRepaymentCount ?? 0) <= successfulRepaymentCount &&
-      (!isRecipeItemName(item.name) || (inventoryCounts[item.name] ?? 0) === 0)
-    )),
-    ...fishShopItems,
-    ...lumberShopItems,
-    ...oreShopItems,
-    ...farmHarvestShopItems,
-    ...battleMaterialShopItems,
-    ...shopItems.filter(item => item.type === '売る' && (inventoryCounts[item.name] ?? 0) > 0),
-  ];
-
+  const hasBoarProgress = collectionProgress.defeatedBeastIds.includes('boar') || (inventoryCounts['猪の牙'] ?? 0) > 0 || (inventoryCounts['猪の硬皮'] ?? 0) > 0;
+  const hasBearProgress = collectionProgress.defeatedBeastIds.includes('bear') || (inventoryCounts['熊の剛糸'] ?? 0) > 0;
+  const hasGiantBeastProgress = (
+    collectionProgress.defeatedBeastIds.includes('giant_bear') ||
+    collectionProgress.defeatedBeastIds.includes('mountain_lord') ||
+    (inventoryCounts['巨獣の鋼角'] ?? 0) > 0 ||
+    (inventoryCounts['巨獣の強剛糸'] ?? 0) > 0 ||
+    (inventoryCounts['神獣の絹糸'] ?? 0) > 0
+  );
   useEffect(() => {
     setShopItems(prev => {
       const next = prev.filter(item => !REMOVED_LEGACY_ITEM_NAMES.includes(item.name as typeof REMOVED_LEGACY_ITEM_NAMES[number]));
@@ -3716,6 +4086,7 @@ export default function App() {
         selectedFarmGirlStateForMenu.condition !== 'affected'
       );
       const selectedGirlIsCompanion = Boolean(selectedGirlData && companionGirlId === selectedGirlData.id);
+      const selectedCanCareForSeedling = Boolean(selectedGirlData && canCareForFarmGirlSeedling(selectedGirlData.id));
       const selectedCompanionHarvestModifier = getSkillAdjustedCompanionHarvestModifier(
         selectedGirlIsCompanion,
         selectedFarmGirlState?.trust ?? 0,
@@ -3783,6 +4154,22 @@ export default function App() {
         finger: isFarmCareActionUnlocked('finger'),
         fertilize: isFarmCareActionUnlocked('fertilize'),
       };
+      const handleSeedlingCareButtonPress = (action: FarmCareAction) => {
+        if (!selectedGirlData) return;
+        playFixSound();
+        setMenuFocusArea('content');
+        setMenuContentFocus('primary');
+        requestSeedlingCare(selectedGirlData.id, action);
+      };
+      const handleSeedlingCarePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
+        if (event.pointerType !== 'mouse') return;
+        const button = (event.target as HTMLElement).closest<HTMLButtonElement>('[data-farm-care-action]');
+        const action = button?.dataset.farmCareAction as FarmCareAction | undefined;
+        if (!action || !FARM_CARE_ACTION_ORDER.includes(action)) return;
+        event.preventDefault();
+        event.stopPropagation();
+        handleSeedlingCareButtonPress(action);
+      };
       return (
         <div className="relative grid h-full min-h-0 grid-cols-[minmax(0,1fr)_420px] gap-4">
           <div style={{ ...menuPanelBaseStyle, ...menuKeyboardFocusStyle(menuFocusArea === 'content' && menuContentFocus === 'secondary') }} className="flex min-h-0 flex-col gap-3 overflow-hidden">
@@ -3805,28 +4192,27 @@ export default function App() {
                     const farmGirl = farmGirls.find(entry => entry.girlId === girl.id);
                     const cardDisplay = getFarmGirlCardDisplay(girl.id);
                     return (
-                  <div
-                    key={girl.id}
-                    data-farm-girl-index={index}
-                    onMouseEnter={() => { if (selectedFarmGirlIndex !== index) playCursorSound(); }}
-                    className={`farm-girl-card-button relative overflow-hidden border rounded text-left ${selectedFarmGirlIndex === index ? 'is-selected border-white' : 'border-[#6b3b2f]'}`}
-                  >
+	                  <div
+	                    key={girl.id}
+	                    data-farm-girl-index={index}
+	                    className={`farm-girl-card-button relative overflow-hidden border rounded text-left ${selectedFarmGirlIndex === index ? 'is-selected border-white' : 'border-[#6b3b2f]'}`}
+	                  >
                     <button
                       type="button"
                       onPointerDown={(event) => {
-                        event.stopPropagation();
-                        playFixSound();
-                        setMenuFocusArea('content');
-                        setMenuContentFocus('secondary');
-                        setSelectedFarmGirlIndex(index);
+	                        event.stopPropagation();
+	                        playFixSound();
+	                        setMenuFocusArea('content');
+	                        setMenuContentFocus('secondary');
+	                        setSelectedFarmGirlIndex(index);
                       }}
-                      onClick={(event) => {
-                        if (event.detail !== 0) return;
-                        playFixSound();
-                        setMenuFocusArea('content');
-                        setMenuContentFocus('secondary');
-                        setSelectedFarmGirlIndex(index);
-                      }}
+                        onClick={(event) => {
+                          event.stopPropagation();
+	                          playFixSound();
+	                          setMenuFocusArea('content');
+	                          setMenuContentFocus('secondary');
+	                          setSelectedFarmGirlIndex(index);
+                        }}
                       className="absolute inset-0 cursor-pointer text-left"
                       aria-label={`${girl.name}を選択`}
                     >
@@ -3913,32 +4299,34 @@ export default function App() {
                     </div>
                   </div>
                 )}
-                {selectedGirlData && selectedFarmGirlStateForMenu?.state === 'growing' && (
+                {selectedGirlData && selectedCanCareForSeedling && (
                   <div className="col-span-2 rounded bg-black/25 px-4 py-4">
                     <div className="flex items-center justify-between gap-2">
                       <div className="text-[#c8a87a] text-sm font-bold">苗のお世話</div>
                       <div className="text-base font-bold text-[#ffd166]">品質 {selectedFarmGirlState.quality} / 100（{getFarmQualityLabel(selectedFarmGirlState.quality)}）</div>
                     </div>
                     <div className="mt-1 text-sm font-bold text-[#a3b18a]">品質は擬人化後の作物売値に反映されます。</div>
-                    <div className="mt-3 grid grid-cols-3 gap-3">
-                      <button
-                        type="button"
-                        onMouseEnter={() => { if (selectedFarmCareActionIndex !== 0) playCursorSound(); setSelectedFarmCareActionIndex(0); }}
-                        disabled={selectedSeedlingCareCounts.caress >= selectedSeedlingCareLimits.caress || currentAP <= 0}
-                        onClick={() => { playFixSound(); requestSeedlingCare(selectedGirlData.id, 'caress'); }}
-                        className={`min-h-[74px] rounded border px-2 py-2 text-center text-sm font-black text-[#fff1f7] transition hover:bg-[#8d4170] disabled:cursor-not-allowed disabled:opacity-45 ${selectedFarmCareActionIndex === 0 ? 'border-white bg-[#8d4170] ring-2 ring-[#ffd166]/70' : 'border-[#e5a6c8]/80 bg-[#6d3157]/80'}`}
-                      >
+                    <div className="mt-3 grid grid-cols-3 gap-3" onPointerDownCapture={handleSeedlingCarePointerDown}>
+	                      <button
+	                        type="button"
+	                        data-farm-care-action="caress"
+	                        onMouseEnter={() => { if (selectedFarmCareActionIndex !== 0) playCursorSound(); setMenuFocusArea('content'); setMenuContentFocus('primary'); setSelectedFarmCareActionIndex(0); }}
+	                        aria-disabled={selectedSeedlingCareCounts.caress >= selectedSeedlingCareLimits.caress || currentAP <= 0}
+	                        onClick={(event) => { if (event.detail === 0) handleSeedlingCareButtonPress('caress'); }}
+	                        className={`relative z-10 min-h-[74px] rounded border px-2 py-2 text-center text-sm font-black text-[#fff1f7] transition hover:bg-[#8d4170] pointer-events-auto ${(selectedSeedlingCareCounts.caress >= selectedSeedlingCareLimits.caress || currentAP <= 0) ? 'opacity-55' : ''} ${selectedFarmCareActionIndex === 0 ? 'border-white bg-[#8d4170] ring-2 ring-[#ffd166]/70' : 'border-[#e5a6c8]/80 bg-[#6d3157]/80'}`}
+	                      >
                         <span className="block">愛撫</span>
                         <span className="mt-1 block whitespace-nowrap">+3〜6</span>
                         <span className="block">品質</span>
                       </button>
-                      <button
-                        type="button"
-                        onMouseEnter={() => { if (selectedFarmCareActionIndex !== 1) playCursorSound(); setSelectedFarmCareActionIndex(1); }}
-                        disabled={!selectedSeedlingCareUnlocked.finger || selectedSeedlingCareCounts.finger >= selectedSeedlingCareLimits.finger || currentAP <= 0}
-                        onClick={() => { playFixSound(); requestSeedlingCare(selectedGirlData.id, 'finger'); }}
-                        className={`min-h-[74px] rounded border px-2 py-2 text-center text-sm font-black text-[#f6efff] transition hover:bg-[#62458b] disabled:cursor-not-allowed disabled:opacity-45 ${selectedFarmCareActionIndex === 1 ? 'border-white bg-[#62458b] ring-2 ring-[#ffd166]/70' : 'border-[#c7a6e5]/80 bg-[#4c356e]/80'}`}
-                      >
+	                      <button
+	                        type="button"
+	                        data-farm-care-action="finger"
+	                        onMouseEnter={() => { if (selectedFarmCareActionIndex !== 1) playCursorSound(); setMenuFocusArea('content'); setMenuContentFocus('primary'); setSelectedFarmCareActionIndex(1); }}
+	                        aria-disabled={!selectedSeedlingCareUnlocked.finger || selectedSeedlingCareCounts.finger >= selectedSeedlingCareLimits.finger || currentAP <= 0}
+	                        onClick={(event) => { if (event.detail === 0) handleSeedlingCareButtonPress('finger'); }}
+	                        className={`relative z-10 min-h-[74px] rounded border px-2 py-2 text-center text-sm font-black text-[#f6efff] transition hover:bg-[#62458b] pointer-events-auto ${(!selectedSeedlingCareUnlocked.finger || selectedSeedlingCareCounts.finger >= selectedSeedlingCareLimits.finger || currentAP <= 0) ? 'opacity-55' : ''} ${selectedFarmCareActionIndex === 1 ? 'border-white bg-[#62458b] ring-2 ring-[#ffd166]/70' : 'border-[#c7a6e5]/80 bg-[#4c356e]/80'}`}
+	                      >
                         <span className="block">指入れ</span>
                         {selectedSeedlingCareUnlocked.finger ? (
                           <>
@@ -3949,13 +4337,14 @@ export default function App() {
                           <span className="mt-1 block text-[11px] leading-tight">初回収穫で解放</span>
                         )}
                       </button>
-                      <button
-                        type="button"
-                        onMouseEnter={() => { if (selectedFarmCareActionIndex !== 2) playCursorSound(); setSelectedFarmCareActionIndex(2); }}
-                        disabled={!selectedSeedlingCareUnlocked.fertilize || selectedSeedlingCareCounts.fertilize >= selectedSeedlingCareLimits.fertilize || currentAP <= 0}
-                        onClick={() => { playFixSound(); requestSeedlingCare(selectedGirlData.id, 'fertilize'); }}
-                        className={`min-h-[74px] rounded border px-2 py-2 text-center text-sm font-black text-[#f1ffe4] transition hover:bg-[#517f34] disabled:cursor-not-allowed disabled:opacity-45 ${selectedFarmCareActionIndex === 2 ? 'border-white bg-[#517f34] ring-2 ring-[#ffd166]/70' : 'border-[#a3d977]/80 bg-[#3f6528]/80'}`}
-                      >
+	                      <button
+	                        type="button"
+	                        data-farm-care-action="fertilize"
+	                        onMouseEnter={() => { if (selectedFarmCareActionIndex !== 2) playCursorSound(); setMenuFocusArea('content'); setMenuContentFocus('primary'); setSelectedFarmCareActionIndex(2); }}
+	                        aria-disabled={!selectedSeedlingCareUnlocked.fertilize || selectedSeedlingCareCounts.fertilize >= selectedSeedlingCareLimits.fertilize || currentAP <= 0}
+	                        onClick={(event) => { if (event.detail === 0) handleSeedlingCareButtonPress('fertilize'); }}
+	                        className={`relative z-10 min-h-[74px] rounded border px-2 py-2 text-center text-sm font-black text-[#f1ffe4] transition hover:bg-[#517f34] pointer-events-auto ${(!selectedSeedlingCareUnlocked.fertilize || selectedSeedlingCareCounts.fertilize >= selectedSeedlingCareLimits.fertilize || currentAP <= 0) ? 'opacity-55' : ''} ${selectedFarmCareActionIndex === 2 ? 'border-white bg-[#517f34] ring-2 ring-[#ffd166]/70' : 'border-[#a3d977]/80 bg-[#3f6528]/80'}`}
+	                      >
                         <span className="block">肥料注入</span>
                         {selectedSeedlingCareUnlocked.fertilize ? (
                           <>
@@ -4161,7 +4550,9 @@ export default function App() {
 
     if (id === 'zukan') {
       const isFishZukan = zukanFilter === '魚';
-      const zukanFilters = ['苗娘', '魚'];
+      const isVideoZukan = zukanFilter === '動画';
+      const zukanFilters = ['娘', '魚', '動画'];
+      const unlockedZukanVideos = getUnlockedZukanVideoEntries();
 
       return (
         <div className="flex flex-col gap-3 h-full">
@@ -4181,12 +4572,40 @@ export default function App() {
           </div>
           <div
             style={{ ...menuPanelBaseStyle, ...menuKeyboardFocusStyle(menuFocusArea === 'content' && menuContentFocus === 'secondary') }}
-            className={isFishZukan
+            className={isVideoZukan
+              ? 'grid min-h-0 flex-1 grid-cols-3 auto-rows-[170px] gap-3 overflow-y-auto pr-2'
+              : isFishZukan
               ? 'grid min-h-0 flex-1 grid-cols-5 auto-rows-[190px] gap-2 overflow-y-auto pr-2'
               : 'grid min-h-0 flex-1 grid-cols-5 auto-rows-[200px] gap-3 overflow-y-auto pr-2'
             }
           >
-            {isFishZukan ? FISH_ZUKAN_ENTRIES.map((fish, index) => {
+            {isVideoZukan ? (
+              unlockedZukanVideos.length > 0 ? unlockedZukanVideos.map((entry, index) => (
+                <button
+                  key={entry.id}
+                  type="button"
+                  data-zukan-index={index}
+                  onPointerDown={() => { setMenuFocusArea('content'); setMenuContentFocus('secondary'); setSelectedZukanIndex(index); }}
+                  onMouseEnter={() => { if (selectedZukanIndex !== index) playCursorSound(); }}
+                  onClick={() => { setMenuFocusArea('content'); setMenuContentFocus('secondary'); setSelectedZukanIndex(index); openZukanVideo(entry); }}
+                  className={`relative overflow-hidden rounded-lg border p-3 text-left cursor-pointer transition-colors ${selectedZukanIndex === index ? 'bg-[#bc6c25]/45 border-white ring-4 ring-[#ffd166]/70 shadow-[0_0_18px_rgba(255,209,102,0.42)]' : 'bg-black/35 border-[#5a3010] hover:bg-[#3a2418]'}`}
+                >
+                  <div className="flex h-full flex-col justify-between">
+                    <div>
+                      <div className="text-xs font-black tracking-[0.18em] text-[#ffd166]">MOVIE</div>
+                      <div className="mt-2 text-xl font-black leading-tight text-[#fdf6e3]">{entry.title}</div>
+                    </div>
+                    <div className="rounded border border-[#ffd166]/45 bg-black/35 px-3 py-2 text-sm font-bold text-[#ffd166]">
+                      再生する
+                    </div>
+                  </div>
+                </button>
+              )) : (
+                <div className="col-span-3 flex h-full items-center justify-center rounded-lg border border-[#5a3010] bg-black/25 p-6 text-center text-[#c8a87a]">
+                  まだ見た動画がありません。
+                </div>
+              )
+            ) : isFishZukan ? FISH_ZUKAN_ENTRIES.map((fish, index) => {
               const caught = caughtFishIds.includes(fish.id);
               const hasSizeUpdate = fishSizeUpdatedIds.includes(fish.id);
               const sizeHistory = fishInventorySizes[fish.name] ?? [];
@@ -4689,6 +5108,57 @@ export default function App() {
 	      );
 	    }
 
+    if (id === 'achievement') {
+      const completionRate = getCollectionCompletionRate();
+      const trustEventUnlockCount = collectionProgress.unlockedEventIds.filter(eventId => eventId.includes('_trust_')).length;
+      const achievementRows = [
+        { title: 'はじめての苗娘', done: collectionProgress.collectedGirlIds.length >= 1, progress: `${collectionProgress.collectedGirlIds.length} / 1` },
+        { title: '娘カードコレクター', done: collectionProgress.collectedGirlIds.length >= GIRL_DATA.length, progress: `${collectionProgress.collectedGirlIds.length} / ${GIRL_DATA.length}` },
+        { title: '信頼の証', done: trustEventUnlockCount > 0, progress: `${trustEventUnlockCount} / ${GIRL_DATA.length * 5}` },
+        { title: '釣り入門', done: collectionProgress.caughtFishIds.length >= 1, progress: `${collectionProgress.caughtFishIds.length} / 1` },
+        { title: '魚図鑑マスター', done: collectionProgress.caughtFishIds.length >= FISH_ZUKAN_ENTRIES.length, progress: `${collectionProgress.caughtFishIds.length} / ${FISH_ZUKAN_ENTRIES.length}` },
+        { title: '動画の記憶', done: getUnlockedZukanVideoEntries().length >= 1, progress: `${getUnlockedZukanVideoEntries().length} / ${ZUKAN_VIDEO_ENTRIES.length}` },
+        { title: 'クラフト職人', done: collectionProgress.craftedItemIds.length >= CRAFT_RECIPE_IDS.length, progress: `${collectionProgress.craftedItemIds.length} / ${CRAFT_RECIPE_IDS.length}` },
+        { title: 'くるみの常連', done: kurumiTrustStars >= 5, progress: `${kurumiTrustStars} / 5` },
+        { title: '返済の先へ', done: storyCleared, progress: storyCleared ? '達成' : '未達成' },
+      ];
+      return (
+        <div className="grid h-full min-h-0 grid-cols-[330px_minmax(0,1fr)] gap-4">
+          <div style={{ ...menuPanelBaseStyle, ...menuKeyboardFocusStyle(menuFocusArea === 'content' && menuContentFocus === 'primary') }} className="flex min-h-0 flex-col overflow-hidden p-4">
+            <div style={menuTinyLabelStyle}>ACHIEVEMENT</div>
+            <div className="mt-1 text-2xl font-black text-[#fff7dc]">アチーブメント</div>
+            <div className="mt-4 rounded-xl border border-[#ffd166]/45 bg-black/30 p-4 text-center">
+              <div className="text-sm font-bold text-[#c8a87a]">総合達成率</div>
+              <div className="mt-1 text-4xl font-black text-[#ffd166]">{completionRate}%</div>
+            </div>
+            <div className="mt-4 grid gap-2 text-sm font-bold text-[#c8a87a]">
+              <div>娘 {collectionProgress.collectedGirlIds.length} / {GIRL_DATA.length}</div>
+              <div>魚 {collectionProgress.caughtFishIds.length} / {FISH_ZUKAN_ENTRIES.length}</div>
+              <div>動画 {getUnlockedZukanVideoEntries().length} / {ZUKAN_VIDEO_ENTRIES.length}</div>
+              <div>くるみ星 {kurumiTrustStars} / 5</div>
+            </div>
+          </div>
+          <div style={{ ...menuPanelBaseStyle, ...menuKeyboardFocusStyle(menuFocusArea === 'content' && menuContentFocus === 'secondary') }} className="min-h-0 overflow-y-auto p-4">
+            <div className="grid gap-3">
+              {achievementRows.map(row => (
+                <div key={row.title} className={`rounded-xl border px-4 py-3 ${row.done ? 'border-[#ffd166]/75 bg-[#5b3a12]/55' : 'border-[#5a3010] bg-black/30'}`}>
+                  <div className="flex items-center justify-between gap-4">
+                    <div className="min-w-0">
+                      <div className={`text-lg font-black ${row.done ? 'text-[#fff1a8]' : 'text-[#c8a87a]'}`}>{row.title}</div>
+                      <div className="mt-1 text-sm font-bold text-[#dda15e]">{row.progress}</div>
+                    </div>
+                    <div className={`shrink-0 rounded-full border px-3 py-1 text-sm font-black ${row.done ? 'border-[#ffd166] bg-[#ffd166] text-[#2d1b15]' : 'border-[#76502c] bg-black/35 text-[#8f7b63]'}`}>
+                      {row.done ? '達成' : '未達成'}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      );
+    }
+
 	    const systemActions = [
       { label: 'セーブ', bgImage: '/img/save.jpg', action: () => setSystemSlotMode('save') },
       { label: 'ロード', bgImage: '/img/load.jpg', action: () => setSystemSlotMode('load') },
@@ -4798,6 +5268,12 @@ export default function App() {
   useEffect(() => { menuFocusAreaRef.current = menuFocusArea; }, [menuFocusArea]);
   useEffect(() => { menuContentFocusRef.current = menuContentFocus; }, [menuContentFocus]);
   useEffect(() => { itemMenuTabRef.current = itemMenuTab; }, [itemMenuTab]);
+  useEffect(() => () => {
+    if (farmCareCinematicTimerRef.current !== null) {
+      window.clearTimeout(farmCareCinematicTimerRef.current);
+      farmCareCinematicTimerRef.current = null;
+    }
+  }, []);
   useEffect(() => { selectedItemNameRef.current = selectedItemName; }, [selectedItemName]);
   useEffect(() => { selectedEquipmentSlotRef.current = selectedEquipmentSlot; }, [selectedEquipmentSlot]);
   useEffect(() => { selectedEquipmentOptionIndexRef.current = selectedEquipmentOptionIndex; }, [selectedEquipmentOptionIndex]);
@@ -4816,6 +5292,11 @@ export default function App() {
   useEffect(() => { equippedItemsRef.current = equippedItems; }, [equippedItems]);
 
   const [sleepPromptVisible, setSleepPromptVisible] = useState(false);
+  const [bathPromptVisible, setBathPromptVisible] = useState(false);
+  const [bathSequenceActive, setBathSequenceActive] = useState(false);
+  const [bathNoticeMessage, setBathNoticeMessage] = useState<string | null>(null);
+  const [isCompanionWaitingForBath, setIsCompanionWaitingForBath] = useState(false);
+  const [bathForcedDisplayDirection, setBathForcedDisplayDirection] = useState<PlayerDirection | null>(null);
   const [craftPromptVisible, setCraftPromptVisible] = useState(false);
   const [fishingPromptVisible, setFishingPromptVisible] = useState(false);
   const [miningPromptVisible, setMiningPromptVisible] = useState(false);
@@ -4889,6 +5370,7 @@ export default function App() {
   const [fishingResultSizeCm, setFishingResultSizeCm] = useState('');
   const [fishingResultImageSrc, setFishingResultImageSrc] = useState(FISHING_SCENE_RESULT_SRC);
   const [fishingResultIsNewRecord, setFishingResultIsNewRecord] = useState(false);
+  const [mermaidLetterNotice, setMermaidLetterNotice] = useState<string | null>(null);
   const [isFishingHitSplashActive, setIsFishingHitSplashActive] = useState(false);
   const [isFishingHitIntroActive, setIsFishingHitIntroActive] = useState(false);
   const [isFishingNushiIntroActive, setIsFishingNushiIntroActive] = useState(false);
@@ -4917,6 +5399,7 @@ export default function App() {
   const [loggingComboEffectKey, setLoggingComboEffectKey] = useState(0);
   const [loggingResultRewards, setLoggingResultRewards] = useState<ReturnType<typeof createLumberRewards>>([]);
   const [loggingResultSawName, setLoggingResultSawName] = useState('');
+  const [loggingDifficultyTier, setLoggingDifficultyTier] = useState<LoggingDifficultyTier>('normal');
   const loggingComboEffectTimerRef = useRef<number | null>(null);
   useEffect(() => () => {
     if (loggingComboEffectTimerRef.current !== null) {
@@ -4960,10 +5443,63 @@ export default function App() {
   const [kurumiShopOpen, setKurumiShopOpen] = useState(false);
   const [selectedShopItemIndex, setSelectedShopItemIndex] = useState(0);
   const [selectedShopControl, setSelectedShopControl] = useState<'items' | 'action' | 'close'>('items');
+  const isProgressionRecipeUnlocked = (recipeName: string) => {
+    switch (recipeName) {
+      case '【レシピ】木剣':
+      case '【レシピ】毛皮の服':
+        return hasBeastPremonition;
+      case '【レシピ】丈夫なつるはし':
+        return miningTutorialCompleted;
+      case '【レシピ】丈夫なのこぎり':
+        return loggingTutorialCompleted;
+      case '【レシピ】獣殺し':
+        return hasBoarProgress;
+      case '【レシピ】剛牙の鎧':
+        return hasBearProgress || successfulRepaymentCount >= 2;
+      case '【レシピ】高級つるはし':
+      case '【レシピ】高級のこぎり':
+      case '【レシピ】高級釣竿':
+        return hasBoarProgress || successfulRepaymentCount >= 2;
+      case '【レシピ】天の裁き':
+        return hasGiantBeastProgress;
+      case '【レシピ】神域の加護':
+        return hasGiantBeastProgress || mountainLordAttackPending;
+      case '【レシピ】伝説のつるはし':
+      case '【レシピ】伝説ののこぎり':
+      case '【レシピ】伝説の釣り竿':
+        return hasGiantBeastProgress || storyCleared || debtAmount <= 0;
+      case '【レシピ】丈夫な釣竿':
+        return fishingTutorialCompleted;
+      default:
+        return false;
+    }
+  };
+  const progressionRecipeShopItems = PROGRESSION_RECIPE_SHOP_ITEMS.filter(item => (
+    isProgressionRecipeUnlocked(item.name) &&
+    (inventoryCounts[item.name] ?? 0) === 0 &&
+    !collectionProgress.craftedItemIds.includes(item.name)
+  ));
+  const shopItemsForDisplay = [
+    ...shopItems.filter(item => (
+      item.type === '買う' &&
+      item.stock > 0 &&
+      (getBattleConsumableItem(item.name)?.unlockRepaymentCount ?? 0) <= successfulRepaymentCount &&
+      (!isRecipeItemName(item.name) || (inventoryCounts[item.name] ?? 0) === 0)
+    )),
+    ...progressionRecipeShopItems,
+    ...fishShopItems,
+    ...lumberShopItems,
+    ...oreShopItems,
+    ...farmHarvestShopItems,
+    ...battleMaterialShopItems,
+    ...shopItems.filter(item => item.type === '売る' && (inventoryCounts[item.name] ?? 0) > 0),
+  ];
   const [isShopTradePose, setIsShopTradePose] = useState(false);
   const [shopNoticeMessage, setShopNoticeMessage] = useState('');
   const [activeKurumiTradeReward, setActiveKurumiTradeReward] = useState<KurumiTradeReward | null>(null);
   const [shownKurumiTradeRewardThresholds, setShownKurumiTradeRewardThresholds] = useState<number[]>([]);
+  const [farmTrustEventNotice, setFarmTrustEventNotice] = useState<FarmTrustEventNotice | null>(null);
+  const [activeZukanVideo, setActiveZukanVideo] = useState<(typeof ZUKAN_VIDEO_ENTRIES)[number] | null>(null);
   const [kurumiIntroOpen, setKurumiIntroOpen] = useState(false);
   const [kurumiIntroMessage, setKurumiIntroMessage] = useState(KURUMI_INTRO_FIRST_MESSAGE);
   const [kurumiIntroSelectedIndex, setKurumiIntroSelectedIndex] = useState(0);
@@ -4990,6 +5526,9 @@ export default function App() {
   const [sleepFadeOpacity, setSleepFadeOpacity] = useState(0);
   const [isSleepSequenceActive, setIsSleepSequenceActive] = useState(false);
   const sleepPromptBlockedRef = useRef(false);
+  const bathPromptBlockedRef = useRef(false);
+  const bathSequenceTimersRef = useRef<number[]>([]);
+  const bathReturnPositionRef = useRef<{ x: number; y: number } | null>(null);
   const craftPromptBlockedRef = useRef(false);
   const fishingPromptBlockedRef = useRef(false);
   const miningPromptBlockedRef = useRef(false);
@@ -5006,22 +5545,25 @@ export default function App() {
   const fishingReelAudioRef = useRef<HTMLAudioElement | null>(null);
   const isFishingKeepPressedRef = useRef(false);
   const miningMiniGameStartedAtRef = useRef<number | null>(null);
-  const miningFinishTimerRef = useRef<number | null>(null);
   const miningCountdownTimerRef = useRef<number | null>(null);
+  const miningGameDurationMsRef = useRef(MINING_GAME_DURATION_MS);
   const miningGaugeRef = useRef(0);
   const miningHadGoodRef = useRef(false);
   const miningFullComboRef = useRef(true);
   const miningComboRef = useRef(0);
+  const miningRecentInputsRef = useRef<{ direction: MiningDirection; elapsed: number }[]>([]);
   const miningBgmRef = useRef<HTMLAudioElement | null>(null);
   const miningBgmSourceRef = useRef<string | null>(null);
   const miningPausedMainBgmRef = useRef(false);
   const miningComboEffectTimerRef = useRef<number | null>(null);
   const miningSparkleTimerRef = useRef<number | null>(null);
   const miningRhythmRecordingStartedAtRef = useRef<number | null>(null);
-  const miningRhythmRecordingSourceRef = useRef<string>(MINING_BGM_SOURCES.normal);
+  const miningRhythmRecordingSourceRef = useRef<string>(DEFAULT_MINING_BGM_SOURCE);
+  const miningRhythmRecordingDurationMsRef = useRef(MINING_EXTENDED_GAME_DURATION_MS);
   const miningRhythmRecordedTimingsRef = useRef<number[]>([]);
   const miningRhythmAudioRef = useRef<HTMLAudioElement | null>(null);
   const miningRhythmRecordingTimerRef = useRef<number | null>(null);
+  const miningRhythmCountdownTimerRef = useRef<number | null>(null);
   const miningSeAudioRefs = useRef<Partial<Record<keyof typeof MINING_SE_SOURCES, HTMLAudioElement>>>({});
   const movementLockedRef = useRef(false);
   const lastWarpedAtRef = useRef(0);
@@ -5209,14 +5751,14 @@ export default function App() {
   }, [debugDialogueOverrides]);
 
   useEffect(() => {
-     movementLockedRef.current = sleepPromptVisible || craftPromptVisible || fishingPromptVisible || miningPromptVisible || loggingPromptVisible || fishingMiniGameOpen || miningMiniGameOpen || miningRhythmRecording || craftMiniGameOpen || fishingTutorialOpen || fishingTutorialEndingOpen || sawCraftTutorialIntroOpen || sawCraftTutorialShedDialogueOpen || gatheringTutorialOpen || miningTutorialOpen || kurumiShopOpen || kurumiIntroOpen || seedPlantTutorialOpen || seedAfterPlantTutorialOpen || isSleepSequenceActive || beastAttackPending || repaymentEventPending || battlePreviewOpen || farmSlotInteractionStage !== null;
-  }, [sleepPromptVisible, craftPromptVisible, fishingPromptVisible, miningPromptVisible, loggingPromptVisible, fishingMiniGameOpen, miningMiniGameOpen, miningRhythmRecording, craftMiniGameOpen, fishingTutorialOpen, fishingTutorialEndingOpen, sawCraftTutorialIntroOpen, sawCraftTutorialShedDialogueOpen, gatheringTutorialOpen, miningTutorialOpen, kurumiShopOpen, kurumiIntroOpen, seedPlantTutorialOpen, seedAfterPlantTutorialOpen, isSleepSequenceActive, beastAttackPending, repaymentEventPending, battlePreviewOpen, farmSlotInteractionStage]);
+     movementLockedRef.current = sleepPromptVisible || bathPromptVisible || bathSequenceActive || craftPromptVisible || fishingPromptVisible || miningPromptVisible || loggingPromptVisible || fishingMiniGameOpen || miningMiniGameOpen || miningRhythmRecording || craftMiniGameOpen || fishingTutorialOpen || fishingTutorialEndingOpen || sawCraftTutorialIntroOpen || sawCraftTutorialShedDialogueOpen || gatheringTutorialOpen || miningTutorialOpen || kurumiShopOpen || kurumiIntroOpen || seedPlantTutorialOpen || seedAfterPlantTutorialOpen || isSleepSequenceActive || beastAttackPending || repaymentEventPending || storyEndingVideoOpen || activeZukanVideo !== null || battlePreviewOpen || farmSlotInteractionStage !== null;
+  }, [sleepPromptVisible, bathPromptVisible, bathSequenceActive, craftPromptVisible, fishingPromptVisible, miningPromptVisible, loggingPromptVisible, fishingMiniGameOpen, miningMiniGameOpen, miningRhythmRecording, craftMiniGameOpen, fishingTutorialOpen, fishingTutorialEndingOpen, sawCraftTutorialIntroOpen, sawCraftTutorialShedDialogueOpen, gatheringTutorialOpen, miningTutorialOpen, kurumiShopOpen, kurumiIntroOpen, seedPlantTutorialOpen, seedAfterPlantTutorialOpen, isSleepSequenceActive, beastAttackPending, repaymentEventPending, storyEndingVideoOpen, activeZukanVideo, battlePreviewOpen, farmSlotInteractionStage]);
 
   useEffect(() => {
-     if (sleepPromptVisible || craftPromptVisible || fishingPromptVisible || miningPromptVisible || loggingPromptVisible) {
+     if (sleepPromptVisible || bathPromptVisible || craftPromptVisible || fishingPromptVisible || miningPromptVisible || loggingPromptVisible) {
         setConfirmPromptChoice('yes');
      }
-  }, [sleepPromptVisible, craftPromptVisible, fishingPromptVisible, miningPromptVisible, loggingPromptVisible]);
+  }, [sleepPromptVisible, bathPromptVisible, craftPromptVisible, fishingPromptVisible, miningPromptVisible, loggingPromptVisible]);
 
   useEffect(() => {
      if (!fishingMiniGameOpen) {
@@ -5506,14 +6048,12 @@ export default function App() {
         }
         setInventoryCounts(prev => ({ ...prev, [caughtFish.name]: (prev[caughtFish.name] ?? 0) + 1 }));
         incrementEndlessStat('totalFishCaught');
-        if (isEndlessNurseryMode()) {
-          setCollectionProgress(previous => ({
-            ...previous,
-            caughtFishIds: previous.caughtFishIds.includes(caughtFish.id)
-              ? previous.caughtFishIds
-              : [...previous.caughtFishIds, caughtFish.id],
-          }));
-        }
+        setCollectionProgress(previous => ({
+          ...previous,
+          caughtFishIds: previous.caughtFishIds.includes(caughtFish.id)
+            ? previous.caughtFishIds
+            : [...previous.caughtFishIds, caughtFish.id],
+        }));
         setFishInventorySizes(prev => ({
           ...prev,
           [caughtFish.name]: [...(prev[caughtFish.name] ?? []), sizeValue],
@@ -5529,7 +6069,13 @@ export default function App() {
           ? `なんとヌシが釣れた！${caughtFish.name}を釣り上げた。`
           : `お見事！${caughtFish.name}を釣り上げた。`;
         setFishingResultText(catchResultText);
-        setDialogMessage(catchResultText);
+        if (caughtFish.name === MERMAID_LETTER_ITEM_NAME && !collectionProgress.unlockedEventIds.includes(MERMAID_LETTER_EVENT_ID)) {
+          unlockCollectionEvent(MERMAID_LETTER_EVENT_ID);
+          setMermaidLetterNotice(MERMAID_LETTER_HINT_MESSAGE);
+          setDialogMessage(catchResultText);
+        } else {
+          setDialogMessage(catchResultText);
+        }
         if (isFishingTutorialRun) setFishingTutorialResult('success');
         if (!isFishingTutorialRun) consumeAPForAction();
         playUiSound(IWANA_SPLASH_SOUND_SRC);
@@ -5555,7 +6101,7 @@ export default function App() {
         playVoiceSound(FISH_LOSE_SOUND_SRC);
         setFishingMiniGameStage('result');
      }
-  }, [caughtFishIds, currentAP, fishBestSizes, fishingBiteCombo, fishingBiteScore, fishingFishHp, fishingTargetFish, fishingTargetIsNushi, fishingTargetSizeValue, fishingTension, fishingMiniGameOpen, fishingMiniGameStage, isFishingTutorialRun, maxAPPerTimeSlot, timeOfDay]);
+  }, [caughtFishIds, collectionProgress.unlockedEventIds, currentAP, fishBestSizes, fishingBiteCombo, fishingBiteScore, fishingFishHp, fishingTargetFish, fishingTargetIsNushi, fishingTargetSizeValue, fishingTension, fishingMiniGameOpen, fishingMiniGameStage, isFishingTutorialRun, maxAPPerTimeSlot, timeOfDay]);
 
   const TILE_SIZE = 15;
   const GRID_COLS = 128; // 1920 / 15
@@ -6021,7 +6567,15 @@ export default function App() {
 	            : loadedHarvestedGirlCount >= 1
 	              ? 2
 	              : 1;
-	          setFarmCareUnlockStage(normalizeFarmCareUnlockStage(data.farmCareUnlockStage, inferredFarmCareUnlockStage));
+	          const loadedFarmCareUnlockStage = normalizeFarmCareUnlockStage(data.farmCareUnlockStage, inferredFarmCareUnlockStage);
+	          setFarmCareUnlockStage(loadedFarmCareUnlockStage);
+	          setFarmCareFingerUnlockedDay(
+	            typeof data.farmCareFingerUnlockedDay === 'number' &&
+	            Number.isInteger(data.farmCareFingerUnlockedDay) &&
+	            data.farmCareFingerUnlockedDay > 0
+	              ? data.farmCareFingerUnlockedDay
+	              : null
+	          );
 	          setFarmCareUnlockNoticeAction(null);
 	          const loadedOwnedGirlSeeds = normalizeOwnedGirlSeeds(data.ownedGirlSeeds);
 	          setOwnedGirlSeeds(loadedOwnedGirlSeeds);
@@ -6030,7 +6584,13 @@ export default function App() {
 	              ? data.hasReceivedKurumiStarterSeeds
 	              : INITIAL_OWNED_GIRL_SEEDS.some(seedId => loadedOwnedGirlSeeds.includes(seedId))
 	          );
-	          setSeedAfterPlantTutorialCompleted(typeof data.seedAfterPlantTutorialCompleted === 'boolean' ? data.seedAfterPlantTutorialCompleted : false);
+	          const loadedSeedAfterPlantTutorialCompleted = typeof data.seedAfterPlantTutorialCompleted === 'boolean' ? data.seedAfterPlantTutorialCompleted : false;
+	          setSeedAfterPlantTutorialCompleted(loadedSeedAfterPlantTutorialCompleted);
+	          setHasKurumiNotebook(
+	            typeof data.hasKurumiNotebook === 'boolean'
+	              ? data.hasKurumiNotebook
+	              : false
+	          );
 	          setFarmFieldSlots(normalizeFarmFieldSlots(data.farmFieldSlots, loadedDifficulty));
 	          setCurrentAP(
 	            typeof data.currentAP === 'number' && Number.isInteger(data.currentAP) && data.currentAP >= 0
@@ -6292,6 +6852,7 @@ export default function App() {
           setBeastAttackPending(false);
           setCompanionGirlId(null);
           setFarmCareUnlockStage(1);
+          setFarmCareFingerUnlockedDay(null);
           setFarmCareUnlockNoticeAction(null);
           setCurrentWeeklyInterestRate(createWeeklyInterestRate(difficultyOption.id, 0, 0));
           setInterestRateCycleIndex(0);
@@ -6304,6 +6865,7 @@ export default function App() {
           setSeedPlantTutorialOpen(false);
           setSeedPlantTutorialStepIndex(0);
           setSeedAfterPlantTutorialCompleted(false);
+          setHasKurumiNotebook(false);
           setSeedAfterPlantTutorialOpen(false);
           setSeedAfterPlantTutorialStepIndex(0);
           setFarmFieldSlots(createInitialFarmFieldSlots(difficultyOption.id));
@@ -6418,8 +6980,10 @@ export default function App() {
     interestRateCycleIndex,
     farmGirls,
     farmCareUnlockStage,
+    farmCareFingerUnlockedDay,
     ownedGirlSeeds,
     hasReceivedKurumiStarterSeeds,
+    hasKurumiNotebook,
     seedAfterPlantTutorialCompleted,
     farmFieldSlots,
     currentAP,
@@ -6559,11 +7123,12 @@ export default function App() {
       });
   };
 
-  const returnToTitle = () => {
-    playFixSound();
+  const returnToTitle = (playSound = true) => {
+    if (playSound) playFixSound();
     setSystemSlotMode('none');
     setTitlePanelMode('none');
     setMenuOpen(false);
+    setStoryEndingVideoOpen(false);
     titleRandomVoicePlayedRef.current = false;
     setBootMode('title');
   };
@@ -6630,8 +7195,10 @@ export default function App() {
     interestRateCycleIndex,
     farmGirls,
     farmCareUnlockStage,
+    farmCareFingerUnlockedDay,
     ownedGirlSeeds,
     hasReceivedKurumiStarterSeeds,
+    hasKurumiNotebook,
     farmFieldSlots,
     difficulty,
     zones,
@@ -6855,7 +7422,17 @@ export default function App() {
     setSelectedBattleItemIndex(0);
     setSelectedBattleItemTargetIndex(0);
     const selectedBeast = BEAST_BATTLE_DATA.find(beast => beast.id === battleTestBeastId) ?? BEAST_BATTLE_DATA[0];
-    const testBeasts = [createBattleUnitFromBeast(selectedBeast), null, null];
+    const testBeasts = battleTestBeastId === 'normal_pack'
+      ? ['boar', 'bear', 'great_fang_beast']
+          .map(beastId => BEAST_BATTLE_DATA.find(beast => beast.id === beastId as BeastId))
+          .filter((beast): beast is (typeof BEAST_BATTLE_DATA)[number] => Boolean(beast))
+          .map((beast, index) => createBattleUnitFromBeast(beast, index))
+      : battleTestBeastId === 'hard_pack'
+        ? ['giant_bear', 'giant_bear', 'giant_bear']
+            .map(beastId => BEAST_BATTLE_DATA.find(beast => beast.id === beastId as BeastId))
+            .filter((beast): beast is (typeof BEAST_BATTLE_DATA)[number] => Boolean(beast))
+            .map((beast, index) => createBattleUnitFromBeast(beast, index))
+        : [createBattleUnitFromBeast(selectedBeast), null, null];
     setBattlePreviewState(createInitialBattlePreviewState(equippedItems, testBeasts, battleTestPartnerId || null, 'test', heroLevel, unlockedHeroSkills));
     setBattleIntroPhase(3);
     setBattlePreviewOpen(true);
@@ -7631,7 +8208,7 @@ export default function App() {
         ...previous,
         defeatedBeastIds: Array.from(new Set([
           ...previous.defeatedBeastIds,
-          ...defeatedBeasts.map(beast => beast.id),
+          ...defeatedBeasts.map(beast => getBattleBaseBeastId(beast.id)),
         ])),
       }));
     }
@@ -7935,6 +8512,10 @@ export default function App() {
 
   const playCursorSound = () => playUiSound(UI_CURSOR_SOUND_SRC);
   const playFixSound = () => playUiSound(UI_FIX_SOUND_SRC);
+  const showFarmCareUnlockNotice = (action: FarmCareAction) => {
+    playUiSound(UI_CLICK_SOUND_SRC);
+    setFarmCareUnlockNoticeAction(action);
+  };
   const currentDay = Math.floor(turn / 4) + 1;
   const daysUntilRepayment = repaymentCycleDays - ((currentDay - 1) % repaymentCycleDays);
   const currentRepaymentCycleIndex = Math.floor((currentDay - 1) / repaymentCycleDays);
@@ -7999,6 +8580,54 @@ export default function App() {
     const daysUntilHarvest = Math.max(0, crop.harvestIntervalDays - daysSinceHarvest);
     return { canHarvest: daysUntilHarvest <= 0, daysUntilHarvest, crop, farmGirl };
   };
+  const canCareForFarmGirlSeedling = (girlId: string) => {
+    const farmGirl = farmGirls.find(girl => girl.girlId === girlId);
+    const crop = FARM_GIRL_CROP_DATA.find(entry => entry.girlId === girlId);
+    const fieldSlot = farmFieldSlots.find(slot => slot.girlId === girlId);
+    if (!farmGirl || !crop) return false;
+    if (fieldSlot?.state === 'growing' || farmGirl.state === 'growing') return true;
+    if (fieldSlot?.state === 'appeared' || farmGirl.state === 'appeared') {
+      return !getFarmGirlHarvestInfo(girlId).canHarvest;
+    }
+    return false;
+  };
+  const finishFarmGirlRevealAfterVoice = (
+    girlId: string,
+    voiceAudio: HTMLAudioElement | null,
+    unlockNoticeAction: FarmCareAction | null,
+  ) => {
+    const revealMinMs = 3200;
+    let minElapsed = false;
+    let voiceEnded = !voiceAudio;
+    let didFinish = false;
+    const finish = () => {
+      if (didFinish || !minElapsed || !voiceEnded) return;
+      didFinish = true;
+      setFarmGirlRevealSpotlightId(currentGirlId => currentGirlId === girlId ? null : currentGirlId);
+      if (unlockNoticeAction) {
+        setPendingFarmCareUnlockNoticeAction(null);
+        showFarmCareUnlockNotice(unlockNoticeAction);
+      }
+    };
+    window.setTimeout(() => {
+      minElapsed = true;
+      finish();
+    }, revealMinMs);
+    if (voiceAudio) {
+      window.setTimeout(() => {
+        voiceEnded = true;
+        finish();
+      }, 20000);
+      voiceAudio.addEventListener('ended', () => {
+        voiceEnded = true;
+        finish();
+      }, { once: true });
+      voiceAudio.addEventListener('error', () => {
+        voiceEnded = true;
+        finish();
+      }, { once: true });
+    }
+  };
   const harvestFarmGirl = (girlId: string) => {
     const girl = GIRL_DATA.find(entry => entry.id === girlId);
     const { canHarvest, daysUntilHarvest, crop, farmGirl } = getFarmGirlHarvestInfo(girlId);
@@ -8030,6 +8659,20 @@ export default function App() {
       nextTrust >= event.trust && !(farmGirl?.unlockedTrustEventIds ?? []).includes(event.eventId)
     )) ?? [];
     const isFirstHarvestReveal = !farmGirl?.cardRevealed;
+    const newlyUnlockedCareAction: FarmCareAction | null = farmCareUnlockStage === 1
+      ? 'finger'
+      : farmCareUnlockStage === 2 && farmCareFingerUnlockedDay !== currentDay
+        ? 'fertilize'
+        : null;
+    const effectiveQuality = getSkillAdjustedFarmQuality(farmGirl?.quality ?? 50, farmGirl);
+    const estimatedSellPrice = crop
+      ? getFarmHarvestSellPrice(
+        crop,
+        effectiveQuality,
+        getFarmTrustBonus(trustBeforeHarvest).sellMultiplier,
+        getHeroSkillMultiplier('farm_sell_up', 8) * getHybridBlessingMultiplier(farmGirl),
+      ) * harvestAmount
+      : 0;
     setInventoryCounts(prev => ({
       ...prev,
       [crop.harvestItemName]: (prev[crop.harvestItemName] ?? 0) + harvestAmount,
@@ -8051,13 +8694,22 @@ export default function App() {
     if (isFirstHarvestReveal) {
       setRevealingFarmGirlIds(previous => Array.from(new Set([...previous, girlId])));
       setFarmGirlRevealSpotlightId(girlId);
-      playVoiceSound(FARM_GIRL_SEED_VOICE_SRCS[girlId]);
+      const revealVoiceAudio = playVoiceSound(FARM_GIRL_SEED_VOICE_SRCS[girlId]);
       window.setTimeout(() => {
         setRevealingFarmGirlIds(previous => previous.filter(revealingGirlId => revealingGirlId !== girlId));
       }, 1400);
-      window.setTimeout(() => {
-        setFarmGirlRevealSpotlightId(currentGirlId => currentGirlId === girlId ? null : currentGirlId);
-      }, 3200);
+      finishFarmGirlRevealAfterVoice(girlId, revealVoiceAudio, newlyUnlockedCareAction);
+    } else {
+      playUiSound('/se/cure.mp3');
+      setFarmHarvestResultNotice({
+        girlName: girl?.girlName ?? crop.seedName,
+        itemName: crop.harvestItemName,
+        amount: harvestAmount,
+        trustGain,
+        quality: effectiveQuality,
+        qualityLabel: getFarmQualityLabel(effectiveQuality),
+        estimatedSellPrice,
+      });
     }
     incrementEndlessStat('totalHarvestCount', harvestAmount);
     if (newlyUnlockedTrustEvents.length > 0 && isEndlessNurseryMode()) {
@@ -8065,6 +8717,8 @@ export default function App() {
         ...previous,
         totalTrustEventsUnlocked: previous.totalTrustEventsUnlocked + newlyUnlockedTrustEvents.length,
       }));
+    }
+    if (newlyUnlockedTrustEvents.length > 0) {
       setCollectionProgress(previous => ({
         ...previous,
         unlockedEventIds: Array.from(new Set([
@@ -8072,41 +8726,51 @@ export default function App() {
           ...newlyUnlockedTrustEvents.map(event => event.eventId),
         ])),
       }));
+      const noticeEvent = newlyUnlockedTrustEvents[0];
+      setFarmTrustEventNotice({
+        girlName: girl?.girlName ?? crop.seedName,
+        trust: noticeEvent.trust,
+        label: noticeEvent.label,
+      });
     }
-    const newlyUnlockedCareAction: FarmCareAction | null = farmCareUnlockStage === 1
-      ? 'finger'
-      : farmCareUnlockStage === 2
-        ? 'fertilize'
-        : null;
     if (newlyUnlockedCareAction) {
       setFarmCareUnlockStage(previous => normalizeFarmCareUnlockStage(previous + 1, 3));
-      setFarmCareUnlockNoticeAction(newlyUnlockedCareAction);
+      if (newlyUnlockedCareAction === 'finger') {
+        setFarmCareFingerUnlockedDay(currentDay);
+      }
+      if (isFirstHarvestReveal) {
+        setPendingFarmCareUnlockNoticeAction(newlyUnlockedCareAction);
+      } else {
+        showFarmCareUnlockNotice(newlyUnlockedCareAction);
+      }
     }
     setDialogMessage(
-      newlyUnlockedCareAction
+      isFirstHarvestReveal
+        ? `${girl?.girlName ?? crop.seedName}が初めて収穫できた！\n苗カードが娘カードに変化しました。\n${getFarmGirlSeedbedBirthMessage(crop.seedName)}${newlyUnlockedCareAction ? `\n新しいお世話「${FARM_CARE_UNLOCK_ACTION_LABELS[newlyUnlockedCareAction]}」が使えるようになりました。` : ''}`
+        : newlyUnlockedCareAction
         ? `新しいお世話「${FARM_CARE_UNLOCK_ACTION_LABELS[newlyUnlockedCareAction]}」が使えるようになりました。`
-        : isFirstHarvestReveal
-        ? `${girl?.girlName ?? crop.seedName}が初めて収穫できた！\n苗カードが娘カードに変化しました。`
         : newlyUnlockedTrustEvents.length > 0
         ? `${girl?.girlName ?? crop.seedName}との信頼イベントが解放された！`
         : `${girl?.girlName ?? crop.seedName}から${crop.harvestItemName}を${harvestAmount}個収穫しました。信頼度 +${trustGain}`
     );
   };
   const careForSeedling = (girlId: string, action: FarmCareAction) => {
-    const farmGirl = farmGirls.find(girl => girl.girlId === girlId);
-    const crop = FARM_GIRL_CROP_DATA.find(entry => entry.girlId === girlId);
-    const fieldSlot = farmFieldSlots.find(slot => slot.girlId === girlId);
-    const isGrowingInField = fieldSlot?.state === 'growing';
-    if (!isFarmCareActionUnlocked(action)) {
+	    const farmGirl = farmGirls.find(girl => girl.girlId === girlId);
+	    const crop = FARM_GIRL_CROP_DATA.find(entry => entry.girlId === girlId);
+	    const fieldSlot = farmFieldSlots.find(slot => slot.girlId === girlId);
+	    if (!isFarmCareActionUnlocked(action)) {
       setDialogMessage(getFarmCareLockedMessage(action));
+      setShowDialog(true);
       return;
     }
-    if (!farmGirl || !crop || (!isGrowingInField && farmGirl.state !== 'growing')) {
-      setDialogMessage('成長中の苗娘にだけお世話できます。');
+    if (!farmGirl || !crop || !canCareForFarmGirlSeedling(girlId)) {
+      setDialogMessage('次回収穫を待っている苗娘にだけお世話できます。');
+      setShowDialog(true);
       return;
     }
     if (currentAP <= 0) {
       setDialogMessage(EXHAUSTED_ACTION_MESSAGE);
+      setShowDialog(true);
       return;
     }
     const currentCount = farmGirl.careDay === currentDay
@@ -8114,7 +8778,8 @@ export default function App() {
       : 0;
     const careLimit = getSkillAdjustedSeedlingCareLimit(action, crop);
     if (currentCount >= careLimit) {
-      setDialogMessage('このお世話は今日はもう行いました。');
+      setDialogMessage('本日のこの苗のお世話は終わりました。');
+      setShowDialog(true);
       return;
     }
 
@@ -8124,6 +8789,7 @@ export default function App() {
         ? 6 + Math.floor(Math.random() * 5)
         : 0;
     const qualityGain = currentCount >= 1 ? Math.max(1, Math.round(baseQualityGain * 0.5)) : baseQualityGain;
+    const isRegrowingAppearedGirl = (fieldSlot?.state === 'appeared' || farmGirl.state === 'appeared') && farmGirl.lastHarvestDay !== null;
     const nextGrowthProgress = action === 'fertilize'
       ? Math.min(crop.growthDays, farmGirl.growthProgress + 1)
       : farmGirl.growthProgress;
@@ -8137,6 +8803,9 @@ export default function App() {
         growthProgress: nextGrowthProgress,
         state: hasAppeared ? 'appeared' : 'growing',
         quality: clampNumber(girl.quality + qualityGain, 0, 100),
+        lastHarvestDay: action === 'fertilize' && isRegrowingAppearedGirl && girl.lastHarvestDay !== null
+          ? Math.max(1, girl.lastHarvestDay - 1)
+          : girl.lastHarvestDay,
         careDay: currentDay,
         caressCount: action === 'caress' ? (isSameDay ? girl.caressCount : 0) + 1 : (isSameDay ? girl.caressCount : 0),
         fingerCount: action === 'finger' ? (isSameDay ? girl.fingerCount : 0) + 1 : (isSameDay ? girl.fingerCount : 0),
@@ -8150,9 +8819,11 @@ export default function App() {
     }
     const actionLabel = FARM_CARE_UNLOCK_ACTION_LABELS[action];
     const result = action === 'fertilize'
-      ? `成長度が1日進みました${hasAppeared ? '。擬人化しました！' : '。'}`
+      ? '成長度が1日進みました。'
       : `品質が${qualityGain}上がりました。`;
+    playFarmCareCinematic(action);
     setDialogMessage(`${actionLabel}：${result}`);
+    setShowDialog(true);
   };
   const plantGirlSeedToSlot = (seedId: string, fieldId: FieldId, slotIndex: number) => {
     const seedData = GIRL_SEED_ACQUISITION_DATA.find(seed => seed.seedId === seedId);
@@ -8288,6 +8959,8 @@ export default function App() {
       return;
     }
     if (farmSlotInteractionBlockedRef.current === nextSlotKey) return;
+    const nextSlot = getFarmSlotByKey(nextSlotKey);
+    if (!nextSlot?.girlId) return;
     const timer = window.setTimeout(() => openFarmSlotInteraction(nextSlotKey), 450);
     return () => window.clearTimeout(timer);
   }, [pos, isWalking, currentMap, setupMode, menuOpen, farmSlotInteractionStage, farmFieldSlots, farmGirls, companionGirlId, turn, farmPlantButtonPlacements]);
@@ -8435,6 +9108,12 @@ export default function App() {
     setDialogMessage(message);
     advanceToNextDay(true);
   };
+  const completeStoryByDebtRepayment = () => {
+    setStoryCleared(true);
+    unlockEndlessNurseryMode();
+    unlockCollectionEvent('video_story_end');
+    setStoryEndingVideoOpen(true);
+  };
   const handleMinimumRepayment = () => {
     const payment = currentMinimumRepayment + currentRepaymentInterest;
     if (gold < payment) {
@@ -8446,8 +9125,7 @@ export default function App() {
     setDebtAmount(nextDebt);
     setSuccessfulRepaymentCount(value => value + 1);
     if (nextDebt <= 0) {
-      setStoryCleared(true);
-      unlockEndlessNurseryMode();
+      completeStoryByDebtRepayment();
     }
     finishRepaymentEvent(farmCredit + 5, missedRepaymentCount, nextDebt <= 0 ? '借金を完済した！' : '最低返済を完了した。');
   };
@@ -8463,8 +9141,7 @@ export default function App() {
     setDebtAmount(nextDebt);
     setSuccessfulRepaymentCount(value => value + 1);
     if (nextDebt <= 0) {
-      setStoryCleared(true);
-      unlockEndlessNurseryMode();
+      completeStoryByDebtRepayment();
     }
     finishRepaymentEvent(farmCredit + 8, missedRepaymentCount, nextDebt <= 0 ? '借金を完済した！' : '多めの返済を完了した。');
   };
@@ -8667,7 +9344,7 @@ export default function App() {
     getFarmGirlHarvestInfo(slot.girlId).canHarvest
   ));
   const hasSeedlingCareRemaining = farmGirls.some(girl => {
-    if (girl.state !== 'growing') return false;
+    if (!canCareForFarmGirlSeedling(girl.girlId)) return false;
     const crop = FARM_GIRL_CROP_DATA.find(entry => entry.girlId === girl.girlId);
     if (!crop) return false;
     return FARM_CARE_ACTION_ORDER.some(action => {
@@ -8682,7 +9359,7 @@ export default function App() {
     seedAfterPlantTutorialCompleted &&
     currentAP > 0 &&
     hasSeedlingCareRemaining &&
-    farmFieldSlots.some(slot => slot.girlId && slot.state === 'growing')
+    farmFieldSlots.some(slot => slot.girlId && canCareForFarmGirlSeedling(slot.girlId))
   );
   const hasPlantableSeedAndField = (
     getPlantableFarmFieldSlots().length > 0 &&
@@ -8694,6 +9371,9 @@ export default function App() {
   const hasSellableShopItem = isKurumiShopUnlocked && shopItemsForDisplay.some(item => item.type === '売る' && item.stock > 0);
   const hasUnlockableHeroSkill = HERO_SKILL_DATA.some(skill => canUnlockHeroSkill(skill.id));
   const hasNewFarmGirlCard = farmGirls.some(girl => girl.state === 'appeared' && !girl.cardRevealed);
+  const hasNewEquipmentRecipeShopItem = progressionRecipeShopItems.some(item => (
+    ['【レシピ】木剣', '【レシピ】毛皮の服', '【レシピ】獣殺し', '【レシピ】剛牙の鎧', '【レシピ】天の裁き', '【レシピ】神域の加護'].includes(item.name)
+  ));
   const hasNewRepaymentShopItem = successfulRepaymentCount > 0 && BATTLE_CONSUMABLE_ITEMS.some(item => (
     item.unlockRepaymentCount === successfulRepaymentCount &&
     shopItemsForDisplay.some(shopItem => shopItem.type === '買う' && shopItem.name === item.name)
@@ -8712,12 +9392,16 @@ export default function App() {
     if (getNearbyMiningPointIdForHud() && hasPickaxeOwnedForHud && !hasPickaxeEquippedForHud) return 'つるはしを装備すると採掘できます';
     if (getIsNearLoggingTileForHud() && hasSawOwnedForHud && !hasSawEquippedForHud) return 'のこぎりを装備すると伐採できます';
     if (hasBeastPremonition) return mountainLordAttackPending ? '巨大な気配に注意' : '畑を警戒中';
+    if (hasNewEquipmentRecipeShopItem) return 'くるみ商店に装備レシピ入荷';
     if (hasSellableShopItem) return '売れる品があります';
     if (hasUnlockableHeroSkill) return 'SPでスキル取得できます';
     if (hasNewFarmGirlCard) return '新しい娘カードを確認できます';
     if (hasNewRepaymentShopItem) return 'くるみ商店に新商品入荷';
     return null;
   })();
+  const isRepaymentFundsCritical = !isEndlessNurseryMode() && daysUntilRepayment <= 2 && gold < nextScheduledRepayment;
+  const isRepaymentDeadlineNear = !isEndlessNurseryMode() && daysUntilRepayment === 1;
+  const isCriticalHudNotice = isRepaymentFundsCritical || hasBeastPremonition;
   const hasAskedAllKurumiIntroTopics = KURUMI_INTRO_TOPIC_IDS.every(id => kurumiIntroAskedTopics.includes(id));
   const isOpeningWalkObjectiveActive = (
     bootMode === 'playing' &&
@@ -8997,7 +9681,7 @@ export default function App() {
     currentMapRef.current = 'shed';
     setPos(shedStartPos);
     posRef.current = shedStartPos;
-    setDir('right');
+    setDir('left');
     sawCraftTutorialIntroVoiceKeyRef.current = null;
     setDialogMessage('クラフト小屋でくるみが待っています。');
     setShowDialog(true);
@@ -9507,6 +10191,17 @@ export default function App() {
   const startKurumiInteraction = () => {
      clickTargetRef.current = null;
      setClickTargetMarker(null);
+     if (currentMap === 'farm' && timeOfDay === 'night') {
+        const message = getKurumiTentMessage(kurumiTrustStars);
+        setDialogMessage(message);
+        if (kurumiTrustStars === 2 || kurumiTrustStars === 3) {
+          const videoEntry = ZUKAN_VIDEO_ENTRIES.find(entry => (
+            entry.id === (kurumiTrustStars === 3 ? 'video_kurumi_sleep_2' : 'video_kurumi_sleep_1')
+          ));
+          if (videoEntry) openZukanVideo(videoEntry);
+        }
+        return;
+     }
      const hasSawRecipe = (inventoryCounts['【レシピ】のこぎり'] ?? 0) > 0;
      const hasPickaxeRecipe = (inventoryCounts['【レシピ】つるはし'] ?? 0) > 0;
      const hasSawTool = (inventoryCounts['のこぎり'] ?? 0) > 0;
@@ -9613,6 +10308,9 @@ export default function App() {
         return;
      }
      setSeedAfterPlantTutorialStepIndex(nextStepIndex);
+     if (SEED_AFTER_PLANT_TUTORIAL_STEPS[nextStepIndex]?.id === 'secret_book') {
+        setHasKurumiNotebook(true);
+     }
      playSeedAfterPlantTutorialVoice(nextStepIndex);
   };
   const openRecipeDetail = (recipeName: string) => {
@@ -9739,6 +10437,7 @@ export default function App() {
     setLoggingCombo(0);
     setLoggingResultRewards([]);
     setLoggingResultSawName('');
+    setLoggingDifficultyTier('normal');
     loggingGaugeDirectionRef.current = 1;
     setDialogMessage('伐採チュートリアル：のこぎりを引く角度を決めましょう。');
   };
@@ -9817,6 +10516,7 @@ export default function App() {
     setLoggingComboEffectKey(0);
     setLoggingResultRewards([]);
     setLoggingResultSawName('');
+    setLoggingDifficultyTier('normal');
     setIsLoggingResultInputLocked(false);
     loggingPromptBlockedRef.current = true;
   };
@@ -9884,17 +10584,62 @@ export default function App() {
     }
   };
 
-  const startMiningBgm = (ore: (typeof ORE_DATA)[number], overrideSource?: string) => {
+  const startMiningBgm = (
+    ore: (typeof ORE_DATA)[number],
+    overrideSource?: string,
+    fallbackDurationMs = MINING_GAME_DURATION_MS,
+    bgmTier: MiningBgmTier = 'easy',
+    shouldExtendGeneratedNotes = true,
+  ) => {
     stopMiningBgm(false);
     const mainBgm = bgmRef.current;
     miningPausedMainBgmRef.current = Boolean(mainBgm && !mainBgm.paused);
     mainBgm?.pause();
 
-    const source = overrideSource ?? getMiningBgmSource(ore.id);
+    const source = overrideSource ?? getRandomMiningBgmSource(getMiningBgmTier(ore.id, 1));
     const miningAudio = new Audio(source);
     miningAudio.preload = 'auto';
-    miningAudio.loop = true;
+    miningAudio.loop = false;
     miningAudio.volume = Math.min(1, getEffectiveVolume(source, bgmVolume, audioGainsRef.current));
+    const applyDuration = (durationMs: number) => {
+      const nextDuration = clampMiningGameDurationMs(durationMs);
+      miningGameDurationMsRef.current = nextDuration;
+      setMiningGameDurationMs(nextDuration);
+    };
+    applyDuration(fallbackDurationMs);
+    miningAudio.addEventListener('loadedmetadata', () => {
+      if (Number.isFinite(miningAudio.duration) && miningAudio.duration > 0) {
+        const actualDurationMs = clampMiningGameDurationMs(miningAudio.duration * 1000);
+        applyDuration(actualDurationMs);
+        if (shouldExtendGeneratedNotes && actualDurationMs > fallbackDurationMs + 800) {
+          const baseInterval = bgmTier === 'easy'
+            ? getMiningRhythmIntervalMs(ore.id)
+            : bgmTier === 'hard'
+              ? Math.max(560, getMiningRhythmIntervalMs(ore.id) - 90)
+              : Math.max(520, getMiningRhythmIntervalMs(ore.id) - 120);
+          setMiningNotes(previous => {
+            const lastHitAt = previous.reduce((max, note) => Math.max(max, note.hitAt), 0);
+            const nextNotes: MiningRhythmNote[] = [];
+            for (let hitAt = lastHitAt + baseInterval; hitAt <= actualDurationMs - 1200; hitAt += baseInterval) {
+              const directions = bgmTier === 'rare' && Math.random() < 0.28
+                ? getRandomMiningDirectionPair()
+                : [getRandomMiningDirection()];
+              nextNotes.push({
+                id: previous.length + nextNotes.length,
+                direction: directions[0],
+                directions,
+                hitAt,
+                judgement: null,
+              });
+            }
+            return nextNotes.length > 0 ? [...previous, ...nextNotes] : previous;
+          });
+        }
+      }
+    }, { once: true });
+    miningAudio.addEventListener('ended', () => {
+      finishMiningMiniGame();
+    }, { once: true });
     miningBgmRef.current = miningAudio;
     miningBgmSourceRef.current = source;
     miningAudio.load();
@@ -9970,15 +10715,32 @@ export default function App() {
     ore: (typeof ORE_DATA)[number],
     useRecordedRhythm = false,
     rhythmBgmSource?: string,
+    bgmTier: MiningBgmTier = 'easy',
+    durationMs = getMiningGameDurationMs(bgmTier),
   ): MiningRhythmNote[] => {
-    const bgmSource = rhythmBgmSource ?? getMiningBgmSource(ore.id);
+    const bgmSource = rhythmBgmSource ?? getRandomMiningBgmSource(getMiningBgmTier(ore.id, 1));
     const recordedTimings = useRecordedRhythm ? (miningRhythmTimings[bgmSource] ?? []) : [];
+    const playableDurationMs = Math.max(MINING_GAME_DURATION_MS, durationMs - 1200);
+    const baseInterval = bgmTier === 'easy'
+      ? getMiningRhythmIntervalMs(ore.id)
+      : bgmTier === 'hard'
+        ? Math.max(560, getMiningRhythmIntervalMs(ore.id) - 90)
+        : Math.max(520, getMiningRhythmIntervalMs(ore.id) - 120);
+    const defaultNoteCount = Math.max(
+      bgmTier === 'easy' ? 9 : bgmTier === 'hard' ? 12 : 13,
+      Math.floor((playableDurationMs - 1400) / baseInterval),
+    );
     const hitTimings = recordedTimings.length > 0
       ? recordedTimings
-      : Array.from({ length: 9 }, (_, index) => 1400 + index * getMiningRhythmIntervalMs(ore.id));
+      : Array.from({ length: defaultNoteCount }, (_, index) => 1400 + index * baseInterval);
     return hitTimings.map((hitAt, index) => ({
       id: index,
-      direction: getRandomMiningDirection(),
+      ...(() => {
+        const directions = bgmTier === 'rare' && index >= 2 && Math.random() < 0.28
+          ? getRandomMiningDirectionPair()
+          : [getRandomMiningDirection()];
+        return { direction: directions[0], directions };
+      })(),
       hitAt,
       judgement: null,
     }));
@@ -10004,10 +10766,6 @@ export default function App() {
     setMiningCombo(0);
     setMiningComboEffect(null);
     setMiningSparkle(null);
-    if (miningFinishTimerRef.current !== null) {
-      window.clearTimeout(miningFinishTimerRef.current);
-      miningFinishTimerRef.current = null;
-    }
     if (miningCountdownTimerRef.current !== null) {
       window.clearInterval(miningCountdownTimerRef.current);
       miningCountdownTimerRef.current = null;
@@ -10017,8 +10775,11 @@ export default function App() {
     setMiningCountdown(MINING_COUNTDOWN_SECONDS);
     setMiningMiniGamePointId(null);
     setMiningPreviewOre(null);
+    setMiningPlannedReward(null);
     setMiningNotes([]);
     setMiningElapsedMs(0);
+    setMiningGameDurationMs(MINING_GAME_DURATION_MS);
+    miningGameDurationMsRef.current = MINING_GAME_DURATION_MS;
     setMiningGauge(0);
     setMiningLastJudgement(null);
     setMiningResultText('');
@@ -10048,9 +10809,8 @@ export default function App() {
       playVoiceSound(MINING_COMBO_VOICE_SOURCES.fullCombo);
     }
 
-    const pickaxe = getEquippedPickaxe(equippedItemsRef.current);
-    const rewardOre = selectOreRewardWithPerformance(pickaxe, gauge, fullCombo, getGatheringRareRateMultiplier());
-    const quantity = getMiningRewardQuantity(rewardOre.id, gauge);
+    const rewardOre = miningPlannedReward?.ore ?? miningPreviewOre;
+    const quantity = miningPlannedReward?.quantity ?? getMiningRewardQuantity(rewardOre.id, gauge);
     const weightMultiplier = getMiningWeightMultiplier(gauge, fullCombo);
     const minWeightFloor = rewardOre.minWeight + (rewardOre.maxWeight - rewardOre.minWeight) * getGatheringMinFloorBonus();
     const rewardWeights = Array.from({ length: quantity }, () => (
@@ -10104,20 +10864,26 @@ export default function App() {
       return;
     }
     const pickaxe = getEquippedPickaxe(equippedItemsRef.current);
-    const ore = selectOreReward(pickaxe);
-    const rhythmBgmSource = options.rhythmBgmSource ?? getMiningBgmSource(ore.id);
+    const plannedReward = createMiningPlannedReward(pickaxe, getGatheringRareRateMultiplier());
+    const ore = plannedReward.ore;
+    const rhythmBgmSource = options.rhythmBgmSource ?? plannedReward.bgmSource;
     const useRecordedRhythm = options.useRecordedRhythm ?? ((miningRhythmTimings[rhythmBgmSource]?.length ?? 0) > 0);
-    const notes = createMiningNotes(ore, useRecordedRhythm, rhythmBgmSource);
+    const plannedDurationMs = plannedReward.durationMs;
+    const notes = createMiningNotes(ore, useRecordedRhythm, rhythmBgmSource, plannedReward.bgmTier, plannedDurationMs);
     miningMiniGameStartedAtRef.current = null;
     miningGaugeRef.current = 0;
     miningHadGoodRef.current = false;
     miningFullComboRef.current = true;
     miningComboRef.current = 0;
+    miningRecentInputsRef.current = [];
     setMiningMiniGamePointId(pointId);
     setMiningPreviewOre(ore);
+    setMiningPlannedReward({ ...plannedReward, bgmSource: rhythmBgmSource });
     setMiningNotes(notes);
     setMiningGauge(0);
     setMiningElapsedMs(0);
+    setMiningGameDurationMs(plannedDurationMs);
+    miningGameDurationMsRef.current = plannedDurationMs;
     setMiningLastJudgement(null);
     setMiningResultText('');
     setMiningResultGauge(0);
@@ -10144,7 +10910,7 @@ export default function App() {
           window.clearInterval(miningCountdownTimerRef.current);
           miningCountdownTimerRef.current = null;
         }
-        startMiningBgm(ore, rhythmBgmSource);
+        startMiningBgm(ore, rhythmBgmSource, plannedDurationMs, plannedReward.bgmTier, !useRecordedRhythm);
         beginMiningPlaying();
         return 1;
       });
@@ -10156,12 +10922,22 @@ export default function App() {
     if (!miningMiniGameOpen || miningMiniGamePhase !== 'playing' || miningMiniGameStartedAtRef.current === null) return;
     ensureMiningBgmPlaying();
     const elapsed = performance.now() - miningMiniGameStartedAtRef.current;
+    miningRecentInputsRef.current = [
+      ...miningRecentInputsRef.current.filter(input => elapsed - input.elapsed <= MINING_SIMULTANEOUS_INPUT_WINDOW_MS),
+      { direction, elapsed },
+    ];
     const candidates = miningNotes.filter(note => note.judgement === null);
     const closest = candidates.reduce<MiningRhythmNote | null>((best, note) => (
       !best || Math.abs(note.hitAt - elapsed) < Math.abs(best.hitAt - elapsed) ? note : best
     ), null);
     const distance = closest ? Math.abs(closest.hitAt - elapsed) : Number.POSITIVE_INFINITY;
-    const judgement = !closest || distance > 400 || closest.direction !== direction
+    const requiredDirections = closest?.directions ?? (closest ? [closest.direction] : []);
+    const hasRequiredInput = requiredDirections.length <= 1
+      ? requiredDirections[0] === direction
+      : requiredDirections.every(requiredDirection => (
+        miningRecentInputsRef.current.some(input => input.direction === requiredDirection)
+      ));
+    const judgement = !closest || distance > 400 || !hasRequiredInput
       ? 'BAD'
       : distance <= 100
         ? 'PERFECT'
@@ -10203,6 +10979,10 @@ export default function App() {
       window.clearTimeout(miningRhythmRecordingTimerRef.current);
       miningRhythmRecordingTimerRef.current = null;
     }
+    if (miningRhythmCountdownTimerRef.current !== null) {
+      window.clearInterval(miningRhythmCountdownTimerRef.current);
+      miningRhythmCountdownTimerRef.current = null;
+    }
     const timings = [...miningRhythmRecordedTimingsRef.current].sort((a, b) => a - b);
     if (shouldSave && timings.length > 0) {
       const source = miningRhythmRecordingSourceRef.current;
@@ -10219,13 +10999,14 @@ export default function App() {
       setDialogMessage('採掘リズムが記録されませんでした。');
     }
     miningRhythmRecordingStartedAtRef.current = null;
+    setMiningRhythmCountdown(null);
     setMiningRhythmRecording(false);
   };
 
   const recordMiningRhythmBeat = () => {
     if (!miningRhythmRecording || miningRhythmRecordingStartedAtRef.current === null) return;
     const elapsed = Math.round(performance.now() - miningRhythmRecordingStartedAtRef.current);
-    if (elapsed < 250 || elapsed > MINING_GAME_DURATION_MS - 250) return;
+    if (elapsed < 250 || elapsed > miningRhythmRecordingDurationMsRef.current - 250) return;
     setMiningRhythmRecordedTimings(prev => {
       if (prev.some(timing => Math.abs(timing - elapsed) < 120)) return prev;
       playFixSound();
@@ -10235,7 +11016,7 @@ export default function App() {
     });
   };
 
-  const startMiningRhythmRecording = (bgmSource = MINING_BGM_SOURCES.normal) => {
+  const startMiningRhythmRecording = (bgmSource = DEFAULT_MINING_BGM_SOURCE) => {
     if (miningRhythmRecording) return;
     setMenuOpen(false);
     menuOpenRef.current = false;
@@ -10243,14 +11024,41 @@ export default function App() {
     miningRhythmRecordedTimingsRef.current = [];
     setMiningRhythmRecordingSource(bgmSource);
     miningRhythmRecordingSourceRef.current = bgmSource;
+    miningRhythmRecordingDurationMsRef.current = bgmSource.includes('mining_easy')
+      ? MINING_GAME_DURATION_MS
+      : MINING_EXTENDED_GAME_DURATION_MS;
     setMiningRhythmRecording(true);
-    miningRhythmRecordingStartedAtRef.current = performance.now();
+    setMiningRhythmCountdown(3);
+    miningRhythmRecordingStartedAtRef.current = null;
     const audio = new Audio(bgmSource);
     audio.volume = Math.min(1, getEffectiveVolume(bgmSource, bgmVolume, audioGainsRef.current));
     miningRhythmAudioRef.current = audio;
-    audio.play().catch(error => console.log('Mining rhythm record BGM blocked', error));
+    audio.addEventListener('loadedmetadata', () => {
+      if (Number.isFinite(audio.duration) && audio.duration > 0) {
+        miningRhythmRecordingDurationMsRef.current = clampMiningGameDurationMs(audio.duration * 1000);
+      }
+    }, { once: true });
     const label = MINING_BGM_OPTIONS.find(option => option.src === bgmSource)?.label ?? bgmSource;
-    setDialogMessage(`採掘リズム記録中：${label} に合わせてクリック / Space / Enter。保存はボタンで行います。`);
+    setDialogMessage(`採掘リズム記録準備中：${label}。3・2・1の後にBGMと記録が始まります。`);
+    if (miningRhythmCountdownTimerRef.current !== null) {
+      window.clearInterval(miningRhythmCountdownTimerRef.current);
+    }
+    let countdown = 3;
+    miningRhythmCountdownTimerRef.current = window.setInterval(() => {
+      countdown -= 1;
+      if (countdown > 0) {
+        setMiningRhythmCountdown(countdown);
+        return;
+      }
+      if (miningRhythmCountdownTimerRef.current !== null) {
+        window.clearInterval(miningRhythmCountdownTimerRef.current);
+        miningRhythmCountdownTimerRef.current = null;
+      }
+      setMiningRhythmCountdown(null);
+      miningRhythmRecordingStartedAtRef.current = performance.now();
+      audio.play().catch(error => console.log('Mining rhythm record BGM blocked', error));
+      setDialogMessage(`採掘リズム記録中：${label} に合わせてクリック / Space / Enter。曲全体を譜面として保存できます。`);
+    }, 1000);
   };
 
   useEffect(() => {
@@ -10269,6 +11077,12 @@ export default function App() {
     if (!miningMiniGameOpen || miningMiniGamePhase !== 'playing' || miningMiniGameStartedAtRef.current === null) return;
     const update = () => {
       const elapsed = performance.now() - (miningMiniGameStartedAtRef.current ?? performance.now());
+      const durationMs = miningGameDurationMsRef.current;
+      if (elapsed >= durationMs) {
+        setMiningElapsedMs(durationMs);
+        finishMiningMiniGame();
+        return;
+      }
       setMiningElapsedMs(elapsed);
       setMiningNotes(previous => {
         if (previous.some(note => note.judgement === null && elapsed > note.hitAt + 400)) {
@@ -10283,15 +11097,8 @@ export default function App() {
     };
     update();
     const intervalId = window.setInterval(update, 50);
-    miningFinishTimerRef.current = window.setTimeout(() => {
-      finishMiningMiniGame();
-    }, 10_000);
     return () => {
       window.clearInterval(intervalId);
-      if (miningFinishTimerRef.current !== null) {
-        window.clearTimeout(miningFinishTimerRef.current);
-        miningFinishTimerRef.current = null;
-      }
     };
   }, [miningMiniGameOpen, miningMiniGamePhase]);
 
@@ -10344,6 +11151,10 @@ export default function App() {
       window.clearTimeout(miningRhythmRecordingTimerRef.current);
       miningRhythmRecordingTimerRef.current = null;
     }
+    if (miningRhythmCountdownTimerRef.current !== null) {
+      window.clearInterval(miningRhythmCountdownTimerRef.current);
+      miningRhythmCountdownTimerRef.current = null;
+    }
     if (miningRhythmAudioRef.current) {
       miningRhythmAudioRef.current.pause();
       miningRhythmAudioRef.current = null;
@@ -10387,6 +11198,7 @@ export default function App() {
      setLoggingCombo(0);
      setLoggingResultRewards([]);
      setLoggingResultSawName('');
+     setLoggingDifficultyTier(chooseLoggingDifficultyTier(getHighestOwnedSaw(equippedItemsRef.current, inventoryCounts), getGatheringRareRateMultiplier()));
      setIsLoggingTutorialRun(false);
      setLoggingTutorialResult(null);
      loggingGaugeDirectionRef.current = 1;
@@ -10404,8 +11216,7 @@ export default function App() {
     playFixSound();
 
     if (loggingMiniGameStage === 'direction') {
-      const sweetMin = LOGGING_MINIGAME_CONFIG.directionSweetMin;
-      const sweetMax = LOGGING_MINIGAME_CONFIG.directionSweetMax;
+      const { min: sweetMin, max: sweetMax } = getLoggingDirectionSweetRange(loggingDifficultyTier);
       const fanSuccess = loggingGaugeRef.current >= sweetMin && loggingGaugeRef.current <= sweetMax;
       setLoggingAngleSuccess(fanSuccess);
       setLoggingMiniGameStage('action');
@@ -10416,9 +11227,10 @@ export default function App() {
     }
 
     if (loggingMiniGameStage === 'action') {
-      const targetWidth = loggingAngleSuccess
+      const baseTargetWidth = loggingAngleSuccess
         ? LOGGING_MINIGAME_CONFIG.actionSweetWidth.goodAngle
         : LOGGING_MINIGAME_CONFIG.actionSweetWidth.badAngle;
+      const targetWidth = getLoggingSweetWidth(baseTargetWidth, loggingDifficultyTier);
       const minSweet = 50 - targetWidth / 2;
       const maxSweet = 50 + targetWidth / 2;
       const timingSuccess = loggingGaugeRef.current >= minSweet && loggingGaugeRef.current <= maxSweet;
@@ -11147,6 +11959,152 @@ export default function App() {
     sleepPromptBlockedRef.current = true;
   };
 
+  const clearBathSequenceTimers = () => {
+    bathSequenceTimersRef.current.forEach(timerId => window.clearTimeout(timerId));
+    bathSequenceTimersRef.current = [];
+  };
+
+  useEffect(() => () => {
+    clearBathSequenceTimers();
+  }, []);
+
+  const getCompanionBathTrust = () => (
+    companionGirlId
+      ? farmGirls.find(girl => girl.girlId === companionGirlId)?.trust ?? 0
+      : 0
+  );
+
+  const startBathSequence = () => {
+    clearBathSequenceTimers();
+    const returnPosition = { ...posRef.current };
+    const hasCompanion = Boolean(companionGirlId);
+    const canBathTogether = hasCompanion && getCompanionBathTrust() >= HOUSE_BATH_TOGETHER_TRUST;
+    const bathRouteStart = { ...returnPosition };
+    const scheduleBathTimer = (callback: () => void, delayMs: number) => {
+      const timerId = window.setTimeout(callback, delayMs);
+      bathSequenceTimersRef.current.push(timerId);
+      return timerId;
+    };
+    const scheduleBathWalk = (
+      start: { x: number; y: number },
+      end: { x: number; y: number },
+      delayMs: number,
+      durationMs: number,
+      endWalking = true,
+      direction: 'up' | 'down' | 'left' | 'right' = 'right',
+    ) => {
+      const steps = Math.max(1, Math.ceil(durationMs / 80));
+      scheduleBathTimer(() => {
+        setIsWalking(false);
+        setDir(direction);
+        setBathForcedDisplayDirection(direction);
+      }, delayMs);
+      for (let step = 1; step <= steps; step += 1) {
+        scheduleBathTimer(() => {
+          const t = step / steps;
+          const nextPosition = {
+            x: Math.round(start.x + (end.x - start.x) * t),
+            y: Math.round(start.y + (end.y - start.y) * t),
+          };
+          posRef.current = nextPosition;
+          setPos(nextPosition);
+          if (step === steps) setIsWalking(false);
+        }, delayMs + Math.round((durationMs * step) / steps));
+      }
+    };
+    const getBathWalkDuration = (start: { x: number; y: number }, end: { x: number; y: number }) => {
+      const distance = Math.abs(end.x - start.x) + Math.abs(end.y - start.y);
+      return Math.max(220, Math.round(distance * 4.2));
+    };
+    const scheduleBathRoute = (
+      points: Array<{ x: number; y: number }>,
+      startDelayMs: number,
+      endWalking = true,
+      direction: 'up' | 'down' | 'left' | 'right' = 'right',
+    ) => {
+      let delay = startDelayMs;
+      for (let index = 0; index < points.length - 1; index += 1) {
+        const start = points[index];
+        const end = points[index + 1];
+        const isLast = index === points.length - 2;
+        if (start.x === end.x && start.y === end.y) continue;
+        const duration = getBathWalkDuration(start, end);
+        scheduleBathWalk(start, end, delay, duration, isLast ? endWalking : true, direction);
+        delay += duration + 40;
+      }
+      return delay;
+    };
+    const scheduleBathStep = (
+      position: { x: number; y: number },
+      delayMs: number,
+      direction: 'up' | 'down' | 'left' | 'right' = 'down',
+    ) => {
+      scheduleBathTimer(() => {
+        setIsWalking(false);
+        setDir(direction);
+        setBathForcedDisplayDirection(direction);
+        posRef.current = position;
+        setPos(position);
+      }, delayMs);
+    };
+
+    bathReturnPositionRef.current = returnPosition;
+    setBathPromptVisible(false);
+    setBathSequenceActive(true);
+    setBathNoticeMessage(null);
+    setIsWalking(false);
+    setDir('left');
+    setBathForcedDisplayDirection('left');
+    clickTargetRef.current = null;
+    setClickTargetMarker(null);
+
+    if (hasCompanion && !canBathTogether) {
+      setIsCompanionWaitingForBath(true);
+      setDialogMessage('ソファで待っていてもらおう！');
+    } else if (canBathTogether) {
+      setIsCompanionWaitingForBath(true);
+      setDialogMessage('信頼してくれているから、一緒にお風呂に入ることにした。');
+    }
+
+    const bathEntryCorner = { x: HOUSE_BATH_TUB_FRONT_POSITION.x, y: bathRouteStart.y };
+    const bathExitCorner = { x: HOUSE_BATH_TUB_FRONT_POSITION.x, y: returnPosition.y };
+    const reachedTubAt = scheduleBathRoute([
+      bathRouteStart,
+      bathEntryCorner,
+      HOUSE_BATH_TUB_FRONT_POSITION,
+    ], 120, false, 'left');
+    scheduleBathStep(HOUSE_BATH_TUB_POSITION, reachedTubAt + 260, 'left');
+    scheduleBathTimer(() => {
+      const notice = canBathTogether
+        ? '一緒にお風呂に浸かって、疲れが取れた！'
+        : 'お風呂に浸かって疲れが取れた！';
+      setBathNoticeMessage(notice);
+      setDialogMessage(notice);
+    }, reachedTubAt + 640);
+    scheduleBathTimer(() => {
+      setBathNoticeMessage(null);
+    }, reachedTubAt + 1840);
+    scheduleBathStep(HOUSE_BATH_TUB_FRONT_POSITION, reachedTubAt + 1940, 'right');
+    const returnedAt = scheduleBathRoute([
+      HOUSE_BATH_TUB_FRONT_POSITION,
+      bathExitCorner,
+      bathReturnPositionRef.current ?? returnPosition,
+    ], reachedTubAt + 2100, false, 'right');
+    scheduleBathTimer(() => {
+      setIsWalking(false);
+      setBathSequenceActive(false);
+      setIsCompanionWaitingForBath(false);
+      setBathForcedDisplayDirection(null);
+      bathPromptBlockedRef.current = true;
+      bathReturnPositionRef.current = null;
+    }, returnedAt + 120);
+  };
+
+  const cancelBathPrompt = () => {
+    setBathPromptVisible(false);
+    bathPromptBlockedRef.current = true;
+  };
+
   const startCraftPrompt = () => {
     setCraftPromptVisible(false);
     craftPromptBlockedRef.current = true;
@@ -11335,6 +12293,7 @@ export default function App() {
     setFishingResultSizeCm('');
     setFishingResultIsNewRecord(false);
     setFishingResultImageSrc(FISHING_SCENE_RESULT_SRC);
+    setMermaidLetterNotice(null);
     setSelectedFishingResultAction('retry');
     setIsFishingTutorialRun(false);
     setFishingTutorialResult(null);
@@ -11342,6 +12301,11 @@ export default function App() {
   };
 
   const handleFishingMiniGameAction = () => {
+    if (mermaidLetterNotice) {
+      playFixSound();
+      setMermaidLetterNotice(null);
+      return;
+    }
     if (fishingMiniGameStage === 'result') {
       if (isFishingTutorialRun) return;
       if (isFishingResultInputLocked) return;
@@ -11688,6 +12652,12 @@ export default function App() {
 
   const isPlayerInBath = isPlayerInBathArea(pos.x, pos.y, currentMap);
   const isPlayerInBathTubMask = isPlayerInBath && isPlayerInBathTub(pos.x, pos.y, currentMap);
+  const getBathDisplayDirection = (direction: PlayerDirection): PlayerDirection => {
+    if (!isPlayerInBath) return direction;
+    if (direction === 'left') return 'right';
+    if (direction === 'right') return 'left';
+    return direction;
+  };
 
   useEffect(() => {
     if (isPlayerInBath !== wasPlayerInBathRef.current) {
@@ -12538,6 +13508,15 @@ export default function App() {
         return;
       }
 
+      if (showDialog) {
+        if (e.key === 'Enter' || e.key === ' ' || e.key === 'Escape') {
+          e.preventDefault();
+          playFixSound();
+          setShowDialog(false);
+        }
+        return;
+      }
+
       if (pendingFarmCareConfirm) {
         if (e.repeat) return;
         if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
@@ -12567,6 +13546,15 @@ export default function App() {
           e.preventDefault();
           playFixSound();
           setFarmCareUnlockNoticeAction(null);
+        }
+        return;
+      }
+
+      if (farmHarvestResultNotice) {
+        if (e.key === 'Enter' || e.key === ' ' || e.key === 'Escape') {
+          e.preventDefault();
+          playFixSound();
+          setFarmHarvestResultNotice(null);
         }
         return;
       }
@@ -13047,6 +14035,12 @@ export default function App() {
 
       if (fishingMiniGameOpen) {
         if (e.repeat) return;
+        if (mermaidLetterNotice && (e.key === 'Enter' || e.key === ' ' || e.key === 'Escape')) {
+          e.preventDefault();
+          playFixSound();
+          setMermaidLetterNotice(null);
+          return;
+        }
         if (fishingMiniGameStage === 'result' && isFishingResultInputLocked) {
           e.preventDefault();
           return;
@@ -13088,7 +14082,7 @@ export default function App() {
         return;
       }
 
-      if (sleepPromptVisible || craftPromptVisible || fishingPromptVisible || miningPromptVisible || loggingPromptVisible) {
+      if (sleepPromptVisible || bathPromptVisible || craftPromptVisible || fishingPromptVisible || miningPromptVisible || loggingPromptVisible) {
         if (e.repeat) return;
         if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
           e.preventDefault();
@@ -13104,6 +14098,12 @@ export default function App() {
               startSleepSequence();
             } else {
               cancelSleepPrompt();
+            }
+          } else if (bathPromptVisible) {
+            if (confirmPromptChoice === 'yes') {
+              startBathSequence();
+            } else {
+              cancelBathPrompt();
             }
           } else if (craftPromptVisible) {
             if (confirmPromptChoice === 'yes') {
@@ -13135,6 +14135,8 @@ export default function App() {
           playFixSound();
           if (sleepPromptVisible) {
             cancelSleepPrompt();
+          } else if (bathPromptVisible) {
+            cancelBathPrompt();
           } else if (craftPromptVisible) {
             cancelCraftPrompt();
           } else if (fishingPromptVisible) {
@@ -13250,7 +14252,7 @@ export default function App() {
           e.preventDefault();
           playFixSound();
           setMenuFocusArea('content');
-          setMenuContentFocus('primary');
+          setMenuContentFocus(currentMenuItem.id === 'farm' ? 'secondary' : 'primary');
         } else if (menuFocusAreaRef.current === 'content' && ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
           e.preventDefault();
           playCursorSound();
@@ -13336,7 +14338,7 @@ export default function App() {
           }
 
           if (currentMenuItem.id === 'zukan') {
-            const filters = ['苗娘', '魚'];
+            const filters = ['娘', '魚'];
             const filterIndex = Math.max(0, filters.indexOf(zukanFilterRef.current));
             if (menuContentFocusRef.current === 'primary') {
               if (e.key === 'ArrowLeft' && filterIndex === 0) {
@@ -13486,38 +14488,40 @@ export default function App() {
             return;
           }
 
-          if (currentMenuItem.id === 'farm') {
-            const currentIndex = selectedFarmGirlIndexRef.current;
-            if (menuContentFocusRef.current === 'primary') {
-              if (e.key === 'ArrowLeft') {
-                setMenuContentFocus('secondary');
-                return;
-              }
-              if (e.key === 'ArrowRight') {
-                setMenuContentFocus('secondary');
-                return;
-              }
-              const nextCareIndex = Math.max(0, Math.min(
-                FARM_CARE_ACTION_ORDER.length - 1,
-                selectedFarmCareActionIndexRef.current + (e.key === 'ArrowDown' ? 1 : e.key === 'ArrowUp' ? -1 : 0),
-              ));
-              if (nextCareIndex !== selectedFarmCareActionIndexRef.current) playCursorSound();
-              setSelectedFarmCareActionIndex(nextCareIndex);
-              return;
-            }
-            const farmGirlColumnCount = 5;
-            if (e.key === 'ArrowLeft' && currentIndex % farmGirlColumnCount === 0) {
-              setMenuFocusArea('nav');
-              return;
-            }
-            if (e.key === 'ArrowRight') {
-              setMenuContentFocus('primary');
-              return;
-            }
-            setMenuContentFocus('secondary');
-            setSelectedFarmGirlIndex(moveGridIndex(currentIndex, e.key, farmGirlColumnCount, menuGirls.length));
-            return;
-          }
+	          if (currentMenuItem.id === 'farm') {
+	            const currentIndex = selectedFarmGirlIndexRef.current;
+	            if (menuContentFocusRef.current === 'primary') {
+	              if (e.key === 'ArrowLeft') {
+	                setMenuContentFocus('secondary');
+	                return;
+	              }
+	              const nextCareIndex = Math.max(0, Math.min(
+	                FARM_CARE_ACTION_ORDER.length - 1,
+	                selectedFarmCareActionIndexRef.current + (
+	                  e.key === 'ArrowRight' || e.key === 'ArrowDown' ? 1 :
+	                  e.key === 'ArrowUp' ? -1 :
+	                  0
+	                ),
+	              ));
+	              if (nextCareIndex !== selectedFarmCareActionIndexRef.current) playCursorSound();
+	              setSelectedFarmCareActionIndex(nextCareIndex);
+	              return;
+	            }
+	            const farmGirlColumnCount = 5;
+	            if (e.key === 'ArrowLeft' && currentIndex % farmGirlColumnCount === 0) {
+	              setMenuFocusArea('nav');
+	              return;
+	            }
+	            const nextFarmGirlIndex = moveGridIndex(currentIndex, e.key, farmGirlColumnCount, menuGirls.length);
+	            if (e.key === 'ArrowRight' && nextFarmGirlIndex === currentIndex) {
+	              setMenuContentFocus('primary');
+	              return;
+	            }
+	            setMenuContentFocus('secondary');
+	            if (nextFarmGirlIndex !== currentIndex) playCursorSound();
+	            setSelectedFarmGirlIndex(nextFarmGirlIndex);
+	            return;
+	          }
 
 	          if (currentMenuItem.id === 'zukan') {
 	            const currentIndex = selectedZukanIndexRef.current;
@@ -13583,7 +14587,11 @@ export default function App() {
           } else if (currentMenuItem.id === 'farm') {
             setSelectedFarmGirlIndex(prev => (prev + moveBy + 15) % 15);
 	          } else if (currentMenuItem.id === 'zukan') {
-	            const zukanLength = zukanFilterRef.current === '魚' ? FISH_ZUKAN_ENTRIES.length : 20;
+	            const zukanLength = zukanFilterRef.current === '魚'
+                ? FISH_ZUKAN_ENTRIES.length
+                : zukanFilterRef.current === '動画'
+                  ? Math.max(1, getUnlockedZukanVideoEntries().length)
+                  : 20;
 	            setSelectedZukanIndex(prev => (prev + moveBy + zukanLength) % zukanLength);
 	          } else if (currentMenuItem.id === 'kurumiNotebook') {
 	            const notebookLength = 12;
@@ -13597,21 +14605,20 @@ export default function App() {
         } else if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault();
           playFixSound();
-          if (currentMenuItem.id === 'farm') {
-            if (menuContentFocusRef.current === 'primary') {
-              const selectedGirl = menuGirls[selectedFarmGirlIndexRef.current];
-              const selectedCareAction = FARM_CARE_ACTION_ORDER[selectedFarmCareActionIndexRef.current] ?? 'caress';
-              if (selectedGirl) {
-                requestSeedlingCare(selectedGirl.id, selectedCareAction);
-              }
-              return;
-            }
-            const selectedName = menuGirls[selectedFarmGirlIndexRef.current]?.name;
-            if (selectedName) {
-              setFarmGirlDetailOpen(true);
-              setDialogMessage(`${selectedName}の詳細情報を表示しました。`);
-            }
-          } else if (currentMenuItem.id === 'item') {
+	          if (currentMenuItem.id === 'farm') {
+	            if (menuContentFocusRef.current === 'primary') {
+	              const selectedGirl = menuGirls[selectedFarmGirlIndexRef.current];
+	              const selectedCareAction = FARM_CARE_ACTION_ORDER[selectedFarmCareActionIndexRef.current] ?? 'caress';
+	              if (selectedGirl) {
+	                requestSeedlingCare(selectedGirl.id, selectedCareAction);
+	              }
+	              return;
+	            }
+	            setMenuContentFocus('primary');
+	            setSelectedFarmCareActionIndex(0);
+	            setDialogMessage('苗のお世話を選んでください。');
+	            return;
+	          } else if (currentMenuItem.id === 'item') {
             if (craftRecipeSelectMode && itemMenuTabRef.current === 'だいじなもの') {
               handleCraftRecipeSelected(selectedItemNameRef.current);
             } else {
@@ -13670,7 +14677,14 @@ export default function App() {
               requestHeroSkillUnlock(selectedSkillNameRef.current);
             }
           } else if (currentMenuItem.id === 'zukan') {
-            if (zukanFilterRef.current === '魚') {
+            if (zukanFilterRef.current === '動画') {
+              const entry = getUnlockedZukanVideoEntries()[selectedZukanIndexRef.current];
+              if (entry) {
+                openZukanVideo(entry);
+              } else {
+                setDialogMessage('まだ見た動画がありません。');
+              }
+            } else if (zukanFilterRef.current === '魚') {
               const fish = FISH_ZUKAN_ENTRIES[selectedZukanIndexRef.current];
               const caught = fish ? caughtFishIds.includes(fish.id) : false;
               setDialogMessage(caught && fish ? `${fish.name}を確認しました。` : 'まだ釣っていない魚です。');
@@ -13918,6 +14932,24 @@ export default function App() {
         }
       }
       return false;
+    };
+
+    const isTouchingBathEntry = (x: number, y: number) => {
+      if (currentMapRef.current !== 'house') return false;
+      if (
+        x + 18 >= HOUSE_BATH_TOILET_EXCLUSION_ZONE.x &&
+        x - 18 <= HOUSE_BATH_TOILET_EXCLUSION_ZONE.x + HOUSE_BATH_TOILET_EXCLUSION_ZONE.w &&
+        y >= HOUSE_BATH_TOILET_EXCLUSION_ZONE.y &&
+        y - 34 <= HOUSE_BATH_TOILET_EXCLUSION_ZONE.y + HOUSE_BATH_TOILET_EXCLUSION_ZONE.h
+      ) {
+        return false;
+      }
+      return (
+        x + 18 >= HOUSE_BATH_ENTRY_ZONE.x &&
+        x - 18 <= HOUSE_BATH_ENTRY_ZONE.x + HOUSE_BATH_ENTRY_ZONE.w &&
+        y >= HOUSE_BATH_ENTRY_ZONE.y &&
+        y - 34 <= HOUSE_BATH_ENTRY_ZONE.y + HOUSE_BATH_ENTRY_ZONE.h
+      );
     };
 
     const isTouchingWorkbench = (x: number, y: number) => {
@@ -14221,10 +15253,21 @@ export default function App() {
         movementLockedRef.current = true;
       }
 
+      const isInBathEntry = isTouchingBathEntry(currentX, currentY);
+      if (!isInBathEntry) {
+        bathPromptBlockedRef.current = false;
+      } else if (!bathPromptBlockedRef.current && !isInBed && !bathSequenceActive && !bathPromptVisible) {
+        moved = false;
+        clickTargetRef.current = null;
+        setClickTargetMarker(null);
+        setBathPromptVisible(true);
+        movementLockedRef.current = true;
+      }
+
       const isInWorkbench = isTouchingWorkbench(currentX, currentY);
       if (!isInWorkbench) {
         craftPromptBlockedRef.current = false;
-      } else if (!craftPromptBlockedRef.current && !isInBed && !sawCraftTutorialReady && !sawCraftTutorialShedDialogueOpen) {
+      } else if (!craftPromptBlockedRef.current && !isInBed && !isInBathEntry && !sawCraftTutorialReady && !sawCraftTutorialShedDialogueOpen) {
         moved = false;
         clickTargetRef.current = null;
         setClickTargetMarker(null);
@@ -14339,7 +15382,7 @@ export default function App() {
       window.removeEventListener('keydown', handleKeyDown); window.removeEventListener('keyup', handleKeyUp);
       cancelAnimationFrame(animationFrameId);
     };
-  }, [setupMode, bedTiles, workbenchTiles, fishingTiles, miningTiles, depletedMiningPointIds, activeMiningPointId, loggingTiles, activeLoggingPoints, activeLoggingPointId, sleepPromptVisible, craftPromptVisible, fishingPromptVisible, miningPromptVisible, loggingPromptVisible, confirmPromptChoice, pendingDeleteSaveSlot, pendingOverwriteSaveSlot, activeAutoEventSpot, activeAutoEventMessage, activeAutoEventMessageIndex, activeAutoEventMessages, displayedAutoEventMessage, turn, currentAP, kurumiShopOpen, kurumiIntroOpen, kurumiIntroSelectedIndex, kurumiIntroAskedTopics, kurumiIntroCompletedDay, seedPlantTutorialOpen, seedPlantTutorialStepIndex, seedAfterPlantTutorialOpen, seedAfterPlantTutorialStepIndex, selectedShopControl, selectedShopItemIndex, shopItems, gold, equipmentActionOpen, equippedItems, inventoryCounts, caughtFishIds, fishingMiniGameOpen, fishingMiniGameStage, miningMiniGameOpen, isFishingResultInputLocked, fishingTutorialOpen, fishingTutorialEndingOpen, fishingTutorialEndingStepIndex, sawCraftTutorialIntroOpen, sawCraftTutorialIntroStepIndex, sawCraftTutorialReady, sawCraftTutorialShedDialogueOpen, sawCraftTutorialWorkbenchReady, gatheringTutorialCompleted, gatheringTutorialChoice, miningTutorialCompleted, selectedFishingTutorialAction, selectedFishingResultAction, recipeDetailOpen, farmGirlDetailOpen, pendingFarmCareConfirm, farmCareConfirmChoice, farmCareUnlockNoticeAction, bootMode, timeOfDay, isOpeningWalkObjectiveActive, currentDay, nextObjective, battlePreviewOpen, battlePreviewState, battleIntroPhase, battleItemPanelOpen, battleItemSelectionStep, selectedBattleCommandIndex, selectedBattleItemIndex, selectedBattleItemTargetIndex]);
+  }, [setupMode, bedTiles, workbenchTiles, fishingTiles, miningTiles, depletedMiningPointIds, activeMiningPointId, loggingTiles, activeLoggingPoints, activeLoggingPointId, sleepPromptVisible, bathPromptVisible, bathSequenceActive, craftPromptVisible, fishingPromptVisible, miningPromptVisible, loggingPromptVisible, confirmPromptChoice, pendingDeleteSaveSlot, pendingOverwriteSaveSlot, activeAutoEventSpot, activeAutoEventMessage, activeAutoEventMessageIndex, activeAutoEventMessages, displayedAutoEventMessage, turn, currentAP, kurumiShopOpen, kurumiIntroOpen, kurumiIntroSelectedIndex, kurumiIntroAskedTopics, kurumiIntroCompletedDay, seedPlantTutorialOpen, seedPlantTutorialStepIndex, seedAfterPlantTutorialOpen, seedAfterPlantTutorialStepIndex, selectedShopControl, selectedShopItemIndex, shopItems, gold, equipmentActionOpen, equippedItems, inventoryCounts, caughtFishIds, fishingMiniGameOpen, fishingMiniGameStage, miningMiniGameOpen, isFishingResultInputLocked, mermaidLetterNotice, fishingTutorialOpen, fishingTutorialEndingOpen, fishingTutorialEndingStepIndex, sawCraftTutorialIntroOpen, sawCraftTutorialIntroStepIndex, sawCraftTutorialReady, sawCraftTutorialShedDialogueOpen, sawCraftTutorialWorkbenchReady, gatheringTutorialCompleted, gatheringTutorialChoice, miningTutorialCompleted, selectedFishingTutorialAction, selectedFishingResultAction, recipeDetailOpen, farmGirlDetailOpen, showDialog, pendingFarmCareConfirm, farmCareConfirmChoice, farmCareUnlockNoticeAction, farmHarvestResultNotice, bootMode, timeOfDay, isOpeningWalkObjectiveActive, currentDay, nextObjective, battlePreviewOpen, battlePreviewState, battleIntroPhase, battleItemPanelOpen, battleItemSelectionStep, selectedBattleCommandIndex, selectedBattleItemIndex, selectedBattleItemTargetIndex]);
 
   // Zone creation states
   const [dragStart, setDragStart] = useState<{ x: number, y: number } | null>(null);
@@ -15318,33 +16361,54 @@ export default function App() {
             <div className="absolute inset-0 z-[300] flex items-center justify-center bg-black">
               <div className="relative aspect-[1672/941] w-full max-h-full overflow-hidden bg-black">
                 <img src={titleImageSrc} alt="孕ませ苗床ファーム タイトル" className="absolute inset-0 h-full w-full object-contain" />
-                <button
-                  type="button"
-                  aria-label="はじめから"
-                  onClick={() => { playFixSound(); setTitlePanelMode('new'); }}
-                  className="absolute left-[12.8%] top-[83.9%] h-[9.6%] w-[22.8%] cursor-pointer rounded opacity-0"
-                />
-                <button
-                  type="button"
-                  aria-label="つづきから"
-                  onClick={() => { playFixSound(); setTitlePanelMode('load'); }}
-                  className="absolute left-[38.4%] top-[83.5%] h-[9.8%] w-[20.5%] cursor-pointer rounded opacity-0"
-                />
-                <button
-                  type="button"
-                  aria-label="コンフィグ"
-                  onClick={() => { playFixSound(); setTitlePanelMode('config'); }}
-                  className="absolute left-[61.2%] top-[83.7%] h-[9.8%] w-[19.4%] cursor-pointer rounded opacity-0"
-                />
-                {isEndlessTitleTheme() && (
-                  <button
-                    type="button"
-                    aria-label="無限苗床モード"
-                    onClick={() => { playFixSound(); setTitlePanelMode('endless'); }}
-                    className="absolute left-1/2 top-[73%] -translate-x-1/2 rounded-full border-2 border-[#ffd166] bg-[#5b276a]/92 px-8 py-3 text-xl font-black text-[#fff5fd] shadow-[0_0_24px_rgba(255,209,102,0.38)] transition hover:scale-105 hover:bg-[#7d388f]"
-                  >
-                    🌸 無限苗床モード
-                  </button>
+                {isEndlessTitleTheme() ? (
+                  <>
+                    <button
+                      type="button"
+                      aria-label="はじめから"
+                      onClick={() => { playFixSound(); setTitlePanelMode('new'); }}
+                      className="absolute left-[40.7%] top-[65.2%] h-[6.1%] w-[19.3%] cursor-pointer rounded opacity-0"
+                    />
+                    <button
+                      type="button"
+                      aria-label="つづきから"
+                      onClick={() => { playFixSound(); setTitlePanelMode('load'); }}
+                      className="absolute left-[40.7%] top-[73.5%] h-[6.1%] w-[19.3%] cursor-pointer rounded opacity-0"
+                    />
+                    <button
+                      type="button"
+                      aria-label="無限苗床モード"
+                      onClick={() => { playFixSound(); setTitlePanelMode('endless'); }}
+                      className="absolute left-[40.7%] top-[81.7%] h-[6.1%] w-[19.3%] cursor-pointer rounded opacity-0"
+                    />
+                    <button
+                      type="button"
+                      aria-label="コンフィグ"
+                      onClick={() => { playFixSound(); setTitlePanelMode('config'); }}
+                      className="absolute left-[40.7%] top-[89.7%] h-[6.1%] w-[19.3%] cursor-pointer rounded opacity-0"
+                    />
+                  </>
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      aria-label="はじめから"
+                      onClick={() => { playFixSound(); setTitlePanelMode('new'); }}
+                      className="absolute left-[12.8%] top-[83.9%] h-[9.6%] w-[22.8%] cursor-pointer rounded opacity-0"
+                    />
+                    <button
+                      type="button"
+                      aria-label="つづきから"
+                      onClick={() => { playFixSound(); setTitlePanelMode('load'); }}
+                      className="absolute left-[38.4%] top-[83.5%] h-[9.8%] w-[20.5%] cursor-pointer rounded opacity-0"
+                    />
+                    <button
+                      type="button"
+                      aria-label="コンフィグ"
+                      onClick={() => { playFixSound(); setTitlePanelMode('config'); }}
+                      className="absolute left-[61.2%] top-[83.7%] h-[9.8%] w-[19.4%] cursor-pointer rounded opacity-0"
+                    />
+                  </>
                 )}
 
                 {titlePanelMode !== 'none' && (
@@ -15652,9 +16716,17 @@ export default function App() {
               <span className="text-2xl">{gold.toLocaleString()} G</span>
             </span>
             {isEndlessNurseryMode() ? (
-              <span className="shrink-0 rounded border border-[#f4c7ff]/55 bg-[#421a4d]/65 px-2.5 py-1 text-base text-[#f4c7ff]">借金なし / 返済なし</span>
+              <span className="shrink-0 rounded border-2 border-[#ff9de8] bg-[#ff4fc3]/92 px-3 py-1 text-base font-black text-white shadow-[0_0_18px_rgba(255,79,195,0.42)]">
+                無限苗床モード / 借金なし / 返済なし
+              </span>
             ) : (
-              <span className="shrink-0 rounded border border-[#ffdd99]/45 bg-[#3a2508]/70 px-2 py-1 text-sm text-[#ffdd99]">
+              <span className={`shrink-0 rounded border px-2 py-1 text-sm ${
+                isRepaymentFundsCritical
+                  ? 'farm-critical-hud border-[#ff3b3b] bg-[#5b1111]/92 text-[#fff4b8]'
+                  : isRepaymentDeadlineNear
+                    ? 'farm-warning-hud border-[#ffd166]/90 bg-[#4a310b]/88 text-[#fff1a8]'
+                    : 'border-[#ffdd99]/45 bg-[#3a2508]/70 text-[#ffdd99]'
+              }`}>
                 借金 ¥{debtAmount.toLocaleString()} / 返済まであと{daysUntilRepayment}日 / 予定 ¥{nextScheduledRepayment.toLocaleString()}
               </span>
             )}
@@ -15668,17 +16740,27 @@ export default function App() {
               <span className="text-sm font-bold text-[#d8c4a5]">SP:{heroSP}</span>
             </span>
             {hudObjective && (
-              <span className="min-w-[140px] max-w-[360px] flex-1 truncate rounded border border-[#ffd166]/80 bg-[#4a310b]/88 px-2.5 py-1.5 text-sm text-[#fff1a8] shadow-[0_0_14px_rgba(255,209,102,0.22)]">
+              <span className={`min-w-[140px] max-w-[360px] flex-1 truncate rounded border px-2.5 py-1.5 text-sm ${
+                isCriticalHudNotice
+                  ? 'farm-critical-hud border-[#ff3b3b] bg-[#5b1111]/92 text-[#fff4b8]'
+                  : 'border-[#ffd166]/80 bg-[#4a310b]/88 text-[#fff1a8] shadow-[0_0_14px_rgba(255,209,102,0.22)]'
+              }`}>
                 NEXT　{hudObjective}
               </span>
             )}
             {supplementalHudNotice && (
-              <span className="max-w-[250px] shrink-0 truncate rounded border border-[#67e8f9]/70 bg-[#0f3440]/82 px-2.5 py-1.5 text-sm text-[#c9f7ff] shadow-[0_0_12px_rgba(103,232,249,0.2)]">
+              <span className={`max-w-[250px] shrink-0 truncate rounded border px-2.5 py-1.5 text-sm ${
+                isCriticalHudNotice
+                  ? 'farm-critical-hud border-[#ff3b3b] bg-[#5b1111]/92 text-[#fff4b8]'
+                  : isRepaymentDeadlineNear
+                    ? 'farm-warning-hud border-[#ffd166]/90 bg-[#4a310b]/88 text-[#fff1a8]'
+                    : 'border-[#67e8f9]/70 bg-[#0f3440]/82 text-[#c9f7ff] shadow-[0_0_12px_rgba(103,232,249,0.2)]'
+              }`}>
                 ! {supplementalHudNotice}
               </span>
             )}
             {hasBeastPremonition && (
-              <span className="shrink-0 text-base text-[#ffd166] drop-shadow-[0_0_8px_rgba(255,209,102,0.45)]">
+              <span className="farm-critical-hud shrink-0 rounded border border-[#ff3b3b] bg-[#5b1111]/92 px-2.5 py-1 text-base text-[#fff4b8]">
                 {mountainLordAttackPending ? '⚠ 巨大な気配' : '⚠ 獣の気配'}
               </span>
             )}
@@ -15697,10 +16779,12 @@ export default function App() {
                敵
                <select
                  value={battleTestBeastId}
-                 onChange={(event) => setBattleTestBeastId(event.target.value as BeastId)}
+                 onChange={(event) => setBattleTestBeastId(event.target.value as BattleTestTargetId)}
                  className="h-8 rounded border-2 border-[#76502c] bg-[#1a100d] px-2 text-xs font-bold text-[#fdf6e3]"
                  aria-label="戦闘テストの敵"
                >
+                 <option value="normal_pack">複数：Normal獣</option>
+                 <option value="hard_pack">複数：巨熊3体</option>
                  {BEAST_BATTLE_DATA.map(beast => (
                    <option key={beast.id} value={beast.id}>
                      {beast.name}
@@ -15814,7 +16898,6 @@ export default function App() {
                     const point = getFarmFieldSlotPoint(slot);
                     const slotKey = `${slot.fieldId}_${slot.slotIndex}`;
                     const slotPlacement = FARM_SEED_SLOT_PLACEMENTS[slotKey] ?? { offsetX: 0, offsetY: 0, scale: 100 };
-                    const girl = GIRL_DATA.find(entry => entry.id === slot.girlId);
                     const seed = GIRL_SEED_ACQUISITION_DATA.find(entry => entry.girlId === slot.girlId);
                     const farmGirl = farmGirls.find(entry => entry.girlId === slot.girlId);
                     const crop = FARM_GIRL_CROP_DATA.find(entry => entry.girlId === slot.girlId);
@@ -15824,11 +16907,7 @@ export default function App() {
                           ? '出現中・収穫可'
                           : `出現中・あと${harvestInfo?.daysUntilHarvest ?? 0}日`
                        : `成長中 ${farmGirl?.growthProgress ?? 0}/${crop?.growthDays ?? '?'}日`;
-                    const isGirlCardRevealed = Boolean(farmGirl?.cardRevealed);
-                    const actualSlotName = slot.state === 'appeared' && isGirlCardRevealed
-                       ? girl?.girlName ?? '娘'
-                       : seed?.seedName ?? '苗娘';
-                    const slotName = actualSlotName;
+                    const slotName = seed?.seedName ?? '苗娘';
                     const isNtr = farmGirl?.condition === 'affected';
                     const isCompanion = companionGirlId === slot.girlId;
                     const canHarvest = Boolean(harvestInfo?.canHarvest);
@@ -15874,9 +16953,7 @@ export default function App() {
                                  : 'border-[#ffd166]/85 bg-[#1a100d]/82'
                             }`}>
                               <img
-                                src={slot.state === 'appeared' && isGirlCardRevealed
-                                  ? FARM_GIRL_CARD_IMAGES[slot.girlId ?? ''] ?? '/img/nae.png'
-                                  : '/img/nae.png'}
+                                src="/img/nae.png"
                                 alt={slotName}
                                 className="h-full w-full object-contain"
                               />
@@ -16009,6 +17086,7 @@ export default function App() {
                  iwanaSplashSoundSrc={IWANA_SPLASH_SOUND_SRC}
                  kurumiDefaultSpriteW={KURUMI_DEFAULT_SPRITE_W}
                  kurumiDefaultSpriteH={KURUMI_DEFAULT_SPRITE_H}
+                 kurumiTentMessage={getKurumiTentMessage(kurumiTrustStars)}
 	           />
 
            {/* Collision Grid Overlay */}
@@ -16693,7 +17771,7 @@ export default function App() {
           })()}
 
           {/* 同行娘は主人公の移動履歴をたどるため、曲がり角でも後ろを自然に追従する。 */}
-          {setupMode !== 'animation' && companionSpriteSheet && !isPlayerInBath && (
+          {setupMode !== 'animation' && companionSpriteSheet && !isPlayerInBath && !isCompanionWaitingForBath && (
             <Character
               x={companionFollow.x}
               y={companionFollow.y}
@@ -16715,7 +17793,7 @@ export default function App() {
              <Character
                 x={pos.x}
                 y={pos.y}
-                direction={dir}
+                direction={bathForcedDisplayDirection ?? getBathDisplayDirection(dir)}
                 isWalking={isWalking}
                 customSprites={customSprites}
                 isHidden={isPlayerInHideArea(pos.x, pos.y, currentMap)}
@@ -16868,6 +17946,7 @@ export default function App() {
               );
             };
             const renderBeastSprite = (beast: BattleUnitState, index: number) => {
+              const beastBaseId = getBattleBaseBeastId(beast.id);
               const isDefeated = beast.hp <= 0;
               const pose = isDefeated ? 'hurt' : getBattleSpritePose(beast.id);
               const frameIndex = BATTLE_BEAST_POSE_FRAME_INDEX[pose] ?? 0;
@@ -16879,20 +17958,38 @@ export default function App() {
                   ? 'battle-actor-hurt'
                   : '';
               const hitEffectClass = battleHitEffect?.targetId === beast.id ? 'battle-hit-effect' : '';
-              const isMountainLord = beast.id === 'mountain_lord';
-              const isGiantBear = beast.id === 'giant_bear';
-              const left = isMountainLord ? 8 : 14 + index * 7;
-              const bottom = isMountainLord ? -118 : 16 + index * 70;
-              const widthClass = isMountainLord ? 'w-[290px]' : isGiantBear ? 'w-[189px]' : 'w-[145px]';
+              const isMountainLord = beastBaseId === 'mountain_lord';
+              const isGiantBear = beastBaseId === 'giant_bear';
+              const multiBeastCount = aliveBeasts.length;
+              const beastFormation = [
+                { left: 7, bottom: 12, zIndex: 6, widthScale: 1.08 },
+                { left: 20, bottom: 92, zIndex: 4, widthScale: 0.88 },
+                { left: 32, bottom: 34, zIndex: 5, widthScale: 0.98 },
+              ][index] ?? { left: 9 + index * 10, bottom: 20 + (index % 2) * 72, zIndex: 4 + (index % 3), widthScale: 0.92 };
+              const left = isMountainLord
+                ? 8
+                : multiBeastCount >= 3
+                  ? beastFormation.left
+                  : 14 + index * 12;
+              const bottom = isMountainLord
+                ? -118
+                : multiBeastCount >= 3
+                  ? beastFormation.bottom
+                  : 16 + index * 48;
+              const baseWidth = isMountainLord ? 290 : isGiantBear ? 178 : 145;
+              const width = multiBeastCount >= 3 && !isMountainLord
+                ? Math.round(baseWidth * beastFormation.widthScale)
+                : baseWidth;
+              const zIndex = multiBeastCount >= 3 && !isMountainLord ? beastFormation.zIndex : 4;
               return (
                 <div
                   key={beast.id}
-                  className={`absolute z-[4] ${widthClass} aspect-[384/1080] overflow-visible drop-shadow-[0_14px_12px_rgba(0,0,0,0.62)] ${isDefeated ? '' : 'battle-actor-idle'} ${motionClass} ${hitEffectClass}`}
-                  style={{ left: `${left}%`, bottom }}
+                  className={`absolute aspect-[384/1080] overflow-visible drop-shadow-[0_14px_12px_rgba(0,0,0,0.62)] ${isDefeated ? '' : 'battle-actor-idle'} ${motionClass} ${hitEffectClass}`}
+                  style={{ left: `${left}%`, bottom, width, zIndex }}
                 >
                   <div className="absolute inset-0 overflow-hidden">
                     <img
-                      src={getBattleBeastSpriteSrc(beast.id)}
+                      src={getBattleBeastSpriteSrc(beastBaseId)}
                       alt={beast.name}
                       className="absolute top-0 h-full max-w-none object-fill"
                       style={{
@@ -16929,12 +18026,17 @@ export default function App() {
                   <div className="absolute bottom-[18px] left-6 right-6 z-[8] grid grid-cols-[minmax(430px,1.45fr)_minmax(360px,1fr)_250px] grid-rows-[76px_96px] gap-3">
                     <div className="rounded-xl border-2 border-[#dda15e]/55 bg-[#0d1117]/90 px-4 py-2.5">
                       <div className="mb-1 text-base font-black leading-tight">
-                        <span>{mainBeast?.name ?? '獣'}</span>
+                        <span>{aliveBeasts.length > 1 ? `敵 ${aliveBeasts.length}体` : mainBeast?.name ?? '獣'}</span>
                       </div>
-                      {mainBeast && (
-                        <div className="grid grid-cols-[minmax(0,1fr)_58px] items-center gap-3 text-base font-black tabular-nums">
-                          {renderHpBar(mainBeast.hp, mainBeast.maxHp, 'bg-[#ef4444]')}
-                          <span className="whitespace-nowrap text-right">{mainBeast.hp}/{mainBeast.maxHp}</span>
+                      {aliveBeasts.length > 0 && (
+                        <div className="grid gap-1.5 text-sm font-black tabular-nums">
+                          {aliveBeasts.slice(0, 3).map((beast, index) => (
+                            <div key={`hp_${beast.id}`} className="grid grid-cols-[76px_minmax(0,1fr)_58px] items-center gap-2">
+                              <span className="truncate">{aliveBeasts.length > 1 ? `${beast.name}${index + 1}` : beast.name}</span>
+                              {renderHpBar(beast.hp, beast.maxHp, 'bg-[#ef4444]')}
+                              <span className="whitespace-nowrap text-right">{beast.hp}/{beast.maxHp}</span>
+                            </div>
+                          ))}
                         </div>
                       )}
                     </div>
@@ -17159,7 +18261,7 @@ export default function App() {
               {/* メニューを開くボタン（閉じているとき） */}
               {!menuOpen && (
                 <button
-                  onClick={() => { playFixSound(); setMenuOpen(true); setMenuSelectedIndex(3); }}
+                  onClick={() => { playFixSound(); setMenuOpen(true); setMenuSelectedIndex(3); setMenuFocusArea('content'); setMenuContentFocus('secondary'); }}
                   className="flex items-center gap-2 px-4 py-2 text-sm font-bold text-[#fdf6e3] cursor-pointer select-none"
                   style={{
                     background: 'linear-gradient(180deg, #3b2a1a 0%, #1a100d 100%)',
@@ -17235,15 +18337,22 @@ export default function App() {
                       {MENU_ITEMS.map((item, idx) => {
                         const isSelected = menuSelectedIndex === idx;
                         return (
-                          <button
-                            type="button"
-                            key={item.id}
-                            onClick={() => {
-                              playFixSound();
-                              setMenuSelectedIndex(idx);
-                              setMenuFocusArea('nav');
-                              setMenuContentFocus('primary');
-                            }}
+	                          <button
+	                            type="button"
+	                            key={item.id}
+	                            onPointerDown={(event) => {
+	                              event.stopPropagation();
+	                              playFixSound();
+	                              setMenuSelectedIndex(idx);
+	                              setMenuFocusArea(item.id === 'farm' ? 'content' : 'nav');
+	                              setMenuContentFocus(item.id === 'farm' ? 'secondary' : 'primary');
+	                            }}
+	                            onClick={(event) => {
+	                              event.stopPropagation();
+	                              setMenuSelectedIndex(idx);
+	                              setMenuFocusArea(item.id === 'farm' ? 'content' : 'nav');
+	                              setMenuContentFocus(item.id === 'farm' ? 'secondary' : 'primary');
+	                            }}
                             style={{
                               display: 'flex',
                               alignItems: 'center',
@@ -17262,13 +18371,7 @@ export default function App() {
                               boxShadow: isSelected ? '0 12px 28px rgba(0,0,0,0.26), inset 0 1px 0 rgba(255,244,214,0.2)' : 'none',
                             }}
                             aria-pressed={isSelected}
-                            onMouseEnter={() => {
-                              if (menuSelectedIndex !== idx) playCursorSound();
-                              setMenuSelectedIndex(idx);
-                              setMenuFocusArea('nav');
-                              setMenuContentFocus('primary');
-                            }}
-                          >
+	                          >
                             <span style={{ width: 16, color: '#f4a261', opacity: isSelected ? 1 : 0, fontWeight: 'bold' }}>▶</span>
 	                            <span style={{ fontSize: item.id === 'kurumiNotebook' ? 21 : 24, lineHeight: 1, flexShrink: 0 }}>{item.icon}</span>
 	                            <span style={{
@@ -17370,6 +18473,51 @@ export default function App() {
                        いいえ
                     </button>
                  </div>
+              </div>
+           </div>
+        )}
+
+        {bathPromptVisible && (
+           <div className="absolute inset-0 z-[70] flex items-center justify-center bg-black/20">
+              <div className="bg-[#1a100d]/95 border-[4px] border-[#67e8f9] rounded-xl p-6 text-[#fdf6e3] shadow-2xl w-[420px] min-h-[190px] text-center flex flex-col items-center justify-center">
+                 <div className="text-2xl font-bold mb-3">お風呂に入る？</div>
+                 {companionGirlId && (
+                    <div className="mb-4 text-sm font-bold leading-relaxed text-[#c8f6ff]">
+                       {getCompanionBathTrust() >= HOUSE_BATH_TOGETHER_TRUST
+                         ? `${companionGirlName ?? '同行キャラ'}も一緒に入れそう。`
+                         : `${companionGirlName ?? '同行キャラ'}にはソファで待っていてもらおう。`}
+                    </div>
+                 )}
+                 <div className="flex justify-center gap-4">
+                    <button
+                       onClick={() => { playFixSound(); startBathSequence(); }}
+                       onMouseEnter={() => {
+                          if (confirmPromptChoice !== 'yes') playCursorSound();
+                          setConfirmPromptChoice('yes');
+                       }}
+                       className={`w-[120px] h-[52px] bg-[#4a5823] hover:bg-[#60732d] border-2 rounded-lg text-lg font-bold cursor-pointer transition-colors ${confirmPromptChoice === 'yes' ? 'border-white ring-4 ring-[#ffd166]/70' : 'border-[#a3b18a]'}`}
+                    >
+                       はい
+                    </button>
+                    <button
+                       onClick={() => { playFixSound(); cancelBathPrompt(); }}
+                       onMouseEnter={() => {
+                          if (confirmPromptChoice !== 'no') playCursorSound();
+                          setConfirmPromptChoice('no');
+                       }}
+                       className={`w-[120px] h-[52px] bg-[#5a2a1f] hover:bg-[#753527] border-2 rounded-lg text-lg font-bold cursor-pointer transition-colors ${confirmPromptChoice === 'no' ? 'border-white ring-4 ring-[#ffd166]/70' : 'border-[#bc6c25]'}`}
+                    >
+                       いいえ
+                    </button>
+                 </div>
+              </div>
+           </div>
+        )}
+
+        {bathNoticeMessage && (
+           <div className="absolute inset-0 z-[72] flex items-center justify-center bg-black/10 pointer-events-none">
+              <div className="rounded-xl border-[4px] border-[#67e8f9] bg-[#10202a]/95 px-8 py-5 text-center text-2xl font-black leading-relaxed text-[#fdf6e3] shadow-[0_18px_48px_rgba(0,0,0,0.55)]">
+                 {bathNoticeMessage}
               </div>
            </div>
         )}
@@ -17811,6 +18959,45 @@ export default function App() {
                        )}
                     </div>
                  )}
+                 {mermaidLetterNotice && (
+                    <div
+                       className="absolute inset-0 z-50 flex items-center justify-center bg-black/58 px-4"
+                       onPointerDown={(event) => {
+                          event.preventDefault();
+                          event.stopPropagation();
+                       }}
+                       onClick={(event) => {
+                          event.stopPropagation();
+                       }}
+                    >
+                       <div className="relative aspect-[857/1088] w-[430px] max-h-[calc(100vh-96px)] max-w-[min(92vw,430px)]">
+                          <img
+                             src={MERMAID_LETTER_PAPER_SRC}
+                             alt="濡れた手紙"
+                             className="absolute inset-0 h-full w-full object-contain drop-shadow-[0_20px_34px_rgba(0,0,0,0.65)]"
+                             draggable={false}
+                          />
+                          <div className="absolute left-[12%] top-[13%] h-[70%] w-[76%] overflow-hidden whitespace-pre-line text-left text-[13px] font-black leading-[1.65] tracking-[0.02em] text-[#3b2416] drop-shadow-[0_1px_0_rgba(255,245,210,0.55)]">
+                             {mermaidLetterNotice}
+                          </div>
+                          <button
+                             type="button"
+                             onPointerDown={(event) => {
+                                event.preventDefault();
+                                event.stopPropagation();
+                             }}
+                             onClick={(event) => {
+                                event.stopPropagation();
+                                playFixSound();
+                                setMermaidLetterNotice(null);
+                             }}
+                             className="absolute bottom-[8%] left-1/2 h-10 w-36 -translate-x-1/2 rounded-full border-2 border-[#6b3f1d] bg-[linear-gradient(180deg,#f8d58b,#b66b2c)] text-sm font-black text-[#2d1b15] shadow-[0_4px_0_#5c3418,0_8px_18px_rgba(0,0,0,0.35)] transition-transform hover:scale-105"
+                          >
+                             閉じる
+                          </button>
+                       </div>
+                    </div>
+                 )}
               </div>
            </div>
            );
@@ -17831,7 +19018,9 @@ export default function App() {
                  onPointerDown={(event) => event.stopPropagation()}
                >
                  <div className="mb-2 text-sm font-black tracking-[0.24em] text-fuchsia-200">MINING RHYTHM RECORD</div>
-                 <div className="mb-3 text-2xl font-black text-white drop-shadow-[0_0_14px_rgba(240,171,252,0.55)]">BGMに合わせてリズムを記録</div>
+                 <div className="mb-3 text-2xl font-black text-white drop-shadow-[0_0_14px_rgba(240,171,252,0.55)]">
+                   {miningRhythmCountdown !== null ? 'リズム記録スタート準備' : 'BGMに合わせてリズムを記録'}
+                 </div>
                  <div className="mb-4 rounded-xl border border-fuchsia-300/35 bg-black/35 px-4 py-3 text-sm font-bold text-fuchsia-100">
                    {recordingLabel}
                  </div>
@@ -17842,9 +19031,14 @@ export default function App() {
                      event.stopPropagation();
                      recordMiningRhythmBeat();
                    }}
-                   className="mb-4 h-36 w-full rounded-2xl border-[3px] border-[#ffd166] bg-[radial-gradient(circle,rgba(255,209,102,0.22),rgba(126,34,206,0.28),rgba(0,0,0,0.2))] text-2xl font-black text-[#ffd166] shadow-[inset_0_0_24px_rgba(255,209,102,0.18),0_0_24px_rgba(255,209,102,0.22)] transition-transform active:scale-[0.98]"
+                   disabled={miningRhythmCountdown !== null}
+                   className="mb-4 h-36 w-full rounded-2xl border-[3px] border-[#ffd166] bg-[radial-gradient(circle,rgba(255,209,102,0.22),rgba(126,34,206,0.28),rgba(0,0,0,0.2))] text-2xl font-black text-[#ffd166] shadow-[inset_0_0_24px_rgba(255,209,102,0.18),0_0_24px_rgba(255,209,102,0.22)] transition-transform active:scale-[0.98] disabled:cursor-wait disabled:opacity-95"
                  >
-                   ここをBGMに合わせてクリック
+                   {miningRhythmCountdown !== null ? (
+                     <span className="block text-6xl leading-none text-white drop-shadow-[0_0_18px_rgba(255,209,102,0.85)]">
+                       {miningRhythmCountdown}
+                     </span>
+                   ) : 'ここをBGMに合わせてクリック'}
                  </button>
                  <div className="mb-4 grid grid-cols-2 gap-3 text-sm font-bold">
                    <div className="rounded-xl border border-white/15 bg-black/25 px-3 py-2">
@@ -17855,7 +19049,9 @@ export default function App() {
                    </div>
                  </div>
                  <div className="mb-4 rounded-lg border border-white/10 bg-black/25 px-3 py-2 text-xs font-bold text-[#c4b5fd]">
-                   BGMが終わっても閉じません。先頭10秒内のクリックを採掘譜面として保存します。
+                   {miningRhythmCountdown !== null
+                     ? 'カウントが終わるとBGMと記録が同時に始まります。'
+                     : 'BGMが終わっても閉じません。曲全体のクリックを採掘譜面として保存します。'}
                  </div>
                  <div className="flex justify-center gap-3">
                    <button
@@ -17881,7 +19077,8 @@ export default function App() {
          })()}
 
          {miningMiniGameOpen && (() => {
-            const remainingSeconds = Math.max(0, Math.ceil((10_000 - miningElapsedMs) / 1000));
+            const currentMiningTier = miningPlannedReward?.bgmTier ?? 'easy';
+            const remainingSeconds = Math.max(0, Math.ceil((miningGameDurationMs - miningElapsedMs) / 1000));
             const gaugePercent = Math.min(100, miningGauge);
             const miningRockStage = Math.min(5, Math.max(1, Math.floor(gaugePercent / 20) + 1));
             const miningRockAnimationClass = miningImpactJudgement === 'PERFECT'
@@ -17906,6 +19103,16 @@ export default function App() {
                   <div className="mb-2 text-sm font-bold tracking-[0.22em] text-[#a5b4fc] drop-shadow-[0_0_10px_rgba(165,180,252,0.7)]">MINING</div>
                   <div className="mb-3 text-2xl font-bold drop-shadow-[0_2px_0_rgba(0,0,0,0.8)]">
                     {miningMiniGamePhase === 'countdown' ? '採掘開始！' : miningMiniGamePhase === 'playing' ? 'リズムよく岩を砕こう！' : '採掘結果'}
+                  </div>
+                  <div className="mb-3 flex items-center justify-center gap-2">
+                    <span className={`rounded-full border px-3 py-1 text-xs font-black ${getMiningTierToneClass(currentMiningTier)}`}>
+                      鉱脈反応：{getMiningTierLabel(currentMiningTier)}
+                    </span>
+                    {currentMiningTier === 'rare' && miningMiniGamePhase !== 'result' && (
+                      <span className="rounded-full border border-[#f0abfc]/70 bg-[#3b1745]/75 px-3 py-1 text-xs font-black text-[#fae8ff]">
+                        レア譜面：同時押しあり
+                      </span>
+                    )}
                   </div>
                   <div className="relative mb-4 aspect-[16/9] overflow-hidden rounded-xl border-2 border-[#fdf6e3]/70 bg-black shadow-[inset_0_0_24px_rgba(0,0,0,0.72),0_10px_28px_rgba(0,0,0,0.55)]">
                     <img
@@ -17979,19 +19186,27 @@ export default function App() {
                       const top = ((miningElapsedMs - (note.hitAt - MINING_NOTE_FALL_MS)) / MINING_NOTE_FALL_MS) * MINING_JUDGEMENT_LINE_TOP_PERCENT;
                       if (top < -12 || top > 110) return null;
                       const isHit = note.judgement !== null;
+                      const directions = note.directions ?? [note.direction];
                       return (
-                        <img
+                        <div
                           key={note.id}
-                          src={getMiningArrowImageSrc(note.direction)}
-                          alt={getMiningRhythmDirectionLabel(note.direction)}
-                          className={`absolute z-[4] h-28 w-28 -translate-x-1/2 -translate-y-1/2 object-contain transition-opacity ${
+                          className={`absolute z-[4] flex -translate-x-1/2 -translate-y-1/2 items-center justify-center transition-opacity ${
                             isHit ? 'opacity-30' : 'opacity-100 drop-shadow-[0_0_12px_rgba(165,180,252,0.95)]'
                           }`}
                           style={{
                             left: `${getMiningArrowLaneLeftPercent(note.direction)}%`,
                             top: `${top}%`,
                           }}
-                        />
+                        >
+                          {directions.map((noteDirection, directionIndex) => (
+                            <img
+                              key={`${note.id}_${noteDirection}_${directionIndex}`}
+                              src={getMiningArrowImageSrc(noteDirection)}
+                              alt={getMiningRhythmDirectionLabel(noteDirection)}
+                              className={`h-24 w-24 object-contain ${directions.length > 1 ? '-mx-3 rounded-full bg-[#581c87]/55 ring-2 ring-[#f0abfc]/80' : 'h-28 w-28'}`}
+                            />
+                          ))}
+                        </div>
                       );
                     })}
                     {miningMiniGamePhase !== 'result' && (
@@ -18091,6 +19306,8 @@ export default function App() {
                : isAction
                   ? 'タイミングよくのこぎりを挽こう！'
                   : '伐採結果';
+            const loggingDifficultyLabel = getLoggingDifficultyLabel(loggingDifficultyTier);
+            const loggingDifficultyToneClass = getLoggingDifficultyToneClass(loggingDifficultyTier);
 
             const needleAngle = (loggingGauge - 50) * 1.2;
 
@@ -18107,6 +19324,13 @@ export default function App() {
                      <div className="mb-3 text-2xl font-bold drop-shadow-[0_2px_0_rgba(0,0,0,0.8)]">
                         {stageTitle}
                      </div>
+                     {!isResult && (
+                        <div className="mb-3 flex justify-center">
+                           <div className={`rounded-full border px-4 py-1 text-xs font-black shadow-[0_0_14px_rgba(0,0,0,0.35)] ${loggingDifficultyToneClass}`}>
+                              伐採難度：{loggingDifficultyLabel}
+                           </div>
+                        </div>
+                     )}
                      
                      <div className="relative mb-4 aspect-[16/9] overflow-hidden rounded-xl border-2 border-[#fdf6e3]/70 bg-black shadow-[inset_0_0_24px_rgba(0,0,0,0.72),0_10px_28px_rgba(0,0,0,0.55)]">
                         {/* 背景画像 */}
@@ -18161,8 +19385,9 @@ export default function App() {
                            const topY = baseY - radiusY;
                            const fanPath = `M${centerX} ${baseY} L${leftX} ${topY} A${radiusX} ${radiusY} 0 0 1 ${rightX} ${topY} Z`;
                            
-                           const sweetSpotLeftAngle = (LOGGING_MINIGAME_CONFIG.directionSweetMin - 50) * 1.2 * Math.PI / 180;
-                           const sweetSpotRightAngle = (LOGGING_MINIGAME_CONFIG.directionSweetMax - 50) * 1.2 * Math.PI / 180;
+                           const directionSweetRange = getLoggingDirectionSweetRange(loggingDifficultyTier);
+                           const sweetSpotLeftAngle = (directionSweetRange.min - 50) * 1.2 * Math.PI / 180;
+                           const sweetSpotRightAngle = (directionSweetRange.max - 50) * 1.2 * Math.PI / 180;
                            const sweetLeftX = centerX + Math.sin(sweetSpotLeftAngle) * radiusX;
                            const sweetLeftY = baseY - Math.cos(sweetSpotLeftAngle) * radiusY;
                            const sweetRightX = centerX + Math.sin(sweetSpotRightAngle) * radiusX;
@@ -18221,7 +19446,10 @@ export default function App() {
                      {!isResult ? (
                         <>
                            {isAction && (() => {
-                              const targetWidth = loggingAngleSuccess ? 30 : 15;
+                              const baseTargetWidth = loggingAngleSuccess
+                                 ? LOGGING_MINIGAME_CONFIG.actionSweetWidth.goodAngle
+                                 : LOGGING_MINIGAME_CONFIG.actionSweetWidth.badAngle;
+                              const targetWidth = getLoggingSweetWidth(baseTargetWidth, loggingDifficultyTier);
                               const minSweet = 50 - targetWidth / 2;
                               const maxSweet = 50 + targetWidth / 2;
 
@@ -18411,6 +19639,33 @@ export default function App() {
               </div>
             </div>
           </div>
+        )}
+
+        {storyEndingVideoOpen && createPortal(
+          <div className="fixed inset-0 z-[10040] flex items-center justify-center bg-black px-6 py-6 pointer-events-auto">
+            <video
+              src={STORY_ENDING_VIDEO_SRC}
+              className="max-h-full max-w-full object-contain"
+              autoPlay
+              controls
+              playsInline
+              onEnded={() => {
+                setDialogMessage('借金を完済した！\n物語はひとまず完了です。');
+                returnToTitle(false);
+              }}
+            />
+            <button
+              type="button"
+              onClick={() => {
+                playFixSound();
+                returnToTitle(false);
+              }}
+              className="absolute right-6 top-6 rounded border border-white/60 bg-black/70 px-4 py-2 text-sm font-black text-white transition hover:bg-[#4a241b]"
+            >
+              閉じる
+            </button>
+          </div>,
+          document.body
         )}
 
         {isSleepSequenceActive && (
@@ -19016,6 +20271,7 @@ export default function App() {
            inventoryCounts={inventoryCounts}
            gold={gold}
            kurumiTradeTotal={kurumiTradeTotal}
+           kurumiTrustStars={kurumiTrustStars}
            isShopTradePose={isShopTradePose}
            kurumiRewardImageSrc={activeKurumiTradeReward?.imageSrc}
            kurumiRewardMessage={activeKurumiTradeReward?.message}
@@ -19026,6 +20282,26 @@ export default function App() {
            handleShopItemClick={handleShopItemClick}
            handleShopActionClick={handleShopActionClick}
         />
+
+        {showDialog && setupMode === 'none' && (
+           <div className="absolute inset-0 z-[92] flex items-center justify-center bg-black/18 px-6 pointer-events-none">
+              <div className="pointer-events-auto w-[min(720px,calc(100vw-64px))] rounded-xl border-[4px] border-[#ffd166] bg-[#1a100d]/96 px-8 py-6 text-center text-[#fdf6e3] shadow-[0_24px_70px_rgba(0,0,0,0.68)]">
+                 <div className="whitespace-pre-line text-2xl font-black leading-relaxed">
+                    {dialogMessage}
+                 </div>
+                 <button
+                    type="button"
+                    onClick={() => {
+                       playFixSound();
+                       setShowDialog(false);
+                    }}
+                    className="mt-5 h-[48px] min-w-[132px] rounded-lg border-2 border-[#ffd166] bg-[#6b3b18] px-6 text-lg font-black text-[#fff7dc] transition-colors hover:bg-[#8b4d22]"
+                 >
+                    OK
+                 </button>
+              </div>
+           </div>
+        )}
 
         {/* Bottom Dialogue Box */}
         <DialogBox
@@ -19704,6 +20980,17 @@ export default function App() {
            }}
            heroSP={heroSP}
            setHeroSP={setHeroSP}
+           kurumiTrustStars={kurumiTrustStars}
+           adjustKurumiTrustStars={(delta) => {
+             const nextStars = Math.max(0, Math.min(5, kurumiTrustStars + delta));
+             setKurumiTradeTotal(getKurumiTradeTotalForStars(nextStars));
+             setDialogMessage(`くるみ星を${nextStars}にしました。`);
+           }}
+           setKurumiTrustStarsDebug={(stars) => {
+             const nextStars = Math.max(0, Math.min(5, stars));
+             setKurumiTradeTotal(getKurumiTradeTotalForStars(nextStars));
+             setDialogMessage(`くるみ星を${nextStars}にしました。`);
+           }}
            debugGirlAffinities={menuGirls.map(girl => ({ id: girl.id, name: girl.name, affinity: girl.affinity }))}
            adjustDebugGirlAffinity={(girlId, delta) => {
              setDebugGirlAffinities(previous => {
@@ -19928,8 +21215,55 @@ export default function App() {
               </div>
            </div>
         )}
+        {farmCareCinematicAction && createPortal(
+          <div className="farm-care-cinematic fixed inset-0 z-[10002] flex items-center justify-center pointer-events-none" aria-live="polite">
+            <div className="farm-care-cinematic-stage">
+              <video
+                key={farmCareCinematicAction}
+                src={getFarmCareCinematicSrc(farmCareCinematicAction)}
+                className="farm-care-cinematic-video"
+                autoPlay
+                playsInline
+                onEnded={() => {
+                  if (farmCareCinematicTimerRef.current !== null) {
+                    window.clearTimeout(farmCareCinematicTimerRef.current);
+                    farmCareCinematicTimerRef.current = null;
+                  }
+                  setFarmCareCinematicAction(null);
+                }}
+              />
+            </div>
+          </div>,
+          document.body
+        )}
+        {activeZukanVideo && createPortal(
+          <div className="fixed inset-0 z-[10001] flex items-center justify-center bg-black/88 p-6">
+            <div className="relative w-[min(1180px,calc(100vw-48px))] rounded-xl border-4 border-[#ffd166] bg-[#120907] p-4 text-[#fdf6e3] shadow-[0_24px_90px_rgba(0,0,0,0.82)]">
+              <div className="mb-3 flex items-center justify-between gap-4">
+                <div className="text-2xl font-black text-[#ffd166]">{activeZukanVideo.title}</div>
+                <button
+                  type="button"
+                  onClick={() => { playFixSound(); setActiveZukanVideo(null); }}
+                  className="rounded-lg border-2 border-white/45 bg-black/55 px-4 py-2 text-sm font-black text-white hover:bg-white/15"
+                >
+                  閉じる
+                </button>
+              </div>
+              <video
+                src={activeZukanVideo.src}
+                className="max-h-[72vh] w-full rounded-lg bg-black object-contain"
+                controls
+                autoPlay
+                playsInline
+                onEnded={() => setActiveZukanVideo(null)}
+              />
+            </div>
+          </div>,
+          document.body
+        )}
         {farmGirlRevealSpotlightId && createPortal((() => {
           const revealGirl = GIRL_DATA.find(girl => girl.id === farmGirlRevealSpotlightId);
+          const revealSeed = GIRL_SEED_ACQUISITION_DATA.find(seed => seed.girlId === farmGirlRevealSpotlightId);
           const imageSrc = FARM_GIRL_CARD_IMAGES[farmGirlRevealSpotlightId];
           const revealMessage = FARM_GIRL_REVEAL_MESSAGES[farmGirlRevealSpotlightId] ?? `${revealGirl?.girlName ?? '苗娘'}が娘カードになりました。`;
           if (!revealGirl || !imageSrc) return null;
@@ -19951,6 +21285,9 @@ export default function App() {
               </div>
               <div className="farm-girl-reveal-message">
                 {revealMessage}
+                <div className="mt-3 rounded-lg border border-[#ffd166]/60 bg-[#1a100d]/82 px-4 py-3 text-base font-black leading-relaxed text-[#fff1a8]">
+                  {getFarmGirlSeedbedBirthMessage(revealSeed?.seedName ?? `${revealGirl.girlName}の苗`)}
+                </div>
               </div>
             </div>
           );
@@ -19973,7 +21310,14 @@ export default function App() {
                   <button
                     type="button"
                     onMouseEnter={() => setFarmCareConfirmChoice('yes')}
-                    onClick={() => {
+                    onPointerDown={(event) => {
+                      if (event.pointerType !== 'mouse') return;
+                      event.preventDefault();
+                      playFixSound();
+                      confirmSeedlingCare('yes');
+                    }}
+                    onClick={(event) => {
+                      if (event.detail !== 0) return;
                       playFixSound();
                       confirmSeedlingCare('yes');
                     }}
@@ -19984,7 +21328,14 @@ export default function App() {
                   <button
                     type="button"
                     onMouseEnter={() => setFarmCareConfirmChoice('no')}
-                    onClick={() => {
+                    onPointerDown={(event) => {
+                      if (event.pointerType !== 'mouse') return;
+                      event.preventDefault();
+                      playFixSound();
+                      confirmSeedlingCare('no');
+                    }}
+                    onClick={(event) => {
+                      if (event.detail !== 0) return;
                       playFixSound();
                       confirmSeedlingCare('no');
                     }}
@@ -20014,6 +21365,65 @@ export default function App() {
                   setFarmCareUnlockNoticeAction(null);
                 }}
                 className="mt-6 w-full rounded border border-[#ffd166] bg-[#6b3b18] px-5 py-3 text-lg font-black text-[#fff7dc] transition hover:bg-[#8b4d22]"
+              >
+                OK
+              </button>
+            </div>
+          </div>, document.body)}
+        {farmHarvestResultNotice && createPortal(
+          <div className="fixed inset-0 z-[10004] flex items-center justify-center bg-black/50 px-6 pointer-events-auto" aria-live="polite">
+            <div className="relative w-full max-w-lg rounded border-2 border-[#ffd166] bg-[#24140f] p-7 text-center text-[#fff7dc] shadow-[0_24px_72px_rgba(0,0,0,.78)]">
+              <div className="text-sm font-black tracking-[0.2em] text-[#ffd166]">収穫しました！</div>
+              <div className="mt-3 text-3xl font-black text-[#fff1a8]">{farmHarvestResultNotice.girlName}</div>
+              <div className="mt-4 rounded border border-[#76502c] bg-black/30 px-4 py-4 text-left">
+                <div className="flex items-center justify-between gap-4 border-b border-[#76502c]/70 pb-3">
+                  <span className="text-sm font-bold text-[#c8a87a]">獲得</span>
+                  <span className="text-xl font-black text-[#fdf6e3]">{farmHarvestResultNotice.itemName} x{farmHarvestResultNotice.amount}</span>
+                </div>
+                <div className="mt-3 grid grid-cols-2 gap-3 text-sm font-bold">
+                  <div className="rounded bg-black/25 px-3 py-2">
+                    <div className="text-[#c8a87a]">品質</div>
+                    <div className="mt-1 text-lg font-black text-[#fff7dc]">{farmHarvestResultNotice.quality} / 100</div>
+                    <div className="text-xs text-[#ffd166]">{farmHarvestResultNotice.qualityLabel}</div>
+                  </div>
+                  <div className="rounded bg-black/25 px-3 py-2">
+                    <div className="text-[#c8a87a]">信頼度</div>
+                    <div className="mt-1 text-lg font-black text-[#fff7dc]">+{farmHarvestResultNotice.trustGain}</div>
+                    <div className="text-xs text-[#ffd166]">収穫ボーナス</div>
+                  </div>
+                </div>
+                <div className="mt-3 rounded bg-[#2b1a0f]/80 px-3 py-2 text-center text-sm font-black text-[#ffd166]">
+                  売却予想 {farmHarvestResultNotice.estimatedSellPrice.toLocaleString()} G
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  playFixSound();
+                  setFarmHarvestResultNotice(null);
+                }}
+                className="mt-6 w-full rounded border border-[#ffd166] bg-[#6b3b18] px-5 py-3 text-lg font-black text-[#fff7dc] transition hover:bg-[#8b4d22]"
+              >
+                OK
+              </button>
+            </div>
+          </div>, document.body)}
+        {farmTrustEventNotice && createPortal(
+          <div className="fixed inset-0 z-[10003] flex items-center justify-center bg-black/45 px-6 pointer-events-auto" aria-live="polite">
+            <div className="relative w-full max-w-md rounded-2xl border-4 border-[#f9a8d4] bg-[#24101c]/96 p-6 text-center text-[#fff7dc] shadow-[0_24px_72px_rgba(0,0,0,.78),0_0_30px_rgba(244,114,182,0.28)]">
+              <div className="text-sm font-black tracking-[0.22em] text-[#f9a8d4]">信頼イベント解放</div>
+              <div className="mt-3 text-3xl font-black text-[#fff1a8]">{farmTrustEventNotice.girlName}</div>
+              <div className="mt-4 rounded-xl border border-[#f9a8d4]/45 bg-black/35 px-4 py-4">
+                <div className="text-sm font-bold text-[#fbcfe8]">信頼度 {farmTrustEventNotice.trust}</div>
+                <div className="mt-2 text-xl font-black leading-tight text-[#fdf6e3]">{farmTrustEventNotice.label}</div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  playFixSound();
+                  setFarmTrustEventNotice(null);
+                }}
+                className="mt-6 w-full rounded border border-[#f9a8d4] bg-[#831843] px-5 py-3 text-lg font-black text-white transition hover:bg-[#9d174d]"
               >
                 OK
               </button>

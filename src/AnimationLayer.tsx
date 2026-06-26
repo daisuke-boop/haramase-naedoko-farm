@@ -95,9 +95,10 @@ type SpriteItemProps = {
   iwanaSplashSoundSrc: string,
   kurumiDefaultSpriteW: number,
   kurumiDefaultSpriteH: number,
+  kurumiTentMessage: string,
 };
 
-const SpriteItem = ({ z, isSetupMode, onZoneDelete, onZoneClick, isSelected, onSelect, onDragStart, onResizeStart, timeOfDay, seVolume, audioGains, getEffectiveVolume, iwanaSplashSoundSrc, kurumiDefaultSpriteW, kurumiDefaultSpriteH }: SpriteItemProps) => {
+const SpriteItem = ({ z, isSetupMode, onZoneDelete, onZoneClick, isSelected, onSelect, onDragStart, onResizeStart, timeOfDay, seVolume, audioGains, getEffectiveVolume, iwanaSplashSoundSrc, kurumiDefaultSpriteW, kurumiDefaultSpriteH, kurumiTentMessage }: SpriteItemProps) => {
   const [birdDirection, setBirdDirection] = useState(1);
   const [birdOffset, setBirdOffset] = useState({ x: 0, y: 0 });
   const [sagiFlight, setSagiFlight] = useState<{ state: 'perched' | 'leaving' | 'away' | 'returning'; x: number; y: number; direction: number }>({ state: 'perched', x: 0, y: 0, direction: 1 });
@@ -755,7 +756,7 @@ const SpriteItem = ({ z, isSetupMode, onZoneDelete, onZoneClick, isSelected, onS
             />
             {isKurumiTent && (
                <div className="absolute left-1/2 bottom-full z-10 mb-5 -translate-x-1/2 whitespace-nowrap rounded-lg border-2 border-[#3a281d] bg-white px-3 py-1 text-sm font-black text-[#3a281d] shadow-lg">
-                  zzz...
+                  {kurumiTentMessage}
                   <span className="absolute left-1/2 top-full h-3 w-3 -translate-x-1/2 -translate-y-1/2 rotate-45 border-b-2 border-r-2 border-[#3a281d] bg-white" />
                </div>
             )}
@@ -812,9 +813,10 @@ type AnimationLayerProps = {
   iwanaSplashSoundSrc: string,
   kurumiDefaultSpriteW: number,
   kurumiDefaultSpriteH: number,
+  kurumiTentMessage: string,
 };
 
-const AnimationLayer = ({ zones, isSetupMode, onZoneDelete, onZoneClick, selectedZoneId, onSelect, onZoneDragStart, onZoneResizeStart, timeOfDay, seVolume, audioGains, getEffectiveVolume, iwanaSplashSoundSrc, kurumiDefaultSpriteW, kurumiDefaultSpriteH }: AnimationLayerProps) => {
+const AnimationLayer = ({ zones, isSetupMode, onZoneDelete, onZoneClick, selectedZoneId, onSelect, onZoneDragStart, onZoneResizeStart, timeOfDay, seVolume, audioGains, getEffectiveVolume, iwanaSplashSoundSrc, kurumiDefaultSpriteW, kurumiDefaultSpriteH, kurumiTentMessage }: AnimationLayerProps) => {
   return (
     <div className="absolute inset-0 pointer-events-none z-20 overflow-hidden">
       <style>{`
@@ -853,7 +855,7 @@ const AnimationLayer = ({ zones, isSetupMode, onZoneDelete, onZoneClick, selecte
         }
       `}</style>
       {zones.map(z => (
-         <SpriteItem key={z.id} z={z} isSetupMode={isSetupMode} onZoneDelete={onZoneDelete} onZoneClick={onZoneClick} isSelected={selectedZoneId === z.id} onSelect={onSelect} onDragStart={onZoneDragStart} onResizeStart={onZoneResizeStart} timeOfDay={timeOfDay} seVolume={seVolume} audioGains={audioGains} getEffectiveVolume={getEffectiveVolume} iwanaSplashSoundSrc={iwanaSplashSoundSrc} kurumiDefaultSpriteW={kurumiDefaultSpriteW} kurumiDefaultSpriteH={kurumiDefaultSpriteH} />
+         <SpriteItem key={z.id} z={z} isSetupMode={isSetupMode} onZoneDelete={onZoneDelete} onZoneClick={onZoneClick} isSelected={selectedZoneId === z.id} onSelect={onSelect} onDragStart={onZoneDragStart} onResizeStart={onZoneResizeStart} timeOfDay={timeOfDay} seVolume={seVolume} audioGains={audioGains} getEffectiveVolume={getEffectiveVolume} iwanaSplashSoundSrc={iwanaSplashSoundSrc} kurumiDefaultSpriteW={kurumiDefaultSpriteW} kurumiDefaultSpriteH={kurumiDefaultSpriteH} kurumiTentMessage={kurumiTentMessage} />
       ))}
     </div>
   );

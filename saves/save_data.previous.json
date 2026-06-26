@@ -1,6 +1,6 @@
 {
   "saveSchemaVersion": 2,
-  "turn": 0,
+  "turn": 8,
   "gold": 5000,
   "gameMode": "story",
   "hasUnlockedEndlessNurseryMode": false,
@@ -38,24 +38,26 @@
   "scheduledBeastAttackDay": null,
   "mountainLordAttackPending": false,
   "beastAttackPending": false,
-  "companionGirlId": null,
+  "companionGirlId": "chibiichi",
   "currentWeeklyInterestRate": 2.2,
   "interestRateCycleIndex": 0,
   "farmGirls": [
     {
       "girlId": "chibiichi",
-      "state": "growing",
-      "cardRevealed": false,
+      "state": "appeared",
+      "cardRevealed": true,
       "plantedDay": 1,
-      "growthProgress": 0,
-      "quality": 32,
-      "careDay": null,
-      "caressCount": 0,
+      "growthProgress": 2,
+      "quality": 44,
+      "careDay": 2,
+      "caressCount": 1,
       "fingerCount": 0,
       "fertilizeCount": 0,
-      "lastHarvestDay": null,
+      "lastHarvestDay": 3,
       "trust": 20,
-      "unlockedTrustEventIds": [],
+      "unlockedTrustEventIds": [
+        "chibiichi_trust_20"
+      ],
       "condition": "normal",
       "conditionDay": null,
       "conditionSource": null,
@@ -63,14 +65,14 @@
     },
     {
       "girlId": "mel",
-      "state": "none",
+      "state": "growing",
       "cardRevealed": false,
-      "plantedDay": null,
-      "growthProgress": 0,
-      "quality": 0,
-      "careDay": null,
+      "plantedDay": 1,
+      "growthProgress": 2,
+      "quality": 50,
+      "careDay": 3,
       "caressCount": 0,
-      "fingerCount": 0,
+      "fingerCount": 1,
       "fertilizeCount": 0,
       "lastHarvestDay": null,
       "trust": 20,
@@ -82,18 +84,20 @@
     },
     {
       "girlId": "ruby",
-      "state": "growing",
-      "cardRevealed": false,
+      "state": "appeared",
+      "cardRevealed": true,
       "plantedDay": 1,
-      "growthProgress": 0,
-      "quality": 32,
-      "careDay": null,
-      "caressCount": 0,
+      "growthProgress": 2,
+      "quality": 37,
+      "careDay": 2,
+      "caressCount": 1,
       "fingerCount": 0,
       "fertilizeCount": 0,
-      "lastHarvestDay": null,
+      "lastHarvestDay": 3,
       "trust": 20,
-      "unlockedTrustEventIds": [],
+      "unlockedTrustEventIds": [
+        "ruby_trust_20"
+      ],
       "condition": "normal",
       "conditionDay": null,
       "conditionSource": null,
@@ -328,35 +332,36 @@
       "hybridAdapted": false
     }
   ],
-  "farmCareUnlockStage": 1,
+  "farmCareUnlockStage": 3,
+  "farmCareFingerUnlockedDay": null,
   "ownedGirlSeeds": [
     "ichigo",
     "melon",
     "tomato"
   ],
   "hasReceivedKurumiStarterSeeds": true,
-  "seedAfterPlantTutorialCompleted": false,
+  "seedAfterPlantTutorialCompleted": true,
   "farmFieldSlots": [
     {
       "fieldId": "right",
       "slotIndex": 1,
       "girlId": "chibiichi",
-      "state": "growing",
+      "state": "appeared",
       "plantedDay": 1
     },
     {
       "fieldId": "right",
       "slotIndex": 2,
       "girlId": "ruby",
-      "state": "growing",
+      "state": "appeared",
       "plantedDay": 1
     },
     {
       "fieldId": "right",
       "slotIndex": 3,
-      "girlId": null,
-      "state": "none",
-      "plantedDay": null
+      "girlId": "mel",
+      "state": "growing",
+      "plantedDay": 1
     },
     {
       "fieldId": "right",
@@ -366,7 +371,7 @@
       "plantedDay": null
     }
   ],
-  "currentAP": 5,
+  "currentAP": 4,
   "maxAPPerTimeSlot": 5,
   "difficulty": "hard",
   "currentMap": "farm",
@@ -45332,33 +45337,69 @@
     "パンのかぼちゃ（デバッグ用）": 1,
     "プティのドラゴンフルーツ（デバッグ用）": 1,
     "ロマのロマネスコ（デバッグ用）": 1,
-    "サフィのサフラン（デバッグ用）": 1
+    "サフィのサフラン（デバッグ用）": 1,
+    "竹の釣竿": 1,
+    "枝": 1,
+    "【レシピ】のこぎり": 1,
+    "モグラの爪": 0,
+    "ウサギの靭帯": 0,
+    "軟らかい銅鉱石": 0,
+    "柔らかな若枝": 0,
+    "のこぎり": 1,
+    "【レシピ】つるはし": 1,
+    "泥混じりの鉄鉱石": 3,
+    "つるはし": 1,
+    "軽石炭": 3,
+    "ちびいちのいちご": 2,
+    "ルビーのトマト": 3
   },
   "equippedItems": {
-    "主人公-slot1": "",
-    "主人公-slot2": "",
-    "主人公-slot3": "",
+    "主人公-slot1": "竹の釣竿",
+    "主人公-slot2": "のこぎり",
+    "主人公-slot3": "つるはし",
     "主人公-slot4": "",
     "ちびいち-slot1": "",
     "ちびいち-slot2": ""
   },
-  "caughtFishIds": [],
+  "caughtFishIds": [
+    "eda"
+  ],
   "nushiCaughtFishIds": [],
-  "fishBestSizes": {},
-  "fishInventorySizes": {},
+  "fishBestSizes": {
+    "eda": 10
+  },
+  "fishInventorySizes": {
+    "枝": [
+      10
+    ]
+  },
   "lumberInventorySizes": {},
-  "oreInventoryWeights": {},
+  "oreInventoryWeights": {
+    "泥混じりの鉄鉱石": [
+      2118,
+      1496,
+      2166
+    ],
+    "軽石炭": [
+      541,
+      354,
+      224
+    ]
+  },
   "depletedMiningPointIds": {},
-  "fishingTutorialCompleted": false,
-  "craftTutorialRecipeName": "【レシピ】のこぎり",
+  "fishingTutorialCompleted": true,
+  "craftTutorialRecipeName": "【レシピ】つるはし",
   "sawCraftTutorialReady": false,
   "sawCraftTutorialWorkbenchReady": false,
-  "sawCraftTutorialCompleted": false,
-  "loggingTutorialCompleted": false,
-  "miningTutorialCompleted": false,
-  "craftedRecipeIds": [],
-  "gatheringTutorialCompleted": false,
-  "gatheringTutorialChoice": null,
+  "sawCraftTutorialCompleted": true,
+  "loggingTutorialCompleted": true,
+  "miningTutorialCompleted": true,
+  "craftedRecipeIds": [
+    "【レシピ】のこぎり",
+    "【レシピ】つるはし"
+  ],
+  "gatheringTutorialCompleted": true,
+  "gatheringTutorialChoice": "mining",
   "kurumiIntroAskedTopics": [
     "village",
     "debt",
