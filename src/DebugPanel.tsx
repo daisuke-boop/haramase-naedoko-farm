@@ -39,6 +39,12 @@ type DebugPanelProps = {
   kurumiTrustStars: number;
   adjustKurumiTrustStars: (delta: number) => void;
   setKurumiTrustStarsDebug: (stars: number) => void;
+  debugItemsEnabled: boolean;
+  onEnableDebugItems: () => void;
+  onDisableDebugItems: () => void;
+  debugGirlsEnabled: boolean;
+  onEnableDebugGirls: () => void;
+  onDisableDebugGirls: () => void;
   debugGirlAffinities: readonly DebugGirlAffinityEntry[];
   adjustDebugGirlAffinity: (girlId: string, delta: number) => void;
   currentHeroSkillCategoryLabel: string;
@@ -107,6 +113,12 @@ const DebugPanel = ({
   kurumiTrustStars,
   adjustKurumiTrustStars,
   setKurumiTrustStarsDebug,
+  debugItemsEnabled,
+  onEnableDebugItems,
+  onDisableDebugItems,
+  debugGirlsEnabled,
+  onEnableDebugGirls,
+  onDisableDebugGirls,
   debugGirlAffinities,
   adjustDebugGirlAffinity,
   currentHeroSkillCategoryLabel,
@@ -226,6 +238,43 @@ const DebugPanel = ({
           </div>
           {!isMinimized && (
           <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-scroll overscroll-contain p-2.5 pr-2 [scrollbar-color:#dc2626_#2d1b15] [scrollbar-width:thin]">
+          <div className="rounded border border-red-400/80 bg-red-950/45 p-2">
+            <div className="mb-1 flex items-center justify-between font-black text-red-100">
+              <span>一括デバッグ</span>
+              <span className="text-[10px]">Slot5専用</span>
+            </div>
+            <div className="mb-2 grid grid-cols-2 gap-1">
+              <button
+                type="button"
+                onClick={onEnableDebugItems}
+                className={`rounded border py-1 text-[10px] font-black ${debugItemsEnabled ? 'border-emerald-200 bg-emerald-700 text-white' : 'border-emerald-300/70 bg-black/30 text-emerald-100 hover:bg-emerald-900'}`}
+              >
+                アイテムON
+              </button>
+              <button
+                type="button"
+                onClick={onDisableDebugItems}
+                className="rounded border border-red-200/80 bg-red-800/75 py-1 text-[10px] font-black text-white hover:bg-red-700"
+              >
+                アイテムOFF
+              </button>
+              <button
+                type="button"
+                onClick={onEnableDebugGirls}
+                className={`rounded border py-1 text-[10px] font-black ${debugGirlsEnabled ? 'border-emerald-200 bg-emerald-700 text-white' : 'border-emerald-300/70 bg-black/30 text-emerald-100 hover:bg-emerald-900'}`}
+              >
+                娘ON
+              </button>
+              <button
+                type="button"
+                onClick={onDisableDebugGirls}
+                className="rounded border border-red-200/80 bg-red-800/75 py-1 text-[10px] font-black text-white hover:bg-red-700"
+              >
+                娘OFF
+              </button>
+            </div>
+            <div className="text-[9px] leading-tight text-red-100/80">OFFはデバッグ用状態だけを戻します。通常アイテムは残します。</div>
+          </div>
           <div className="grid grid-cols-2 gap-1.5">
             <button 
               onClick={() => setTurn(t => Math.floor(t / 4) * 4 + 0)} 
