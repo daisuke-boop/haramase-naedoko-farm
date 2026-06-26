@@ -96,6 +96,12 @@ export const FISHING_FISH_WEIGHT_MULTIPLIERS: Readonly<Record<string, number>> =
   pinkningyo: 0.2,
   aoningyo: 0.03,
 };
+const MERMAID_FISH_IDS = new Set(['aoningyo', 'kiironingyo', 'pinkningyo']);
+const MERMAID_FISH_TARGET_RATES: Readonly<Record<string, number>> = {
+  aoningyo: 0.05,
+  kiironingyo: 0.03,
+  pinkningyo: 0.02,
+};
 
 // 将来、釣り全体の経済価値を一括調整するための倍率。現在の価格は変更しない。
 export const sellPriceMultiplier = 1;
@@ -160,6 +166,7 @@ export type FishingSelectionParams = {
   timeOfDay: TimeOfDay;
   caughtIds?: readonly string[];
   rareRateMultiplier?: number;
+  mermaidUnlocked?: boolean;
   random?: () => number;
 };
 
@@ -167,6 +174,7 @@ export const getFishingCandidates = ({
   difficulty,
   rodName,
   caughtIds = [],
+  mermaidUnlocked = false,
 }: Omit<FishingSelectionParams, 'timeOfDay' | 'random'>): readonly FishZukanEntry[] => {
   const maxNo = FISHING_DIFFICULTY_MAX_NO[difficulty];
   const catchableNos = FISHING_ROD_CATCH_TABLE[getFishingRodName(rodName)];
@@ -174,6 +182,7 @@ export const getFishingCandidates = ({
   return FISH_ZUKAN_ENTRIES.filter(fish => (
     fish.no <= maxNo &&
     catchableNos.includes(fish.no) &&
+    (mermaidUnlocked || !MERMAID_FISH_IDS.has(fish.id)) &&
     (!fish.oneTime || !caughtIds.includes(fish.id))
   ));
 };
@@ -184,13 +193,24 @@ export const selectFishingTargetFish = ({
   timeOfDay,
   caughtIds = [],
   rareRateMultiplier = 1,
+  mermaidUnlocked = false,
   random = Math.random,
 }: FishingSelectionParams): FishZukanEntry => {
-  const candidates = getFishingCandidates({ difficulty, rodName, caughtIds });
+  const candidates = getFishingCandidates({ difficulty, rodName, caughtIds, mermaidUnlocked });
   const fallback = FISH_ZUKAN_ENTRIES[0];
   if (candidates.length === 0) return fallback;
 
-  const weighted = candidates.map(fish => ({
+  const mermaidCandidates = candidates.filter(fish => MERMAID_FISH_IDS.has(fish.id));
+  const mermaidTotalRate = mermaidCandidates.reduce((sum, fish) => sum + (MERMAID_FISH_TARGET_RATES[fish.id] ?? 0), 0);
+  if (mermaidTotalRate > 0) {
+    let mermaidRoll = random();
+    for (const fish of mermaidCandidates) {
+      mermaidRoll -= MERMAID_FISH_TARGET_RATES[fish.id] ?? 0;
+      if (mermaidRoll <= 0) return fish;
+    }
+  }
+
+  const weighted = candidates.filter(fish => !MERMAID_FISH_IDS.has(fish.id)).map(fish => ({
     fish,
     weight:
       FISHING_RARITY_BASE_WEIGHTS[fish.rarity] *

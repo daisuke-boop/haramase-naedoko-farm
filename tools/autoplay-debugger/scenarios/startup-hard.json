@@ -1,0 +1,7 @@
+{
+  "id": "startup-hard",
+  "description": "専用セーブでタイトルからハードモードを開始し、初期画面の健全性を確認する",
+  "difficulty": "ハード",
+  "targetDay": 1,
+  "finishAfterStart": true
+}

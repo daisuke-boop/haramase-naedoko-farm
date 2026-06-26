@@ -26,6 +26,11 @@ type DebugGirlAffinityEntry = {
   name: string;
   affinity: number;
 };
+type DebugGirlTrustEntry = {
+  id: string;
+  name: string;
+  trust: number;
+};
 
 type DebugPanelProps = {
   setupMode: SetupMode;
@@ -47,6 +52,9 @@ type DebugPanelProps = {
   onDisableDebugGirls: () => void;
   debugGirlAffinities: readonly DebugGirlAffinityEntry[];
   adjustDebugGirlAffinity: (girlId: string, delta: number) => void;
+  debugGirlTrusts: readonly DebugGirlTrustEntry[];
+  adjustDebugGirlTrust: (girlId: string, delta: number) => void;
+  setDebugGirlTrust: (girlId: string, trust: number) => void;
   currentHeroSkillCategoryLabel: string;
   unlockedHeroSkillCount: number;
   onUnlockCurrentHeroSkillCategory: () => void;
@@ -121,6 +129,9 @@ const DebugPanel = ({
   onDisableDebugGirls,
   debugGirlAffinities,
   adjustDebugGirlAffinity,
+  debugGirlTrusts,
+  adjustDebugGirlTrust,
+  setDebugGirlTrust,
   currentHeroSkillCategoryLabel,
   unlockedHeroSkillCount,
   onUnlockCurrentHeroSkillCategory,
@@ -182,6 +193,7 @@ const DebugPanel = ({
   const [selectedMiningRhythmSource, setSelectedMiningRhythmSource] = React.useState(miningRhythmOptions[0]?.src ?? '');
   const [selectedAffinityGirlId, setSelectedAffinityGirlId] = React.useState(debugGirlAffinities[0]?.id ?? '');
   const selectedAffinityGirl = debugGirlAffinities.find(girl => girl.id === selectedAffinityGirlId) ?? debugGirlAffinities[0];
+  const selectedTrustGirl = debugGirlTrusts.find(girl => girl.id === selectedAffinityGirl?.id) ?? debugGirlTrusts[0];
   const selectedMiningRhythmCount = miningRhythmTimingCounts[selectedMiningRhythmSource] ?? 0;
   const totalMiningRhythmCount = Object.values(miningRhythmTimingCounts).reduce((sum, count) => sum + count, 0);
 
@@ -329,7 +341,7 @@ const DebugPanel = ({
                 className="mb-1 w-full rounded border border-amber-300/60 bg-[#2d1b15] px-1 py-1 text-[10px] font-bold text-amber-100"
               >
                 {debugGirlAffinities.map(girl => (
-                  <option key={girl.id} value={girl.id}>{girl.name} ★{girl.affinity}/5</option>
+                  <option key={girl.id} value={girl.id}>{girl.name} ★{girl.affinity}/5 信頼{debugGirlTrusts.find(entry => entry.id === girl.id)?.trust ?? 0}</option>
                 ))}
               </select>
               <div className="mb-1 flex items-center justify-between text-[10px] font-black text-amber-100">
@@ -353,6 +365,46 @@ const DebugPanel = ({
                 >
                   娘+1
                 </button>
+              </div>
+              <div className="mt-2 rounded border border-pink-300/30 bg-black/25 p-1.5">
+                <div className="mb-1 flex items-center justify-between text-[10px] font-black text-pink-100">
+                  <span className="min-w-0 truncate">娘信頼度</span>
+                  <span>{selectedTrustGirl?.trust ?? 0} / 100</span>
+                </div>
+                <div className="grid grid-cols-4 gap-1">
+                  <button
+                    type="button"
+                    disabled={!selectedTrustGirl}
+                    onClick={() => selectedTrustGirl && adjustDebugGirlTrust(selectedTrustGirl.id, -10)}
+                    className="rounded border border-pink-300/60 bg-black/30 py-1 font-black hover:bg-pink-900 disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    信-10
+                  </button>
+                  <button
+                    type="button"
+                    disabled={!selectedTrustGirl}
+                    onClick={() => selectedTrustGirl && adjustDebugGirlTrust(selectedTrustGirl.id, 10)}
+                    className="rounded border border-pink-300/60 bg-pink-900/70 py-1 font-black hover:bg-pink-800 disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    信+10
+                  </button>
+                  <button
+                    type="button"
+                    disabled={!selectedTrustGirl}
+                    onClick={() => selectedTrustGirl && setDebugGirlTrust(selectedTrustGirl.id, 50)}
+                    className="rounded border border-pink-300/60 bg-black/30 py-1 font-black hover:bg-pink-900 disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    信50
+                  </button>
+                  <button
+                    type="button"
+                    disabled={!selectedTrustGirl}
+                    onClick={() => selectedTrustGirl && setDebugGirlTrust(selectedTrustGirl.id, 100)}
+                    className="rounded border border-pink-200 bg-pink-800 py-1 font-black hover:bg-pink-700 disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    信100
+                  </button>
+                </div>
               </div>
             </div>
           </div>

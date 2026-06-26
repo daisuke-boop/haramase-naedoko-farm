@@ -1,0 +1,14 @@
+{
+  "name": "farm-autoplay-debugger",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "debug:startup": "node src/run.mjs startup-hard",
+    "debug:day1": "node src/run.mjs day-one",
+    "check": "node --check src/run.mjs"
+  },
+  "dependencies": {
+    "playwright-core": "^1.53.0"
+  }
+}

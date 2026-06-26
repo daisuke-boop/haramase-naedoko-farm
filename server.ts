@@ -9,7 +9,9 @@ const __dirname = path.dirname(__filename);
 
 const app = express();
 const PORT = process.env.PORT || 4173;
-const SAVE_DIR = path.resolve(__dirname, 'saves');
+const SAVE_DIR = process.env.FARM_SAVE_DIR
+  ? path.resolve(process.env.FARM_SAVE_DIR)
+  : path.resolve(__dirname, 'saves');
 const SAVE_FILE = path.resolve(SAVE_DIR, 'save_data.json');
 const PREVIOUS_SAVE_FILE = path.resolve(SAVE_DIR, 'save_data.previous.json');
 const MAP_SETTINGS_FILE = path.resolve(SAVE_DIR, 'map_settings.json');

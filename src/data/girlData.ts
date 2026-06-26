@@ -2,7 +2,7 @@ export type GirlUnlockTier = 'initial' | 'mid' | 'final';
 
 export type GirlRarity = 'common' | 'uncommon' | 'rare' | 'legendary';
 
-export type GirlTrustMilestone = 20 | 40 | 60 | 80 | 100;
+export type GirlTrustMilestone = 50 | 100;
 
 export type GirlTrustEvent = {
   trust: GirlTrustMilestone;
@@ -26,23 +26,103 @@ export type GirlTrustEventUnlockState = {
   unlockedTrustEventIds: string[];
 };
 
-const TRUST_MILESTONES: readonly GirlTrustMilestone[] = [20, 40, 60, 80, 100];
+export type CompanionSpeechMoment = 'morning' | 'harvest' | 'tired';
+
+export const COMPANION_SPEECH_LINES: Readonly<Record<string, Readonly<Record<CompanionSpeechMoment, readonly string[]>>>> = {
+  chibiichi: {
+    morning: ['お兄ちゃん、今日もいっしょに行こっ♪'],
+    harvest: ['わぁ、甘そうに育ったね！'],
+    tired: ['つかれたら、ちびいちがぎゅってしてあげるね'],
+  },
+  kabune: {
+    morning: ['さ、畑を見回るよ。遅れないで'],
+    harvest: ['いい出来だね。土の声をちゃんと聞けてる'],
+    tired: ['無理は禁物。休むのも仕事のうちだよ'],
+  },
+  caro: {
+    morning: ['今日もダッシュでがんばろー！'],
+    harvest: ['やった！元気いっぱいの収穫だね！'],
+    tired: ['あと少しだけど、倒れたらダメだからねっ'],
+  },
+  cure: {
+    morning: ['体調管理も作業効率の一部です'],
+    harvest: ['品質は安定。良い傾向ですね'],
+    tired: ['疲労が見えます。休息を推奨します'],
+  },
+  mel: {
+    morning: ['ふふ、今日の畑も優しい香りがします'],
+    harvest: ['大切に育てた気持ち、伝わっていますね'],
+    tired: ['夜風が冷えます。そろそろ戻りましょう'],
+  },
+  momona: {
+    morning: ['ねぇねぇ、今日はどこに連れてってくれるの？'],
+    harvest: ['すごぉい、甘くて幸せな実りだね♪'],
+    tired: ['もう少し一緒にいたいけど、休まなきゃだよ？'],
+  },
+  nazuna: {
+    morning: ['今日も静かに、でもしっかり頑張るね'],
+    harvest: ['きれいに育ってる……うれしい'],
+    tired: ['疲れてない？無理してたら、すぐ分かるよ'],
+  },
+  pan: {
+    morning: ['今日もお腹いっぱい働こっか♪'],
+    harvest: ['ほくほくの収穫だね、料理したくなっちゃう'],
+    tired: ['お腹すいた？帰ったら何か作ろうか'],
+  },
+  puti: {
+    morning: ['ふふ、今日は刺激的な一日になりそうね'],
+    harvest: ['悪くない実りね。もっと欲張ってもいいわよ'],
+    tired: ['限界まで頑張る顔も、嫌いじゃないけどね'],
+  },
+  roma: {
+    morning: ['畑の螺旋が、今日の流れを示している'],
+    harvest: ['収穫とは、形になった時間の証明だね'],
+    tired: ['夜は思考が深くなる。だが身体は休ませよう'],
+  },
+  ruby: {
+    morning: ['今日も燃えていくわよ！'],
+    harvest: ['いいじゃない！真っ赤に誇れる出来ね！'],
+    tired: ['へばる前に言いなさいよ。支えてあげるから'],
+  },
+  saffy: {
+    morning: ['朝露が美しいですね。参りましょう'],
+    harvest: ['丁寧な手入れが、実りに宿っています'],
+    tired: ['疲労を重ねるのは美しくありません。休みましょう'],
+  },
+  shiro: {
+    morning: ['今日もそばにいていいですか？'],
+    harvest: ['まっすぐ育ってくれて……よかった'],
+    tired: ['無理しないで。あなたが倒れたら悲しいです'],
+  },
+  theta: {
+    morning: ['畑仕事なら任せて。手を汚すのは好きだから'],
+    harvest: ['うん、いい根っこしてる。これは強いよ'],
+    tired: ['今日はここまでにしよ。明日の土も待ってる'],
+  },
+  viola: {
+    morning: ['ふふ、今日も私を退屈させないでね'],
+    harvest: ['いい実りね。あなたの手つき、上達してるわ'],
+    tired: ['頑張りすぎ。少しは私に甘えてもいいのよ'],
+  },
+};
+
+const TRUST_MILESTONES: readonly GirlTrustMilestone[] = [50, 100];
 const TRUST_EVENT_LABELS: Readonly<Record<string, readonly string[]>> = {
-  chibiichi: ['はじめてのいちご摘み', '甘い香りの約束', '小さな手の応援', '内緒のジャム作り', '真っ赤な実りの日'],
-  mel: ['木陰のメロン相談', '水やり日和', '涼しい休憩時間', '完熟を待つ夜', '甘い果肉の誓い'],
-  ruby: ['赤い実の挨拶', '畑の見回り隊', '夕焼けトマト畑', '情熱の収穫祭', 'ルビー色の約束'],
-  viola: ['葡萄棚の出会い', '香りをたどって', '月下の試飲会', '紫の秘密', '熟成する想い'],
-  nazuna: ['なす畑の手伝い', '雨上がりの足跡', '台所の作戦会議', '濃紺の夕涼み', 'やわらかな実り'],
-  kabune: ['かぶ畑の小さな声', '土の中の宝探し', '白い根の贈り物', '丸い月の晩', '抜けない絆'],
-  caro: ['にんじん色の朝', '走れ畑道', '元気印の配達', '夕暮れレース', 'まっすぐな気持ち'],
-  theta: ['しいたけ小屋の灯り', '湿った森の約束', '胞子舞う午後', '木陰の研究会', '静かな森の絆'],
-  cure: ['きゅうりの水音', '冷たい差し入れ', '畑の看病係', '夏夜の涼風', '潤いの約束'],
-  shiro: ['だいこん畑の白い影', '雪色の手紙', '根気くらべ', '白月の守り', 'まっ白な誓い'],
-  momona: ['桃色の挨拶', '甘い差し入れ', 'ふわり桃の香り', '秘密の果樹園', '桃色の未来'],
-  pan: ['かぼちゃ畑の灯り', 'ころころ収穫日', '大きな実の相談', '収穫祭の準備', '黄金色の馬車'],
-  puti: ['竜の果実の目覚め', '南国の風', '棘の向こう側', '熱帯夜の約束', '竜果の契り'],
-  roma: ['不思議な渦巻き', '幾何学畑の午後', '緑の迷宮', '螺旋の秘密', '永遠のロマネスコ'],
-  saffy: ['金色の香り', '小さな高級品', '朝露のサフラン', '黄金の取引', '幸運の花糸'],
+  chibiichi: ['甘い香りの約束', '真っ赤な実りの日'],
+  mel: ['完熟を待つ午後', '甘い果肉の誓い'],
+  ruby: ['夕焼けトマト畑', 'ルビー色の約束'],
+  viola: ['紫の秘密', '熟成する想い'],
+  nazuna: ['雨上がりの足跡', 'やわらかな実り'],
+  kabune: ['白い根の贈り物', '抜けない絆'],
+  caro: ['夕暮れレース', 'まっすぐな気持ち'],
+  theta: ['木陰の研究会', '静かな森の絆'],
+  cure: ['夏夜の涼風', '潤いの約束'],
+  shiro: ['白月の守り', 'まっ白な誓い'],
+  momona: ['秘密の果樹園', '桃色の未来'],
+  pan: ['収穫祭の準備', '黄金色の馬車'],
+  puti: ['熱帯夜の約束', '竜果の契り'],
+  roma: ['螺旋の秘密', '永遠のロマネスコ'],
+  saffy: ['黄金の取引', '幸運の花糸'],
 };
 
 const createTrustEvents = (girlId: string): readonly GirlTrustEvent[] => {

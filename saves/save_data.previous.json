@@ -28,8 +28,8 @@
     "totalTrustEventsUnlocked": 0,
     "totalMoneyEarned": 0
   },
-  "debt": 1500000,
-  "debtAmount": 1500000,
+  "debt": 30000000,
+  "debtAmount": 30000000,
   "repaymentCycleDays": 7,
   "storyCleared": false,
   "farmCredit": 0,
@@ -45,16 +45,16 @@
   "mountainLordAttackPending": false,
   "beastAttackPending": false,
   "companionGirlId": null,
-  "currentWeeklyInterestRate": 0.6,
+  "currentWeeklyInterestRate": 2,
   "interestRateCycleIndex": 0,
   "farmGirls": [
     {
       "girlId": "chibiichi",
-      "state": "growing",
+      "state": "none",
       "cardRevealed": false,
-      "plantedDay": 1,
+      "plantedDay": null,
       "growthProgress": 0,
-      "quality": 33,
+      "quality": 0,
       "careDay": null,
       "caressCount": 0,
       "fingerCount": 0,
@@ -69,11 +69,11 @@
     },
     {
       "girlId": "mel",
-      "state": "growing",
+      "state": "none",
       "cardRevealed": false,
-      "plantedDay": 1,
+      "plantedDay": null,
       "growthProgress": 0,
-      "quality": 36,
+      "quality": 0,
       "careDay": null,
       "caressCount": 0,
       "fingerCount": 0,
@@ -88,11 +88,11 @@
     },
     {
       "girlId": "ruby",
-      "state": "growing",
+      "state": "none",
       "cardRevealed": false,
-      "plantedDay": 1,
+      "plantedDay": null,
       "growthProgress": 0,
-      "quality": 33,
+      "quality": 0,
       "careDay": null,
       "caressCount": 0,
       "fingerCount": 0,
@@ -342,50 +342,36 @@
     "tomato"
   ],
   "hasReceivedKurumiStarterSeeds": true,
-  "hasKurumiNotebook": true,
+  "hasKurumiNotebook": false,
   "kurumiTradeTotal": 0,
   "shownKurumiTradeRewardThresholds": [],
   "kurumiPantsReturned": false,
   "seedAfterPlantTutorialCompleted": false,
   "farmFieldSlots": [
     {
-      "fieldId": "left",
+      "fieldId": "right",
       "slotIndex": 1,
-      "girlId": "ruby",
-      "state": "growing",
-      "plantedDay": 1
+      "girlId": null,
+      "state": "none",
+      "plantedDay": null
     },
     {
-      "fieldId": "left",
+      "fieldId": "right",
       "slotIndex": 2,
       "girlId": null,
       "state": "none",
       "plantedDay": null
     },
     {
-      "fieldId": "left",
+      "fieldId": "right",
       "slotIndex": 3,
-      "girlId": "chibiichi",
-      "state": "growing",
-      "plantedDay": 1
-    },
-    {
-      "fieldId": "left",
-      "slotIndex": 4,
       "girlId": null,
       "state": "none",
       "plantedDay": null
     },
     {
-      "fieldId": "left",
-      "slotIndex": 5,
-      "girlId": "mel",
-      "state": "growing",
-      "plantedDay": 1
-    },
-    {
-      "fieldId": "left",
-      "slotIndex": 6,
+      "fieldId": "right",
+      "slotIndex": 4,
       "girlId": null,
       "state": "none",
       "plantedDay": null
@@ -393,7 +379,7 @@
   ],
   "currentAP": 5,
   "maxAPPerTimeSlot": 5,
-  "difficulty": "easy",
+  "difficulty": "hard",
   "currentMap": "shed",
   "zones": [
     {
@@ -45238,29 +45224,7 @@
       "rows": 2
     }
   },
-  "inventoryCounts": {
-    "脆い鉛鉱石": 0,
-    "竹の釣竿": 0,
-    "軟らかい銅鉱石": 0,
-    "泥混じりの鉄鉱石": 0,
-    "軽石炭": 0,
-    "枝": 0,
-    "ルビーのトマト": 0,
-    "ちびいちのいちご": 0,
-    "【レシピ】のこぎり": 1,
-    "モグラの爪": 0,
-    "ウサギの靭帯": 0,
-    "柔らかな若枝": 0,
-    "のこぎり": 1,
-    "【レシピ】つるはし": 1,
-    "つるはし": 1,
-    "【レシピ】丈夫なつるはし": 1,
-    "丈夫なつるはし": 1,
-    "【レシピ】丈夫なのこぎり": 1,
-    "丈夫なのこぎり": 1,
-    "いやし草もち": 1,
-    "メルのメロン": 0
-  },
+  "inventoryCounts": {},
   "equippedItems": {
     "主人公-slot1": "",
     "主人公-slot2": "",
@@ -45288,7 +45252,7 @@
     "【レシピ】つるはし"
   ],
   "gatheringTutorialCompleted": false,
-  "gatheringTutorialChoice": "mining",
+  "gatheringTutorialChoice": null,
   "kurumiIntroAskedTopics": [
     "village",
     "debt",

@@ -104,7 +104,7 @@ import {
 } from './data/miningData';
 import { FARM_GIRL_CROP_DATA, getFarmHarvestSellPrice, type FarmGirlCropData } from './data/farmData';
 import { getFarmFieldConfig, getInitiallyUnlockedFarmFieldConfigs, isFarmFieldInitiallyUnlocked } from './data/farmFieldData';
-import { GIRL_DATA } from './data/girlData';
+import { COMPANION_SPEECH_LINES, GIRL_DATA, type CompanionSpeechMoment } from './data/girlData';
 import { GIRL_SEED_ACQUISITION_DATA, INITIAL_OWNED_GIRL_SEEDS } from './data/girlSeedAcquisitionData';
 import {
   createDebugInventoryCounts,
@@ -148,7 +148,7 @@ const PAYMENT_SOUND_SRC = '/se/pay.mp3';
 const CURRENT_SAVE_SCHEMA_VERSION = 2;
 const MIN_DIRECT_LOAD_SAVE_SCHEMA_VERSION = 2;
 const DEBUG_SAVE_SLOT = 5;
-const ENABLE_DEBUG_TOOLS = import.meta.env.DEV && import.meta.env.VITE_ENABLE_DEBUG_TOOLS !== 'false';
+const ENABLE_DEBUG_TOOLS = import.meta.env.VITE_ENABLE_DEBUG_TOOLS !== 'false';
 
 const getMapBackgroundUrl = (map: GameMap, timeOfDay: TimeOfDay) => {
   const background = mapBackgrounds[map];
@@ -621,6 +621,7 @@ type CollectionProgress = {
   caughtFishIds: string[];
   craftedItemIds: string[];
   unlockedEventIds: string[];
+  viewedEventIds: string[];
   defeatedBeastIds: string[];
 };
 
@@ -648,6 +649,7 @@ const createInitialCollectionProgress = (): CollectionProgress => ({
   caughtFishIds: [],
   craftedItemIds: [],
   unlockedEventIds: [],
+  viewedEventIds: [],
   defeatedBeastIds: [],
 });
 
@@ -718,9 +720,22 @@ type FarmHarvestResultNotice = {
   estimatedSellPrice: number;
 };
 type FarmTrustEventNotice = {
+  eventId: string;
   girlName: string;
   trust: number;
   label: string;
+};
+type ActiveTrustEvent = {
+  eventId: string;
+  girlId: string;
+  girlName: string;
+  trust: number;
+  label: string;
+};
+type ActiveZukanImage = {
+  src: string;
+  title: string;
+  subtitle: string;
 };
 
 type FarmGirlSaveState = {
@@ -1064,6 +1079,41 @@ const FARM_GIRL_CARD_IMAGES: Readonly<Record<string, string>> = {
   roma: '/img/roma-card.png',
   saffy: '/img/safi-card.png',
 };
+type FarmGirlTrustCardTier = 'base' | 'trust50' | 'trust100';
+const FARM_GIRL_TRUST_CARD_FILE_STEMS: Readonly<Record<string, string>> = {
+  chibiichi: 'chibiichi',
+  mel: 'mel',
+  ruby: 'ruby',
+  viola: 'viora',
+  nazuna: 'nazuna',
+  kabune: 'kabune',
+  caro: 'kyaro',
+  theta: 'shita',
+  cure: 'kyua',
+  shiro: 'shiro',
+  momona: 'momona',
+  pan: 'pan',
+  puti: 'puthi',
+  roma: 'roma',
+  saffy: 'safi',
+};
+const getFarmGirlTrustCardTier = (trust = 0): FarmGirlTrustCardTier => {
+  if (trust >= 100) return 'trust100';
+  if (trust >= 50) return 'trust50';
+  return 'base';
+};
+const getFarmGirlCardImageSrc = (girlId: string, trust = 0) => {
+  const tier = getFarmGirlTrustCardTier(trust);
+  const stem = FARM_GIRL_TRUST_CARD_FILE_STEMS[girlId];
+  if (stem && tier === 'trust100') return `/img/100/${stem}.png`;
+  if (stem && tier === 'trust50') return `/img/50/${stem}.png`;
+  return FARM_GIRL_CARD_IMAGES[girlId] ?? FARM_GIRL_CARD_BACK_SRC;
+};
+const getFarmGirlTrustCardLabel = (tier: FarmGirlTrustCardTier) => {
+  if (tier === 'trust100') return '信頼MAX';
+  if (tier === 'trust50') return '親密カード';
+  return '娘カード';
+};
 const FARM_GIRL_SEED_VOICE_SRCS: Readonly<Record<string, string>> = {
   chibiichi: '/voice/seed/chibiichi.wav',
   mel: '/voice/seed/mel.wav',
@@ -1128,6 +1178,24 @@ const KURUMI_TRADE_REWARDS: KurumiTradeReward[] = [
 const KURUMI_TRUST_STAR_THRESHOLDS = [5000, 50000, 200000, 500000, 1000000] as const;
 const KURUMI_PANTSU_ITEM_NAME = 'パンツ';
 const KURUMI_PANTSU_GATE_THRESHOLD = 500000;
+type KurumiPantsEventStep = {
+  voiceSrc: string;
+  message: string;
+  imageSrc?: string;
+  videoSrc?: string;
+};
+const KURUMI_PANTSU_EVENT_STEPS: readonly KurumiPantsEventStep[] = [
+  {
+    voiceSrc: '/voice/kurumi-pan1.wav',
+    imageSrc: '/img/7usagi.jpg',
+    message: 'ああーー！それっ！\nくるみのうーたんパンツっ！！\nずっと探してたやつぅ！\nユウくん？それ、どこで見つけたの？',
+  },
+  {
+    voiceSrc: '/voice/kurumi-pan2.wav',
+    videoSrc: '/video/pee.mp4',
+    message: 'うんうん...\n川で釣り上げたの？\nそっかぁ...\n（あ...川でおしっこした時だ...）\nいつ落としちゃったんだろう......\nでも、見つけてくれてありがとう♡\nそれお気に入りだったんだ！',
+  },
+] as const;
 const getKurumiTrustStars = (tradeTotal: number, pantsReturned = true) => (
   Math.min(
     KURUMI_TRUST_STAR_THRESHOLDS.filter(threshold => tradeTotal >= threshold).length,
@@ -1141,8 +1209,15 @@ const KURUMI_TENT_MESSAGES: Readonly<Record<number, string>> = {
   5: '何か声が聞こえる...',
 };
 const getKurumiTentMessage = (stars: number) => KURUMI_TENT_MESSAGES[Math.min(5, Math.max(0, stars))] ?? 'zzz...';
+const KURUMI_TENT_FINAL_EVENT_VIDEO_ID = 'video_kurumi_sleep_4';
+const KURUMI_TENT_FINAL_EVENT_MESSAGE = 'いつものようにテントの中をこっそり覗いていると、くるみに見つかってしまった！';
+const KURUMI_TENT_FINAL_EVENT_LINE = 'ユウくん、今日はテントで一緒に寝よ？';
 const MERMAID_LETTER_EVENT_ID = 'mermaid_letter_hint';
+const MERMAID_OFFERING_EVENT_ID = 'mermaid_scale_offering';
+const MERMAID_UNLOCK_EVENT_ID = 'mermaid_fishing_unlocked';
 const MERMAID_LETTER_ITEM_NAME = '手紙の入った空き瓶';
+const MERMAID_SCALE_ITEM_NAME = '人魚の鱗';
+const MERMAID_SCALE_OFFERING_COUNT = 5;
 const MERMAID_LETTER_HINT_MESSAGE = '空き瓶の中に、濡れた手紙が入っていた。\n\n「滝の裏にある小さな地蔵さまは、夜だけ水底の声を聞いてくれる。\n青白く光る鱗を五つ、そっと供えて一晩待ちなさい。\n翌夜、供えものが消えていたなら、深い水辺に道がひらく。\nただし、その声を釣り上げられるのは、伝説を名乗る竿だけ」\n\n人魚に関係する手がかりかもしれない。';
 const MERMAID_LETTER_PAPER_SRC = '/img/recipe.png';
 const ZUKAN_VIDEO_ENTRIES = [
@@ -1152,6 +1227,7 @@ const ZUKAN_VIDEO_ENTRIES = [
   { id: 'video_kurumi_sleep_1', title: 'くるみのテント 星2', src: '/video/kurumisleep1.mp4', unlockEventId: 'video_kurumi_sleep_1' },
   { id: 'video_kurumi_sleep_2', title: 'くるみのテント 星3', src: '/video/kurumisleep2.mp4', unlockEventId: 'video_kurumi_sleep_2' },
   { id: 'video_kurumi_sleep_3', title: 'くるみのテント 星4', src: '/video/kurumisleep3.mp4', unlockEventId: 'video_kurumi_sleep_3' },
+  { id: 'video_kurumi_sleep_4', title: 'くるみのテント 星5', src: '/video/kurumisleep4.mp4', unlockEventId: 'video_kurumi_sleep_4' },
   { id: 'video_story_end', title: 'エンディング', src: STORY_ENDING_VIDEO_SRC, unlockEventId: 'video_story_end' },
 ] as const;
 const KURUMI_INTRO_FIRST_MESSAGE = '私はくるみだよっ！\nはらませ村でいろんなものを取引してるんだー！\nお兄ちゃんは借金がいっぱいあるって聞いたから、\nくるみが色々手伝ってあげるねっ！\n何か聞きたいことはある？';
@@ -2728,7 +2804,11 @@ export default function App() {
   const [pendingNewGameDifficulty, setPendingNewGameDifficulty] = useState<GameDifficulty>('hard');
   const [pendingNewGameMode, setPendingNewGameMode] = useState<GameMode>('story');
   const [systemSlotMode, setSystemSlotMode] = useState<'none' | 'save' | 'load'>('none');
+  const systemSlotModeRef = useRef<'none' | 'save' | 'load'>('none');
+  const [selectedSystemSlot, setSelectedSystemSlot] = useState(1);
+  const selectedSystemSlotRef = useRef(1);
   const [saveSlotSummaries, setSaveSlotSummaries] = useState<SaveSlotSummary[]>([]);
+  const saveSlotSummariesRef = useRef<SaveSlotSummary[]>([]);
   const [pendingDeleteSaveSlot, setPendingDeleteSaveSlot] = useState<number | null>(null);
   const [pendingOverwriteSaveSlot, setPendingOverwriteSaveSlot] = useState<number | null>(null);
   const [missingSaveSlot, setMissingSaveSlot] = useState<number | null>(null);
@@ -2859,7 +2939,6 @@ export default function App() {
     id: girl.id,
     name: girl.girlName,
     trait: ['素直', '内気', '勝気', '甘えん坊', '好奇心旺盛'][index % 5],
-    stage: ['未受精', '受精準備', '受精初期'][index % 3],
     level: 1,
     affinity: debugGirlAffinities[girl.id] ?? 1,
     cardImg: FARM_GIRL_CARD_IMAGES[girl.id] ?? FARM_GIRL_CARD_BACK_SRC,
@@ -2908,6 +2987,12 @@ export default function App() {
   const selectedFarmGirlForDetail = menuGirls[selectedFarmGirlIndex] ?? menuGirls[0];
   const [farmGirlDetailOpen, setFarmGirlDetailOpen] = useState(false);
   const [farmGirls, setFarmGirls] = useState<FarmGirlSaveState[]>(createInitialFarmGirls);
+  const selectedFarmGirlForDetailState = farmGirls.find(girl => girl.girlId === selectedFarmGirlForDetail.id);
+  const selectedFarmGirlForDetailCardTier = getFarmGirlTrustCardTier(selectedFarmGirlForDetailState?.trust ?? 0);
+  const selectedFarmGirlForDetailCardImg = getFarmGirlCardImageSrc(
+    selectedFarmGirlForDetail.id,
+    selectedFarmGirlForDetailState?.trust ?? 0,
+  );
   const [revealingFarmGirlIds, setRevealingFarmGirlIds] = useState<string[]>([]);
   const [farmGirlRevealSpotlightId, setFarmGirlRevealSpotlightId] = useState<string | null>(null);
   const [farmCareUnlockStage, setFarmCareUnlockStage] = useState<FarmCareUnlockStage>(1);
@@ -3035,6 +3120,10 @@ export default function App() {
   const [kurumiTradeTotal, setKurumiTradeTotal] = useState(0);
   const [kurumiPantsReturned, setKurumiPantsReturned] = useState(false);
   const kurumiTrustStars = getKurumiTrustStars(kurumiTradeTotal, kurumiPantsReturned);
+  const [companionSpeech, setCompanionSpeech] = useState<{ text: string; moment: CompanionSpeechMoment; key: number } | null>(null);
+  const [pendingCompanionSpeechMoment, setPendingCompanionSpeechMoment] = useState<CompanionSpeechMoment | null>(null);
+  const companionSpeechTimerRef = useRef<number | null>(null);
+  const companionSpeechDailyKeysRef = useRef<Set<string>>(new Set());
   const getKurumiTradeTotalForStars = (stars: number) => (
     stars <= 0 ? 0 : KURUMI_TRUST_STAR_THRESHOLDS[Math.min(5, Math.max(1, stars)) - 1]
   );
@@ -3069,9 +3158,123 @@ export default function App() {
     unlockCollectionEvent(entry.unlockEventId);
     setActiveZukanVideo(entry);
   };
+  const openZukanImage = (image: ActiveZukanImage) => {
+    playFixSound();
+    setActiveZukanImage(image);
+  };
+  const getTrustEventById = (eventId: string) => {
+    for (const girl of GIRL_DATA) {
+      const event = girl.trustEvents.find(entry => entry.eventId === eventId);
+      if (event) return { girl, event };
+    }
+    return null;
+  };
+  const openTrustEvent = (eventId: string) => {
+    const match = getTrustEventById(eventId);
+    if (!match || !collectionProgress.unlockedEventIds.includes(eventId)) return;
+    playFixSound();
+    setCollectionProgress(previous => ({
+      ...previous,
+      viewedEventIds: previous.viewedEventIds.includes(eventId)
+        ? previous.viewedEventIds
+        : [...previous.viewedEventIds, eventId],
+    }));
+    setActiveTrustEvent({
+      eventId,
+      girlId: match.girl.id,
+      girlName: match.girl.girlName,
+      trust: match.event.trust,
+      label: match.event.label,
+    });
+  };
   const getUnlockedZukanVideoEntries = () => ZUKAN_VIDEO_ENTRIES.filter(entry => (
     collectionProgress.unlockedEventIds.includes(entry.unlockEventId)
   ));
+  const getZukanGirlAndKurumiCards = () => {
+    const zukanGirlCards = GIRL_DATA.flatMap((girl) => {
+      const farmGirl = farmGirls.find(entry => entry.girlId === girl.id);
+      const cardRevealed = Boolean(farmGirl?.cardRevealed);
+      const trust = farmGirl?.trust ?? 0;
+      return [
+        {
+          id: `${girl.id}_base`,
+          name: girl.girlName,
+          variantLabel: '通常カード',
+          imageSrc: getFarmGirlCardImageSrc(girl.id, 0),
+          unlocked: cardRevealed,
+          tier: 'base' as FarmGirlTrustCardTier,
+          kind: 'card' as const,
+          viewed: true,
+        },
+        {
+          id: `${girl.id}_trust50`,
+          name: `${girl.girlName} 親密`,
+          variantLabel: '信頼度50',
+          imageSrc: getFarmGirlCardImageSrc(girl.id, 50),
+          unlocked: cardRevealed && trust >= 50,
+          tier: 'trust50' as FarmGirlTrustCardTier,
+          kind: 'card' as const,
+          viewed: true,
+        },
+        {
+          id: `${girl.id}_trust100`,
+          name: `${girl.girlName} 信頼MAX`,
+          variantLabel: '信頼度100',
+          imageSrc: getFarmGirlCardImageSrc(girl.id, 100),
+          unlocked: cardRevealed && trust >= 100,
+          tier: 'trust100' as FarmGirlTrustCardTier,
+          kind: 'card' as const,
+          viewed: true,
+        },
+      ];
+    });
+    const zukanGirlTrustEvents = GIRL_DATA.flatMap((girl) => {
+      const farmGirl = farmGirls.find(entry => entry.girlId === girl.id);
+      return girl.trustEvents.map(event => ({
+        id: event.eventId,
+        name: `${girl.girlName} ${event.label}`,
+        variantLabel: `信頼イベント${event.trust}`,
+        imageSrc: getFarmGirlCardImageSrc(girl.id, event.trust),
+        unlocked: Boolean(farmGirl?.unlockedTrustEventIds.includes(event.eventId) || collectionProgress.unlockedEventIds.includes(event.eventId)),
+        viewed: collectionProgress.viewedEventIds.includes(event.eventId),
+        tier: getFarmGirlTrustCardTier(event.trust),
+        kind: 'event' as const,
+      }));
+    });
+    const zukanKurumiCards = [
+      {
+        id: 'kurumi_base',
+        name: 'くるみ',
+        variantLabel: '通常カード',
+        imageSrc: '/img/kurumi.png',
+        unlocked: kurumiIntroCompletedDay !== null || hasKurumiNotebook || kurumiTradeTotal > 0,
+        tier: 'base' as FarmGirlTrustCardTier,
+        kind: 'card' as const,
+        viewed: true,
+      },
+      {
+        id: 'kurumi_trust50',
+        name: 'くるみ 親密',
+        variantLabel: '星3',
+        imageSrc: '/img/kurumi-pai.png',
+        unlocked: kurumiTrustStars >= 3,
+        tier: 'trust50' as FarmGirlTrustCardTier,
+        kind: 'card' as const,
+        viewed: true,
+      },
+      {
+        id: 'kurumi_trust100',
+        name: 'くるみ 信頼MAX',
+        variantLabel: '星5',
+        imageSrc: '/img/kurumi-hadaka.png',
+        unlocked: kurumiTrustStars >= 5,
+        tier: 'trust100' as FarmGirlTrustCardTier,
+        kind: 'card' as const,
+        viewed: true,
+      },
+    ];
+    return [...zukanGirlCards, ...zukanKurumiCards, ...zukanGirlTrustEvents];
+  };
   const getCollectionCompletionRate = () => {
     const totalTrustEventCount = GIRL_DATA.reduce((sum, girl) => sum + girl.trustEvents.length, 0);
     const total = GIRL_DATA.length + FISH_ZUKAN_ENTRIES.length + totalTrustEventCount + BEAST_BATTLE_DATA.length + CRAFT_RECIPE_IDS.length + ZUKAN_VIDEO_ENTRIES.length;
@@ -3094,6 +3297,25 @@ export default function App() {
   const companionGirlName = companionGirlId
     ? GIRL_DATA.find(girl => girl.id === companionGirlId)?.girlName ?? companionGirlId
     : null;
+  const showCompanionSpeech = (moment: CompanionSpeechMoment, options: { oncePerDay?: boolean } = {}) => {
+    if (!companionGirlId) return;
+    const lines = COMPANION_SPEECH_LINES[companionGirlId]?.[moment];
+    if (!lines?.length) return;
+
+    const dailyKey = `${currentDay}:${companionGirlId}:${moment}`;
+    if (options.oncePerDay && companionSpeechDailyKeysRef.current.has(dailyKey)) return;
+    if (options.oncePerDay) companionSpeechDailyKeysRef.current.add(dailyKey);
+
+    const text = lines[Math.floor(Math.random() * lines.length)];
+    setCompanionSpeech({ text, moment, key: Date.now() });
+    if (companionSpeechTimerRef.current !== null) {
+      window.clearTimeout(companionSpeechTimerRef.current);
+    }
+    companionSpeechTimerRef.current = window.setTimeout(() => {
+      setCompanionSpeech(null);
+      companionSpeechTimerRef.current = null;
+    }, 4200);
+  };
   const hasHeroSkill = (skillId: string) => unlockedHeroSkills.includes(skillId);
   const getHeroSkillMultiplier = (skillId: string, percentBonus: number) => (
     hasHeroSkill(skillId) ? 1 + percentBonus / 100 : 1
@@ -3445,12 +3667,87 @@ export default function App() {
 
   const renderMenuDetail = (id: MenuItemId) => {
     const tabs = ['消耗品', '素材', '装備品', '売却品', 'だいじなもの'];
-    const zukanGirlCards = Array.from({ length: 20 }).map((_, index) => {
-      const girl = menuGirls[index];
-      const farmGirl = girl ? farmGirls.find(entry => entry.girlId === girl.id) : undefined;
-      const unlocked = Boolean(farmGirl?.cardRevealed);
-      return { girl, unlocked };
+    const zukanGirlCards = GIRL_DATA.flatMap((girl) => {
+      const farmGirl = farmGirls.find(entry => entry.girlId === girl.id);
+      const cardRevealed = Boolean(farmGirl?.cardRevealed);
+      const trust = farmGirl?.trust ?? 0;
+      return [
+        {
+          id: `${girl.id}_base`,
+          girlId: girl.id,
+          name: girl.girlName,
+          variantLabel: '通常カード',
+          imageSrc: getFarmGirlCardImageSrc(girl.id, 0),
+          unlocked: cardRevealed,
+          tier: 'base' as FarmGirlTrustCardTier,
+          kind: 'card' as const,
+        },
+        {
+          id: `${girl.id}_trust50`,
+          girlId: girl.id,
+          name: `${girl.girlName} 親密`,
+          variantLabel: '信頼度50',
+          imageSrc: getFarmGirlCardImageSrc(girl.id, 50),
+          unlocked: cardRevealed && trust >= 50,
+          tier: 'trust50' as FarmGirlTrustCardTier,
+          kind: 'card' as const,
+        },
+        {
+          id: `${girl.id}_trust100`,
+          girlId: girl.id,
+          name: `${girl.girlName} 信頼MAX`,
+          variantLabel: '信頼度100',
+          imageSrc: getFarmGirlCardImageSrc(girl.id, 100),
+          unlocked: cardRevealed && trust >= 100,
+          tier: 'trust100' as FarmGirlTrustCardTier,
+          kind: 'card' as const,
+        },
+      ];
     });
+    const zukanGirlTrustEvents = GIRL_DATA.flatMap((girl) => {
+      const farmGirl = farmGirls.find(entry => entry.girlId === girl.id);
+      return girl.trustEvents.map(event => ({
+        id: event.eventId,
+        girlId: girl.id,
+        name: `${girl.girlName} ${event.label}`,
+        variantLabel: `信頼イベント${event.trust}`,
+        imageSrc: getFarmGirlCardImageSrc(girl.id, event.trust),
+        unlocked: Boolean(farmGirl?.unlockedTrustEventIds.includes(event.eventId) || collectionProgress.unlockedEventIds.includes(event.eventId)),
+        viewed: collectionProgress.viewedEventIds.includes(event.eventId),
+        tier: getFarmGirlTrustCardTier(event.trust),
+        kind: 'event' as const,
+      }));
+    });
+    const zukanKurumiCards = [
+      {
+        id: 'kurumi_base',
+        name: 'くるみ',
+        variantLabel: '通常カード',
+        imageSrc: '/img/kurumi.png',
+        unlocked: kurumiIntroCompletedDay !== null || hasKurumiNotebook || kurumiTradeTotal > 0,
+        tier: 'base' as FarmGirlTrustCardTier,
+        kind: 'card' as const,
+      },
+      {
+        id: 'kurumi_trust50',
+        name: 'くるみ 親密',
+        variantLabel: '星3',
+        imageSrc: '/img/kurumi-pai.png',
+        unlocked: kurumiTrustStars >= 3,
+        tier: 'trust50' as FarmGirlTrustCardTier,
+        kind: 'card' as const,
+      },
+      {
+        id: 'kurumi_trust100',
+        name: 'くるみ 信頼MAX',
+        variantLabel: '星5',
+        imageSrc: '/img/kurumi-hadaka.png',
+        unlocked: kurumiTrustStars >= 5,
+        tier: 'trust100' as FarmGirlTrustCardTier,
+        kind: 'card' as const,
+      },
+    ];
+    const zukanGirlAndKurumiCards = [...zukanGirlCards, ...zukanKurumiCards, ...zukanGirlTrustEvents];
     const itemByTab = createItemMenuItems(inventoryCounts);
     const getOwnedMenuItems = (items: string[]) => items.filter(name => (inventoryCounts[name] ?? 0) > 0);
     const selectedTabItems = getOwnedMenuItems(itemByTab[itemMenuTab] ?? itemByTab['消耗品']);
@@ -4109,6 +4406,7 @@ export default function App() {
             showStars: false,
             showDetail: false,
             isRevealing: false,
+            trustCardTier: 'base' as FarmGirlTrustCardTier,
           };
         }
         if (!isGirlRevealed) {
@@ -4120,16 +4418,19 @@ export default function App() {
             showStars: false,
             showDetail: false,
             isRevealing,
+            trustCardTier: 'base' as FarmGirlTrustCardTier,
           };
         }
+        const trustCardTier = getFarmGirlTrustCardTier(farmGirl?.trust ?? 0);
         return {
-          imageSrc: FARM_GIRL_CARD_IMAGES[girlId] ?? FARM_GIRL_CARD_BACK_SRC,
+          imageSrc: getFarmGirlCardImageSrc(girlId, farmGirl?.trust ?? 0),
           imageAlt: menuGirls.find(girl => girl.id === girlId)?.name ?? seed?.seedName ?? '苗娘',
           label: menuGirls.find(girl => girl.id === girlId)?.name ?? seed?.seedName ?? '苗娘',
-          subLabel: '娘カード',
+          subLabel: getFarmGirlTrustCardLabel(trustCardTier),
           showStars: true,
           showDetail: true,
           isRevealing,
+          trustCardTier,
         };
       };
       const selectedFarmGirlState = selectedGirlData
@@ -4263,7 +4564,7 @@ export default function App() {
 	                  <div
 	                    key={girl.id}
 	                    data-farm-girl-index={index}
-	                    className={`farm-girl-card-button relative overflow-hidden border rounded text-left ${selectedFarmGirlIndex === index ? 'is-selected border-white' : 'border-[#6b3b2f]'}`}
+	                    className={`farm-girl-card-button relative overflow-hidden border rounded text-left ${cardDisplay.trustCardTier === 'trust100' ? 'is-trust-100' : cardDisplay.trustCardTier === 'trust50' ? 'is-trust-50' : ''} ${selectedFarmGirlIndex === index ? 'is-selected border-white' : 'border-[#6b3b2f]'}`}
 	                  >
                     <button
                       type="button"
@@ -4290,11 +4591,16 @@ export default function App() {
                         className={`absolute inset-0 h-full w-full object-contain p-1.5 ${cardDisplay.isRevealing ? 'farm-girl-card-reveal-image' : ''}`}
                       />
                       {cardDisplay.isRevealing && <div className="farm-girl-card-reveal-sparkles" aria-hidden="true" />}
+                      {cardDisplay.trustCardTier === 'trust100' && (
+                        <div className="farm-girl-card-tier-badge">信頼MAX</div>
+                      )}
                       <div className="absolute inset-0 bg-gradient-to-t from-black/82 via-black/8 to-transparent" />
                       <div className="absolute left-2 right-2 bottom-2 rounded border border-white/10 bg-black/58 px-2 py-1 pr-14">
                         <div className="text-[#fff7dc] font-bold text-xs leading-tight">{cardDisplay.label}</div>
                         {cardDisplay.showStars ? (
-                          <div className="text-[9px] text-[#ffd45a] leading-none">{renderStars(girl.affinity)}</div>
+                          <div className="text-[9px] text-[#ffd45a] leading-none">
+                            {cardDisplay.trustCardTier === 'base' ? renderStars(girl.affinity) : cardDisplay.subLabel}
+                          </div>
                         ) : (
                           <div className="text-[9px] font-bold leading-none text-[#c8a87a]">{cardDisplay.subLabel}</div>
                         )}
@@ -4365,6 +4671,11 @@ export default function App() {
                         </button>
                       )}
                     </div>
+                    {hasHeroSkill('special_hybrid_cultivation') && (
+                      <div className="mt-2 text-xs font-bold leading-relaxed text-[#d8c4e8]">
+                        混合育成はNTR後の苗娘にだけ表示されます。失敗しても再挑戦できます。
+                      </div>
+                    )}
                   </div>
                 )}
                 {selectedGirlData && selectedCanCareForSeedling && (
@@ -4474,7 +4785,7 @@ export default function App() {
                 )}
                 {selectedGirlData && selectedFarmGirlState && (
                   <div className="col-span-2 rounded bg-black/25 px-4 py-4">
-                    <div className="text-[#c8a87a] text-sm font-bold">農場信頼度</div>
+                    <div className="text-[#c8a87a] text-sm font-bold">娘信頼度</div>
                     <div className="mt-1 text-xl font-black text-[#fdf6e3]">
                       {selectedFarmGirlState.trust} / 100
                     </div>
@@ -4490,6 +4801,31 @@ export default function App() {
                           同行中収穫補正：{Math.round(selectedCompanionHarvestModifier.multiplier * 100)}%
                         </div>
                       )}
+                    </div>
+                    <div className="mt-3 grid gap-2">
+                      <div className="text-xs font-black tracking-[0.12em] text-[#f9a8d4]">信頼イベント</div>
+                      {selectedGirlData.trustEvents.map(event => {
+                        const unlocked = selectedFarmGirlState.unlockedTrustEventIds.includes(event.eventId) || collectionProgress.unlockedEventIds.includes(event.eventId);
+                        const viewed = collectionProgress.viewedEventIds.includes(event.eventId);
+                        return (
+                          <button
+                            key={event.eventId}
+                            type="button"
+                            disabled={!unlocked}
+                            onClick={() => openTrustEvent(event.eventId)}
+                            className={`flex items-center justify-between gap-3 rounded border px-3 py-2 text-left text-sm font-black transition ${
+                              unlocked
+                                ? 'border-[#f9a8d4]/80 bg-[#4a1832]/78 text-[#fff7dc] hover:border-white hover:bg-[#6b2148]'
+                                : 'cursor-not-allowed border-[#5a3010] bg-black/25 text-[#8f7b63]'
+                            }`}
+                          >
+                            <span>{event.trust}：{unlocked ? event.label : '未解放'}</span>
+                            <span className={unlocked && !viewed ? 'text-[#67e8f9]' : 'text-[#c8a87a]'}>
+                              {unlocked ? viewed ? '既読' : 'NEW' : `${event.trust}で解放`}
+                            </span>
+                          </button>
+                        );
+                      })}
                     </div>
                     {selectedFarmGirlStateForMenu.state === 'appeared' && (
                       <div className="mt-2 rounded bg-black/25 px-3 py-2 text-sm font-bold text-[#f0d58a]">
@@ -4651,10 +4987,10 @@ export default function App() {
           <div
             style={{ ...menuPanelBaseStyle, ...menuKeyboardFocusStyle(menuFocusArea === 'content' && menuContentFocus === 'secondary') }}
             className={isVideoZukan
-              ? 'grid min-h-0 flex-1 grid-cols-3 auto-rows-[170px] gap-3 overflow-y-auto pr-2'
+              ? 'grid min-h-0 flex-1 grid-cols-3 auto-rows-[210px] gap-3 overflow-y-auto pr-2'
               : isFishZukan
               ? 'grid min-h-0 flex-1 grid-cols-5 auto-rows-[190px] gap-2 overflow-y-auto pr-2'
-              : 'grid min-h-0 flex-1 grid-cols-5 auto-rows-[200px] gap-3 overflow-y-auto pr-2'
+              : 'grid min-h-0 flex-1 grid-cols-5 auto-rows-[260px] gap-3 overflow-y-auto pr-2'
             }
           >
             {isVideoZukan ? (
@@ -4673,28 +5009,31 @@ export default function App() {
                   }}
                   onMouseEnter={() => { if (selectedZukanIndex !== index) playCursorSound(); }}
                   onClick={() => { setMenuFocusArea('content'); setMenuContentFocus('secondary'); setSelectedZukanIndex(index); openZukanVideo(entry); }}
-                  className={`relative overflow-hidden rounded-lg border p-3 text-left cursor-pointer transition-colors ${selectedZukanIndex === index ? 'bg-[#bc6c25]/45 border-white ring-4 ring-[#ffd166]/70 shadow-[0_0_18px_rgba(255,209,102,0.42)]' : 'bg-black/35 border-[#5a3010] hover:bg-[#3a2418]'}`}
+                  className={`group relative overflow-hidden rounded-lg border text-left cursor-pointer transition-colors ${selectedZukanIndex === index ? 'bg-[#bc6c25]/45 border-white ring-4 ring-[#ffd166]/70 shadow-[0_0_18px_rgba(255,209,102,0.42)]' : 'bg-black/35 border-[#5a3010] hover:bg-[#3a2418]'}`}
                 >
-                  <div className="relative z-10 flex h-full flex-col justify-between">
-                    <div className="relative h-[86px] overflow-hidden rounded border border-[#ffd166]/35 bg-black/45">
-                      <video
-                        src={entry.src}
-                        preload="metadata"
-                        muted
-                        playsInline
-                        className="pointer-events-none h-full w-full object-cover"
-                        onLoadedMetadata={(event) => {
-                          event.currentTarget.currentTime = 0.05;
-                        }}
-                      />
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-transparent to-black/20" />
+                  <video
+                    src={entry.src}
+                    preload="metadata"
+                    muted
+                    playsInline
+                    className="pointer-events-none absolute inset-0 h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.035]"
+                    onLoadedMetadata={(event) => {
+                      event.currentTarget.currentTime = 0.05;
+                    }}
+                  />
+                  <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(0,0,0,0.14)_0%,rgba(0,0,0,0.18)_42%,rgba(0,0,0,0.86)_100%)]" />
+                  <div className="absolute inset-x-0 top-0 h-16 bg-gradient-to-b from-black/55 to-transparent" />
+                  <div className="relative z-10 flex h-full flex-col justify-between p-3">
+                    <div className="flex justify-start">
+                      <div className="rounded border border-[#ffd166]/70 bg-black/62 px-2 py-1 text-[10px] font-black tracking-[0.18em] text-[#ffe6a3] shadow-[0_2px_8px_rgba(0,0,0,0.45)]">
+                        MOVIE
+                      </div>
                     </div>
-                    <div className="mt-2">
-                      <div className="text-xs font-black tracking-[0.18em] text-[#ffd166]">MOVIE</div>
-                      <div className="mt-1 text-lg font-black leading-tight text-[#fdf6e3]">{entry.title}</div>
-                    </div>
-                    <div className="rounded border border-[#ffd166]/45 bg-black/35 px-3 py-2 text-sm font-bold text-[#ffd166]">
-                      再生する
+                    <div className="rounded-lg border border-white/10 bg-black/58 px-3 py-3 shadow-[0_-8px_26px_rgba(0,0,0,0.38)] backdrop-blur-[2px]">
+                      <div className="text-lg font-black leading-tight text-[#fff7dc] drop-shadow-[0_2px_3px_rgba(0,0,0,0.8)]">{entry.title}</div>
+                      <div className="mt-2 inline-flex rounded border border-[#ffd166]/75 bg-[#6b3b18]/92 px-3 py-1.5 text-xs font-black text-[#fff4ca] shadow-[0_2px_10px_rgba(0,0,0,0.45)]">
+                        再生する
+                      </div>
                     </div>
                   </div>
                 </button>
@@ -4720,7 +5059,16 @@ export default function App() {
                   data-zukan-index={index}
                   onPointerDown={() => { setMenuFocusArea('content'); setMenuContentFocus('secondary'); setSelectedZukanIndex(index); }}
                   onMouseEnter={() => { if (selectedZukanIndex !== index) playCursorSound(); }}
-                  onClick={() => { playFixSound(); setMenuFocusArea('content'); setMenuContentFocus('secondary'); setSelectedZukanIndex(index); }}
+                  onClick={() => {
+                    setMenuFocusArea('content');
+                    setMenuContentFocus('secondary');
+                    setSelectedZukanIndex(index);
+                    if (caught) {
+                      openZukanImage({ src: fish.imageSrc, title: fish.name, subtitle: `魚図鑑 No.${fish.no}` });
+                    } else {
+                      setDialogMessage('まだ釣っていない魚です。');
+                    }
+                  }}
                   className={`relative overflow-hidden rounded-lg border p-2 text-left cursor-pointer transition-colors ${selectedZukanIndex === index ? 'bg-[#bc6c25]/45 border-white ring-4 ring-[#ffd166]/70 shadow-[0_0_18px_rgba(255,209,102,0.42)]' : 'bg-black/35 border-[#5a3010] hover:bg-[#3a2418]'}`}
                 >
                   <div className="relative z-10 flex h-full flex-col justify-between gap-2">
@@ -4753,28 +5101,65 @@ export default function App() {
                   </div>
                 </button>
               );
-            }) : zukanGirlCards.map(({ girl, unlocked }, index) => (
+            }) : zukanGirlAndKurumiCards.map((card, index) => (
                 <button
-                  key={girl?.id ?? `empty-${index}`}
+                  key={card.id}
                   type="button"
                   data-zukan-index={index}
-                  onPointerDown={() => { setMenuFocusArea('content'); setMenuContentFocus('secondary'); setSelectedZukanIndex(index); }}
+                  onPointerDown={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    setMenuFocusArea('content');
+                    setMenuContentFocus('secondary');
+                    setSelectedZukanIndex(index);
+                    if (card.unlocked) {
+                      openZukanImage({ src: card.imageSrc, title: card.name, subtitle: card.variantLabel });
+                    } else {
+                      playFixSound();
+                      setDialogMessage('まだ解放されていません。');
+                    }
+                  }}
                   onMouseEnter={() => { if (selectedZukanIndex !== index) playCursorSound(); }}
-                  onClick={() => { playFixSound(); setMenuFocusArea('content'); setMenuContentFocus('secondary'); setSelectedZukanIndex(index); }}
-                  className={`relative overflow-hidden rounded-lg border p-2 text-left cursor-pointer ${selectedZukanIndex === index ? 'bg-[#bc6c25]/45 border-white ring-4 ring-[#ffd166]/70 shadow-[0_0_18px_rgba(255,209,102,0.42)]' : 'bg-black/35 border-[#5a3010] hover:bg-[#3a2418]'}`}
+                  onClick={() => {
+                    setMenuFocusArea('content');
+                    setMenuContentFocus('secondary');
+                    setSelectedZukanIndex(index);
+                    if (card.unlocked) {
+                      openZukanImage({ src: card.imageSrc, title: card.name, subtitle: card.variantLabel });
+                    } else {
+                      playFixSound();
+                      setDialogMessage('まだ解放されていません。');
+                    }
+                  }}
+                  className={`zukan-girl-card relative h-full min-h-0 overflow-hidden rounded-lg border p-2 text-left cursor-pointer ${card.unlocked && card.tier === 'trust100' ? 'is-trust-100' : card.unlocked && card.tier === 'trust50' ? 'is-trust-50' : ''} ${selectedZukanIndex === index ? 'bg-[#bc6c25]/45 border-white ring-4 ring-[#ffd166]/70 shadow-[0_0_18px_rgba(255,209,102,0.42)]' : 'bg-black/35 border-[#5a3010] hover:bg-[#3a2418]'}`}
                 >
-                  {girl && unlocked ? (
+                  {card.unlocked ? (
                     <>
-                      <img src={girl.cardImg} alt={girl.name} className="absolute inset-0 h-full w-full object-contain p-2" />
+                      <img src={card.imageSrc} alt={card.name} className="absolute inset-0 h-full w-full object-contain p-2" />
+                      {card.kind === 'event' && !card.viewed && (
+                        <div className="absolute left-2 top-2 z-20 rounded-full border border-[#67e8f9]/80 bg-[#164e63]/95 px-2 py-1 text-[10px] font-black text-[#ecfeff]">
+                          NEW
+                        </div>
+                      )}
+                      {card.tier === 'trust100' && (
+                        <div className="farm-girl-card-tier-badge">信頼MAX</div>
+                      )}
                       <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/5 to-transparent" />
                       <div className="absolute left-2 right-2 bottom-2 rounded bg-black/58 px-2 py-1">
-                        <div className="text-[#fdf6e3] text-sm font-black leading-tight">{girl.name}</div>
+                        <div className="text-[#fdf6e3] text-sm font-black leading-tight">{card.name}</div>
+                        <div className="mt-0.5 text-[10px] font-black leading-none text-[#ffd166]">{card.variantLabel}</div>
+                        {card.kind === 'event' && (
+                          <div className="mt-1 text-[10px] font-black leading-none text-[#67e8f9]">
+                            {card.viewed ? '既読' : '未読'}
+                          </div>
+                        )}
                       </div>
                     </>
                   ) : (
                     <div className="flex h-full flex-col items-center justify-center rounded border border-[#5a3010]/70 bg-black/35 text-center">
                       <div className="text-[#dda15e] text-xs font-bold">No.{index + 1}</div>
                       <div className="mt-2 text-[#8f7b63] text-lg font-black">未解放</div>
+                      <div className="mt-1 text-[10px] font-bold text-[#6f5b4a]">{card.variantLabel}</div>
                     </div>
                   )}
                 </button>
@@ -4931,12 +5316,14 @@ export default function App() {
 	          group: 'ゲーム進行',
 		          icon: '💰',
 		          title: '借金と返済',
-		          imageSrc: '/img/kurumi-trade.png',
+		          imageSrc: '/img/shakuyousho.png',
 		          imageAlt: '売却と返済',
 		          imagePosition: 'center 8%',
 		          lead: '農場経営の大きな目標です。収穫物や採取品を売って返済を進めます。',
 	          points: [
 	            '返済日までの日数と予定額は画面上部で確認できます。',
+	            '農場信用度は返済を成功させると上がり、見送ると下がります。画面上部の借金表示で確認できます。',
+	            '農場信用度が高いほど金利が下がり、畑の解放や主人公成長の条件にも関係します。',
 	            '売れる品がある時は、くるみの店や売却導線を確認しましょう。',
 	            '作物、魚、鉱石、木材、獣素材など、複数の収入源を組み合わせると安定します。',
 	          ],
@@ -5427,12 +5814,21 @@ export default function App() {
 	  useEffect(() => { selectedKurumiNotebookIndexRef.current = selectedKurumiNotebookIndex; }, [selectedKurumiNotebookIndex]);
 	  useEffect(() => { systemNoticeRef.current = systemNotice; }, [systemNotice]);
   useEffect(() => { selectedSystemActionIndexRef.current = selectedSystemActionIndex; }, [selectedSystemActionIndex]);
+  useEffect(() => { systemSlotModeRef.current = systemSlotMode; }, [systemSlotMode]);
+  useEffect(() => { selectedSystemSlotRef.current = selectedSystemSlot; }, [selectedSystemSlot]);
+  useEffect(() => { saveSlotSummariesRef.current = saveSlotSummaries; }, [saveSlotSummaries]);
+  useEffect(() => {
+    if (systemSlotMode !== 'none') {
+      setSelectedSystemSlot(Math.max(1, Math.min(5, currentSaveSlot)));
+    }
+  }, [currentSaveSlot, systemSlotMode]);
   useEffect(() => { equippedItemsRef.current = equippedItems; }, [equippedItems]);
 
   const [sleepPromptVisible, setSleepPromptVisible] = useState(false);
   const [bathPromptVisible, setBathPromptVisible] = useState(false);
   const [bathSequenceActive, setBathSequenceActive] = useState(false);
   const [bathNoticeMessage, setBathNoticeMessage] = useState<string | null>(null);
+  const [mermaidOfferingPromptVisible, setMermaidOfferingPromptVisible] = useState(false);
   const [isCompanionWaitingForBath, setIsCompanionWaitingForBath] = useState(false);
   const [bathForcedDisplayDirection, setBathForcedDisplayDirection] = useState<PlayerDirection | null>(null);
   const [craftPromptVisible, setCraftPromptVisible] = useState(false);
@@ -5509,6 +5905,7 @@ export default function App() {
   const [fishingResultImageSrc, setFishingResultImageSrc] = useState(FISHING_SCENE_RESULT_SRC);
   const [fishingResultIsNewRecord, setFishingResultIsNewRecord] = useState(false);
   const [mermaidLetterNotice, setMermaidLetterNotice] = useState<string | null>(null);
+  const [mermaidScaleOfferingDay, setMermaidScaleOfferingDay] = useState<number | null>(null);
   const [isFishingHitSplashActive, setIsFishingHitSplashActive] = useState(false);
   const [isFishingHitIntroActive, setIsFishingHitIntroActive] = useState(false);
   const [isFishingNushiIntroActive, setIsFishingNushiIntroActive] = useState(false);
@@ -5648,7 +6045,10 @@ export default function App() {
   const [shopNoticeMessage, setShopNoticeMessage] = useState('');
   const [activeKurumiTradeReward, setActiveKurumiTradeReward] = useState<KurumiTradeReward | null>(null);
   const [shownKurumiTradeRewardThresholds, setShownKurumiTradeRewardThresholds] = useState<number[]>([]);
+  const [kurumiPantsEventStepIndex, setKurumiPantsEventStepIndex] = useState<number | null>(null);
   const [farmTrustEventNotice, setFarmTrustEventNotice] = useState<FarmTrustEventNotice | null>(null);
+  const [activeTrustEvent, setActiveTrustEvent] = useState<ActiveTrustEvent | null>(null);
+  const [activeZukanImage, setActiveZukanImage] = useState<ActiveZukanImage | null>(null);
   const [activeZukanVideo, setActiveZukanVideo] = useState<(typeof ZUKAN_VIDEO_ENTRIES)[number] | null>(null);
   const [kurumiIntroOpen, setKurumiIntroOpen] = useState(false);
   const [kurumiIntroMessage, setKurumiIntroMessage] = useState(KURUMI_INTRO_FIRST_MESSAGE);
@@ -5656,6 +6056,9 @@ export default function App() {
   const [kurumiIntroAskedTopics, setKurumiIntroAskedTopics] = useState<KurumiIntroTopicId[]>([]);
   const [kurumiIntroCompletedDay, setKurumiIntroCompletedDay] = useState<number | null>(null);
   const [kurumiIntroClosing, setKurumiIntroClosing] = useState(false);
+  const [kurumiTentFinalAvailableDay, setKurumiTentFinalAvailableDay] = useState<number | null>(null);
+  const [kurumiTentFinalCompleted, setKurumiTentFinalCompleted] = useState(false);
+  const [kurumiTentFinalEventOpen, setKurumiTentFinalEventOpen] = useState(false);
   const [hasReceivedKurumiStarterSeeds, setHasReceivedKurumiStarterSeeds] = useState(false);
   const [seedPlantTutorialOpen, setSeedPlantTutorialOpen] = useState(false);
   const [seedPlantTutorialStepIndex, setSeedPlantTutorialStepIndex] = useState(0);
@@ -5753,6 +6156,11 @@ export default function App() {
 
   // Warp Doors State
   const [currentMap, setCurrentMap] = useState<GameMap>('farm');
+  useEffect(() => () => {
+    if (companionSpeechTimerRef.current !== null) {
+      window.clearTimeout(companionSpeechTimerRef.current);
+    }
+  }, []);
   const [mapTransitionPhase, setMapTransitionPhase] = useState<'idle' | 'fadeOut' | 'fadeIn'>('idle');
   useEffect(() => () => {
     if (mapTransitionTimerRef.current !== null) {
@@ -5901,8 +6309,8 @@ export default function App() {
   }, [debugDialogueOverrides]);
 
   useEffect(() => {
-     movementLockedRef.current = sleepPromptVisible || bathPromptVisible || bathSequenceActive || craftPromptVisible || fishingPromptVisible || miningPromptVisible || loggingPromptVisible || fishingMiniGameOpen || miningMiniGameOpen || miningRhythmRecording || craftMiniGameOpen || fishingTutorialOpen || fishingTutorialEndingOpen || sawCraftTutorialIntroOpen || sawCraftTutorialShedDialogueOpen || gatheringTutorialOpen || miningTutorialOpen || kurumiShopOpen || kurumiIntroOpen || seedPlantTutorialOpen || seedAfterPlantTutorialOpen || isSleepSequenceActive || beastAttackPending || repaymentEventPending || storyEndingVideoOpen || activeZukanVideo !== null || battlePreviewOpen || farmSlotInteractionStage !== null;
-  }, [sleepPromptVisible, bathPromptVisible, bathSequenceActive, craftPromptVisible, fishingPromptVisible, miningPromptVisible, loggingPromptVisible, fishingMiniGameOpen, miningMiniGameOpen, miningRhythmRecording, craftMiniGameOpen, fishingTutorialOpen, fishingTutorialEndingOpen, sawCraftTutorialIntroOpen, sawCraftTutorialShedDialogueOpen, gatheringTutorialOpen, miningTutorialOpen, kurumiShopOpen, kurumiIntroOpen, seedPlantTutorialOpen, seedAfterPlantTutorialOpen, isSleepSequenceActive, beastAttackPending, repaymentEventPending, storyEndingVideoOpen, activeZukanVideo, battlePreviewOpen, farmSlotInteractionStage]);
+     movementLockedRef.current = sleepPromptVisible || bathPromptVisible || mermaidOfferingPromptVisible || bathSequenceActive || craftPromptVisible || fishingPromptVisible || miningPromptVisible || loggingPromptVisible || fishingMiniGameOpen || miningMiniGameOpen || miningRhythmRecording || craftMiniGameOpen || fishingTutorialOpen || fishingTutorialEndingOpen || sawCraftTutorialIntroOpen || sawCraftTutorialShedDialogueOpen || gatheringTutorialOpen || miningTutorialOpen || kurumiShopOpen || kurumiIntroOpen || kurumiTentFinalEventOpen || seedPlantTutorialOpen || seedAfterPlantTutorialOpen || isSleepSequenceActive || beastAttackPending || repaymentEventPending || storyEndingVideoOpen || activeZukanImage !== null || activeZukanVideo !== null || activeTrustEvent !== null || battlePreviewOpen || farmSlotInteractionStage !== null;
+  }, [sleepPromptVisible, bathPromptVisible, mermaidOfferingPromptVisible, bathSequenceActive, craftPromptVisible, fishingPromptVisible, miningPromptVisible, loggingPromptVisible, fishingMiniGameOpen, miningMiniGameOpen, miningRhythmRecording, craftMiniGameOpen, fishingTutorialOpen, fishingTutorialEndingOpen, sawCraftTutorialIntroOpen, sawCraftTutorialShedDialogueOpen, gatheringTutorialOpen, miningTutorialOpen, kurumiShopOpen, kurumiIntroOpen, kurumiTentFinalEventOpen, seedPlantTutorialOpen, seedAfterPlantTutorialOpen, isSleepSequenceActive, beastAttackPending, repaymentEventPending, storyEndingVideoOpen, activeZukanImage, activeZukanVideo, activeTrustEvent, battlePreviewOpen, farmSlotInteractionStage]);
 
   useEffect(() => {
      if (sleepPromptVisible || bathPromptVisible || craftPromptVisible || fishingPromptVisible || miningPromptVisible || loggingPromptVisible) {
@@ -6622,6 +7030,7 @@ export default function App() {
 	            caughtFishIds: Array.isArray(loadedCollectionProgress?.caughtFishIds) ? loadedCollectionProgress.caughtFishIds.filter((id): id is string => typeof id === 'string') : [],
 	            craftedItemIds: Array.isArray(loadedCollectionProgress?.craftedItemIds) ? loadedCollectionProgress.craftedItemIds.filter((id): id is string => typeof id === 'string') : [],
 	            unlockedEventIds: Array.isArray(loadedCollectionProgress?.unlockedEventIds) ? loadedCollectionProgress.unlockedEventIds.filter((id): id is string => typeof id === 'string') : [],
+	            viewedEventIds: Array.isArray(loadedCollectionProgress?.viewedEventIds) ? loadedCollectionProgress.viewedEventIds.filter((id): id is string => typeof id === 'string') : [],
 	            defeatedBeastIds: Array.isArray(loadedCollectionProgress?.defeatedBeastIds) ? loadedCollectionProgress.defeatedBeastIds.filter((id): id is string => typeof id === 'string') : [],
 	          });
 	          const loadedAchievementStats = data.achievementStats as Partial<AchievementStats> | undefined;
@@ -6753,6 +7162,13 @@ export default function App() {
 	            ? Math.floor(data.kurumiTradeTotal)
 	            : 0;
 	          setKurumiTradeTotal(loadedKurumiTradeTotal);
+	          setMermaidScaleOfferingDay(
+	            typeof data.mermaidScaleOfferingDay === 'number' &&
+	            Number.isInteger(data.mermaidScaleOfferingDay) &&
+	            data.mermaidScaleOfferingDay > 0
+	              ? data.mermaidScaleOfferingDay
+	              : null
+	          );
 	          setShownKurumiTradeRewardThresholds(Array.isArray(data.shownKurumiTradeRewardThresholds)
 	            ? data.shownKurumiTradeRewardThresholds.filter((threshold: unknown): threshold is number => (
 	              typeof threshold === 'number' && KURUMI_TRADE_REWARDS.some(reward => reward.threshold === threshold)
@@ -6763,6 +7179,14 @@ export default function App() {
 	            ? data.kurumiPantsReturned
 	            : loadedKurumiTradeTotal >= KURUMI_PANTSU_GATE_THRESHOLD
 	          );
+	          setKurumiTentFinalAvailableDay(
+	            typeof data.kurumiTentFinalAvailableDay === 'number' &&
+	            Number.isInteger(data.kurumiTentFinalAvailableDay) &&
+	            data.kurumiTentFinalAvailableDay > 0
+	              ? data.kurumiTentFinalAvailableDay
+	              : null
+	          );
+	          setKurumiTentFinalCompleted(data.kurumiTentFinalCompleted === true);
 	          setFarmFieldSlots(normalizeFarmFieldSlots(data.farmFieldSlots, loadedDifficulty));
 	          setCurrentAP(
 	            typeof data.currentAP === 'number' && Number.isInteger(data.currentAP) && data.currentAP >= 0
@@ -7040,6 +7464,9 @@ export default function App() {
           setSeedAfterPlantTutorialCompleted(false);
           setHasKurumiNotebook(false);
           setKurumiPantsReturned(false);
+          setKurumiTentFinalAvailableDay(null);
+          setKurumiTentFinalCompleted(false);
+          setKurumiTentFinalEventOpen(false);
           setSeedAfterPlantTutorialOpen(false);
           setSeedAfterPlantTutorialStepIndex(0);
           setFarmFieldSlots(createInitialFarmFieldSlots(difficultyOption.id));
@@ -7166,6 +7593,9 @@ export default function App() {
     kurumiTradeTotal,
     shownKurumiTradeRewardThresholds,
     kurumiPantsReturned,
+    kurumiTentFinalAvailableDay,
+    kurumiTentFinalCompleted,
+    mermaidScaleOfferingDay,
     seedAfterPlantTutorialCompleted,
     farmFieldSlots,
     currentAP,
@@ -7344,7 +7774,7 @@ export default function App() {
 	      let changed = false;
 	      const next = { ...prev };
 	      Object.entries(next).forEach(([slotId, itemName]) => {
-	        if (itemName && toBaseItemName(itemName) !== itemName) {
+	        if (typeof itemName === 'string' && itemName && toBaseItemName(itemName) !== itemName) {
 	          next[slotId] = '';
 	          changed = true;
 	        }
@@ -7418,6 +7848,8 @@ export default function App() {
     kurumiTradeTotal,
     shownKurumiTradeRewardThresholds,
     kurumiPantsReturned,
+    kurumiTentFinalAvailableDay,
+    kurumiTentFinalCompleted,
     farmFieldSlots,
     difficulty,
     zones,
@@ -8759,6 +9191,38 @@ export default function App() {
   const farmCreditInterestDiscount = getFarmCreditInterestDiscount(farmCredit);
   const missedRepaymentPenalty = getMissedRepaymentPenalty(missedRepaymentCount);
   const formatInterestRate = (rate: number) => `${rate.toFixed(1)}%`;
+  const mermaidFishingUnlocked = collectionProgress.unlockedEventIds.includes(MERMAID_UNLOCK_EVENT_ID);
+  useEffect(() => {
+    if (
+      mermaidScaleOfferingDay !== null &&
+      currentDay > mermaidScaleOfferingDay &&
+      !mermaidFishingUnlocked
+    ) {
+      unlockCollectionEvent(MERMAID_UNLOCK_EVENT_ID);
+      setDialogMessage('滝裏の地蔵に供えた鱗が消えていた。\n夜の水辺から、不思議な歌声が聞こえる。\nこれからは伝説の釣り竿で人魚を釣れるかもしれない。');
+    }
+  }, [currentDay, mermaidFishingUnlocked, mermaidScaleOfferingDay]);
+  useEffect(() => {
+    if (!companionGirlId) {
+      setCompanionSpeech(null);
+      return;
+    }
+    if (bootMode === 'playing' && timeOfDay === 'morning' && currentAP === maxAPPerTimeSlot) {
+      showCompanionSpeech('morning', { oncePerDay: true });
+    }
+  }, [bootMode, companionGirlId, currentAP, currentDay, timeOfDay]);
+  useEffect(() => {
+    if (bootMode === 'playing' && companionGirlId && currentAP === 1 && timeOfDay !== 'night') {
+      showCompanionSpeech('tired', { oncePerDay: true });
+    }
+  }, [bootMode, companionGirlId, currentAP, currentDay, timeOfDay]);
+  useEffect(() => {
+    if (!farmHarvestResultNotice && pendingCompanionSpeechMoment) {
+      const nextMoment = pendingCompanionSpeechMoment;
+      setPendingCompanionSpeechMoment(null);
+      showCompanionSpeech(nextMoment, { oncePerDay: true });
+    }
+  }, [farmHarvestResultNotice, pendingCompanionSpeechMoment]);
   const addOwnedGirlSeed = (seedId: string) => {
     setOwnedGirlSeeds(prev => prev.includes(seedId) ? prev : [...prev, seedId]);
   };
@@ -8947,6 +9411,9 @@ export default function App() {
         qualityLabel: getFarmQualityLabel(effectiveQuality),
         estimatedSellPrice,
       });
+      if (companionGirlId) {
+        setPendingCompanionSpeechMoment('harvest');
+      }
     }
     incrementEndlessStat('totalHarvestCount', harvestAmount);
     if (newlyUnlockedTrustEvents.length > 0 && isEndlessNurseryMode()) {
@@ -8965,6 +9432,7 @@ export default function App() {
       }));
       const noticeEvent = newlyUnlockedTrustEvents[0];
       setFarmTrustEventNotice({
+        eventId: noticeEvent.eventId,
         girlName: girl?.girlName ?? crop.seedName,
         trust: noticeEvent.trust,
         label: noticeEvent.label,
@@ -10507,19 +10975,35 @@ export default function App() {
      clickTargetRef.current = null;
      setClickTargetMarker(null);
      if (currentMap === 'farm' && timeOfDay === 'night') {
+        if (
+          kurumiTrustStars >= 5 &&
+          kurumiTentFinalAvailableDay !== null &&
+          currentDay >= kurumiTentFinalAvailableDay &&
+          !kurumiTentFinalCompleted
+        ) {
+          setKurumiTentFinalEventOpen(true);
+          return;
+        }
         const message = getKurumiTentMessage(kurumiTrustStars);
         setDialogMessage(message);
-        if (kurumiTrustStars === 2 || kurumiTrustStars === 3 || kurumiTrustStars === 4) {
+        if (kurumiTrustStars >= 2 && kurumiTrustStars <= 5) {
           const videoEntry = ZUKAN_VIDEO_ENTRIES.find(entry => (
             entry.id === (
-              kurumiTrustStars === 4
+              kurumiTrustStars === 5
+                ? 'video_kurumi_sleep_4'
+                : kurumiTrustStars === 4
                 ? 'video_kurumi_sleep_3'
                 : kurumiTrustStars === 3
                   ? 'video_kurumi_sleep_2'
                   : 'video_kurumi_sleep_1'
             )
           ));
-          if (videoEntry) openZukanVideo(videoEntry);
+          if (videoEntry) {
+            openZukanVideo(videoEntry);
+            if (kurumiTrustStars === 5 && kurumiTentFinalAvailableDay === null) {
+              setKurumiTentFinalAvailableDay(currentDay + 1);
+            }
+          }
         }
         return;
      }
@@ -11832,6 +12316,33 @@ export default function App() {
      }, 2200);
   };
 
+  const startKurumiPantsEvent = () => {
+     setActiveKurumiTradeReward(null);
+     setKurumiPantsEventStepIndex(0);
+     playVoiceSound(KURUMI_PANTSU_EVENT_STEPS[0].voiceSrc);
+  };
+
+  const advanceKurumiPantsEvent = () => {
+     if (kurumiPantsEventStepIndex === null) return;
+     const nextStepIndex = kurumiPantsEventStepIndex + 1;
+     if (nextStepIndex < KURUMI_PANTSU_EVENT_STEPS.length) {
+        setKurumiPantsEventStepIndex(nextStepIndex);
+        playVoiceSound(KURUMI_PANTSU_EVENT_STEPS[nextStepIndex].voiceSrc);
+        return;
+     }
+     playFixSound();
+     setKurumiPantsEventStepIndex(null);
+     setDialogMessage('くるみちゃんのパンツ...貰っとけばよかったな...');
+  };
+
+  const closeKurumiTentFinalEvent = () => {
+     playFixSound();
+     setKurumiTentFinalEventOpen(false);
+     setKurumiTentFinalCompleted(true);
+     const videoEntry = ZUKAN_VIDEO_ENTRIES.find(entry => entry.id === KURUMI_TENT_FINAL_EVENT_VIDEO_ID);
+     if (videoEntry) openZukanVideo(videoEntry);
+  };
+
   const handleShopItemClick = (index: number) => {
      playFixSound();
      setShopNoticeMessage('');
@@ -11861,7 +12372,7 @@ export default function App() {
      const nextTradeTotal = kurumiTradeTotal + tradePrice;
      const inventoryName = item.fishName ?? item.sizedInventoryName ?? item.name;
      const isReturningKurumiPants = item.type === '売る' && inventoryName === KURUMI_PANTSU_ITEM_NAME && !kurumiPantsReturned;
-     const availableRewards = KURUMI_TRADE_REWARDS.filter(reward => (
+     const availableRewards = isReturningKurumiPants ? [] : KURUMI_TRADE_REWARDS.filter(reward => (
         nextTradeTotal >= reward.threshold && !shownKurumiTradeRewardThresholds.includes(reward.threshold)
      ));
      const nextReward = availableRewards[availableRewards.length - 1] ?? null;
@@ -11931,9 +12442,11 @@ export default function App() {
           }));
         }
      }
-     setDialogMessage(isReturningKurumiPants
-        ? '釣り上げたパンツをくるみに返しました。くるみとの関係がさらに進みそうです。'
-        : `${item.name}を${item.type === '買う' ? '購入' : '売却'}しました。`);
+     if (isReturningKurumiPants) {
+        startKurumiPantsEvent();
+     } else {
+        setDialogMessage(`${item.name}を${item.type === '買う' ? '購入' : '売却'}しました。`);
+     }
      if (!isReturningKurumiPants && !kurumiPantsReturned && nextTradeTotal >= KURUMI_PANTSU_GATE_THRESHOLD) {
         showShopNotice('星4以降には、釣りで入手したパンツをくるみに返す必要があります。');
      }
@@ -12059,6 +12572,11 @@ export default function App() {
     triggeredAutoEventIdsRef.current.add(spot.id);
     clickTargetRef.current = null;
     setClickTargetMarker(null);
+    if (isMermaidJizoSpot(spot) && canOfferMermaidScales()) {
+      setConfirmPromptChoice('yes');
+      setMermaidOfferingPromptVisible(true);
+      return;
+    }
     autoEventBgmMutedRef.current = true;
     fadeBgmTo(0, 900);
     const isPostDebtEvent = isPostDebtNoticeEvent(spot);
@@ -12078,6 +12596,47 @@ export default function App() {
       window.localStorage.setItem(POST_DEBT_NOTICE_SEEN_STORAGE_KEY, 'true');
     }
     if (spot.voiceSrc) playEventAudio(spot.voiceSrc, 'voice');
+  };
+
+  const isMermaidJizoSpot = (spot: InspectSpot | null) => (
+    Boolean(
+      spot &&
+      spot.map === 'takiura' &&
+      (spot.label.includes('地蔵') || spot.text.includes('地蔵') || spot.id.includes('jizou')),
+    )
+  );
+
+  const canOfferMermaidScales = () => (
+    timeOfDay === 'night' &&
+    collectionProgress.unlockedEventIds.includes(MERMAID_LETTER_EVENT_ID) &&
+    !collectionProgress.unlockedEventIds.includes(MERMAID_OFFERING_EVENT_ID) &&
+    (inventoryCounts[MERMAID_SCALE_ITEM_NAME] ?? 0) >= MERMAID_SCALE_OFFERING_COUNT
+  );
+
+  const cancelMermaidOfferingPrompt = () => {
+    playFixSound();
+    setMermaidOfferingPromptVisible(false);
+    setConfirmPromptChoice('yes');
+    setDialogMessage('地蔵の前で、濡れた手紙の文面を思い出した。');
+  };
+
+  const confirmMermaidOffering = () => {
+    if (!canOfferMermaidScales()) {
+      setMermaidOfferingPromptVisible(false);
+      setConfirmPromptChoice('yes');
+      setDialogMessage('供えるには、夜に手紙を読んでいて、人魚の鱗が5枚必要です。');
+      return;
+    }
+    playFixSound();
+    setInventoryCounts(prev => ({
+      ...prev,
+      [MERMAID_SCALE_ITEM_NAME]: Math.max(0, (prev[MERMAID_SCALE_ITEM_NAME] ?? 0) - MERMAID_SCALE_OFFERING_COUNT),
+    }));
+    setMermaidScaleOfferingDay(currentDay);
+    unlockCollectionEvent(MERMAID_OFFERING_EVENT_ID);
+    setMermaidOfferingPromptVisible(false);
+    setConfirmPromptChoice('yes');
+    setDialogMessage('人魚の鱗を5枚、滝裏の地蔵に供えた。\n水底から、かすかな歌声が返ってきた気がする。\n一晩待てば、深い水辺に道がひらくかもしれない。');
   };
 
   const closeAutoEventOverlay = () => {
@@ -12544,6 +13103,7 @@ export default function App() {
       timeOfDay,
       caughtIds: caughtFishIds,
       rareRateMultiplier: getGatheringRareRateMultiplier(),
+      mermaidUnlocked: mermaidFishingUnlocked && timeOfDay === 'night',
     });
     const sweetRange = createFishingFanSweetRange(targetFish);
 
@@ -13804,6 +14364,15 @@ export default function App() {
       }
       if (miningMiniGameOpen) return;
 
+      if (activeZukanImage) {
+        if (e.key === 'Escape' || e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          playFixSound();
+          setActiveZukanImage(null);
+        }
+        return;
+      }
+
       if (pendingDeleteSaveSlot !== null) {
         if (e.repeat) return;
         if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
@@ -13853,6 +14422,69 @@ export default function App() {
         if (e.key === 'Escape') {
           e.preventDefault();
           cancelOverwriteSaveSlot();
+          return;
+        }
+        return;
+      }
+
+      if (mermaidOfferingPromptVisible) {
+        if (e.repeat) return;
+        if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+          e.preventDefault();
+          const nextChoice = e.key === 'ArrowLeft' ? 'yes' : 'no';
+          if (confirmPromptChoice !== nextChoice) playCursorSound();
+          setConfirmPromptChoice(nextChoice);
+          return;
+        }
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          if (confirmPromptChoice === 'yes') {
+            confirmMermaidOffering();
+          } else {
+            cancelMermaidOfferingPrompt();
+          }
+          return;
+        }
+        if (e.key === 'Escape') {
+          e.preventDefault();
+          cancelMermaidOfferingPrompt();
+          return;
+        }
+        return;
+      }
+
+      if (systemSlotModeRef.current !== 'none') {
+        if (e.repeat) return;
+        if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+          e.preventDefault();
+          const nextSlot = Math.max(1, Math.min(5, selectedSystemSlotRef.current + (e.key === 'ArrowDown' ? 1 : -1)));
+          if (nextSlot !== selectedSystemSlotRef.current) {
+            playCursorSound();
+            setSelectedSystemSlot(nextSlot);
+          }
+          return;
+        }
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          const slot = selectedSystemSlotRef.current;
+          const mode = systemSlotModeRef.current;
+          const summary = saveSlotSummariesRef.current.find(entry => entry.slot === slot);
+          if (mode === 'load' && !summary?.exists) {
+            playFixSound();
+            setMissingSaveSlot(slot);
+            return;
+          }
+          if (mode === 'save') {
+            saveGameToSlot(slot);
+          } else {
+            loadGameFromSystemSlot(slot);
+          }
+          return;
+        }
+        if (e.key === 'Escape') {
+          e.preventDefault();
+          playFixSound();
+          setSystemSlotMode('none');
           return;
         }
         return;
@@ -14712,7 +15344,7 @@ export default function App() {
               ? FISH_ZUKAN_ENTRIES.length
               : zukanFilterRef.current === '動画'
                 ? Math.max(1, getUnlockedZukanVideoEntries().length)
-                : 20;
+                : getZukanGirlAndKurumiCards().length;
             const zukanColumnCount = zukanFilterRef.current === '動画' ? 3 : 5;
             if (e.key === 'ArrowUp' && currentIndex < zukanColumnCount) {
               setMenuContentFocus('primary');
@@ -14885,8 +15517,12 @@ export default function App() {
 
 	          if (currentMenuItem.id === 'zukan') {
 	            const currentIndex = selectedZukanIndexRef.current;
-	            const zukanLength = zukanFilterRef.current === '魚' ? FISH_ZUKAN_ENTRIES.length : 20;
-            const zukanColumnCount = 5;
+	            const zukanLength = zukanFilterRef.current === '魚'
+	              ? FISH_ZUKAN_ENTRIES.length
+	              : zukanFilterRef.current === '動画'
+	                ? Math.max(1, getUnlockedZukanVideoEntries().length)
+	                : getZukanGirlAndKurumiCards().length;
+            const zukanColumnCount = zukanFilterRef.current === '動画' ? 3 : 5;
             if (e.key === 'ArrowLeft' && currentIndex % zukanColumnCount === 0) {
               setMenuFocusArea('nav');
               return;
@@ -14951,7 +15587,7 @@ export default function App() {
                 ? FISH_ZUKAN_ENTRIES.length
                 : zukanFilterRef.current === '動画'
                   ? Math.max(1, getUnlockedZukanVideoEntries().length)
-                  : 20;
+                  : getZukanGirlAndKurumiCards().length;
 	            setSelectedZukanIndex(prev => (prev + moveBy + zukanLength) % zukanLength);
 	          } else if (currentMenuItem.id === 'kurumiNotebook') {
 	            const notebookLength = 12;
@@ -14985,8 +15621,8 @@ export default function App() {
 			                    setCompanionGirlId(selectedGirlIsCompanion ? null : selectedGirl.id);
 			                    setDialogMessage(
 			                      selectedGirlIsCompanion
-			                        ? `${selectedGirl.girlName}との同行を解除しました。`
-			                        : `${selectedGirl.girlName}と同行することにしました。`,
+			                        ? `${selectedGirl.name}との同行を解除しました。`
+			                        : `${selectedGirl.name}と同行することにしました。`,
 			                    );
 			                  }
 			                } else if (selectedPrimaryAction === 'harvest') {
@@ -15077,9 +15713,18 @@ export default function App() {
             } else if (zukanFilterRef.current === '魚') {
               const fish = FISH_ZUKAN_ENTRIES[selectedZukanIndexRef.current];
               const caught = fish ? caughtFishIds.includes(fish.id) : false;
-              setDialogMessage(caught && fish ? `${fish.name}を確認しました。` : 'まだ釣っていない魚です。');
+              if (caught && fish) {
+                openZukanImage({ src: fish.imageSrc, title: fish.name, subtitle: `魚図鑑 No.${fish.no}` });
+              } else {
+                setDialogMessage('まだ釣っていない魚です。');
+              }
             } else {
-              setDialogMessage(`No.${selectedZukanIndexRef.current + 1}を確認しました。`);
+              const card = getZukanGirlAndKurumiCards()[selectedZukanIndexRef.current];
+              if (card?.unlocked) {
+                openZukanImage({ src: card.imageSrc, title: card.name, subtitle: card.variantLabel });
+              } else {
+                setDialogMessage('まだ解放されていません。');
+              }
             }
 	          } else if (currentMenuItem.id === 'system') {
 	            const actions = ['セーブ', 'ロード', 'タイトルへ戻る'];
@@ -15722,7 +16367,7 @@ export default function App() {
         movementLockedRef.current = true;
       }
 
-      const currentAutoEventSpots = inspectSpotsRef.current.filter(spot => (
+      const currentAutoEventSpots = mermaidOfferingPromptVisible ? [] : inspectSpotsRef.current.filter(spot => (
         spot.autoTrigger &&
         spot.map === currentMapRef.current &&
         currentX + 18 >= spot.x &&
@@ -15772,7 +16417,7 @@ export default function App() {
       window.removeEventListener('keydown', handleKeyDown); window.removeEventListener('keyup', handleKeyUp);
       cancelAnimationFrame(animationFrameId);
     };
-  }, [setupMode, bedTiles, workbenchTiles, fishingTiles, miningTiles, depletedMiningPointIds, activeMiningPointId, loggingTiles, activeLoggingPoints, activeLoggingPointId, sleepPromptVisible, bathPromptVisible, bathSequenceActive, craftPromptVisible, fishingPromptVisible, miningPromptVisible, loggingPromptVisible, confirmPromptChoice, pendingDeleteSaveSlot, pendingOverwriteSaveSlot, activeAutoEventSpot, activeAutoEventMessage, activeAutoEventMessageIndex, activeAutoEventMessages, displayedAutoEventMessage, turn, currentAP, kurumiShopOpen, kurumiIntroOpen, kurumiIntroSelectedIndex, kurumiIntroAskedTopics, kurumiIntroCompletedDay, seedPlantTutorialOpen, seedPlantTutorialStepIndex, seedAfterPlantTutorialOpen, seedAfterPlantTutorialStepIndex, selectedShopControl, selectedShopItemIndex, shopItems, gold, equipmentActionOpen, equippedItems, inventoryCounts, caughtFishIds, fishingMiniGameOpen, fishingMiniGameStage, miningMiniGameOpen, isFishingResultInputLocked, mermaidLetterNotice, fishingTutorialOpen, fishingTutorialEndingOpen, fishingTutorialEndingStepIndex, sawCraftTutorialIntroOpen, sawCraftTutorialIntroStepIndex, sawCraftTutorialReady, sawCraftTutorialShedDialogueOpen, sawCraftTutorialWorkbenchReady, gatheringTutorialCompleted, gatheringTutorialChoice, miningTutorialCompleted, selectedFishingTutorialAction, selectedFishingResultAction, recipeDetailOpen, farmGirlDetailOpen, showDialog, pendingFarmCareConfirm, farmCareConfirmChoice, farmCareUnlockNoticeAction, farmHarvestResultNotice, bootMode, timeOfDay, isOpeningWalkObjectiveActive, currentDay, nextObjective, battlePreviewOpen, battlePreviewState, battleIntroPhase, battleItemPanelOpen, battleItemSelectionStep, selectedBattleCommandIndex, selectedBattleItemIndex, selectedBattleItemTargetIndex]);
+  }, [setupMode, bedTiles, workbenchTiles, fishingTiles, miningTiles, depletedMiningPointIds, activeMiningPointId, loggingTiles, activeLoggingPoints, activeLoggingPointId, sleepPromptVisible, bathPromptVisible, mermaidOfferingPromptVisible, bathSequenceActive, craftPromptVisible, fishingPromptVisible, miningPromptVisible, loggingPromptVisible, confirmPromptChoice, pendingDeleteSaveSlot, pendingOverwriteSaveSlot, activeAutoEventSpot, activeAutoEventMessage, activeAutoEventMessageIndex, activeAutoEventMessages, displayedAutoEventMessage, turn, currentAP, kurumiShopOpen, kurumiIntroOpen, kurumiIntroSelectedIndex, kurumiIntroAskedTopics, kurumiIntroCompletedDay, seedPlantTutorialOpen, seedPlantTutorialStepIndex, seedAfterPlantTutorialOpen, seedAfterPlantTutorialStepIndex, selectedShopControl, selectedShopItemIndex, shopItems, gold, equipmentActionOpen, equippedItems, inventoryCounts, caughtFishIds, fishingMiniGameOpen, fishingMiniGameStage, miningMiniGameOpen, isFishingResultInputLocked, mermaidLetterNotice, fishingTutorialOpen, fishingTutorialEndingOpen, fishingTutorialEndingStepIndex, sawCraftTutorialIntroOpen, sawCraftTutorialIntroStepIndex, sawCraftTutorialReady, sawCraftTutorialShedDialogueOpen, sawCraftTutorialWorkbenchReady, gatheringTutorialCompleted, gatheringTutorialChoice, miningTutorialCompleted, selectedFishingTutorialAction, selectedFishingResultAction, recipeDetailOpen, farmGirlDetailOpen, showDialog, pendingFarmCareConfirm, farmCareConfirmChoice, farmCareUnlockNoticeAction, farmHarvestResultNotice, bootMode, timeOfDay, isOpeningWalkObjectiveActive, currentDay, nextObjective, battlePreviewOpen, battlePreviewState, battleIntroPhase, battleItemPanelOpen, battleItemSelectionStep, selectedBattleCommandIndex, selectedBattleItemIndex, selectedBattleItemTargetIndex]);
 
   // Zone creation states
   const [dragStart, setDragStart] = useState<{ x: number, y: number } | null>(null);
@@ -16957,6 +17602,7 @@ export default function App() {
 	                    const slot = index + 1;
 	                    const summary = getSlotSummary(slot);
 	                    const disabled = systemSlotMode === 'load' && !summary?.exists;
+	                    const isSelectedSlot = selectedSystemSlot === slot;
 	                    return (
 	                      <div
 	                        key={slot}
@@ -16978,15 +17624,22 @@ export default function App() {
                           <button
                             type="button"
                             disabled={disabled}
+                            onMouseEnter={() => setSelectedSystemSlot(slot)}
+                            onFocus={() => setSelectedSystemSlot(slot)}
                             onClick={() => systemSlotMode === 'save' ? saveGameToSlot(slot) : loadGameFromSystemSlot(slot)}
                             className={`grid w-full gap-1 rounded border-2 px-5 py-3 pr-16 text-left ${
                               disabled
-                                ? 'cursor-not-allowed border-[#5a3010] bg-black/45 text-[#8a7060]'
-                                : 'border-[#bc6c25] bg-[#2d1b15]/90 text-[#fdf6e3] hover:border-white hover:bg-[#4a2a1f]'
+                                ? isSelectedSlot
+                                  ? 'cursor-not-allowed border-[#ffd166] bg-black/55 text-[#9b8170] ring-2 ring-[#ffd166]/55'
+                                  : 'cursor-not-allowed border-[#5a3010] bg-black/45 text-[#8a7060]'
+                                : isSelectedSlot
+                                  ? 'border-[#fff7dc] bg-[#4a2a1f] text-[#fdf6e3] ring-2 ring-[#ffd166]/70'
+                                  : 'border-[#bc6c25] bg-[#2d1b15]/90 text-[#fdf6e3] hover:border-white hover:bg-[#4a2a1f]'
                             }`}
                           >
                             <span className="flex items-center justify-between gap-4 text-xl font-black">
 	                              <span className="flex items-center gap-2">
+	                                {isSelectedSlot && <span className="text-[#ffd166]">▶</span>}
 	                                セーブスロット {slot}
 	                                {ENABLE_DEBUG_TOOLS && slot === DEBUG_SAVE_SLOT && (
 	                                  <span className="rounded border border-red-400/80 bg-red-950/70 px-2 py-0.5 text-xs text-red-100">DEBUG</span>
@@ -17127,7 +17780,7 @@ export default function App() {
                     ? 'farm-warning-hud border-[#ffd166]/90 bg-[#4a310b]/88 text-[#fff1a8]'
                     : 'border-[#ffdd99]/45 bg-[#3a2508]/70 text-[#ffdd99]'
               }`}>
-                借金 ¥{debtAmount.toLocaleString()} / 返済まであと{daysUntilRepayment}日 / 予定 ¥{nextScheduledRepayment.toLocaleString()}
+                借金 ¥{debtAmount.toLocaleString()} / 信用 {farmCredit} / 返済まであと{daysUntilRepayment}日 / 予定 ¥{nextScheduledRepayment.toLocaleString()}
               </span>
             )}
             <span className="shrink-0 text-base text-[#a5d8ff]">同行：{companionGirlName ?? 'なし'}</span>
@@ -18172,20 +18825,35 @@ export default function App() {
 
           {/* 同行娘は主人公の移動履歴をたどるため、曲がり角でも後ろを自然に追従する。 */}
           {setupMode !== 'animation' && companionSpriteSheet && !isPlayerInBath && !isCompanionWaitingForBath && (
-            <Character
-              x={companionFollow.x}
-              y={companionFollow.y}
-              direction={companionFollow.direction}
-              isWalking={companionFollow.isWalking}
-              customSprites={chibiichiCompanionSprites}
-              isHidden={isPlayerInHideArea(companionFollow.x, companionFollow.y, currentMap)}
-              playerWalkSprites={chibiichiCompanionWalkSprites}
-              mirrorRightSprite
-              walkFrameMs={150}
-              scale={1}
-              showGroundShadow={false}
-              spriteSheet={companionSpriteSheet}
-            />
+            <>
+              {companionSpeech && !isPlayerInHideArea(companionFollow.x, companionFollow.y, currentMap) && (
+                <div
+                  key={companionSpeech.key}
+                  className="absolute z-[64] max-w-[300px] -translate-x-1/2 -translate-y-full rounded-2xl border-2 border-[#fff7dc] bg-[#fff4c7] px-4 py-2 text-center text-[17px] font-black leading-snug text-[#4a2a14] shadow-[0_8px_18px_rgba(0,0,0,0.42)] pointer-events-none"
+                  style={{
+                    left: clampNumber(companionFollow.x, 170, GAME_WIDTH - 170),
+                    top: Math.max(110, companionFollow.y - 78),
+                  }}
+                >
+                  {companionSpeech.text}
+                  <span className="absolute left-1/2 top-full h-4 w-4 -translate-x-1/2 -translate-y-1/2 rotate-45 border-b-2 border-r-2 border-[#fff7dc] bg-[#fff4c7]" />
+                </div>
+              )}
+              <Character
+                x={companionFollow.x}
+                y={companionFollow.y}
+                direction={companionFollow.direction}
+                isWalking={companionFollow.isWalking}
+                customSprites={chibiichiCompanionSprites}
+                isHidden={isPlayerInHideArea(companionFollow.x, companionFollow.y, currentMap)}
+                playerWalkSprites={chibiichiCompanionWalkSprites}
+                mirrorRightSprite
+                walkFrameMs={150}
+                scale={1}
+                showGroundShadow={false}
+                spriteSheet={companionSpriteSheet}
+              />
+            </>
           )}
 
           {/* Player */}
@@ -20682,6 +21350,87 @@ export default function App() {
            handleShopItemClick={handleShopItemClick}
            handleShopActionClick={handleShopActionClick}
         />
+        {kurumiPantsEventStepIndex !== null && (
+           (() => {
+              const step = KURUMI_PANTSU_EVENT_STEPS[kurumiPantsEventStepIndex] ?? KURUMI_PANTSU_EVENT_STEPS[0];
+              const isLastStep = kurumiPantsEventStepIndex >= KURUMI_PANTSU_EVENT_STEPS.length - 1;
+              return (
+                <div className="absolute inset-0 z-[93] flex items-center justify-center bg-black/62 px-8 pointer-events-auto">
+                  <div className="grid h-[620px] w-[1080px] grid-cols-[minmax(0,1fr)_420px] overflow-hidden rounded-2xl border-[4px] border-[#ffd166] bg-[#1a100d]/97 text-[#fdf6e3] shadow-2xl">
+                    <div className="flex min-h-0 flex-col p-8">
+                      <div className="text-sm font-bold tracking-[0.28em] text-[#ff9de8]">KURUMI EVENT</div>
+                      <div className="mt-2 text-3xl font-black text-[#fff3b0]">うーたんパンツ</div>
+                      <div className="mt-6 flex-1 whitespace-pre-line rounded-xl border-2 border-[#bc6c25]/70 bg-[#2d1b15]/88 p-6 text-[24px] font-black leading-[1.62]">
+                        くるみ
+                        {'\n'}「{step.message}」
+                      </div>
+                      <div className="mt-6 flex items-center justify-between">
+                        <div className="text-sm font-bold text-[#c8a87a]">{kurumiPantsEventStepIndex + 1} / {KURUMI_PANTSU_EVENT_STEPS.length}</div>
+                        <button
+                          type="button"
+                          onClick={advanceKurumiPantsEvent}
+                          className="rounded-xl border-2 border-[#fff3b0] bg-[#9a5a1d] px-8 py-3 text-lg font-black text-white shadow-[0_0_18px_rgba(255,209,102,0.35)] transition hover:bg-[#b45309]"
+                        >
+                          {isLastStep ? '閉じる' : '次へ'}
+                        </button>
+                      </div>
+                    </div>
+                    <div className="relative min-h-0 border-l border-[#bc6c25]/60 bg-gradient-to-b from-[#3b2418] to-[#160d0a]">
+                      {step.videoSrc ? (
+                        <video
+                          key={step.videoSrc}
+                          src={step.videoSrc}
+                          className="absolute inset-0 h-full w-full object-contain bg-black"
+                          autoPlay
+                          playsInline
+                          controls
+                        />
+                      ) : (
+                        <img
+                          src={step.imageSrc}
+                          alt="くるみのうーたんパンツ"
+                          className="absolute inset-0 h-full w-full object-contain p-6 drop-shadow-[0_24px_28px_rgba(0,0,0,0.64)]"
+                        />
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+           })()
+        )}
+        {kurumiTentFinalEventOpen && (
+          <div className="absolute inset-0 z-[94] flex items-center justify-center bg-black/62 px-8 pointer-events-auto">
+            <div className="grid h-[620px] w-[1080px] grid-cols-[minmax(0,1fr)_420px] overflow-hidden rounded-2xl border-[4px] border-[#ffd166] bg-[#1a100d]/97 text-[#fdf6e3] shadow-2xl">
+              <div className="flex min-h-0 flex-col p-8">
+                <div className="text-sm font-bold tracking-[0.28em] text-[#ff9de8]">KURUMI TENT</div>
+                <div className="mt-2 text-3xl font-black text-[#fff3b0]">テントの中へ</div>
+                <div className="mt-6 rounded-xl border-2 border-[#bc6c25]/70 bg-black/35 p-4 text-lg font-black leading-relaxed text-[#ffd166]">
+                  {KURUMI_TENT_FINAL_EVENT_MESSAGE}
+                </div>
+                <div className="mt-4 flex-1 whitespace-pre-line rounded-xl border-2 border-[#bc6c25]/70 bg-[#2d1b15]/88 p-6 text-[24px] font-black leading-[1.62]">
+                  くるみ
+                  {'\n'}「{KURUMI_TENT_FINAL_EVENT_LINE}」
+                </div>
+                <div className="mt-6 flex justify-end">
+                  <button
+                    type="button"
+                    onClick={closeKurumiTentFinalEvent}
+                    className="rounded-xl border-2 border-[#fff3b0] bg-[#9a5a1d] px-8 py-3 text-lg font-black text-white shadow-[0_0_18px_rgba(255,209,102,0.35)] transition hover:bg-[#b45309]"
+                  >
+                    テントに入る
+                  </button>
+                </div>
+              </div>
+              <div className="relative min-h-0 border-l border-[#bc6c25]/60 bg-gradient-to-b from-[#3b2418] to-[#160d0a]">
+                <img
+                  src="/img/kurumi.png"
+                  alt="くるみ"
+                  className="absolute inset-0 h-full w-full object-contain p-6 drop-shadow-[0_24px_28px_rgba(0,0,0,0.64)]"
+                />
+              </div>
+            </div>
+          </div>
+        )}
 
         {showDialog && setupMode === 'none' && (
            <div className="absolute inset-0 z-[92] flex items-center justify-center bg-black/18 px-6 pointer-events-none">
@@ -21410,6 +22159,60 @@ export default function App() {
                };
              });
            }}
+           debugGirlTrusts={GIRL_DATA.map(girl => ({
+             id: girl.id,
+             name: girl.girlName,
+             trust: farmGirls.find(entry => entry.girlId === girl.id)?.trust ?? girl.initialTrust,
+           }))}
+           adjustDebugGirlTrust={(girlId, delta) => {
+             const targetGirl = GIRL_DATA.find(girl => girl.id === girlId);
+             if (!targetGirl) return;
+             let nextTrust = targetGirl.initialTrust;
+             setFarmGirls(previous => previous.map(girl => {
+               if (girl.girlId !== girlId) return girl;
+               nextTrust = clampNumber(girl.trust + delta, 0, 100);
+               return {
+                 ...girl,
+                 trust: nextTrust,
+                 unlockedTrustEventIds: Array.from(new Set([
+                   ...girl.unlockedTrustEventIds,
+                   ...targetGirl.trustEvents.filter(event => event.trust <= nextTrust).map(event => event.eventId),
+                 ])),
+               };
+             }));
+             setCollectionProgress(previous => ({
+               ...previous,
+               unlockedEventIds: Array.from(new Set([
+                 ...previous.unlockedEventIds,
+                 ...targetGirl.trustEvents.filter(event => event.trust <= nextTrust).map(event => event.eventId),
+               ])),
+             }));
+             setDialogMessage(`${targetGirl.girlName}の娘信頼度を${nextTrust}にしました。`);
+           }}
+           setDebugGirlTrust={(girlId, trust) => {
+             const targetGirl = GIRL_DATA.find(girl => girl.id === girlId);
+             if (!targetGirl) return;
+             const nextTrust = clampNumber(trust, 0, 100);
+             setFarmGirls(previous => previous.map(girl => {
+               if (girl.girlId !== girlId) return girl;
+               return {
+                 ...girl,
+                 trust: nextTrust,
+                 unlockedTrustEventIds: Array.from(new Set([
+                   ...girl.unlockedTrustEventIds,
+                   ...targetGirl.trustEvents.filter(event => event.trust <= nextTrust).map(event => event.eventId),
+                 ])),
+               };
+             }));
+             setCollectionProgress(previous => ({
+               ...previous,
+               unlockedEventIds: Array.from(new Set([
+                 ...previous.unlockedEventIds,
+                 ...targetGirl.trustEvents.filter(event => event.trust <= nextTrust).map(event => event.eventId),
+               ])),
+             }));
+             setDialogMessage(`${targetGirl.girlName}の娘信頼度を${nextTrust}にしました。`);
+           }}
            currentHeroSkillCategoryLabel={HERO_SKILL_CATEGORY_LABELS[selectedSkillCategory]}
            unlockedHeroSkillCount={unlockedHeroSkills.length}
            onUnlockCurrentHeroSkillCategory={() => {
@@ -21646,6 +22449,39 @@ export default function App() {
           </div>,
           document.body
         )}
+        {activeZukanImage && createPortal(
+          <div
+            className="fixed inset-0 z-[10001] flex items-center justify-center bg-black/88 px-8 py-6 pointer-events-auto"
+            onClick={() => { playFixSound(); setActiveZukanImage(null); }}
+          >
+            <div
+              className="relative flex max-h-[92vh] w-full max-w-[1120px] flex-col overflow-hidden rounded-xl border-4 border-[#ffd166] bg-[#120907] p-4 text-[#fdf6e3] shadow-[0_24px_90px_rgba(0,0,0,0.82)]"
+              onClick={(event) => event.stopPropagation()}
+            >
+              <div className="mb-3 flex items-center justify-between gap-4">
+                <div>
+                  <div className="text-xs font-black tracking-[0.22em] text-[#dda15e]">{activeZukanImage.subtitle}</div>
+                  <div className="text-2xl font-black text-[#ffd166]">{activeZukanImage.title}</div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => { playFixSound(); setActiveZukanImage(null); }}
+                  className="rounded-lg border-2 border-white/45 bg-black/55 px-4 py-2 text-sm font-black text-white hover:bg-white/15"
+                >
+                  閉じる
+                </button>
+              </div>
+              <div className="flex min-h-0 flex-1 items-center justify-center rounded-lg bg-black/55 p-3">
+                <img
+                  src={activeZukanImage.src}
+                  alt={activeZukanImage.title}
+                  className="max-h-[76vh] max-w-full object-contain"
+                />
+              </div>
+            </div>
+          </div>,
+          document.body
+        )}
         {activeZukanVideo && createPortal(
           <div className="fixed inset-0 z-[10001] flex items-center justify-center bg-black/88 p-6">
             <div className="relative w-[min(1180px,calc(100vw-48px))] rounded-xl border-4 border-[#ffd166] bg-[#120907] p-4 text-[#fdf6e3] shadow-[0_24px_90px_rgba(0,0,0,0.82)]">
@@ -21667,6 +22503,42 @@ export default function App() {
                 playsInline
                 onEnded={() => setActiveZukanVideo(null)}
               />
+            </div>
+          </div>,
+          document.body
+        )}
+        {activeTrustEvent && createPortal(
+          <div className="fixed inset-0 z-[10001] flex items-center justify-center bg-black/88 px-8 py-6 pointer-events-auto">
+            <div className="relative h-full max-h-[880px] w-full max-w-[1280px] overflow-hidden rounded-2xl border-[4px] border-[#f9a8d4] bg-[#090504] text-[#fdf6e3] shadow-2xl">
+              <div className="absolute left-6 top-5 z-20 rounded border border-[#f9a8d4]/70 bg-black/62 px-4 py-2">
+                <div className="text-xs font-black tracking-[0.28em] text-[#f9a8d4]">TRUST EVENT</div>
+                <div className="text-xl font-black text-[#fff3b0]">{activeTrustEvent.label}</div>
+              </div>
+              <button
+                type="button"
+                onClick={() => { playFixSound(); setActiveTrustEvent(null); }}
+                className="absolute right-6 top-5 z-20 rounded-lg border-2 border-white/45 bg-black/55 px-4 py-2 text-sm font-black text-white hover:bg-white/15"
+              >
+                閉じる
+              </button>
+              <img
+                src={getFarmGirlCardImageSrc(activeTrustEvent.girlId, activeTrustEvent.trust)}
+                alt={activeTrustEvent.girlName}
+                className="absolute inset-x-0 top-0 h-[calc(100%-190px)] w-full object-contain p-6 drop-shadow-[0_24px_28px_rgba(0,0,0,0.64)]"
+              />
+              <div className="absolute bottom-0 left-0 right-0 z-10 border-t-4 border-[#bc6c25] bg-[#1a100d]/97 p-4 shadow-[0_-16px_44px_rgba(0,0,0,0.65)]">
+                <div className="rounded-lg border-[3px] border-[#dda15e] bg-[#2d1b15]/96 px-6 py-5 shadow-inner">
+                  <div className="mb-2 inline-flex rounded-md border-2 border-[#fdf6e3] bg-[#bc6c25] px-3 py-[2px] text-xs font-bold tracking-widest text-white shadow-sm">
+                    信頼度 {activeTrustEvent.trust}
+                  </div>
+                  <p className="min-h-[70px] whitespace-pre-line text-[22px] font-black leading-relaxed">
+                  {activeTrustEvent.girlName}
+                  {'\n'}「{activeTrustEvent.trust === 100
+                    ? 'ここまで大切にしてくれて、ありがとう。\nこれからも、あなたのそばで実っていたい。'
+                    : '最近、あなたといる時間が少し楽しみになってきた。\nこれからも、畑で一緒に過ごしてくれる？'}」
+                  </p>
+                </div>
+              </div>
             </div>
           </div>,
           document.body
@@ -21837,6 +22709,46 @@ export default function App() {
               >
                 OK
               </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const eventId = farmTrustEventNotice.eventId;
+                  setFarmTrustEventNotice(null);
+                  openTrustEvent(eventId);
+                }}
+                className="mt-3 w-full rounded border border-[#67e8f9] bg-[#155e75] px-5 py-3 text-lg font-black text-[#ecfeff] transition hover:bg-[#0e7490]"
+              >
+                今すぐ見る
+              </button>
+            </div>
+          </div>, document.body)}
+        {mermaidOfferingPromptVisible && createPortal(
+          <div className="fixed inset-0 z-[10006] flex items-center justify-center bg-black/62 px-6 pointer-events-auto">
+            <div className="w-[560px] max-w-[92vw] rounded-xl border-4 border-[#67e8f9] bg-[#0f172a]/96 p-6 text-center text-[#fdf6e3] shadow-[0_24px_70px_rgba(0,0,0,0.75),0_0_32px_rgba(103,232,249,0.24)]">
+              <div className="text-sm font-black tracking-[0.24em] text-[#67e8f9]">滝裏の地蔵</div>
+              <div className="mt-3 text-2xl font-black text-[#fff1a8]">人魚の鱗を供えますか？</div>
+              <div className="mt-4 whitespace-pre-line rounded border border-[#67e8f9]/45 bg-black/35 px-4 py-4 text-left text-sm font-bold leading-relaxed text-[#dbeafe]">
+                濡れた手紙には、夜に滝裏の地蔵へ青白い鱗を五つ供えるよう書かれていた。
+                {'\n'}人魚の鱗を5枚消費します。
+              </div>
+              <div className="mt-5 grid grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onMouseEnter={() => setConfirmPromptChoice('yes')}
+                  onClick={() => { setConfirmPromptChoice('yes'); confirmMermaidOffering(); }}
+                  className={`h-[52px] rounded-lg border-2 bg-[#164e63] text-lg font-black text-[#ecfeff] transition-colors hover:bg-[#155e75] ${confirmPromptChoice === 'yes' ? 'border-white ring-4 ring-[#67e8f9]/70' : 'border-[#67e8f9]'}`}
+                >
+                  はい
+                </button>
+                <button
+                  type="button"
+                  onMouseEnter={() => setConfirmPromptChoice('no')}
+                  onClick={() => { setConfirmPromptChoice('no'); cancelMermaidOfferingPrompt(); }}
+                  className={`h-[52px] rounded-lg border-2 bg-black/35 text-lg font-black text-[#fdf6e3] transition-colors hover:bg-[#3a2418] ${confirmPromptChoice === 'no' ? 'border-white ring-4 ring-[#ffd166]/70' : 'border-[#c8a87a]'}`}
+                >
+                  いいえ
+                </button>
+              </div>
             </div>
           </div>, document.body)}
         {farmGirlDetailOpen && farmGirls.find(girl => girl.girlId === selectedFarmGirlForDetail.id)?.cardRevealed && createPortal(
@@ -21861,12 +22773,17 @@ export default function App() {
                  </div>
                  <div className="flex flex-col gap-3 border-l border-[#76502c]/70 bg-[#24140f] p-4 pr-5">
                     <div style={menuTinyLabelStyle}>詳細カード</div>
-                    <div className="farm-girl-card-preview relative overflow-hidden rounded border border-[#f1c27d]/70">
-                       <img src={selectedFarmGirlForDetail.cardImg} alt={selectedFarmGirlForDetail.name} className="absolute inset-0 h-full w-full object-contain p-2" />
+                    <div className={`farm-girl-card-preview relative overflow-hidden rounded border border-[#f1c27d]/70 ${selectedFarmGirlForDetailCardTier === 'trust100' ? 'is-trust-100' : selectedFarmGirlForDetailCardTier === 'trust50' ? 'is-trust-50' : ''}`}>
+                       <img src={selectedFarmGirlForDetailCardImg} alt={selectedFarmGirlForDetail.name} className="absolute inset-0 h-full w-full object-contain p-2" />
+                       {selectedFarmGirlForDetailCardTier === 'trust100' && (
+                          <div className="farm-girl-card-tier-badge">信頼MAX</div>
+                       )}
                        <div className="absolute inset-0 bg-gradient-to-t from-black/82 via-black/10 to-transparent" />
                        <div className="absolute left-3 right-3 bottom-3 rounded bg-black/58 border border-white/10 px-3 py-2">
                           <div className="text-[#fff7dc] text-xl font-bold leading-tight">{selectedFarmGirlForDetail.name}</div>
-                          <div className="mt-1 text-base">{renderStars(selectedFarmGirlForDetail.affinity)}</div>
+                          <div className="mt-1 text-base">
+                            {selectedFarmGirlForDetailCardTier === 'base' ? renderStars(selectedFarmGirlForDetail.affinity) : getFarmGirlTrustCardLabel(selectedFarmGirlForDetailCardTier)}
+                          </div>
                        </div>
                     </div>
                     <div className="grid grid-cols-2 gap-2 text-sm">
@@ -21881,10 +22798,6 @@ export default function App() {
                        <div className="rounded bg-black/25 px-2 py-2">
                           <div className="text-[#c8a87a] text-xs">性格</div>
                           <div className="text-[#fdf6e3] font-bold">{selectedFarmGirlForDetail.trait}</div>
-                       </div>
-                       <div className="rounded bg-black/25 px-2 py-2">
-                          <div className="text-[#c8a87a] text-xs">状態</div>
-                          <div className="text-[#fdf6e3] font-bold">{selectedFarmGirlForDetail.stage}</div>
                        </div>
                     </div>
                  </div>

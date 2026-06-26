@@ -336,8 +336,12 @@
   ],
   "farmCareUnlockStage": 1,
   "farmCareFingerUnlockedDay": null,
-  "ownedGirlSeeds": [],
-  "hasReceivedKurumiStarterSeeds": false,
+  "ownedGirlSeeds": [
+    "ichigo",
+    "melon",
+    "tomato"
+  ],
+  "hasReceivedKurumiStarterSeeds": true,
   "hasKurumiNotebook": false,
   "kurumiTradeTotal": 0,
   "shownKurumiTradeRewardThresholds": [],
@@ -376,7 +380,7 @@
   "currentAP": 5,
   "maxAPPerTimeSlot": 5,
   "difficulty": "hard",
-  "currentMap": "farm",
+  "currentMap": "shed",
   "zones": [
     {
       "id": "1781485855659",
@@ -45249,9 +45253,15 @@
   ],
   "gatheringTutorialCompleted": false,
   "gatheringTutorialChoice": null,
-  "kurumiIntroAskedTopics": [],
-  "kurumiIntroCompletedDay": null,
-  "openingMapTransitionCount": 0,
+  "kurumiIntroAskedTopics": [
+    "village",
+    "debt",
+    "naedoko",
+    "pantsu",
+    "grandpa"
+  ],
+  "kurumiIntroCompletedDay": 1,
+  "openingMapTransitionCount": 2,
   "bathTubMaskZone": {
     "x": 1260,
     "y": 380,

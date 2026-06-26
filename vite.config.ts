@@ -9,6 +9,10 @@ const FARM_GIRL_CARD_IMAGES = ['/img/chibiichi-card.jpg', '/img/ruby-card.jpg', 
 const OPEN_FARM_GIRL_CARD_COUNT = FARM_GIRL_CARD_IMAGES.filter(src => src !== FARM_GIRL_CARD_BACK_SRC).length;
 
 export default defineConfig(() => {
+  const saveDir = process.env.FARM_SAVE_DIR
+    ? path.resolve(process.env.FARM_SAVE_DIR)
+    : path.resolve(__dirname, 'saves');
+
   return {
     plugins: [
       react(),
@@ -23,7 +27,6 @@ export default defineConfig(() => {
               return Number.isInteger(slot) && slot >= 1 && slot <= 5 ? slot : 1;
             };
             const getSavePath = (slot: number) => {
-              const saveDir = path.resolve(__dirname, 'saves');
               return {
                 saveDir,
                 savePath: slot === 1

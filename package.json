@@ -8,6 +8,7 @@
     "build:client": "vite build",
     "build:server": "esbuild server.ts --bundle --platform=node --format=esm --packages=external --outfile=server.js",
     "build": "npm run build:client && npm run build:server",
+    "generate:voice-gains": "node scripts/generate-voice-gains.mjs",
     "preview": "npm run build && node server.js",
     "clean": "rm -rf dist server.js",
     "start": "node server.js",
