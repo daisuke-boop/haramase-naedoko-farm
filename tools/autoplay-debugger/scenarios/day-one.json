@@ -1,10 +1,7 @@
 {
   "id": "day-one",
-  "description": "1日目を開始し、行動アダプターが未実装なら安全に保留として報告する",
+  "description": "ハードモードを通常操作し、導入・苗植え・就寝を経て2日目へ到達する",
   "difficulty": "ハード",
   "targetDay": 2,
-  "finishAfterStart": false,
-  "expectedIncomplete": [
-    "day-one-action-policy"
-  ]
+  "finishAfterStart": false
 }

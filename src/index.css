@@ -443,6 +443,10 @@ canvas {
 }
 
 .farm-girl-reveal-name {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  transform: translate(-50%, -58%);
   min-width: 220px;
   border: 2px solid rgba(255, 235, 159, 0.86);
   border-radius: 999px;
@@ -460,7 +464,7 @@ canvas {
 .farm-girl-reveal-message {
   position: absolute;
   left: 50%;
-  bottom: clamp(24px, 5vh, 56px);
+  bottom: clamp(12px, 2vh, 24px);
   z-index: 3;
   width: min(820px, calc(100vw - 64px));
   transform: translateX(-50%);
@@ -472,7 +476,7 @@ canvas {
     0 0 28px rgba(255, 209, 102, 0.24),
     inset 0 1px 0 rgba(255, 255, 255, 0.16);
   color: #fff8dc;
-  padding: 18px 28px;
+  padding: 34px 28px 18px;
   text-align: center;
   font-size: clamp(18px, 2.05vw, 27px);
   font-weight: 900;
@@ -1775,4 +1779,20 @@ canvas {
     radial-gradient(circle at 84% 58%, rgba(253,224,71,0.95) 0 4%, transparent 5%);
   filter: drop-shadow(0 0 8px rgba(187,247,208,0.95));
   animation: battleSupportSparkleRise 760ms ease-out forwards;
+}
+@keyframes farm-equipment-sound-pulse {
+  0% {
+    opacity: 0.95;
+    transform: scale(0.96);
+    box-shadow: 0 0 10px rgba(134, 239, 172, 0.95), inset 0 0 12px rgba(134, 239, 172, 0.7);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.13);
+    box-shadow: 0 0 38px rgba(134, 239, 172, 0), inset 0 0 30px rgba(134, 239, 172, 0);
+  }
+}
+
+.farm-equipment-sound-pulse {
+  animation: farm-equipment-sound-pulse 280ms ease-out both;
 }

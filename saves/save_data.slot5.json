@@ -1,29 +1,39 @@
 {
   "saveSchemaVersion": 2,
-  "turn": 8,
+  "turn": 20,
   "gold": 5000,
   "gameMode": "story",
   "hasUnlockedEndlessNurseryMode": false,
   "collectionProgress": {
     "collectedGirlIds": [],
-    "caughtFishIds": [],
+    "caughtFishIds": [
+      "eda",
+      "funa",
+      "ugui"
+    ],
     "craftedItemIds": [],
     "unlockedEventIds": [
-      "video_care_finger",
       "video_care_caress",
+      "video_care_finger",
+      "video_care_fertilize",
+      "seed_offer_grape",
       "chibiichi_trust_50",
       "chibiichi_trust_100",
+      "girl_equipment_tutorial_completed",
       "mel_trust_50",
       "mel_trust_100",
       "ruby_trust_50",
       "ruby_trust_100"
     ],
-    "viewedEventIds": [],
+    "viewedEventIds": [
+      "chibiichi_trust_50",
+      "mel_trust_100"
+    ],
     "defeatedBeastIds": []
   },
   "achievementStats": {
-    "totalCraftSuccesses": 0,
-    "totalNushiCaught": 0,
+    "totalCraftSuccesses": 2,
+    "totalNushiCaught": 1,
     "totalRareOresMined": 0,
     "totalRareLumbersCut": 0
   },
@@ -40,12 +50,12 @@
   },
   "debt": 30000000,
   "debtAmount": 30000000,
-  "repaymentCycleDays": 7,
+  "repaymentCycleDays": 8,
   "storyCleared": false,
   "farmCredit": 0,
   "successfulRepaymentCount": 0,
   "missedRepaymentCount": 0,
-  "heroLevel": 1,
+  "heroLevel": 5,
   "heroSP": 0,
   "debugGirlAffinities": {
     "chibiichi": 5,
@@ -58,8 +68,8 @@
   "scheduledBeastAttackDay": null,
   "mountainLordAttackPending": false,
   "beastAttackPending": false,
-  "companionGirlId": null,
-  "currentWeeklyInterestRate": 2.3,
+  "companionGirlId": "chibiichi",
+  "currentWeeklyInterestRate": 1.5,
   "interestRateCycleIndex": 0,
   "farmGirls": [
     {
@@ -68,12 +78,12 @@
       "cardRevealed": true,
       "plantedDay": 1,
       "growthProgress": 2,
-      "quality": 41,
-      "careDay": 3,
-      "caressCount": 1,
-      "fingerCount": 1,
-      "fertilizeCount": 0,
-      "lastHarvestDay": 3,
+      "quality": 54,
+      "careDay": 4,
+      "caressCount": 0,
+      "fingerCount": 0,
+      "fertilizeCount": 1,
+      "lastHarvestDay": 6,
       "trust": 100,
       "unlockedTrustEventIds": [
         "chibiichi_trust_50",
@@ -86,16 +96,16 @@
     },
     {
       "girlId": "mel",
-      "state": "growing",
-      "cardRevealed": false,
+      "state": "appeared",
+      "cardRevealed": true,
       "plantedDay": 1,
-      "growthProgress": 2,
-      "quality": 31,
-      "careDay": null,
+      "growthProgress": 3,
+      "quality": 52,
+      "careDay": 4,
       "caressCount": 0,
-      "fingerCount": 0,
-      "fertilizeCount": 0,
-      "lastHarvestDay": null,
+      "fingerCount": 1,
+      "fertilizeCount": 1,
+      "lastHarvestDay": 3,
       "trust": 100,
       "unlockedTrustEventIds": [
         "mel_trust_50",
@@ -112,12 +122,12 @@
       "cardRevealed": true,
       "plantedDay": 1,
       "growthProgress": 2,
-      "quality": 31,
-      "careDay": null,
+      "quality": 46,
+      "careDay": 4,
       "caressCount": 0,
       "fingerCount": 0,
-      "fertilizeCount": 0,
-      "lastHarvestDay": 3,
+      "fertilizeCount": 1,
+      "lastHarvestDay": 4,
       "trust": 100,
       "unlockedTrustEventIds": [
         "ruby_trust_50",
@@ -357,7 +367,7 @@
       "hybridAdapted": false
     }
   ],
-  "farmCareUnlockStage": 2,
+  "farmCareUnlockStage": 3,
   "farmCareFingerUnlockedDay": 3,
   "ownedGirlSeeds": [
     "ichigo",
@@ -368,7 +378,8 @@
   "hasKurumiNotebook": true,
   "kurumiTradeTotal": 1000000,
   "shownKurumiTradeRewardThresholds": [
-    5000
+    5000,
+    50000
   ],
   "kurumiPantsReturned": true,
   "kurumiTentFinalAvailableDay": null,
@@ -377,38 +388,52 @@
   "seedAfterPlantTutorialCompleted": true,
   "farmFieldSlots": [
     {
-      "fieldId": "right",
+      "fieldId": "left",
       "slotIndex": 1,
-      "girlId": "mel",
-      "state": "growing",
-      "plantedDay": 1
+      "girlId": null,
+      "state": "none",
+      "plantedDay": null
     },
     {
-      "fieldId": "right",
+      "fieldId": "left",
       "slotIndex": 2,
-      "girlId": "chibiichi",
-      "state": "appeared",
-      "plantedDay": 1
-    },
-    {
-      "fieldId": "right",
-      "slotIndex": 3,
       "girlId": "ruby",
       "state": "appeared",
       "plantedDay": 1
     },
     {
-      "fieldId": "right",
+      "fieldId": "left",
+      "slotIndex": 3,
+      "girlId": "chibiichi",
+      "state": "appeared",
+      "plantedDay": 1
+    },
+    {
+      "fieldId": "left",
       "slotIndex": 4,
       "girlId": null,
       "state": "none",
       "plantedDay": null
+    },
+    {
+      "fieldId": "left",
+      "slotIndex": 5,
+      "girlId": null,
+      "state": "none",
+      "plantedDay": null
+    },
+    {
+      "fieldId": "left",
+      "slotIndex": 6,
+      "girlId": "mel",
+      "state": "appeared",
+      "plantedDay": 1
     }
   ],
-  "currentAP": 3,
+  "currentAP": 5,
   "maxAPPerTimeSlot": 5,
   "difficulty": "hard",
-  "currentMap": "farm",
+  "currentMap": "house",
   "zones": [
     {
       "id": "1781485855659",
@@ -876,7 +901,7 @@
     "/bgm/farmbgm.wav": 0.2,
     "/bgm/yado.mp3": 1,
     "/bgm/shop.mp3": 1,
-    "/se/zoon2.wav": 1,
+    "/se/zoon2.wav": 0.69,
     "/se/taki.mp3": 1,
     "/se/river.mp3": 1,
     "/se/semi.mp3": 1,
@@ -45339,44 +45364,321 @@
     }
   },
   "inventoryCounts": {
+    "農神の指輪": 1,
     "いやし草もち（デバッグ用）": 1,
     "生命ミルク（デバッグ用）": 1,
     "女神の蜜薬（デバッグ用）": 1,
     "めざめの鈴（デバッグ用）": 1,
     "生命の種火（デバッグ用）": 1,
     "天命の雫（デバッグ用）": 1,
-    "竹の釣竿": 0,
-    "ルビーのトマト": 3,
-    "ちびいちのいちご": 0
+    "竹の釣竿": 1,
+    "枝": 0,
+    "【レシピ】のこぎり": 1,
+    "モグラの爪": 0,
+    "ウサギの靭帯": 0,
+    "軟らかい銅鉱石": 0,
+    "柔らかな若枝": 0,
+    "のこぎり": 1,
+    "【レシピ】つるはし": 1,
+    "泥混じりの鉄鉱石": 0,
+    "つるはし": 1,
+    "【レシピ】丈夫なつるはし": 1,
+    "【レシピ】丈夫なのこぎり": 1,
+    "フナ": 0,
+    "ルビーのトマト": 0,
+    "ちびいちのいちご": 0,
+    "メルのメロン": 0,
+    "ウグイ": 0
   },
   "equippedItems": {
-    "主人公-slot1": "",
-    "主人公-slot2": "",
-    "主人公-slot3": "",
+    "主人公-slot1": "竹の釣竿",
+    "主人公-slot2": "のこぎり",
+    "主人公-slot3": "つるはし",
     "主人公-slot4": "",
     "ちびいち-slot1": "",
     "ちびいち-slot2": ""
   },
-  "caughtFishIds": [],
-  "nushiCaughtFishIds": [],
-  "fishBestSizes": {},
-  "fishInventorySizes": {},
+  "girlEquipment": {
+    "chibiichi": [
+      {
+        "girlId": "chibiichi",
+        "slotIndex": 1,
+        "equippedItemId": "ちびいちのいちご",
+        "bonusStats": {
+          "attack": 2,
+          "hp": 4
+        },
+        "equipQuality": "good"
+      },
+      {
+        "girlId": "chibiichi",
+        "slotIndex": 2,
+        "equippedItemId": null,
+        "bonusStats": {},
+        "equipQuality": "none"
+      }
+    ],
+    "mel": [
+      {
+        "girlId": "mel",
+        "slotIndex": 1,
+        "equippedItemId": null,
+        "bonusStats": {},
+        "equipQuality": "none"
+      },
+      {
+        "girlId": "mel",
+        "slotIndex": 2,
+        "equippedItemId": null,
+        "bonusStats": {},
+        "equipQuality": "none"
+      }
+    ],
+    "ruby": [
+      {
+        "girlId": "ruby",
+        "slotIndex": 1,
+        "equippedItemId": null,
+        "bonusStats": {},
+        "equipQuality": "none"
+      },
+      {
+        "girlId": "ruby",
+        "slotIndex": 2,
+        "equippedItemId": null,
+        "bonusStats": {},
+        "equipQuality": "none"
+      }
+    ],
+    "viola": [
+      {
+        "girlId": "viola",
+        "slotIndex": 1,
+        "equippedItemId": null,
+        "bonusStats": {},
+        "equipQuality": "none"
+      },
+      {
+        "girlId": "viola",
+        "slotIndex": 2,
+        "equippedItemId": null,
+        "bonusStats": {},
+        "equipQuality": "none"
+      }
+    ],
+    "nazuna": [
+      {
+        "girlId": "nazuna",
+        "slotIndex": 1,
+        "equippedItemId": null,
+        "bonusStats": {},
+        "equipQuality": "none"
+      },
+      {
+        "girlId": "nazuna",
+        "slotIndex": 2,
+        "equippedItemId": null,
+        "bonusStats": {},
+        "equipQuality": "none"
+      }
+    ],
+    "kabune": [
+      {
+        "girlId": "kabune",
+        "slotIndex": 1,
+        "equippedItemId": null,
+        "bonusStats": {},
+        "equipQuality": "none"
+      },
+      {
+        "girlId": "kabune",
+        "slotIndex": 2,
+        "equippedItemId": null,
+        "bonusStats": {},
+        "equipQuality": "none"
+      }
+    ],
+    "caro": [
+      {
+        "girlId": "caro",
+        "slotIndex": 1,
+        "equippedItemId": null,
+        "bonusStats": {},
+        "equipQuality": "none"
+      },
+      {
+        "girlId": "caro",
+        "slotIndex": 2,
+        "equippedItemId": null,
+        "bonusStats": {},
+        "equipQuality": "none"
+      }
+    ],
+    "theta": [
+      {
+        "girlId": "theta",
+        "slotIndex": 1,
+        "equippedItemId": null,
+        "bonusStats": {},
+        "equipQuality": "none"
+      },
+      {
+        "girlId": "theta",
+        "slotIndex": 2,
+        "equippedItemId": null,
+        "bonusStats": {},
+        "equipQuality": "none"
+      }
+    ],
+    "cure": [
+      {
+        "girlId": "cure",
+        "slotIndex": 1,
+        "equippedItemId": null,
+        "bonusStats": {},
+        "equipQuality": "none"
+      },
+      {
+        "girlId": "cure",
+        "slotIndex": 2,
+        "equippedItemId": null,
+        "bonusStats": {},
+        "equipQuality": "none"
+      }
+    ],
+    "shiro": [
+      {
+        "girlId": "shiro",
+        "slotIndex": 1,
+        "equippedItemId": null,
+        "bonusStats": {},
+        "equipQuality": "none"
+      },
+      {
+        "girlId": "shiro",
+        "slotIndex": 2,
+        "equippedItemId": null,
+        "bonusStats": {},
+        "equipQuality": "none"
+      }
+    ],
+    "momona": [
+      {
+        "girlId": "momona",
+        "slotIndex": 1,
+        "equippedItemId": null,
+        "bonusStats": {},
+        "equipQuality": "none"
+      },
+      {
+        "girlId": "momona",
+        "slotIndex": 2,
+        "equippedItemId": null,
+        "bonusStats": {},
+        "equipQuality": "none"
+      }
+    ],
+    "pan": [
+      {
+        "girlId": "pan",
+        "slotIndex": 1,
+        "equippedItemId": null,
+        "bonusStats": {},
+        "equipQuality": "none"
+      },
+      {
+        "girlId": "pan",
+        "slotIndex": 2,
+        "equippedItemId": null,
+        "bonusStats": {},
+        "equipQuality": "none"
+      }
+    ],
+    "puti": [
+      {
+        "girlId": "puti",
+        "slotIndex": 1,
+        "equippedItemId": null,
+        "bonusStats": {},
+        "equipQuality": "none"
+      },
+      {
+        "girlId": "puti",
+        "slotIndex": 2,
+        "equippedItemId": null,
+        "bonusStats": {},
+        "equipQuality": "none"
+      }
+    ],
+    "roma": [
+      {
+        "girlId": "roma",
+        "slotIndex": 1,
+        "equippedItemId": null,
+        "bonusStats": {},
+        "equipQuality": "none"
+      },
+      {
+        "girlId": "roma",
+        "slotIndex": 2,
+        "equippedItemId": null,
+        "bonusStats": {},
+        "equipQuality": "none"
+      }
+    ],
+    "saffy": [
+      {
+        "girlId": "saffy",
+        "slotIndex": 1,
+        "equippedItemId": null,
+        "bonusStats": {},
+        "equipQuality": "none"
+      },
+      {
+        "girlId": "saffy",
+        "slotIndex": 2,
+        "equippedItemId": null,
+        "bonusStats": {},
+        "equipQuality": "none"
+      }
+    ]
+  },
+  "caughtFishIds": [
+    "eda",
+    "funa",
+    "ugui"
+  ],
+  "nushiCaughtFishIds": [
+    "eda"
+  ],
+  "fishBestSizes": {
+    "eda": 15,
+    "funa": 22.3,
+    "ugui": 23.1
+  },
+  "fishInventorySizes": {
+    "枝": [],
+    "フナ": [],
+    "ウグイ": []
+  },
   "lumberInventorySizes": {},
-  "oreInventoryWeights": {},
+  "oreInventoryWeights": {
+    "軟らかい銅鉱石": []
+  },
   "depletedMiningPointIds": {},
-  "fishingTutorialCompleted": false,
+  "fishingTutorialCompleted": true,
   "craftTutorialRecipeName": "【レシピ】つるはし",
   "sawCraftTutorialReady": false,
   "sawCraftTutorialWorkbenchReady": false,
-  "sawCraftTutorialCompleted": false,
-  "loggingTutorialCompleted": false,
-  "miningTutorialCompleted": false,
+  "sawCraftTutorialCompleted": true,
+  "loggingTutorialCompleted": true,
+  "miningTutorialCompleted": true,
   "craftedRecipeIds": [
     "【レシピ】つるはし",
     "【レシピ】のこぎり"
   ],
-  "gatheringTutorialCompleted": false,
-  "gatheringTutorialChoice": null,
+  "gatheringTutorialCompleted": true,
+  "gatheringTutorialChoice": "mining",
   "kurumiIntroAskedTopics": [
     "village",
     "debt",
@@ -45385,7 +45687,7 @@
     "grandpa"
   ],
   "kurumiIntroCompletedDay": 1,
-  "openingMapTransitionCount": 0,
+  "openingMapTransitionCount": 2,
   "bathTubMaskZone": {
     "x": 1260,
     "y": 380,

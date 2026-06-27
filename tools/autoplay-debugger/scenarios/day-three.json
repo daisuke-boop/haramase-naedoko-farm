@@ -1,0 +1,7 @@
+{
+  "id": "day-three",
+  "description": "ハードモードを通常操作し、導入・苗植え・就寝を経て3日目へ到達する",
+  "difficulty": "ハード",
+  "targetDay": 3,
+  "finishAfterStart": false
+}

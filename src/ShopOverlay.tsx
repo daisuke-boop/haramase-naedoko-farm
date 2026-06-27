@@ -11,6 +11,9 @@ type ShopItem = {
   fishPrice?: number;
   sizedInventoryName?: string;
   sizedInventoryPrice?: number;
+  girlSeedId?: string;
+  requiredItems?: readonly { itemName: string; amount: number }[];
+  seedOfferMessage?: string;
 };
 
 type ShopOverlayProps = {
@@ -166,7 +169,9 @@ const ShopOverlay = ({
                                       }`}
                                    >
                                       <span className="min-w-0 text-[16px] font-bold leading-snug text-[#fdf6e3] break-words">{item.name}</span>
-                                      <span className="text-right text-[16px] font-black text-[#ffd166] whitespace-nowrap">{item.price.toLocaleString()} G</span>
+                                      <span className="text-right text-[16px] font-black text-[#ffd166] whitespace-nowrap">
+                                         {item.requiredItems?.length ? '素材交換' : item.girlSeedId && item.price === 0 ? '受け取る' : `${item.price.toLocaleString()} G`}
+                                      </span>
                                       <span className="text-right text-sm font-bold text-[#c8a87a] whitespace-nowrap">在庫 {getDisplayStock(item)}</span>
                                    </button>
                                 );
@@ -186,7 +191,9 @@ const ShopOverlay = ({
                                 {selectedItem.category}
                              </div>
                           )}
-                          <div className="mt-3 text-xl font-bold text-[#ffd166]">{selectedItem?.price.toLocaleString()} G</div>
+                          <div className="mt-3 text-xl font-bold text-[#ffd166]">
+                             {selectedItem?.requiredItems?.length ? '指定素材と交換' : selectedItem?.girlSeedId && selectedItem.price === 0 ? '信用報酬・無料' : `${selectedItem?.price.toLocaleString()} G`}
+                          </div>
                           <p className="mt-4 min-h-0 flex-1 overflow-y-auto pr-1 leading-relaxed text-[#c8a87a]">{selectedItem?.desc}</p>
                           <button
                              type="button"
@@ -196,7 +203,11 @@ const ShopOverlay = ({
                                 selectedShopControl === 'action' ? 'border-white bg-[#60732d]' : 'border-[#a3b18a] bg-[#4a5823]'
                              }`}
                           >
-                             {selectedItem?.type === '買う' ? '購入する' : '売却する'}
+                             {selectedItem?.requiredItems?.length
+                               ? '素材と交換する'
+                               : selectedItem?.girlSeedId && selectedItem.price === 0
+                                 ? '受け取る'
+                                 : selectedItem?.type === '買う' ? '購入する' : '売却する'}
                           </button>
                        </div>
                     </div>

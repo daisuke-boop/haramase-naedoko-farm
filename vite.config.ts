@@ -60,10 +60,14 @@ export default defineConfig(() => {
                 caughtFishCount: Array.isArray(data.caughtFishIds) ? data.caughtFishIds.length : 0,
               };
             };
+            const mapSettingsPath = path.resolve(saveDir, 'map_settings.json');
 
             if (requestUrl.pathname === '/api/save-slots' && req.method === 'GET') {
               res.writeHead(200, { 'Content-Type': 'application/json' });
               res.end(JSON.stringify(Array.from({ length: 5 }, (_, index) => createSaveSlotSummary(index + 1))));
+            } else if (requestUrl.pathname === '/api/map-settings' && req.method === 'GET') {
+              res.writeHead(200, { 'Content-Type': 'application/json' });
+              res.end(fs.existsSync(mapSettingsPath) ? fs.readFileSync(mapSettingsPath, 'utf8') : JSON.stringify({}));
             } else if (requestUrl.pathname === '/api/save' && req.method === 'DELETE') {
               const { savePath, previousSavePath } = getSavePath(getSaveSlot());
               if (fs.existsSync(savePath)) {

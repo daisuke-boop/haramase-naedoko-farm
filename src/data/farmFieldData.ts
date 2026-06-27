@@ -28,44 +28,47 @@ export const FARM_FIELD_DIFFICULTY_CONFIGS: Readonly<
       fieldId: 'right',
       slotCount: 4,
       initiallyUnlocked: false,
-      // EASYの右畑は今回は未解放のまま。将来解放する場合はここに条件を入れる。
-      unlockRequirement: null,
+      unlockRequirement: {
+        farmCredit: 5,
+        successfulRepaymentCount: 1,
+        cost: 100_000,
+      },
     },
   },
   normal: {
     left: {
       fieldId: 'left',
       slotCount: 6,
-      initiallyUnlocked: false,
-      unlockRequirement: {
-        farmCredit: 40,
-        successfulRepaymentCount: 2,
-        cost: 500_000,
-      },
+      initiallyUnlocked: true,
+      unlockRequirement: null,
     },
     right: {
       fieldId: 'right',
       slotCount: 4,
-      initiallyUnlocked: true,
-      unlockRequirement: null,
+      initiallyUnlocked: false,
+      unlockRequirement: {
+        farmCredit: 20,
+        successfulRepaymentCount: 1,
+        cost: 300_000,
+      },
     },
   },
   hard: {
     left: {
       fieldId: 'left',
       slotCount: 6,
-      initiallyUnlocked: false,
-      unlockRequirement: {
-        farmCredit: 60,
-        successfulRepaymentCount: 3,
-        cost: 1_500_000,
-      },
+      initiallyUnlocked: true,
+      unlockRequirement: null,
     },
     right: {
       fieldId: 'right',
       slotCount: 4,
-      initiallyUnlocked: true,
-      unlockRequirement: null,
+      initiallyUnlocked: false,
+      unlockRequirement: {
+        farmCredit: 30,
+        successfulRepaymentCount: 1,
+        cost: 500_000,
+      },
     },
   },
 };

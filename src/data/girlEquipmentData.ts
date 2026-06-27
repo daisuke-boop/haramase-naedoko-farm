@@ -60,15 +60,15 @@ export const GIRL_EQUIPMENT_MINIGAME_RANK_CONFIGS: Readonly<Record<GirlEquipment
     resultRank: 'good',
     success: true,
     consumesHarvestItem: true,
-    bonusMultiplier: 1.15,
-    description: '装備成功。装備基本性能×1.15。',
+    bonusMultiplier: 1.0,
+    description: '装備成功。装備基本性能×1.0。',
   },
   perfect: {
     resultRank: 'perfect',
     success: true,
     consumesHarvestItem: true,
-    bonusMultiplier: 1.35,
-    description: '装備成功。装備基本性能×1.35。',
+    bonusMultiplier: 1.0,
+    description: '装備成功。装備基本性能×1.0。',
   },
 };
 

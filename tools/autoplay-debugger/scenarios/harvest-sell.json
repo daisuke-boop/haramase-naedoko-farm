@@ -1,0 +1,10 @@
+{
+  "id": "harvest-sell",
+  "description": "イージーモードを通常操作し、苗娘の収穫とくるみ商店での売却を確認する",
+  "difficulty": "イージー",
+  "targetDay": 3,
+  "finishAfterStart": false,
+  "humanEstimate": true,
+  "humanEstimateMinMultiplier": 4,
+  "humanEstimateEventExtraMs": 1800
+}

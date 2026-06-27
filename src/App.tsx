@@ -103,7 +103,15 @@ import {
   type PickaxeName,
 } from './data/miningData';
 import { FARM_GIRL_CROP_DATA, getFarmHarvestSellPrice, type FarmGirlCropData } from './data/farmData';
-import { getFarmFieldConfig, getInitiallyUnlockedFarmFieldConfigs, isFarmFieldInitiallyUnlocked } from './data/farmFieldData';
+import {
+  getGirlEquipmentBonusMultiplier,
+  getGirlEquipmentSlots,
+  getRequiredHarvestItemForGirlEquipment,
+  type GirlEquipmentMiniGameResult,
+  type GirlEquipmentSlot,
+  type GirlEquipmentSlotIndex,
+} from './data/girlEquipmentData';
+import { getFarmFieldConfig, getInitiallyUnlockedFarmFieldConfigs } from './data/farmFieldData';
 import { COMPANION_SPEECH_LINES, GIRL_DATA, type CompanionSpeechMoment } from './data/girlData';
 import { GIRL_SEED_ACQUISITION_DATA, INITIAL_OWNED_GIRL_SEEDS } from './data/girlSeedAcquisitionData';
 import {
@@ -221,6 +229,7 @@ const POST_DEBT_NOTICE_SOUND_SRC = '/se/shock.mp3';
 const POST_DEBT_NOTICE_SEEN_STORAGE_KEY = 'farm_post_debt_notice_seen';
 const POST_DEBT_NOTICE_REPEAT_TEXT = 'お爺さんが危ない連中から借りた借用書が入っている。';
 const STORY_ENDING_VIDEO_SRC = '/video/end.mp4';
+const EASY_STORY_ENDING_VIDEO_SRC = '/video/easyend.mp4';
 const isPostDebtNoticeEvent = (spot: InspectSpot | null) => {
   if (!spot) return false;
   const imageSrc = spot.imageSrc?.trim().replace(/^\/+/, '');
@@ -548,6 +557,10 @@ type ShopItem = {
   fishPrice?: number;
   sizedInventoryName?: string;
   sizedInventoryPrice?: number;
+  girlSeedId?: string;
+  farmFieldId?: FieldId;
+  requiredItems?: readonly { itemName: string; amount: number }[];
+  seedOfferMessage?: string;
 };
 
 type FishingBiteCircle = {
@@ -736,6 +749,26 @@ type ActiveZukanImage = {
   src: string;
   title: string;
   subtitle: string;
+};
+type GirlEquipmentState = Record<string, GirlEquipmentSlot[]>;
+type GirlEquipmentMiniGameState = {
+  girlId: string;
+  slotIndex: GirlEquipmentSlotIndex;
+  harvestItemName: string;
+  mode: 'practice' | 'real';
+  cursor: number;
+  targetCenter: number;
+  probeCount: number;
+  probeAngles: number[];
+  isCharging: boolean;
+  chargePower: number;
+  feedbackText: string;
+  pulseKey: number;
+  result: GirlEquipmentMiniGameResult | null;
+};
+type PendingGirlEquipmentInsert = {
+  girlId: string;
+  slotIndex: GirlEquipmentSlotIndex;
 };
 
 type FarmGirlSaveState = {
@@ -1202,6 +1235,9 @@ const getKurumiTrustStars = (tradeTotal: number, pantsReturned = true) => (
     pantsReturned ? 5 : 3,
   )
 );
+const formatKurumiPlayerName = (message: string, stars: number) => (
+  stars >= 2 ? message.split('お兄さん').join('ユウくん') : message
+);
 const KURUMI_TENT_MESSAGES: Readonly<Record<number, string>> = {
   2: 'すやすやと寝息を立ててくるみは寝ている...そっとしておこう',
   3: 'こちらに気がついたと思ったが気のせい？今日はやけに薄着だな...',
@@ -1247,7 +1283,7 @@ const SEED_PLANT_TUTORIAL_STEPS = [
   '苗娘は植えたあと、日数が進むと育っていくよ。\n色々と難しいこともあると思うけど、\nくるみもお手伝いしちゃうよーっ！\n明日は橋の近くで釣りも教えるけど、\n今日はまず畑に苗娘を植えてみよっ♪',
 ] as const;
 const SEED_PLANT_TUTORIAL_VOICE_SRCS = SEED_PLANT_TUTORIAL_STEPS.map((_, index) => `/voice/kurumi-seed${index + 1}.wav`);
-const STARTER_SEED_OBJECTIVE = 'くるみからもらった苗娘を左畑に植えよう！';
+const STARTER_SEED_OBJECTIVE = 'くるみからもらった苗娘を空いている畑に植えよう！';
 const SEED_AFTER_PLANT_TUTORIAL_STEPS: (DebugDialogueStep & { id: SeedAfterPlantTutorialStep })[] = [
   {
     id: 'rooted',
@@ -1576,14 +1612,65 @@ const ITEM_MENU_BASE_ITEMS: Record<string, string[]> = Object.fromEntries(
     [...itemNames, ...itemNames.map(toDebugItemName)],
   ]),
 );
-const INITIAL_INVENTORY_COUNTS: Record<string, number> = {};
+const INITIAL_INVENTORY_COUNTS: Record<string, number> = {
+  '農神の指輪': 1,
+};
 const INITIAL_EQUIPPED_ITEMS: Record<string, string> = {
   '主人公-slot1': '',
   '主人公-slot2': '',
   '主人公-slot3': '',
-  '主人公-slot4': '',
+  '主人公-slot4': '農神の指輪',
   'ちびいち-slot1': '',
   'ちびいち-slot2': '',
+};
+const createInitialGirlEquipmentState = (): GirlEquipmentState => Object.fromEntries(
+  GIRL_DATA.map(girl => [girl.id, getGirlEquipmentSlots(girl.id)]),
+);
+const getGirlEquipmentBattleBonus = (equipmentState: GirlEquipmentState, girlId: string) => (
+  (equipmentState[girlId] ?? []).reduce(
+    (total, slot) => ({
+      hp: total.hp + (slot.bonusStats.hp ?? 0),
+      attack: total.attack + (slot.bonusStats.attack ?? 0),
+      defense: total.defense + (slot.bonusStats.defense ?? 0),
+      speed: total.speed + (slot.bonusStats.speed ?? 0),
+    }),
+    { hp: 0, attack: 0, defense: 0, speed: 0 },
+  )
+);
+const getGirlEquipmentQualityLabel = (quality: GirlEquipmentSlot['equipQuality']) => {
+  if (quality === 'perfect' || quality === 'good' || quality === 'normal') return '成功';
+  return '未装備';
+};
+const getGirlEquipmentProbeLimit = (slotIndex: GirlEquipmentSlotIndex) => (
+  slotIndex === 2 ? 4 : 5
+);
+const normalizeGirlEquipmentState = (raw: unknown): GirlEquipmentState => {
+  const initial = createInitialGirlEquipmentState();
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return initial;
+  const saved = raw as Record<string, unknown>;
+  return Object.fromEntries(GIRL_DATA.map(girl => {
+    const rawSlots = Array.isArray(saved[girl.id]) ? saved[girl.id] as unknown[] : [];
+    const slots = getGirlEquipmentSlots(girl.id).map(defaultSlot => {
+      const rawSlot = rawSlots.find(entry => (
+        entry && typeof entry === 'object' && (entry as { slotIndex?: unknown }).slotIndex === defaultSlot.slotIndex
+      )) as Partial<GirlEquipmentSlot> | undefined;
+      const equipQuality: GirlEquipmentSlot['equipQuality'] = rawSlot?.equipQuality === 'normal' || rawSlot?.equipQuality === 'good' || rawSlot?.equipQuality === 'perfect'
+        ? rawSlot.equipQuality
+        : 'none';
+      const multiplier = equipQuality === 'none' ? 0 : getGirlEquipmentBonusMultiplier(equipQuality);
+      return {
+        ...defaultSlot,
+        equippedItemId: typeof rawSlot?.equippedItemId === 'string' ? rawSlot.equippedItemId : null,
+        equipQuality,
+        bonusStats: equipQuality === 'none'
+          ? {}
+          : defaultSlot.slotIndex === 1
+            ? { attack: Math.round(2 * multiplier), hp: Math.round(4 * multiplier) }
+            : { defense: Math.round(2 * multiplier), hp: Math.round(4 * multiplier) },
+      };
+    });
+    return [girl.id, slots];
+  }));
 };
 const createItemMenuItems = (inventoryCounts: Record<string, number>) => {
   const ownedFishNames = FISH_ZUKAN_ENTRIES
@@ -2249,9 +2336,21 @@ const INITIAL_DEBT_BY_DIFFICULTY: Readonly<Record<GameDifficulty, number>> = {
   normal: 10_000_000,
   hard: 30_000_000,
 };
-const DEFAULT_REPAYMENT_CYCLE_DAYS = 7;
+const DEFAULT_REPAYMENT_CYCLE_DAYS = 8;
+const FIRST_REPAYMENT_DUE_DAY_BY_DIFFICULTY: Readonly<Record<GameDifficulty, number>> = {
+  easy: 8,
+  normal: 16,
+  hard: 24,
+};
 const EXHAUSTED_ACTION_MESSAGE = '疲れてこれ以上行動できない。自宅のベッドで休もう。';
-const TRUST_GAIN_ON_HARVEST = 3;
+const TRUST_GAIN_BY_HARVEST_INTERVAL_DAYS: Readonly<Record<number, number>> = {
+  2: 5,
+  3: 6,
+  4: 8,
+  5: 10,
+};
+const STARTER_GIRL_TRUST_GAIN_ON_HARVEST = 8;
+const STARTER_GIRL_IDS = new Set(['chibiichi', 'mel', 'ruby']);
 const FARM_TRUST_BONUS_TIERS = [
   { minTrust: 100, harvestMultiplier: 1.5, sellMultiplier: 1.25 },
   { minTrust: 80, harvestMultiplier: 1.4, sellMultiplier: 1.15 },
@@ -2297,8 +2396,13 @@ const getFarmHarvestAmount = (baseAmount: number, trust: number, companionHarves
 const getAffectedHarvestMultiplier = (condition: FarmGirlCondition, difficulty: GameDifficulty) => (
   condition === 'affected' && difficulty === 'hard' ? 0.9 : 1
 );
-const getAffectedTrustGain = (condition: FarmGirlCondition) => (
-  condition === 'affected' ? Math.max(1, Math.round(TRUST_GAIN_ON_HARVEST * 0.5)) : TRUST_GAIN_ON_HARVEST
+const getBaseTrustGainOnHarvest = (crop: Pick<FarmGirlCropData, 'girlId' | 'harvestIntervalDays'>) => (
+  STARTER_GIRL_IDS.has(crop.girlId)
+    ? STARTER_GIRL_TRUST_GAIN_ON_HARVEST
+    : TRUST_GAIN_BY_HARVEST_INTERVAL_DAYS[crop.harvestIntervalDays] ?? Math.max(5, crop.harvestIntervalDays * 2)
+);
+const getAffectedTrustGain = (condition: FarmGirlCondition, crop: Pick<FarmGirlCropData, 'girlId' | 'harvestIntervalDays'>) => (
+  condition === 'affected' ? Math.max(1, Math.round(getBaseTrustGainOnHarvest(crop) * 0.5)) : getBaseTrustGainOnHarvest(crop)
 );
 const BEAST_PREMONITION_RATE_BY_DIFFICULTY: Readonly<Record<GameDifficulty, number>> = {
   easy: 0.12,
@@ -2367,21 +2471,22 @@ const createMountainLordUnit = (): (BattleUnitState | null)[] => {
   const mountainLord = BEAST_BATTLE_DATA.find(beast => beast.id === 'mountain_lord');
   return mountainLord ? [createBattleUnitFromBeast(mountainLord), null, null] : createRandomBeastUnits('hard');
 };
-const createBattleUnitFromCompanionGirl = (girlId: string | null): BattleUnitState | null => {
+const createBattleUnitFromCompanionGirl = (girlId: string | null, girlEquipment: GirlEquipmentState = {}): BattleUnitState | null => {
   if (!girlId) return null;
   const girl = GIRL_DATA.find(candidate => candidate.id === girlId);
   if (!girl) return null;
 
   const profile = PARTNER_BATTLE_PROFILES[girl.id] ?? { hp: 75, attack: 14, defense: 5, speed: 7 };
+  const equipmentBonus = getGirlEquipmentBattleBonus(girlEquipment, girl.id);
 
   return {
     id: girl.id,
     name: girl.girlName,
-    maxHp: profile.hp,
-    hp: profile.hp,
-    attack: profile.attack,
-    defense: profile.defense,
-    speed: profile.speed,
+    maxHp: profile.hp + equipmentBonus.hp,
+    hp: profile.hp + equipmentBonus.hp,
+    attack: profile.attack + equipmentBonus.attack,
+    defense: profile.defense + equipmentBonus.defense,
+    speed: profile.speed + equipmentBonus.speed,
   };
 };
 const createBattleTurnQueue = (
@@ -2424,6 +2529,7 @@ const createInitialBattlePreviewState = (
   encounterType: BattleEncounterType = 'test',
   currentHeroLevel: HeroLevel = 1,
   unlockedHeroSkills: readonly string[] = [],
+  girlEquipment: GirlEquipmentState = {},
 ): BattlePreviewState => {
   const heroStats = HERO_BATTLE_STATS_BY_LEVEL[currentHeroLevel];
   const equipmentBonus = getHeroBattleEquipmentBonus(equippedItems);
@@ -2440,7 +2546,7 @@ const createInitialBattlePreviewState = (
         : beast.defense,
     };
   });
-  const companion = createBattleUnitFromCompanionGirl(companionGirlId);
+  const companion = createBattleUnitFromCompanionGirl(companionGirlId, girlEquipment);
   const battleBgmSource = initialBeasts.some(beast => beast && getBattleBaseBeastId(beast.id) === 'mountain_lord')
     ? MOUNTAIN_LORD_BATTLE_BGM_SRC
     : RANDOM_BATTLE_BGM_SOURCES[Math.floor(Math.random() * RANDOM_BATTLE_BGM_SOURCES.length)];
@@ -2657,32 +2763,37 @@ const createInitialFarmFieldSlots = (difficultyId: GameDifficulty): FarmFieldSlo
 );
 const normalizeFarmFieldSlots = (raw: unknown, difficultyId: GameDifficulty): FarmFieldSlotState[] => {
   const rawEntries = Array.isArray(raw) ? raw : [];
-  const rawBySlotKey = new Map<string, unknown>(
-    rawEntries
-      .filter(entry => entry && typeof entry === 'object' && !Array.isArray(entry))
-      .map(entry => {
-        const slot = entry as { fieldId?: unknown; slotIndex?: unknown };
-        return [`${slot.fieldId}_${slot.slotIndex}`, entry] as const;
-      })
+  const slotByKey = new Map<string, FarmFieldSlotState>(
+    createInitialFarmFieldSlots(difficultyId).map(slot => [`${slot.fieldId}_${slot.slotIndex}`, slot]),
   );
 
-  return createInitialFarmFieldSlots(difficultyId).map(slot => {
-    const rawSlot = rawBySlotKey.get(`${slot.fieldId}_${slot.slotIndex}`);
-    if (!rawSlot || typeof rawSlot !== 'object' || Array.isArray(rawSlot)) return slot;
-
+  rawEntries.forEach(rawSlot => {
+    if (!rawSlot || typeof rawSlot !== 'object' || Array.isArray(rawSlot)) return;
     const entry = rawSlot as Record<string, unknown>;
+    const fieldId = entry.fieldId === 'left' || entry.fieldId === 'right' ? entry.fieldId : null;
+    if (!fieldId) return;
+    if (typeof entry.slotIndex !== 'number' || !Number.isInteger(entry.slotIndex)) return;
+    const config = getFarmFieldConfig(difficultyId, fieldId);
+    if (entry.slotIndex < 1 || entry.slotIndex > config.slotCount) return;
     const girlId = typeof entry.girlId === 'string' && GIRL_DATA.some(girl => girl.id === entry.girlId)
       ? entry.girlId
       : null;
-    return {
-      ...slot,
+    slotByKey.set(`${fieldId}_${entry.slotIndex}`, {
+      fieldId,
+      slotIndex: entry.slotIndex,
       girlId,
       state: girlId && entry.state === 'appeared' ? 'appeared' : girlId ? 'growing' : 'none',
       plantedDay: typeof entry.plantedDay === 'number' && Number.isInteger(entry.plantedDay) && entry.plantedDay > 0
         ? entry.plantedDay
         : null,
-    };
+    });
   });
+
+  return Array.from(slotByKey.values()).sort((a, b) => (
+    a.fieldId === b.fieldId
+      ? a.slotIndex - b.slotIndex
+      : a.fieldId === 'left' ? -1 : 1
+  ));
 };
 const isFarmGirlDuplicateBlocked = (farmGirls: readonly FarmGirlSaveState[], girlId: string): boolean => {
   const cropData = FARM_GIRL_CROP_DATA.find(data => data.girlId === girlId);
@@ -2741,6 +2852,25 @@ const getHeroStarDisplay = (heroLevel: HeroLevel): readonly boolean[] => (
   Array.from({ length: MAX_HERO_LEVEL }, (_, index) => index < heroLevel)
 );
 const getInitialDebtAmount = (difficultyId: GameDifficulty) => INITIAL_DEBT_BY_DIFFICULTY[difficultyId];
+const getFirstRepaymentDueDay = (difficultyId: GameDifficulty) => FIRST_REPAYMENT_DUE_DAY_BY_DIFFICULTY[difficultyId];
+const getNextRepaymentDueDay = (
+  currentDay: number,
+  difficultyId: GameDifficulty,
+  repaymentCycleDays: number,
+) => {
+  const firstDueDay = getFirstRepaymentDueDay(difficultyId);
+  if (currentDay <= firstDueDay) return firstDueDay;
+  return firstDueDay + Math.ceil((currentDay - firstDueDay) / repaymentCycleDays) * repaymentCycleDays;
+};
+const getRepaymentCycleIndexForDay = (
+  currentDay: number,
+  difficultyId: GameDifficulty,
+  repaymentCycleDays: number,
+) => {
+  const firstDueDay = getFirstRepaymentDueDay(difficultyId);
+  if (currentDay < firstDueDay) return 0;
+  return Math.floor((currentDay - firstDueDay) / repaymentCycleDays) + 1;
+};
 const getFarmCreditInterestDiscount = (farmCredit: number) => (
   FARM_CREDIT_INTEREST_DISCOUNTS.find(entry => farmCredit >= entry.min)?.discount ?? 0
 );
@@ -2972,6 +3102,13 @@ export default function App() {
   const selectedEquipmentOptionIndexRef = useRef(0);
   const [equippedItems, setEquippedItems] = useState<Record<string, string>>(() => ({ ...INITIAL_EQUIPPED_ITEMS }));
   const equippedItemsRef = useRef(equippedItems);
+  const [girlEquipment, setGirlEquipment] = useState<GirlEquipmentState>(createInitialGirlEquipmentState);
+  const [girlEquipmentMiniGame, setGirlEquipmentMiniGame] = useState<GirlEquipmentMiniGameState | null>(null);
+  const [girlEquipmentNoticeGirlId, setGirlEquipmentNoticeGirlId] = useState<string | null>(null);
+  const [pendingGirlEquipmentInsert, setPendingGirlEquipmentInsert] = useState<PendingGirlEquipmentInsert | null>(null);
+  const [girlEquipmentInsertConfirmChoice, setGirlEquipmentInsertConfirmChoice] = useState<'yes' | 'no'>('yes');
+  const [girlEquipmentTutorialStep, setGirlEquipmentTutorialStep] = useState<number | null>(null);
+  const girlEquipmentPowerupAudioRef = useRef<HTMLAudioElement | null>(null);
   const [selectedSkillName, setSelectedSkillName] = useState('battle_hp_up');
   const selectedSkillNameRef = useRef('battle_hp_up');
   const [selectedSkillCategory, setSelectedSkillCategory] = useState<HeroSkillCategory>('farm');
@@ -3007,6 +3144,7 @@ export default function App() {
   const [farmCareCinematicAction, setFarmCareCinematicAction] = useState<FarmCareAction | null>(null);
   const farmCareCinematicTimerRef = useRef<number | null>(null);
   const [ownedGirlSeeds, setOwnedGirlSeeds] = useState<string[]>([]);
+  const [momonaSeedEventOpen, setMomonaSeedEventOpen] = useState(false);
   const [farmFieldSlots, setFarmFieldSlots] = useState<FarmFieldSlotState[]>(() => createInitialFarmFieldSlots('hard'));
   const [plantingSeedId, setPlantingSeedId] = useState<string | null>(null);
   const [farmSlotInteractionStage, setFarmSlotInteractionStage] = useState<FarmSlotInteractionStage | null>(null);
@@ -3026,9 +3164,33 @@ export default function App() {
       return {};
     }
   });
+  const [selectedFarmSeedlingBoxKey, setSelectedFarmSeedlingBoxKey] = useState('left_1');
+  const [farmSeedlingBoxPlacements, setFarmSeedlingBoxPlacements] = useState<Record<string, { offsetX: number; offsetY: number }>>(() => {
+    try {
+      const parsed = JSON.parse(window.localStorage.getItem('farm_seedling_box_placements') ?? '{}');
+      return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+    } catch {
+      return {};
+    }
+  });
+  const [selectedRightFieldGrassKey, setSelectedRightFieldGrassKey] = useState('grass_1');
+  const [rightFieldGrassPlacements, setRightFieldGrassPlacements] = useState<Record<string, { x: number; y: number; width: number }>>(() => {
+    try {
+      const parsed = JSON.parse(window.localStorage.getItem('farm_right_field_grass_placements') ?? '{}');
+      return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+    } catch {
+      return {};
+    }
+  });
   useEffect(() => {
     window.localStorage.setItem('farm_plant_button_placements', JSON.stringify(farmPlantButtonPlacements));
   }, [farmPlantButtonPlacements]);
+  useEffect(() => {
+    window.localStorage.setItem('farm_seedling_box_placements', JSON.stringify(farmSeedlingBoxPlacements));
+  }, [farmSeedlingBoxPlacements]);
+  useEffect(() => {
+    window.localStorage.setItem('farm_right_field_grass_placements', JSON.stringify(rightFieldGrassPlacements));
+  }, [rightFieldGrassPlacements]);
   const [recipeDetailOpen, setRecipeDetailOpen] = useState(false);
   const [selectedRecipeName, setSelectedRecipeName] = useState('');
   const [craftRecipeSelectMode, setCraftRecipeSelectMode] = useState(false);
@@ -3102,6 +3264,7 @@ export default function App() {
   const [selectedAdditionalRepayment, setSelectedAdditionalRepayment] = useState<(typeof ADDITIONAL_REPAYMENT_OPTIONS)[number]>(50_000);
   const [storyCleared, setStoryCleared] = useState(false);
   const [storyEndingVideoOpen, setStoryEndingVideoOpen] = useState(false);
+  const [easyClearTitleNotice, setEasyClearTitleNotice] = useState(false);
   const [farmCredit, setFarmCredit] = useState(0);
   const [successfulRepaymentCount, setSuccessfulRepaymentCount] = useState(0);
   const [missedRepaymentCount, setMissedRepaymentCount] = useState(0);
@@ -3169,12 +3332,24 @@ export default function App() {
     }
     return null;
   };
+  const isTrustEventUnlocked = (eventId: string, girlId: string) => {
+    const match = getTrustEventById(eventId);
+    const farmGirl = farmGirls.find(girl => girl.girlId === girlId);
+    return Boolean(
+      collectionProgress.unlockedEventIds.includes(eventId) ||
+      farmGirl?.unlockedTrustEventIds.includes(eventId) ||
+      (match && match.girl.id === girlId && farmGirl && farmGirl.cardRevealed && farmGirl.trust >= match.event.trust)
+    );
+  };
   const openTrustEvent = (eventId: string) => {
     const match = getTrustEventById(eventId);
-    if (!match || !collectionProgress.unlockedEventIds.includes(eventId)) return;
+    if (!match || !isTrustEventUnlocked(eventId, match.girl.id)) return;
     playFixSound();
     setCollectionProgress(previous => ({
       ...previous,
+      unlockedEventIds: previous.unlockedEventIds.includes(eventId)
+        ? previous.unlockedEventIds
+        : [...previous.unlockedEventIds, eventId],
       viewedEventIds: previous.viewedEventIds.includes(eventId)
         ? previous.viewedEventIds
         : [...previous.viewedEventIds, eventId],
@@ -3235,7 +3410,7 @@ export default function App() {
         name: `${girl.girlName} ${event.label}`,
         variantLabel: `信頼イベント${event.trust}`,
         imageSrc: getFarmGirlCardImageSrc(girl.id, event.trust),
-        unlocked: Boolean(farmGirl?.unlockedTrustEventIds.includes(event.eventId) || collectionProgress.unlockedEventIds.includes(event.eventId)),
+        unlocked: isTrustEventUnlocked(event.eventId, girl.id),
         viewed: collectionProgress.viewedEventIds.includes(event.eventId),
         tier: getFarmGirlTrustCardTier(event.trust),
         kind: 'event' as const,
@@ -3332,8 +3507,11 @@ export default function App() {
     if (trust >= 20) return { multiplier: 0.35, isFutureLoverBonusEligible: false };
     return { multiplier: 0, isFutureLoverBonusEligible: false };
   };
-  const getSkillAdjustedTrustGain = (condition: FarmGirlCondition) => (
-    Math.max(1, Math.round(getAffectedTrustGain(condition) * getHeroSkillMultiplier('companion_trust_up', 25)))
+  const getSkillAdjustedTrustGain = (
+    condition: FarmGirlCondition,
+    crop: Pick<FarmGirlCropData, 'harvestIntervalDays'>,
+  ) => (
+    Math.max(1, Math.round(getAffectedTrustGain(condition, crop) * getHeroSkillMultiplier('companion_trust_up', 25)))
   );
   const getSkillAdjustedSeedlingCareLimit = (
     action: FarmCareAction,
@@ -3366,18 +3544,22 @@ export default function App() {
     if (action === 'finger') return 'video_care_finger';
     return 'video_care_fertilize';
   };
-  const playFarmCareCinematic = (action: FarmCareAction) => {
-    unlockCollectionEvent(getFarmCareVideoEventId(action));
+  const clearFarmCareCinematicTimer = () => {
     if (farmCareCinematicTimerRef.current !== null) {
       window.clearTimeout(farmCareCinematicTimerRef.current);
       farmCareCinematicTimerRef.current = null;
     }
+  };
+  const finishFarmCareCinematic = () => {
+    clearFarmCareCinematicTimer();
+    setFarmCareCinematicAction(null);
+  };
+  const playFarmCareCinematic = (action: FarmCareAction) => {
+    unlockCollectionEvent(getFarmCareVideoEventId(action));
+    clearFarmCareCinematicTimer();
     setFarmCareCinematicAction(null);
     window.setTimeout(() => setFarmCareCinematicAction(action), 0);
-    farmCareCinematicTimerRef.current = window.setTimeout(() => {
-      setFarmCareCinematicAction(null);
-      farmCareCinematicTimerRef.current = null;
-    }, 6200);
+    farmCareCinematicTimerRef.current = window.setTimeout(finishFarmCareCinematic, 6200);
   };
   const requestSeedlingCare = (girlId: string, action: FarmCareAction) => {
     if (!isFarmCareActionUnlocked(action)) {
@@ -3712,7 +3894,7 @@ export default function App() {
         name: `${girl.girlName} ${event.label}`,
         variantLabel: `信頼イベント${event.trust}`,
         imageSrc: getFarmGirlCardImageSrc(girl.id, event.trust),
-        unlocked: Boolean(farmGirl?.unlockedTrustEventIds.includes(event.eventId) || collectionProgress.unlockedEventIds.includes(event.eventId)),
+        unlocked: isTrustEventUnlocked(event.eventId, girl.id),
         viewed: collectionProgress.viewedEventIds.includes(event.eventId),
         tier: getFarmGirlTrustCardTier(event.trust),
         kind: 'event' as const,
@@ -3851,6 +4033,12 @@ export default function App() {
 
     if (id === 'equipment') {
       const companionEquipmentGirl = companionGirlId ? GIRL_DATA.find(girl => girl.id === companionGirlId) : undefined;
+      const companionEquipmentSlots = companionEquipmentGirl
+        ? girlEquipment[companionEquipmentGirl.id] ?? getGirlEquipmentSlots(companionEquipmentGirl.id)
+        : [];
+      const companionEquipmentBonus = companionEquipmentGirl
+        ? getGirlEquipmentBattleBonus(girlEquipment, companionEquipmentGirl.id)
+        : { hp: 0, attack: 0, defense: 0, speed: 0 };
       const heroBattleStats = HERO_BATTLE_STATS_BY_LEVEL[heroLevel];
       const heroBattleEquipmentBonus = getHeroBattleEquipmentBonus(equippedItems);
       const heroBattleMaxHp = Math.round((heroBattleStats.hp + heroBattleEquipmentBonus.hp) * (hasHeroSkill('battle_hp_up') ? 1.1 : 1));
@@ -3884,16 +4072,20 @@ export default function App() {
           level: 1,
           role: '',
           affinity: menuGirls.find(girl => girl.id === companionEquipmentGirl.id)?.affinity ?? 1,
-          slotLabels: ['slot1', 'slot2'],
+          slotLabels: ['活力作物（攻撃・HP）', '守り作物（防御・HP）'],
           slots: [
-            equippedItems[`${companionEquipmentGirl.girlName}-slot1`] || '未装備',
-            equippedItems[`${companionEquipmentGirl.girlName}-slot2`] || '未装備',
+            companionEquipmentSlots[0]?.equippedItemId
+              ? `${companionEquipmentSlots[0].equippedItemId}（${getGirlEquipmentQualityLabel(companionEquipmentSlots[0].equipQuality)}）`
+              : '未装備',
+            companionEquipmentSlots[1]?.equippedItemId
+              ? `${companionEquipmentSlots[1].equippedItemId}（${getGirlEquipmentQualityLabel(companionEquipmentSlots[1].equipQuality)}）`
+              : '未装備',
           ],
           stats: [
-            ['攻撃力', 6],
-            ['防御力', 5],
-            ['素早さ', 16],
-            ['HP', 18],
+            ['攻撃力', (PARTNER_BATTLE_PROFILES[companionEquipmentGirl.id]?.attack ?? 14) + companionEquipmentBonus.attack],
+            ['防御力', (PARTNER_BATTLE_PROFILES[companionEquipmentGirl.id]?.defense ?? 5) + companionEquipmentBonus.defense],
+            ['素早さ', (PARTNER_BATTLE_PROFILES[companionEquipmentGirl.id]?.speed ?? 7) + companionEquipmentBonus.speed],
+            ['HP', (PARTNER_BATTLE_PROFILES[companionEquipmentGirl.id]?.hp ?? 75) + companionEquipmentBonus.hp],
           ],
           description: farmGirlEquipmentComments[companionEquipmentGirl.id] ?? `${companionEquipmentGirl.girlName}が同行中。ユウの旅をそばで支えてくれます。`,
         }] : []),
@@ -3901,8 +4093,25 @@ export default function App() {
       const selectedEquipmentCharacter = equipmentCharacters.find(char => selectedEquipmentSlot.startsWith(char.slotOwner)) ?? equipmentCharacters[0];
       const selectedEquipmentSlotMatch = /slot(\d+)$/.exec(selectedEquipmentSlot);
       const selectedEquipmentSlotIndex = selectedEquipmentSlotMatch ? Math.max(0, Number(selectedEquipmentSlotMatch[1]) - 1) : 0;
+      const isCompanionEquipmentSelected = Boolean(companionEquipmentGirl && selectedEquipmentCharacter.slotOwner === companionEquipmentGirl.girlName);
+      const selectedGirlEquipmentSlot = isCompanionEquipmentSelected
+        ? companionEquipmentSlots[selectedEquipmentSlotIndex]
+        : undefined;
       const selectedEquipmentSlotLabel = selectedEquipmentCharacter.slotLabels[selectedEquipmentSlotIndex] ?? `slot${selectedEquipmentSlotIndex + 1}`;
-      const selectedEquippedItem = equippedItems[selectedEquipmentSlot] || '';
+      const selectedEquippedItem = isCompanionEquipmentSelected
+        ? selectedGirlEquipmentSlot?.equippedItemId ?? ''
+        : equippedItems[selectedEquipmentSlot] || '';
+      const companionRequiredEquipmentItem = companionEquipmentGirl
+        ? getRequiredHarvestItemForGirlEquipment(companionEquipmentGirl.id)
+        : null;
+      const companionRequiredEquipmentItemCount = companionRequiredEquipmentItem
+        ? inventoryCounts[companionRequiredEquipmentItem.requiredHarvestItemId] ?? 0
+        : 0;
+      const isCompanionRequiredEquipmentItemMissing = Boolean(
+        isCompanionEquipmentSelected
+        && companionRequiredEquipmentItem
+        && companionRequiredEquipmentItemCount < companionRequiredEquipmentItem.requiredAmount
+      );
       const equipmentOptionsBySlot: Record<string, string[]> = {
         '釣具・武器系': withDebugItemVariants(['竹の釣竿', '丈夫な釣竿', '高級釣竿', '伝説の釣り竿', '木剣', '獣殺し', '天の裁き']),
         '採取道具系': withDebugItemVariants(['のこぎり', '丈夫なのこぎり', '高級のこぎり', '伝説ののこぎり', 'つるはし', '丈夫なつるはし', '高級つるはし', '伝説のつるはし']),
@@ -3916,7 +4125,7 @@ export default function App() {
       const equipableItems = (equipmentOptionsBySlot[selectedEquipmentSlotLabel] ?? []).filter(name => (
         (inventoryCounts[name] ?? 0) > 0 && !equippedItemNames.includes(name)
       ));
-      const showEquipmentPicker = equipmentActionOpen && menuContentFocus === 'secondary' && !selectedEquippedItem;
+      const showEquipmentPicker = !isCompanionEquipmentSelected && equipmentActionOpen && menuContentFocus === 'secondary' && !selectedEquippedItem;
       const equipSelectedItem = (name: string) => {
         playFixSound();
         setEquippedItems(prev => ({ ...prev, [selectedEquipmentSlot]: name }));
@@ -3981,8 +4190,14 @@ export default function App() {
                 <div className="mt-4 flex min-h-0 flex-1 flex-col rounded-lg border-2 border-[#dda15e] bg-black/35 p-4 shadow-inner">
                   <div className="flex items-center justify-between gap-3">
                     <div>
-                      <div style={menuTinyLabelStyle}>装備操作</div>
-                      <div className="text-[#fdf6e3] text-lg font-bold">{selectedEquipmentSlotLabel}</div>
+                      <div style={menuTinyLabelStyle}>{isCompanionEquipmentSelected ? '挿入効果' : '装備操作'}</div>
+                      <div className="text-[#fdf6e3] text-lg font-bold">
+                        {isCompanionEquipmentSelected && selectedGirlEquipmentSlot
+                          ? selectedGirlEquipmentSlot.slotIndex === 1
+                            ? '成功時：攻撃力 +2 / HP +4'
+                            : '成功時：防御力 +2 / HP +4'
+                          : selectedEquipmentSlotLabel}
+                      </div>
                     </div>
                     <div className="text-right text-[11px] text-[#c8a87a] leading-snug">Esc / ← で戻る<br />Enterで決定</div>
                   </div>
@@ -3990,13 +4205,24 @@ export default function App() {
                     <div className="mt-3 rounded border border-[#5a3010] bg-[#2d1b15]/72 p-3">
                       <div className="text-[#c8a87a] text-sm">現在装備中</div>
                       <div className="mt-1 text-[#ffd166] text-xl font-bold">{selectedEquippedItem}</div>
+                      {isCompanionEquipmentSelected && selectedGirlEquipmentSlot && (
+                        <div className="mt-2 text-sm font-bold text-[#d9f99d]">
+                          {selectedGirlEquipmentSlot.slotIndex === 1
+                            ? `攻撃 +${selectedGirlEquipmentSlot.bonusStats.attack ?? 0} / HP +${selectedGirlEquipmentSlot.bonusStats.hp ?? 0}`
+                            : `防御 +${selectedGirlEquipmentSlot.bonusStats.defense ?? 0} / HP +${selectedGirlEquipmentSlot.bonusStats.hp ?? 0}`}
+                        </div>
+                      )}
                       <button
                         type="button"
                         onPointerDown={(e) => e.stopPropagation()}
                         onClick={() => {
                           playFixSound();
-                          setEquippedItems(prev => ({ ...prev, [selectedEquipmentSlot]: '' }));
-                          setDialogMessage(`${selectedEquippedItem}を外しました。`);
+                          if (isCompanionEquipmentSelected && companionEquipmentGirl && selectedGirlEquipmentSlot) {
+                            removeGirlEquipment(companionEquipmentGirl.id, selectedGirlEquipmentSlot.slotIndex);
+                          } else {
+                            setEquippedItems(prev => ({ ...prev, [selectedEquipmentSlot]: '' }));
+                            setDialogMessage(`${selectedEquippedItem}を外しました。`);
+                          }
                         }}
                         className="mt-3 w-full rounded border-2 border-white bg-[#7a4317] px-4 py-2 text-[#fdf6e3] font-bold cursor-pointer shadow-[0_0_16px_rgba(255,209,102,0.35)] hover:bg-[#8d4f1b]"
                       >
@@ -4004,9 +4230,37 @@ export default function App() {
                       </button>
                     </div>
                   ) : (
-                    <div className="mt-3 rounded border border-[#5a3010] bg-black/30 px-4 py-3 text-[#c8a87a]">
-                      上の大きな装備一覧から選択
-                    </div>
+                    isCompanionEquipmentSelected && companionEquipmentGirl && selectedGirlEquipmentSlot ? (
+                      <div className="mt-3 rounded border border-[#5a3010] bg-black/30 px-4 py-3">
+                        <div className="font-bold text-[#fff7dc]">自分の畑で育った作物で挿入強化します</div>
+                        <div className="mt-2 text-sm leading-relaxed text-[#c8a87a]">
+                          使用：{companionRequiredEquipmentItem?.requiredHarvestItemId ?? '専用作物'} ×1<br />
+                          失敗しても作物は失われます。
+                        </div>
+                        {isCompanionRequiredEquipmentItemMissing && (
+                          <div className="mt-3 rounded-lg border border-[#ff9b85]/70 bg-[#4a1712]/70 px-3 py-2 text-sm font-black leading-relaxed text-[#ffcabf]">
+                            {companionRequiredEquipmentItem?.requiredHarvestItemId ?? '専用作物'}を持っていません。<br />
+                            所持数：{companionRequiredEquipmentItemCount} / 必要：{companionRequiredEquipmentItem?.requiredAmount ?? 1}
+                          </div>
+                        )}
+                        <button
+                          type="button"
+                          onPointerDown={(event) => event.stopPropagation()}
+                          onClick={() => requestGirlEquipmentInsert(companionEquipmentGirl.id, selectedGirlEquipmentSlot.slotIndex)}
+                          className={`mt-3 w-full rounded border-2 px-4 py-2 font-black text-[#fff7dc] ${
+                            isCompanionRequiredEquipmentItemMissing
+                              ? 'border-[#ff9b85] bg-[#5a3010] hover:bg-[#6b3418]'
+                              : 'border-[#ffd166] bg-[#4a5823] hover:bg-[#60732d]'
+                          }`}
+                        >
+                          {isCompanionRequiredEquipmentItemMissing ? '作物が足りません' : '挿入強化'}
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="mt-3 rounded border border-[#5a3010] bg-black/30 px-4 py-3 text-[#c8a87a]">
+                        上の大きな装備一覧から選択
+                      </div>
+                    )
                   )}
                 </div>
               )}
@@ -4460,6 +4714,9 @@ export default function App() {
         selectedGirlIsCompanion,
         selectedFarmGirlState?.trust ?? 0,
       );
+      const selectedHarvestTrustGain = selectedHarvestInfo?.crop
+        ? getSkillAdjustedTrustGain(selectedFarmGirlState?.condition ?? 'normal', selectedHarvestInfo.crop)
+        : null;
       const selectedAffectedHarvestMultiplier = getAffectedHarvestMultiplier(
         selectedFarmGirlState?.condition ?? 'normal',
         difficulty,
@@ -4805,7 +5062,7 @@ export default function App() {
                     <div className="mt-3 grid gap-2">
                       <div className="text-xs font-black tracking-[0.12em] text-[#f9a8d4]">信頼イベント</div>
                       {selectedGirlData.trustEvents.map(event => {
-                        const unlocked = selectedFarmGirlState.unlockedTrustEventIds.includes(event.eventId) || collectionProgress.unlockedEventIds.includes(event.eventId);
+                        const unlocked = isTrustEventUnlocked(event.eventId, selectedGirlData.id);
                         const viewed = collectionProgress.viewedEventIds.includes(event.eventId);
                         return (
                           <button
@@ -4827,6 +5084,36 @@ export default function App() {
                         );
                       })}
                     </div>
+                    {selectedFarmGirlState.cardRevealed && selectedFarmGirlState.trust >= 20 && ['appeared', 'companion', 'lover'].includes(selectedFarmGirlState.state) && (
+                      <div className="mt-3 rounded border border-[#86efac]/45 bg-[#123020]/35 p-3">
+                        <div className="text-xs font-black tracking-[0.12em] text-[#86efac]">挿入強化</div>
+                        <div className="mt-1 text-xs font-bold leading-relaxed text-[#c8a87a]">
+                          自分の作物を1個使います。失敗すると作物は失われます。
+                        </div>
+                        <div className="mt-2 grid grid-cols-2 gap-2">
+                          {(girlEquipment[selectedGirlData.id] ?? getGirlEquipmentSlots(selectedGirlData.id)).map(slot => (
+                            <button
+                              key={slot.slotIndex}
+                              type="button"
+                              onPointerDown={(event) => event.stopPropagation()}
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                playFixSound();
+                                if (slot.equippedItemId) {
+                                  removeGirlEquipment(selectedGirlData.id, slot.slotIndex);
+                                  return;
+                                }
+                                requestGirlEquipmentInsert(selectedGirlData.id, slot.slotIndex);
+                              }}
+                              className="rounded border border-[#a3b18a] bg-[#2d3b20] px-3 py-2 text-left text-xs font-black text-[#fdf6e3] hover:border-white"
+                            >
+                              <span className="block text-[#ffd166]">{slot.slotIndex === 1 ? '活力作物' : '守り作物'}</span>
+                              <span className="mt-1 block">{slot.equippedItemId ? `${slot.equippedItemId}（外す）` : '挑戦する'}</span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                     {selectedFarmGirlStateForMenu.state === 'appeared' && (
                       <div className="mt-2 rounded bg-black/25 px-3 py-2 text-sm font-bold text-[#f0d58a]">
                         作物品質：{selectedFarmGirlEffectiveQuality} / 100（{getFarmQualityLabel(selectedFarmGirlEffectiveQuality)}・売値 ×{selectedFarmGirlQualityMultiplier}）
@@ -4874,25 +5161,33 @@ export default function App() {
                     <div className="text-[#c8a87a] text-sm font-bold">収穫</div>
                     <div className="mt-1 flex items-center justify-between gap-2">
                       <div className="min-w-0 text-lg font-black leading-tight text-[#fdf6e3]">
-                        {selectedCompanionHarvestModifier.multiplier === 0
-                          ? '同行中のため収穫できません'
-                          : selectedHarvestInfo.canHarvest
+                        {selectedHarvestInfo.canHarvest
                           ? `${selectedHarvestInfo.crop.harvestItemName} x${getFarmHarvestAmount(selectedHarvestInfo.crop.baseHarvestAmount, selectedFarmGirlState.trust, selectedCompanionHarvestModifier.multiplier * selectedAffectedHarvestMultiplier * getHeroSkillMultiplier('farm_harvest_up', 5))}`
                           : `次回収穫まであと${selectedHarvestInfo.daysUntilHarvest ?? 0}日`}
+                        {selectedGirlIsCompanion && selectedHarvestInfo.canHarvest && selectedCompanionHarvestModifier.multiplier < 1 && (
+                          <div className="mt-1 text-xs font-black text-[#ffcf9f]">
+                            同行中のため収穫数 {Math.round(selectedCompanionHarvestModifier.multiplier * 100)}%
+                          </div>
+                        )}
+                        {selectedHarvestTrustGain !== null && selectedHarvestInfo.canHarvest && (
+                          <div className="mt-1 text-xs font-black text-[#f9a8d4]">
+                            収穫で信頼度 +{selectedHarvestTrustGain}
+                          </div>
+                        )}
                       </div>
 	                      <button
 	                        type="button"
-	                        disabled={!selectedHarvestInfo.canHarvest || selectedCompanionHarvestModifier.multiplier === 0}
+	                        disabled={!selectedHarvestInfo.canHarvest}
 		                        onMouseEnter={() => { if (selectedFarmCareActionIndex !== 4) playCursorSound(); setMenuFocusArea('content'); setMenuContentFocus('primary'); setSelectedFarmCareActionIndex(4); }}
 	                        onPointerDown={(event) => event.stopPropagation()}
 	                        onClick={(event) => {
 	                          event.stopPropagation();
-	                          if (!selectedGirlData || !selectedHarvestInfo.canHarvest || selectedCompanionHarvestModifier.multiplier === 0) return;
+	                          if (!selectedGirlData || !selectedHarvestInfo.canHarvest) return;
 	                          playFixSound();
 	                          harvestFarmGirl(selectedGirlData.id);
 	                        }}
 	                        className={`shrink-0 rounded border px-4 py-2 text-sm font-black ${
-	                          selectedHarvestInfo.canHarvest && selectedCompanionHarvestModifier.multiplier > 0
+	                          selectedHarvestInfo.canHarvest
 	                            ? selectedFarmCareActionIndex === 4
 	                              ? 'border-white bg-[#166534] text-[#f0fdf4] ring-2 ring-[#ffd166]/70 hover:bg-[#166534]'
 	                              : 'border-[#86efac]/80 bg-[#14532d]/85 text-[#f0fdf4] hover:bg-[#166534]'
@@ -5113,7 +5408,11 @@ export default function App() {
                     setMenuContentFocus('secondary');
                     setSelectedZukanIndex(index);
                     if (card.unlocked) {
-                      openZukanImage({ src: card.imageSrc, title: card.name, subtitle: card.variantLabel });
+                      if (card.kind === 'event') {
+                        openTrustEvent(card.id);
+                      } else {
+                        openZukanImage({ src: card.imageSrc, title: card.name, subtitle: card.variantLabel });
+                      }
                     } else {
                       playFixSound();
                       setDialogMessage('まだ解放されていません。');
@@ -5125,7 +5424,11 @@ export default function App() {
                     setMenuContentFocus('secondary');
                     setSelectedZukanIndex(index);
                     if (card.unlocked) {
-                      openZukanImage({ src: card.imageSrc, title: card.name, subtitle: card.variantLabel });
+                      if (card.kind === 'event') {
+                        openTrustEvent(card.id);
+                      } else {
+                        openZukanImage({ src: card.imageSrc, title: card.name, subtitle: card.variantLabel });
+                      }
                     } else {
                       playFixSound();
                       setDialogMessage('まだ解放されていません。');
@@ -5170,7 +5473,29 @@ export default function App() {
     }
 
     if (id === 'kurumiNotebook') {
+      const unlockedSeedOfferIds = new Set(collectionProgress.unlockedEventIds.filter(eventId => eventId.startsWith('seed_offer_')));
+      const unlockedSeedOfferNotes = [
+        { id: 'grape', text: 'ヴィオラ（ブドウ）：5日目以降、くるみ商店に120,000Gで入荷。' },
+        { id: 'eggplant', text: 'ナズナ（なす）：伐採・採掘を学び、獣を倒した後、しなやかな軟木×5・軟らかい銅鉱石×5・ウサギの靭帯×8と交換。' },
+        { id: 'turnip', text: 'かぶね（かぶ）：初回返済成功、または農場信用度5以上で、くるみから受け取れる。' },
+        { id: 'cucumber', text: 'キュア（きゅうり）：初回返済成功後、くるみから受け取れる。' },
+        { id: 'carrot', text: 'キャロ（にんじん）：初回返済成功後かつ9日目以降、くるみ商店に180,000Gで入荷。' },
+        { id: 'shiitake', text: 'シータ（しいたけ）：伐採・採掘を学び、猿を倒した後、堅実な中木×6・良質な鉄鉱石×4・猿の牙×5と交換。' },
+        { id: 'daikon', text: 'シロ（だいこん）：返済成功3回かつ農場信用度15以上で、くるみから受け取れる。' },
+        { id: 'pumpkin', text: 'ぱん（かぼちゃ）：猪を倒した後、猪の牙×8・猪の硬皮×4・錫鉱石×6と交換。' },
+      ].filter(note => unlockedSeedOfferIds.has(`seed_offer_${note.id}`));
       const notebookSections = [
+	        {
+	          group: '農場メイン',
+	          icon: '📦',
+	          title: 'くるみの仕入れメモ',
+	          imageSrc: '/img/kurumi.png',
+	          imageAlt: 'くるみの仕入れメモ',
+	          lead: '一度入荷を確認した苗娘の正式な条件を記録します。未入荷の苗娘は秘密のままです。',
+	          points: unlockedSeedOfferNotes.length > 0
+	            ? unlockedSeedOfferNotes.map(note => note.text)
+	            : ['まだ正式に確認できた仕入れ情報はありません。日数・返済・信用度・素材集めを進めてみましょう。'],
+	        },
 	        {
 	          group: '農場メイン',
 		          icon: '🌱',
@@ -5183,6 +5508,10 @@ export default function App() {
 	            '最初のお世話は「愛撫」だけです。収穫を重ねると「指入れ」「肥料注入」が順番に解放されます。',
 	            '品質は娘化後の作物売値に反映されます。高品質ほど返済用の収入源として強くなります。',
 	            '成長日数に達すると収穫できる状態になり、初回収穫で苗カードが娘カードへ変化します。',
+	            '収穫すると信頼度が上がります。収穫間隔が長い娘ほど、1回の信頼度上昇も大きめです。',
+	            '日数や返済、農場信用度が上がると、くるみ商店に珍しい苗娘が入荷することがあります。',
+	            '伐採・採掘・獣戦闘で得た素材を売らずに持っていると、特別な苗娘と交換できることがあります。',
+	            '複数の苗娘を育てていると、朝の牧場で思いがけない出会いが起こるかもしれません。',
 	          ],
 	        },
 	        {
@@ -5196,8 +5525,9 @@ export default function App() {
 	          points: [
 	            '初回収穫で娘カードが解放され、詳細画像や各種情報を見られるようになります。',
 	            '一度娘化した娘は、作物ごとの収穫間隔が経過すると再収穫できます。',
+	            '収穫を重ねると信頼度が上がり、信頼イベントや親密なカードが解放されます。',
 	            '信頼度が上がると収穫量や売値補正につながります。農場メニューで現在値を確認できます。',
-	            '同行中の娘は収穫できない場合があります。収穫したい時は同行解除も確認しましょう。',
+	            '同行中の娘も収穫できますが、信頼度に応じて収穫数に補正がかかります。',
 	          ],
 	        },
 	        {
@@ -5242,7 +5572,7 @@ export default function App() {
 		            '同行中の娘は主人公の後ろをついてきます。戦闘では支援役として参加します。',
 		            '同行中の娘が獣襲来で傷つくと、同行は解除されます。',
 		            '傷ついた娘は農場メニューから看病できます。自然回復もしますが、看病すると早く立て直せます。',
-		            '同行中は収穫制限や補正がかかる場合があります。農場メニューの同行欄を確認しましょう。',
+		            '同行中は信頼度に応じて収穫数が減る場合があります。農場メニューの同行欄で補正を確認できます。',
 		            '同行する娘の装備や役割は、今後の戦闘準備にも関わります。',
 		          ],
 	        },
@@ -5617,32 +5947,32 @@ export default function App() {
       );
       const maxTrustGirlCount = farmGirls.filter(girl => girl.trust >= 100).length;
       const achievementRows = [
-        { title: 'はじめての苗娘', done: collectionProgress.collectedGirlIds.length >= 1, progress: `${collectionProgress.collectedGirlIds.length} / 1` },
-        { title: '娘カードコレクター', done: collectionProgress.collectedGirlIds.length >= GIRL_DATA.length, progress: `${collectionProgress.collectedGirlIds.length} / ${GIRL_DATA.length}` },
-        { title: '信頼の証', done: trustEventUnlockCount > 0, progress: `${trustEventUnlockCount} / ${GIRL_DATA.length * 5}` },
-        { title: 'はじめての信頼MAX', done: maxTrustGirlCount >= 1, progress: `${maxTrustGirlCount} / 1` },
-        { title: '信頼される農場主', done: maxTrustGirlCount >= 3, progress: `${maxTrustGirlCount} / 3` },
-        { title: '娘たちの支え', done: maxTrustGirlCount >= 10, progress: `${maxTrustGirlCount} / 10` },
-        { title: '全員の信頼', done: maxTrustGirlCount >= 15, progress: `${maxTrustGirlCount} / 15` },
-        { title: '釣り入門', done: collectionProgress.caughtFishIds.length >= 1, progress: `${collectionProgress.caughtFishIds.length} / 1` },
-        { title: '魚図鑑マスター', done: collectionProgress.caughtFishIds.length >= FISH_ZUKAN_ENTRIES.length, progress: `${collectionProgress.caughtFishIds.length} / ${FISH_ZUKAN_ENTRIES.length}` },
-        { title: 'はじめてのヌシ', done: nushiCount >= 1, progress: `${nushiCount} / 1` },
-        { title: 'ヌシ追い人', done: nushiCount >= 3, progress: `${nushiCount} / 3` },
-        { title: 'ヌシ釣り名人', done: nushiCount >= 10, progress: `${nushiCount} / 10` },
-        { title: '動画の記憶', done: getUnlockedZukanVideoEntries().length >= 1, progress: `${getUnlockedZukanVideoEntries().length} / ${ZUKAN_VIDEO_ENTRIES.length}` },
-        { title: 'クラフト見習い', done: craftedCount >= 3, progress: `${craftedCount} / 3` },
-        { title: 'クラフト常連', done: craftedCount >= 10, progress: `${craftedCount} / 10` },
-        { title: 'クラフト職人', done: craftedCount >= 30, progress: `${craftedCount} / 30` },
-        { title: 'レシピ制覇', done: collectionProgress.craftedItemIds.length >= CRAFT_RECIPE_IDS.length, progress: `${collectionProgress.craftedItemIds.length} / ${CRAFT_RECIPE_IDS.length}` },
-        { title: 'レア鉱石発見', done: rareOreCount >= 1, progress: `${rareOreCount} / 1` },
-        { title: 'レア鉱石コレクター', done: rareOreCount >= 10, progress: `${rareOreCount} / 10` },
-        { title: '鉱山の秘宝持ち', done: rareOreCount >= 30, progress: `${rareOreCount} / 30` },
-        { title: 'レア木材発見', done: rareLumberCount >= 1, progress: `${rareLumberCount} / 1` },
-        { title: 'レア木材コレクター', done: rareLumberCount >= 10, progress: `${rareLumberCount} / 10` },
-        { title: '森の秘材持ち', done: rareLumberCount >= 30, progress: `${rareLumberCount} / 30` },
-        { title: 'レア素材ハンター', done: rareOreCount + rareLumberCount >= 50, progress: `${rareOreCount + rareLumberCount} / 50` },
-        { title: 'くるみの常連', done: kurumiTrustStars >= 5, progress: `${kurumiTrustStars} / 5` },
-        { title: '返済の先へ', done: storyCleared, progress: storyCleared ? '達成' : '未達成' },
+        { title: 'はじめての苗娘', description: '苗娘を1人育てて、最初の娘カードを手に入れる。', done: collectionProgress.collectedGirlIds.length >= 1, progress: `${collectionProgress.collectedGirlIds.length} / 1` },
+        { title: '娘カードコレクター', description: 'すべての苗娘を育てて、娘カード図鑑を埋める。', done: collectionProgress.collectedGirlIds.length >= GIRL_DATA.length, progress: `${collectionProgress.collectedGirlIds.length} / ${GIRL_DATA.length}` },
+        { title: '信頼の証', description: '苗娘との信頼イベントを解放して、関係を深める。', done: trustEventUnlockCount > 0, progress: `${trustEventUnlockCount} / ${GIRL_DATA.length * 5}` },
+        { title: 'はじめての信頼MAX', description: '誰か1人の信頼度を最大まで育てる。', done: maxTrustGirlCount >= 1, progress: `${maxTrustGirlCount} / 1` },
+        { title: '信頼される農場主', description: '信頼MAXの娘を3人まで増やす。', done: maxTrustGirlCount >= 3, progress: `${maxTrustGirlCount} / 3` },
+        { title: '娘たちの支え', description: '信頼MAXの娘を10人まで増やし、農場の絆を広げる。', done: maxTrustGirlCount >= 10, progress: `${maxTrustGirlCount} / 10` },
+        { title: '全員の信頼', description: '全員の信頼度を最大まで育てきる。', done: maxTrustGirlCount >= 15, progress: `${maxTrustGirlCount} / 15` },
+        { title: '釣り入門', description: '釣りで魚を1種類以上釣り上げる。', done: collectionProgress.caughtFishIds.length >= 1, progress: `${collectionProgress.caughtFishIds.length} / 1` },
+        { title: '魚図鑑マスター', description: '釣れる魚をすべて集めて、魚図鑑を完成させる。', done: collectionProgress.caughtFishIds.length >= FISH_ZUKAN_ENTRIES.length, progress: `${collectionProgress.caughtFishIds.length} / ${FISH_ZUKAN_ENTRIES.length}` },
+        { title: 'はじめてのヌシ', description: '釣り場のヌシを1匹釣り上げる。', done: nushiCount >= 1, progress: `${nushiCount} / 1` },
+        { title: 'ヌシ追い人', description: 'ヌシを3匹釣り上げて、大物狙いに慣れる。', done: nushiCount >= 3, progress: `${nushiCount} / 3` },
+        { title: 'ヌシ釣り名人', description: 'ヌシを10匹釣り上げる、釣り込み系の目標。', done: nushiCount >= 10, progress: `${nushiCount} / 10` },
+        { title: '動画の記憶', description: 'イベントやお世話の動画を1つ以上解放する。', done: getUnlockedZukanVideoEntries().length >= 1, progress: `${getUnlockedZukanVideoEntries().length} / ${ZUKAN_VIDEO_ENTRIES.length}` },
+        { title: 'クラフト見習い', description: 'クラフトを3回成功させて、道具作りを始める。', done: craftedCount >= 3, progress: `${craftedCount} / 3` },
+        { title: 'クラフト常連', description: 'クラフトを10回成功させて、装備や道具を整える。', done: craftedCount >= 10, progress: `${craftedCount} / 10` },
+        { title: 'クラフト職人', description: 'クラフトを30回成功させる、制作やりこみ目標。', done: craftedCount >= 30, progress: `${craftedCount} / 30` },
+        { title: 'レシピ制覇', description: 'すべてのクラフトレシピを作成済みにする。', done: collectionProgress.craftedItemIds.length >= CRAFT_RECIPE_IDS.length, progress: `${collectionProgress.craftedItemIds.length} / ${CRAFT_RECIPE_IDS.length}` },
+        { title: 'レア鉱石発見', description: '採掘でレア鉱石を1個以上見つける。', done: rareOreCount >= 1, progress: `${rareOreCount} / 1` },
+        { title: 'レア鉱石コレクター', description: 'レア鉱石を10個集めて、上位クラフトに備える。', done: rareOreCount >= 10, progress: `${rareOreCount} / 10` },
+        { title: '鉱山の秘宝持ち', description: 'レア鉱石を30個集める、採掘やりこみ目標。', done: rareOreCount >= 30, progress: `${rareOreCount} / 30` },
+        { title: 'レア木材発見', description: '伐採でレア木材を1本以上見つける。', done: rareLumberCount >= 1, progress: `${rareLumberCount} / 1` },
+        { title: 'レア木材コレクター', description: 'レア木材を10本集めて、装備作りの幅を広げる。', done: rareLumberCount >= 10, progress: `${rareLumberCount} / 10` },
+        { title: '森の秘材持ち', description: 'レア木材を30本集める、伐採やりこみ目標。', done: rareLumberCount >= 30, progress: `${rareLumberCount} / 30` },
+        { title: 'レア素材ハンター', description: 'レア鉱石とレア木材を合計50個集める。', done: rareOreCount + rareLumberCount >= 50, progress: `${rareOreCount + rareLumberCount} / 50` },
+        { title: 'くるみの常連', description: 'くるみとの関係を深めて、星を最大まで上げる。', done: kurumiTrustStars >= 5, progress: `${kurumiTrustStars} / 5` },
+        { title: '返済の先へ', description: '借金返済を乗り越えて、物語の区切りまで進める。', done: storyCleared, progress: storyCleared ? '達成' : '未達成' },
       ];
       const completionRate = achievementRows.length > 0
         ? Math.round((achievementRows.filter(row => row.done).length / achievementRows.length) * 100)
@@ -5670,6 +6000,7 @@ export default function App() {
                   <div className="flex items-center justify-between gap-4">
                     <div className="min-w-0">
                       <div className={`text-lg font-black ${row.done ? 'text-[#fff1a8]' : 'text-[#c8a87a]'}`}>{row.title}</div>
+                      <div className="mt-1 text-sm font-bold leading-snug text-[#f6d6a8]">{row.description}</div>
                       <div className="mt-1 text-sm font-bold text-[#dda15e]">{row.progress}</div>
                     </div>
                     <div className={`shrink-0 rounded-full border px-3 py-1 text-sm font-black ${row.done ? 'border-[#ffd166] bg-[#ffd166] text-[#2d1b15]' : 'border-[#76502c] bg-black/35 text-[#8f7b63]'}`}>
@@ -5799,6 +6130,17 @@ export default function App() {
       farmCareCinematicTimerRef.current = null;
     }
   }, []);
+  useEffect(() => {
+    if (!farmCareCinematicAction) return undefined;
+    const handleFarmCareCinematicKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Enter') return;
+      event.preventDefault();
+      event.stopPropagation();
+      finishFarmCareCinematic();
+    };
+    window.addEventListener('keydown', handleFarmCareCinematicKeyDown, true);
+    return () => window.removeEventListener('keydown', handleFarmCareCinematicKeyDown, true);
+  }, [farmCareCinematicAction]);
   useEffect(() => { selectedItemNameRef.current = selectedItemName; }, [selectedItemName]);
   useEffect(() => { selectedEquipmentSlotRef.current = selectedEquipmentSlot; }, [selectedEquipmentSlot]);
   useEffect(() => { selectedEquipmentOptionIndexRef.current = selectedEquipmentOptionIndex; }, [selectedEquipmentOptionIndex]);
@@ -5975,6 +6317,7 @@ export default function App() {
   const [fishingHitLimitSeconds, setFishingHitLimitSeconds] = useState(10);
   const [isFishingResultInputLocked, setIsFishingResultInputLocked] = useState(false);
   const [isFishingKeepPressed, setIsFishingKeepPressed] = useState(false);
+  const [turn, setTurn] = useState(0);
   const [kurumiShopOpen, setKurumiShopOpen] = useState(false);
   const [selectedShopItemIndex, setSelectedShopItemIndex] = useState(0);
   const [selectedShopControl, setSelectedShopControl] = useState<'items' | 'action' | 'close'>('items');
@@ -6026,6 +6369,144 @@ export default function App() {
     (inventoryCounts[item.name] ?? 0) === 0 &&
     !collectionProgress.craftedItemIds.includes(item.name)
   ));
+  const easyGirlSeedShopCandidates: ShopItem[] = [
+    {
+      name: 'ブドウの苗娘',
+      price: 120_000,
+      stock: 1,
+      type: '買う',
+      category: '珍しい苗',
+      desc: '5日目にくるみが仕入れる珍しいブドウの苗娘です。購入後は農場メニュから植えられます。',
+      girlSeedId: 'grape',
+      seedOfferMessage: 'ユウくん、珍しいブドウの苗娘を仕入れたよ！\n今日からくるみ商店に並べておくねっ♪',
+    },
+    {
+      name: 'なすの苗娘',
+      price: 0,
+      stock: 1,
+      type: '買う',
+      category: '特別交換',
+      desc: '交換素材：しなやかな軟木×5、軟らかい銅鉱石×5、ウサギの靭帯×8。伐採・採掘・獣戦闘を経験すると入荷します。',
+      girlSeedId: 'eggplant',
+      requiredItems: [
+        { itemName: 'しなやかな軟木', amount: 5 },
+        { itemName: '軟らかい銅鉱石', amount: 5 },
+        { itemName: 'ウサギの靭帯', amount: 8 },
+      ],
+      seedOfferMessage: 'お兄さん、伐採も採掘も獣退治も頑張ってるね！\n珍しいなすの苗娘を仕入れたから、集めた素材と交換してあげるよっ♪',
+    },
+    {
+      name: 'かぶの苗娘',
+      price: 0,
+      stock: 1,
+      type: '買う',
+      category: '信用報酬',
+      desc: '初めての返済を成功させた農場主へ、くるみから贈られる信用の証です。',
+      girlSeedId: 'turnip',
+      seedOfferMessage: '初めての返済、お疲れさま！\nお兄さんなら大丈夫って信用して、かぶの苗娘をプレゼントするね♪',
+    },
+  ];
+  const easyGirlSeedShopItems = easyGirlSeedShopCandidates.filter(item => {
+    if (ownedGirlSeeds.includes(item.girlSeedId!)) return false;
+    if (item.girlSeedId === 'grape') return Math.floor(turn / 4) + 1 >= 5;
+    if (item.girlSeedId === 'eggplant') {
+      return loggingTutorialCompleted && miningTutorialCompleted && collectionProgress.defeatedBeastIds.length > 0;
+    }
+    return successfulRepaymentCount >= 1 || farmCredit >= 5;
+  });
+  const normalGirlSeedShopCandidates: ShopItem[] = [
+    {
+      name: 'きゅうりの苗娘',
+      price: 0,
+      stock: 1,
+      type: '買う',
+      category: '返済報酬',
+      desc: '初めての返済を成功させた農場主へ、くるみから贈られる特別な苗娘です。',
+      girlSeedId: 'cucumber',
+      seedOfferMessage: '初めての返済、しっかり確認したよ！\n頑張ったご褒美に、きゅうりの苗娘をプレゼントするねっ♪',
+    },
+    {
+      name: 'にんじんの苗娘',
+      price: 180_000,
+      stock: 1,
+      type: '買う',
+      category: '珍しい苗',
+      desc: '初回返済後、9日目以降にくるみ商店へ入荷する、にんじんの苗娘です。',
+      girlSeedId: 'carrot',
+      seedOfferMessage: '返済も順調だし、お店の仕入れもパワーアップ！\n元気いっぱいの、にんじんの苗娘が入荷したよっ♪',
+    },
+    {
+      name: 'しいたけの苗娘',
+      price: 0,
+      stock: 1,
+      type: '買う',
+      category: '特別交換',
+      desc: '交換素材：堅実な中木×6、良質な鉄鉱石×4、猿の牙×5。伐採・採掘を学び、猿を倒すと入荷します。',
+      girlSeedId: 'shiitake',
+      requiredItems: [
+        { itemName: '堅実な中木', amount: 6 },
+        { itemName: '良質な鉄鉱石', amount: 4 },
+        { itemName: '猿の牙', amount: 5 },
+      ],
+      seedOfferMessage: '森と洞窟の素材を扱えるようになったみたいだね！\n珍しいしいたけの苗娘を仕入れたから、猿の素材と一緒に交換してあげるよっ♪',
+    },
+    {
+      name: 'だいこんの苗娘',
+      price: 0,
+      stock: 1,
+      type: '買う',
+      category: '信用報酬',
+      desc: '返済3回、農場信用度15以上を達成した農場主へ贈られます。',
+      girlSeedId: 'daikon',
+      seedOfferMessage: '返済を3回も続けて、農場の信用もすっかり上がったね！\nくるみから信用の証に、だいこんの苗娘を任せるよっ！',
+    },
+    {
+      name: 'かぼちゃの苗娘',
+      price: 0,
+      stock: 1,
+      type: '買う',
+      category: '特別交換',
+      desc: '交換素材：猪の牙×8、猪の硬皮×4、錫鉱石×6。猪を倒すと特別交換に入荷します。',
+      girlSeedId: 'pumpkin',
+      requiredItems: [
+        { itemName: '猪の牙', amount: 8 },
+        { itemName: '猪の硬皮', amount: 4 },
+        { itemName: '錫鉱石', amount: 6 },
+      ],
+      seedOfferMessage: '猪を倒すなんて、お兄さんやるぅ！\nその強い素材なら、ずっしり元気なかぼちゃの苗娘と交換できるよっ♪',
+    },
+  ];
+  const normalGirlSeedShopItems = normalGirlSeedShopCandidates.filter(item => {
+    if (DIFFICULTY_ORDER[difficulty] < DIFFICULTY_ORDER.normal || ownedGirlSeeds.includes(item.girlSeedId!)) return false;
+    if (item.girlSeedId === 'cucumber') return successfulRepaymentCount >= 1;
+    if (item.girlSeedId === 'carrot') return successfulRepaymentCount >= 1 && Math.floor(turn / 4) + 1 >= 9;
+    if (item.girlSeedId === 'shiitake') {
+      return loggingTutorialCompleted && miningTutorialCompleted && collectionProgress.defeatedBeastIds.includes('monkey');
+    }
+    if (item.girlSeedId === 'daikon') return successfulRepaymentCount >= 3 && farmCredit >= 15;
+    return hasBoarProgress;
+  });
+  const rightFarmFieldConfig = getFarmFieldConfig(difficulty, 'right');
+  const isRightFarmFieldUnlocked = farmFieldSlots.some(slot => slot.fieldId === 'right');
+  const fieldExpansionShopItems: ShopItem[] = (
+    !isRightFarmFieldUnlocked &&
+    rightFarmFieldConfig.unlockRequirement &&
+    (
+      successfulRepaymentCount >= rightFarmFieldConfig.unlockRequirement.successfulRepaymentCount ||
+      farmCredit >= rightFarmFieldConfig.unlockRequirement.farmCredit
+    )
+  )
+    ? [{
+      name: '右畑の開墾',
+      price: rightFarmFieldConfig.unlockRequirement.cost,
+      stock: 1,
+      type: '買う',
+      category: '農場拡張',
+      desc: `右畑${rightFarmFieldConfig.slotCount}枠を開墾します。苗娘を植えられる場所が増えます。`,
+      farmFieldId: 'right',
+    }]
+    : [];
+  const girlSeedShopItems = [...easyGirlSeedShopItems, ...normalGirlSeedShopItems];
   const shopItemsForDisplay = [
     ...shopItems.filter(item => (
       item.type === '買う' &&
@@ -6034,6 +6515,8 @@ export default function App() {
       (!isRecipeItemName(item.name) || (inventoryCounts[item.name] ?? 0) === 0)
     )),
     ...progressionRecipeShopItems,
+    ...fieldExpansionShopItems,
+    ...girlSeedShopItems,
     ...fishShopItems,
     ...lumberShopItems,
     ...oreShopItems,
@@ -6128,7 +6611,6 @@ export default function App() {
   const [isLoading, setIsLoading] = useState(false);
   const [zones, setZones] = useState<AnimZone[]>(defaultZones.map(ensureAnimZoneSpriteSize));
   const [selectedZoneId, setSelectedZoneId] = useState<string | null>(null);
-  const [turn, setTurn] = useState(0);
   const times: TimeOfDay[] = ['morning', 'day', 'evening', 'night'];
   const timeOfDay = times[turn % 4];
 
@@ -6309,8 +6791,8 @@ export default function App() {
   }, [debugDialogueOverrides]);
 
   useEffect(() => {
-     movementLockedRef.current = sleepPromptVisible || bathPromptVisible || mermaidOfferingPromptVisible || bathSequenceActive || craftPromptVisible || fishingPromptVisible || miningPromptVisible || loggingPromptVisible || fishingMiniGameOpen || miningMiniGameOpen || miningRhythmRecording || craftMiniGameOpen || fishingTutorialOpen || fishingTutorialEndingOpen || sawCraftTutorialIntroOpen || sawCraftTutorialShedDialogueOpen || gatheringTutorialOpen || miningTutorialOpen || kurumiShopOpen || kurumiIntroOpen || kurumiTentFinalEventOpen || seedPlantTutorialOpen || seedAfterPlantTutorialOpen || isSleepSequenceActive || beastAttackPending || repaymentEventPending || storyEndingVideoOpen || activeZukanImage !== null || activeZukanVideo !== null || activeTrustEvent !== null || battlePreviewOpen || farmSlotInteractionStage !== null;
-  }, [sleepPromptVisible, bathPromptVisible, mermaidOfferingPromptVisible, bathSequenceActive, craftPromptVisible, fishingPromptVisible, miningPromptVisible, loggingPromptVisible, fishingMiniGameOpen, miningMiniGameOpen, miningRhythmRecording, craftMiniGameOpen, fishingTutorialOpen, fishingTutorialEndingOpen, sawCraftTutorialIntroOpen, sawCraftTutorialShedDialogueOpen, gatheringTutorialOpen, miningTutorialOpen, kurumiShopOpen, kurumiIntroOpen, kurumiTentFinalEventOpen, seedPlantTutorialOpen, seedAfterPlantTutorialOpen, isSleepSequenceActive, beastAttackPending, repaymentEventPending, storyEndingVideoOpen, activeZukanImage, activeZukanVideo, activeTrustEvent, battlePreviewOpen, farmSlotInteractionStage]);
+     movementLockedRef.current = sleepPromptVisible || bathPromptVisible || mermaidOfferingPromptVisible || bathSequenceActive || craftPromptVisible || fishingPromptVisible || miningPromptVisible || loggingPromptVisible || fishingMiniGameOpen || miningMiniGameOpen || miningRhythmRecording || craftMiniGameOpen || fishingTutorialOpen || fishingTutorialEndingOpen || sawCraftTutorialIntroOpen || sawCraftTutorialShedDialogueOpen || gatheringTutorialOpen || miningTutorialOpen || kurumiShopOpen || kurumiIntroOpen || kurumiTentFinalEventOpen || seedPlantTutorialOpen || seedAfterPlantTutorialOpen || momonaSeedEventOpen || isSleepSequenceActive || beastAttackPending || repaymentEventPending || storyEndingVideoOpen || activeZukanImage !== null || activeZukanVideo !== null || activeTrustEvent !== null || battlePreviewOpen || farmSlotInteractionStage !== null || girlEquipmentMiniGame !== null || pendingGirlEquipmentInsert !== null || girlEquipmentNoticeGirlId !== null;
+  }, [sleepPromptVisible, bathPromptVisible, mermaidOfferingPromptVisible, bathSequenceActive, craftPromptVisible, fishingPromptVisible, miningPromptVisible, loggingPromptVisible, fishingMiniGameOpen, miningMiniGameOpen, miningRhythmRecording, craftMiniGameOpen, fishingTutorialOpen, fishingTutorialEndingOpen, sawCraftTutorialIntroOpen, sawCraftTutorialShedDialogueOpen, gatheringTutorialOpen, miningTutorialOpen, kurumiShopOpen, kurumiIntroOpen, kurumiTentFinalEventOpen, seedPlantTutorialOpen, seedAfterPlantTutorialOpen, momonaSeedEventOpen, isSleepSequenceActive, beastAttackPending, repaymentEventPending, storyEndingVideoOpen, activeZukanImage, activeZukanVideo, activeTrustEvent, battlePreviewOpen, farmSlotInteractionStage, girlEquipmentMiniGame, pendingGirlEquipmentInsert, girlEquipmentNoticeGirlId]);
 
   useEffect(() => {
      if (sleepPromptVisible || bathPromptVisible || craftPromptVisible || fishingPromptVisible || miningPromptVisible || loggingPromptVisible) {
@@ -7058,11 +7540,8 @@ export default function App() {
 	              ? data.debt
 	              : getInitialDebtAmount(loadedDifficulty);
 	          setDebtAmount(loadedDebtAmount);
-	          setRepaymentCycleDays(
-	            typeof data.repaymentCycleDays === 'number' && Number.isInteger(data.repaymentCycleDays) && data.repaymentCycleDays > 0
-	              ? data.repaymentCycleDays
-	              : DEFAULT_REPAYMENT_CYCLE_DAYS
-	          );
+	          const loadedRepaymentCycleDays = DEFAULT_REPAYMENT_CYCLE_DAYS;
+	          setRepaymentCycleDays(loadedRepaymentCycleDays);
 	          setRepaymentEventPending(false);
 	          setStoryCleared(data.storyCleared === true);
 	          const loadedFarmCredit = typeof data.farmCredit === 'number' && Number.isFinite(data.farmCredit)
@@ -7071,12 +7550,9 @@ export default function App() {
 	          const loadedMissedRepaymentCount = typeof data.missedRepaymentCount === 'number' && Number.isInteger(data.missedRepaymentCount) && data.missedRepaymentCount >= 0
 	            ? data.missedRepaymentCount
 	            : 0;
-	          const loadedRepaymentCycleDays = typeof data.repaymentCycleDays === 'number' && Number.isInteger(data.repaymentCycleDays) && data.repaymentCycleDays > 0
-	            ? data.repaymentCycleDays
-	            : DEFAULT_REPAYMENT_CYCLE_DAYS;
 	          const loadedTurn = typeof data.turn === 'number' && Number.isInteger(data.turn) && data.turn >= 0 ? data.turn : 0;
 	          const loadedCurrentDay = Math.floor(loadedTurn / 4) + 1;
-	          const loadedInterestCycleIndex = Math.floor((loadedCurrentDay - 1) / loadedRepaymentCycleDays);
+	          const loadedInterestCycleIndex = getRepaymentCycleIndexForDay(loadedCurrentDay, loadedDifficulty, loadedRepaymentCycleDays);
 	          setFarmCredit(loadedFarmCredit);
 	          setSuccessfulRepaymentCount(
 	            typeof data.successfulRepaymentCount === 'number' && Number.isInteger(data.successfulRepaymentCount) && data.successfulRepaymentCount >= 0
@@ -7296,6 +7772,7 @@ export default function App() {
               ) as Record<string, string>,
             }));
           }
+          setGirlEquipment(normalizeGirlEquipmentState(data.girlEquipment));
           if (data.fishInventorySizes && typeof data.fishInventorySizes === 'object') {
             const parsedFishInventorySizes = data.fishInventorySizes as Record<string, unknown>;
             setFishInventorySizes(Object.fromEntries(
@@ -7504,6 +7981,7 @@ export default function App() {
           setInventoryCounts({ ...INITIAL_INVENTORY_COUNTS });
           setEquippedItems({ ...INITIAL_EQUIPPED_ITEMS });
           equippedItemsRef.current = { ...INITIAL_EQUIPPED_ITEMS };
+          setGirlEquipment(createInitialGirlEquipmentState());
           setCurrentMap('farm');
           currentMapRef.current = 'farm';
           setPos({ ...NEW_GAME_START_POSITION });
@@ -7625,6 +8103,7 @@ export default function App() {
     fieldGridSizes,
     inventoryCounts: saveInventoryCounts,
     equippedItems: saveEquippedItems,
+    girlEquipment,
     caughtFishIds,
     nushiCaughtFishIds,
     fishBestSizes,
@@ -7875,6 +8354,7 @@ export default function App() {
     fieldGridSizes,
     inventoryCounts,
     equippedItems,
+    girlEquipment,
     caughtFishIds,
     nushiCaughtFishIds,
     fishBestSizes,
@@ -7932,6 +8412,7 @@ export default function App() {
 
   const startNewGameWithDifficulty = (difficultyId: GameDifficulty) => {
     if (titleStartTransitionPhaseRef.current !== 'idle') return;
+    setEasyClearTitleNotice(false);
     const slot = pendingNewGameSlot ?? 1;
     const difficultyOption = DIFFICULTY_OPTIONS.find(option => option.id === difficultyId) ?? DIFFICULTY_OPTIONS[2];
     pendingNewGameDifficultyRef.current = difficultyOption.id;
@@ -7955,6 +8436,7 @@ export default function App() {
 
   const startEndlessNurseryMode = () => {
     if (!canStartEndlessNurseryMode()) return;
+    setEasyClearTitleNotice(false);
     const slot = pendingNewGameSlot ?? 1;
     playFixSound();
     pendingNewGameDifficultyRef.current = 'hard';
@@ -7974,6 +8456,7 @@ export default function App() {
       setMissingSaveSlot(slot);
       return;
     }
+    setEasyClearTitleNotice(false);
     autoSaveBlockedSlotsRef.current.delete(slot);
     setCurrentSaveSlot(slot);
     setStartingNewGame(false);
@@ -8084,7 +8567,7 @@ export default function App() {
             .filter((beast): beast is (typeof BEAST_BATTLE_DATA)[number] => Boolean(beast))
             .map((beast, index) => createBattleUnitFromBeast(beast, index))
         : [createBattleUnitFromBeast(selectedBeast), null, null];
-    setBattlePreviewState(createInitialBattlePreviewState(equippedItems, testBeasts, battleTestPartnerId || null, 'test', heroLevel, unlockedHeroSkills));
+    setBattlePreviewState(createInitialBattlePreviewState(equippedItems, testBeasts, battleTestPartnerId || null, 'test', heroLevel, unlockedHeroSkills, girlEquipment));
     setBattleIntroPhase(3);
     setBattlePreviewOpen(true);
   };
@@ -8111,7 +8594,7 @@ export default function App() {
     setSelectedBattleCommandIndex(0);
     setSelectedBattleItemIndex(0);
     setSelectedBattleItemTargetIndex(0);
-    setBattlePreviewState(createInitialBattlePreviewState(equippedItems, beasts, companionGirlId, encounterType, heroLevel, unlockedHeroSkills));
+    setBattlePreviewState(createInitialBattlePreviewState(equippedItems, beasts, companionGirlId, encounterType, heroLevel, unlockedHeroSkills, girlEquipment));
     setBattleIntroPhase(3);
     setBattlePreviewOpen(true);
   };
@@ -8225,6 +8708,7 @@ export default function App() {
 	          : girl
 	      )));
 	      if (companionGirlId === affectedGirl.girlId) setCompanionGirlId(null);
+	      unlockCollectionEvent(`ntr_${affectedGirl.girlId}_${sourceBeast?.id ?? 'unknown'}`);
 	    }
 
 	    const farmDamageLogs = farmTheft.length > 0
@@ -9009,6 +9493,31 @@ export default function App() {
     }
   };
 
+  const stopGirlEquipmentPowerupSound = () => {
+    const audio = girlEquipmentPowerupAudioRef.current;
+    if (!audio) return;
+    audio.pause();
+    audio.currentTime = 0;
+    girlEquipmentPowerupAudioRef.current = null;
+  };
+
+  const playGirlEquipmentPowerupSound = () => {
+    try {
+      const audio = girlEquipmentPowerupAudioRef.current ?? new Audio('/se/powerup.mp3');
+      audio.loop = true;
+      audio.volume = getEffectiveVolume('/se/powerup.mp3', seVolumeRef.current, audioGainsRef.current);
+      if (!girlEquipmentPowerupAudioRef.current) {
+        girlEquipmentPowerupAudioRef.current = audio;
+      }
+      if (audio.paused) {
+        audio.currentTime = 0;
+        void audio.play();
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
   const fadeOutAudio = (audio: HTMLAudioElement | null, fadeMs = 500) => {
     if (!audio) return;
     const startVolume = audio.volume;
@@ -9186,12 +9695,40 @@ export default function App() {
     setFarmCareUnlockNoticeAction(action);
   };
   const currentDay = Math.floor(turn / 4) + 1;
-  const daysUntilRepayment = repaymentCycleDays - ((currentDay - 1) % repaymentCycleDays);
-  const currentRepaymentCycleIndex = Math.floor((currentDay - 1) / repaymentCycleDays);
+  const nextRepaymentDueDay = getNextRepaymentDueDay(currentDay, difficulty, repaymentCycleDays);
+  const daysUntilRepayment = Math.max(1, nextRepaymentDueDay - currentDay + 1);
+  const currentRepaymentCycleIndex = getRepaymentCycleIndexForDay(currentDay, difficulty, repaymentCycleDays);
+  const firstRepaymentDueDay = getFirstRepaymentDueDay(difficulty);
+  const isFirstRepaymentInterestFree = (
+    currentDay <= firstRepaymentDueDay &&
+    successfulRepaymentCount === 0 &&
+    missedRepaymentCount === 0
+  );
   const farmCreditInterestDiscount = getFarmCreditInterestDiscount(farmCredit);
   const missedRepaymentPenalty = getMissedRepaymentPenalty(missedRepaymentCount);
   const formatInterestRate = (rate: number) => `${rate.toFixed(1)}%`;
   const mermaidFishingUnlocked = collectionProgress.unlockedEventIds.includes(MERMAID_UNLOCK_EVENT_ID);
+  useEffect(() => {
+    const momonaEventCompleted = collectionProgress.unlockedEventIds.includes('momona_seed_unlock');
+    const canStartMomonaEvent = (
+      bootMode === 'playing' &&
+      gameMode === 'story' &&
+      DIFFICULTY_ORDER[difficulty] >= DIFFICULTY_ORDER.normal &&
+      currentMap === 'farm' &&
+      timeOfDay === 'morning' &&
+      currentDay >= 10 &&
+      collectionProgress.collectedGirlIds.length >= 3 &&
+      !ownedGirlSeeds.includes('peach') &&
+      !momonaEventCompleted &&
+      !momonaSeedEventOpen &&
+      !menuOpen &&
+      !kurumiShopOpen &&
+      !repaymentEventPending &&
+      !beastAttackPending &&
+      !storyEndingVideoOpen
+    );
+    if (canStartMomonaEvent) setMomonaSeedEventOpen(true);
+  }, [beastAttackPending, bootMode, collectionProgress.collectedGirlIds.length, collectionProgress.unlockedEventIds, currentDay, currentMap, difficulty, gameMode, kurumiShopOpen, menuOpen, momonaSeedEventOpen, ownedGirlSeeds, repaymentEventPending, storyEndingVideoOpen, timeOfDay]);
   useEffect(() => {
     if (
       mermaidScaleOfferingDay !== null &&
@@ -9343,10 +9880,6 @@ export default function App() {
 
     const trustBeforeHarvest = farmGirl?.trust ?? girl?.initialTrust ?? 0;
     const companionHarvestModifier = getSkillAdjustedCompanionHarvestModifier(companionGirlId === girlId, trustBeforeHarvest);
-    if (companionHarvestModifier.multiplier === 0) {
-      setDialogMessage('同行中のため収穫できません');
-      return;
-    }
     const harvestAmount = getFarmHarvestAmount(
       crop.baseHarvestAmount,
       trustBeforeHarvest,
@@ -9354,7 +9887,7 @@ export default function App() {
         getAffectedHarvestMultiplier(farmGirl?.condition ?? 'normal', difficulty) *
         getHeroSkillMultiplier('farm_harvest_up', 5),
     );
-    const trustGain = getSkillAdjustedTrustGain(farmGirl?.condition ?? 'normal');
+    const trustGain = getSkillAdjustedTrustGain(farmGirl?.condition ?? 'normal', crop);
     const nextTrust = Math.min(100, (farmGirl?.trust ?? girl?.initialTrust ?? 0) + trustGain);
     const newlyUnlockedTrustEvents = girl?.trustEvents.filter(event => (
       nextTrust >= event.trust && !(farmGirl?.unlockedTrustEventIds ?? []).includes(event.eventId)
@@ -9392,6 +9925,10 @@ export default function App() {
         }
         : entry
     )));
+    if (trustBeforeHarvest < 20 && nextTrust >= 20) {
+      setGirlEquipmentNoticeGirlId(girlId);
+      unlockCollectionEvent(`girl_equipment_unlocked_${girlId}`);
+    }
     if (isFirstHarvestReveal) {
       setRevealingFarmGirlIds(previous => Array.from(new Set([...previous, girlId])));
       setFarmGirlRevealSpotlightId(girlId);
@@ -9630,7 +10167,7 @@ export default function App() {
       return;
     }
     const harvestInfo = getFarmGirlHarvestInfo(slot.girlId);
-    if (!harvestInfo.canHarvest || companionGirlId === slot.girlId) return;
+    if (!harvestInfo.canHarvest) return;
     setActiveFarmSlotKey(slotKey);
     setFarmSlotConfirmChoice('yes');
     setFarmSlotInteractionStage('confirmHarvest');
@@ -9653,7 +10190,7 @@ export default function App() {
       const dy = playerPos.y - (basePoint.y + placement.offsetY);
       const distance = Math.sqrt(dx * dx + dy * dy);
       const canHarvest = slot.girlId
-        ? getFarmGirlHarvestInfo(slot.girlId).canHarvest && companionGirlId !== slot.girlId
+        ? getFarmGirlHarvestInfo(slot.girlId).canHarvest
         : false;
       return distance <= 105 && (!slot.girlId || canHarvest) ? [{ slotKey, distance }] : [];
     }).sort((left, right) => left.distance - right.distance);
@@ -9766,8 +10303,7 @@ export default function App() {
       !skipRepaymentEvent &&
       gameMode === 'story' &&
       !storyCleared &&
-      timeOfDay === 'night' &&
-      currentDay % repaymentCycleDays === 0
+      currentDay === nextRepaymentDueDay
     ) {
       setRepaymentEventPending(true);
       return;
@@ -9800,24 +10336,33 @@ export default function App() {
       setDialogMessage(isMountainLordAttack ? '畑の向こうから、重い足音が響いてくる……' : 'なんだか嫌な予感がする……');
     }
   };
-  const skillAdjustedWeeklyInterestRate = getSkillAdjustedWeeklyInterestRate(currentWeeklyInterestRate);
-  const currentRepaymentInterest = Math.round(debtAmount * (skillAdjustedWeeklyInterestRate / 100));
+  const skillAdjustedWeeklyInterestRate = isFirstRepaymentInterestFree ? 0 : getSkillAdjustedWeeklyInterestRate(currentWeeklyInterestRate);
+  const currentRepaymentInterest = isFirstRepaymentInterestFree ? 0 : Math.round(debtAmount * (skillAdjustedWeeklyInterestRate / 100));
   const currentMinimumRepayment = Math.min(MINIMUM_REPAYMENT_BY_DIFFICULTY[difficulty], debtAmount);
   const nextScheduledRepayment = currentMinimumRepayment + currentRepaymentInterest;
   const finishRepaymentEvent = (nextFarmCredit: number, nextMissedRepaymentCount: number, message: string) => {
     setFarmCredit(Math.max(0, Math.min(100, nextFarmCredit)));
     setMissedRepaymentCount(Math.max(0, nextMissedRepaymentCount));
     setCurrentWeeklyInterestRate(createWeeklyInterestRate(difficulty, Math.max(0, Math.min(100, nextFarmCredit)), Math.max(0, nextMissedRepaymentCount)));
-    setInterestRateCycleIndex(Math.floor(currentDay / repaymentCycleDays));
+    setInterestRateCycleIndex(getRepaymentCycleIndexForDay(currentDay + 1, difficulty, repaymentCycleDays));
     setRepaymentEventPending(false);
     setDialogMessage(message);
     advanceToNextDay(true);
   };
   const completeStoryByDebtRepayment = () => {
     setStoryCleared(true);
-    unlockEndlessNurseryMode();
-    unlockCollectionEvent('video_story_end');
+    if (difficulty !== 'easy') {
+      unlockEndlessNurseryMode();
+      unlockCollectionEvent('video_story_end');
+    }
     setStoryEndingVideoOpen(true);
+  };
+  const finishStoryEndingVideo = () => {
+    if (difficulty === 'easy') setEasyClearTitleNotice(true);
+    setDialogMessage(difficulty === 'easy'
+      ? '借金を完済した！\n次はノーマルモード以上で攻略してみよう！'
+      : '借金を完済した！\n物語はひとまず完了です。');
+    returnToTitle(false);
   };
   const handleMinimumRepayment = () => {
     const payment = currentMinimumRepayment + currentRepaymentInterest;
@@ -9912,6 +10457,262 @@ export default function App() {
     const girlName = GIRL_DATA.find(girl => girl.id === girlId)?.girlName ?? girlId;
     setDialogMessage(`${girlName}を看病した。\n少し安心したようだ。`);
   };
+  const requestGirlEquipmentInsert = (girlId: string, slotIndex: GirlEquipmentSlotIndex) => {
+    const farmGirl = farmGirls.find(girl => girl.girlId === girlId);
+    const requiredItem = getRequiredHarvestItemForGirlEquipment(girlId);
+    if (!farmGirl?.cardRevealed || farmGirl.trust < 20 || !['appeared', 'companion', 'lover'].includes(farmGirl.state)) {
+      setDialogMessage('娘が実体化し、信頼度20以上になると挿入強化できます。');
+      return;
+    }
+    if (!requiredItem || (inventoryCounts[requiredItem.requiredHarvestItemId] ?? 0) < requiredItem.requiredAmount) {
+      setDialogMessage(`挿入強化に使う${requiredItem?.requiredHarvestItemId ?? '専用作物'}が足りません。`);
+      return;
+    }
+    setPendingGirlEquipmentInsert({ girlId, slotIndex });
+    setGirlEquipmentInsertConfirmChoice('yes');
+    setEquipmentActionOpen(false);
+  };
+  const beginGirlEquipmentMiniGame = (girlId: string, slotIndex: GirlEquipmentSlotIndex, mode: 'practice' | 'real') => {
+    const requiredItem = getRequiredHarvestItemForGirlEquipment(girlId);
+    if (!requiredItem) return;
+    if (mode === 'real') {
+      if ((inventoryCounts[requiredItem.requiredHarvestItemId] ?? 0) < requiredItem.requiredAmount) {
+        setPendingGirlEquipmentInsert(null);
+        setDialogMessage(`挿入強化に使う${requiredItem.requiredHarvestItemId}が足りません。`);
+        return;
+      }
+      setInventoryCounts(previous => ({
+        ...previous,
+        [requiredItem.requiredHarvestItemId]: Math.max(0, (previous[requiredItem.requiredHarvestItemId] ?? 0) - requiredItem.requiredAmount),
+      }));
+      setPendingGirlEquipmentInsert(null);
+    }
+    setGirlEquipmentMiniGame({
+      girlId,
+      slotIndex,
+      harvestItemName: requiredItem.requiredHarvestItemId,
+      mode,
+      cursor: 0,
+      targetCenter: Math.random() * 100,
+      probeCount: 0,
+      probeAngles: [],
+      isCharging: false,
+      chargePower: 0,
+      feedbackText: '短く押して、感じる場所を探そう',
+      pulseKey: 0,
+      result: null,
+    });
+  };
+  const confirmGirlEquipmentInsert = (choice = girlEquipmentInsertConfirmChoice) => {
+    if (!pendingGirlEquipmentInsert) return;
+    if (choice === 'no') {
+      setPendingGirlEquipmentInsert(null);
+      return;
+    }
+    if (!collectionProgress.unlockedEventIds.includes('girl_equipment_tutorial_completed')) {
+      setGirlEquipmentTutorialStep(0);
+      return;
+    }
+    beginGirlEquipmentMiniGame(pendingGirlEquipmentInsert.girlId, pendingGirlEquipmentInsert.slotIndex, 'real');
+  };
+  const getGirlEquipmentAngularDistance = (cursor: number, target: number) => {
+    const rawDistance = Math.abs(cursor - target) * 3.6;
+    return Math.min(rawDistance, 360 - rawDistance);
+  };
+  const probeGirlEquipmentTarget = () => {
+    if (!girlEquipmentMiniGame) return;
+    const probeLimit = getGirlEquipmentProbeLimit(girlEquipmentMiniGame.slotIndex);
+    if (girlEquipmentMiniGame.result || girlEquipmentMiniGame.probeCount >= probeLimit) return;
+    const distance = getGirlEquipmentAngularDistance(girlEquipmentMiniGame.cursor, girlEquipmentMiniGame.targetCenter);
+    const feedback = distance <= 15
+      ? { count: 5, interval: 90, text: 'ものすごく近い！' }
+      : distance <= 35
+        ? { count: 4, interval: 125, text: 'かなり近い！' }
+        : distance <= 60
+          ? { count: 3, interval: 170, text: '近づいている' }
+          : distance <= 90
+            ? { count: 2, interval: 230, text: '少し反応がある' }
+            : distance <= 120
+              ? { count: 1, interval: 0, text: 'かすかに反応した' }
+              : { count: 0, interval: 0, text: '反応なし……かなり遠いようだ' };
+    for (let index = 0; index < feedback.count; index += 1) {
+      window.setTimeout(() => {
+        playUiSound('/se/soubi.mp3');
+        setGirlEquipmentMiniGame(previous => previous ? { ...previous, pulseKey: previous.pulseKey + 1 } : previous);
+      }, index * feedback.interval);
+    }
+    setGirlEquipmentMiniGame(previous => previous ? {
+      ...previous,
+      probeCount: Math.min(getGirlEquipmentProbeLimit(previous.slotIndex), previous.probeCount + 1),
+      probeAngles: [...previous.probeAngles, previous.cursor],
+      feedbackText: feedback.text,
+      chargePower: 0,
+      isCharging: false,
+    } : previous);
+  };
+  const startGirlEquipmentCharge = () => {
+    playGirlEquipmentPowerupSound();
+    setGirlEquipmentMiniGame(previous => previous && !previous.result
+      ? { ...previous, isCharging: true, chargePower: 0 }
+      : previous);
+  };
+  const releaseGirlEquipmentCharge = () => {
+    stopGirlEquipmentPowerupSound();
+    if (!girlEquipmentMiniGame || girlEquipmentMiniGame.result || !girlEquipmentMiniGame.isCharging) return;
+    if (girlEquipmentMiniGame.chargePower < 100) {
+      const probeLimit = getGirlEquipmentProbeLimit(girlEquipmentMiniGame.slotIndex);
+      if (girlEquipmentMiniGame.probeCount >= probeLimit) {
+        setGirlEquipmentMiniGame(previous => previous ? {
+          ...previous,
+          isCharging: false,
+          chargePower: 0,
+          feedbackText: `探索は${probeLimit}回まで。ここだと思う場所で長押ししよう！`,
+        } : previous);
+      } else {
+        probeGirlEquipmentTarget();
+      }
+    }
+  };
+  const resolveGirlEquipmentMiniGame = () => {
+    if (!girlEquipmentMiniGame || girlEquipmentMiniGame.result) return;
+    stopGirlEquipmentPowerupSound();
+    const rawDistanceDegrees = Math.abs(girlEquipmentMiniGame.cursor - girlEquipmentMiniGame.targetCenter) * 3.6;
+    const distanceDegrees = Math.min(rawDistanceDegrees, 360 - rawDistanceDegrees);
+    const result: GirlEquipmentMiniGameResult = distanceDegrees <= 10
+      ? 'perfect'
+      : distanceDegrees <= 25
+        ? 'good'
+        : distanceDegrees <= 45
+          ? 'normal'
+          : 'fail';
+    if (girlEquipmentMiniGame.mode === 'real' && result !== 'fail') {
+      const multiplier = getGirlEquipmentBonusMultiplier(result);
+      const bonusStats = girlEquipmentMiniGame.slotIndex === 1
+        ? { attack: Math.round(2 * multiplier), hp: Math.round(4 * multiplier) }
+        : { defense: Math.round(2 * multiplier), hp: Math.round(4 * multiplier) };
+      setGirlEquipment(previous => ({
+        ...previous,
+        [girlEquipmentMiniGame.girlId]: (previous[girlEquipmentMiniGame.girlId] ?? getGirlEquipmentSlots(girlEquipmentMiniGame.girlId)).map(slot => (
+          slot.slotIndex === girlEquipmentMiniGame.slotIndex
+            ? {
+              ...slot,
+              equippedItemId: girlEquipmentMiniGame.harvestItemName,
+              bonusStats,
+              equipQuality: result,
+            }
+            : slot
+        )),
+      }));
+      playUiSound('/se/soubi1.mp3');
+      setDialogMessage('苗娘の感じる場所を探し当てた！');
+    }
+    setGirlEquipmentMiniGame(previous => previous ? { ...previous, isCharging: false, chargePower: 100, result } : previous);
+  };
+  const removeGirlEquipment = (girlId: string, slotIndex: GirlEquipmentSlotIndex) => {
+    setGirlEquipment(previous => ({
+      ...previous,
+      [girlId]: (previous[girlId] ?? getGirlEquipmentSlots(girlId)).map(slot => (
+        slot.slotIndex === slotIndex
+          ? { ...slot, equippedItemId: null, bonusStats: {}, equipQuality: 'none' }
+          : slot
+      )),
+    }));
+    setEquipmentActionOpen(false);
+    setDialogMessage('挿入強化を外しました。使用した作物は戻りません。');
+  };
+  useEffect(() => {
+    if (!girlEquipmentMiniGame || girlEquipmentMiniGame.result) return;
+    const timer = window.setInterval(() => {
+      setGirlEquipmentMiniGame(previous => {
+        if (!previous || previous.result) return previous;
+        if (previous.isCharging) {
+          return { ...previous, chargePower: Math.min(100, previous.chargePower + 2.5) };
+        }
+        return { ...previous, cursor: (previous.cursor + 0.72) % 100 };
+      });
+    }, 30);
+    return () => window.clearInterval(timer);
+  }, [girlEquipmentMiniGame?.girlId, girlEquipmentMiniGame?.slotIndex, girlEquipmentMiniGame?.result]);
+  useEffect(() => {
+    if (!girlEquipmentMiniGame?.result && girlEquipmentMiniGame?.isCharging && girlEquipmentMiniGame.chargePower >= 100) {
+      resolveGirlEquipmentMiniGame();
+    }
+  }, [girlEquipmentMiniGame?.chargePower, girlEquipmentMiniGame?.isCharging, girlEquipmentMiniGame?.result]);
+  useEffect(() => {
+    if (!girlEquipmentMiniGame) return;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Enter' && event.key !== ' ') return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      if (girlEquipmentMiniGame.result) {
+        if (girlEquipmentMiniGame.mode === 'practice' && pendingGirlEquipmentInsert) {
+          const nextTarget = pendingGirlEquipmentInsert;
+          unlockCollectionEvent('girl_equipment_tutorial_completed');
+          setGirlEquipmentMiniGame(null);
+          beginGirlEquipmentMiniGame(nextTarget.girlId, nextTarget.slotIndex, 'real');
+        } else {
+          setGirlEquipmentMiniGame(null);
+        }
+      } else if (!event.repeat && !girlEquipmentMiniGame.isCharging) {
+        startGirlEquipmentCharge();
+      }
+    };
+    const handleKeyUp = (event: KeyboardEvent) => {
+      if (event.key !== 'Enter' && event.key !== ' ') return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      releaseGirlEquipmentCharge();
+    };
+    window.addEventListener('keydown', handleKeyDown, true);
+    window.addEventListener('keyup', handleKeyUp, true);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown, true);
+      window.removeEventListener('keyup', handleKeyUp, true);
+    };
+  }, [girlEquipmentMiniGame, pendingGirlEquipmentInsert]);
+	  useEffect(() => {
+	    if (girlEquipmentMiniGame && !girlEquipmentMiniGame.result) return;
+	    stopGirlEquipmentPowerupSound();
+	  }, [girlEquipmentMiniGame?.result]);
+	  useEffect(() => () => {
+	    stopGirlEquipmentPowerupSound();
+	  }, []);
+  useEffect(() => {
+    if (!pendingGirlEquipmentInsert || girlEquipmentMiniGame) return;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (girlEquipmentTutorialStep !== null) {
+        if (event.key !== 'Enter' && event.key !== ' ') return;
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        if (girlEquipmentTutorialStep < 2) {
+          setGirlEquipmentTutorialStep(step => step === null ? 0 : step + 1);
+        } else {
+          setGirlEquipmentTutorialStep(null);
+          beginGirlEquipmentMiniGame(pendingGirlEquipmentInsert.girlId, pendingGirlEquipmentInsert.slotIndex, 'practice');
+        }
+        return;
+      }
+      if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        setGirlEquipmentInsertConfirmChoice(choice => choice === 'yes' ? 'no' : 'yes');
+        return;
+      }
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        setPendingGirlEquipmentInsert(null);
+        return;
+      }
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        confirmGirlEquipmentInsert();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown, true);
+    return () => window.removeEventListener('keydown', handleKeyDown, true);
+  }, [pendingGirlEquipmentInsert, girlEquipmentTutorialStep, girlEquipmentMiniGame, girlEquipmentInsertConfirmChoice]);
   const tryHybridCultivation = (girlId: string) => {
     const targetGirl = farmGirls.find(girl => girl.girlId === girlId);
     const girlName = GIRL_DATA.find(girl => girl.id === girlId)?.girlName ?? girlId;
@@ -10213,9 +11014,13 @@ export default function App() {
   const hudObjective = useMemo(() => {
     if (bootMode !== 'playing' || prologueOpen) return null;
     if (isOpeningWalkObjectiveActive) return OPENING_WALK_OBJECTIVE;
-    const hasUnplantedStarterSeed = INITIAL_OWNED_GIRL_SEEDS.some(seedId => {
+    const hasPlantedStarterSeed = INITIAL_OWNED_GIRL_SEEDS.some(seedId => {
       const seed = GIRL_SEED_ACQUISITION_DATA.find(entry => entry.seedId === seedId);
-      return seed && ownedGirlSeeds.includes(seedId) && !farmFieldSlots.some(slot => slot.girlId === seed.girlId);
+      return seed && farmFieldSlots.some(slot => slot.girlId === seed.girlId);
+    });
+    const hasUnplantedStarterSeed = !hasPlantedStarterSeed && INITIAL_OWNED_GIRL_SEEDS.some(seedId => {
+      const seed = GIRL_SEED_ACQUISITION_DATA.find(entry => entry.seedId === seedId);
+      return seed && ownedGirlSeeds.includes(seedId);
     });
     if (kurumiIntroOpen) return hasAskedAllKurumiIntroTopics ? 'くるみとの会話を終えよう！' : 'くるみに気になることを一通り聞こう！';
     if (seedPlantTutorialOpen) return 'くるみから苗娘の植え方を教わろう！';
@@ -10957,6 +11762,13 @@ export default function App() {
      setSelectedShopItemIndex(0);
      setSelectedShopControl('items');
      setKurumiShopOpen(true);
+     const newSeedOffer = girlSeedShopItems.find(item => (
+       item.girlSeedId && !collectionProgress.unlockedEventIds.includes(`seed_offer_${item.girlSeedId}`)
+     ));
+     if (newSeedOffer?.girlSeedId) {
+       unlockCollectionEvent(`seed_offer_${newSeedOffer.girlSeedId}`);
+       showShopNotice(newSeedOffer.seedOfferMessage ?? `${newSeedOffer.name}が入荷しました！`);
+     }
   };
 
   const startKurumiIntro = () => {
@@ -12306,14 +13118,14 @@ export default function App() {
   };
 
   const showShopNotice = (message: string) => {
-     setShopNoticeMessage(message);
+     setShopNoticeMessage(formatKurumiPlayerName(message, kurumiTrustStars));
      if (shopNoticeTimerRef.current !== null) {
         window.clearTimeout(shopNoticeTimerRef.current);
      }
      shopNoticeTimerRef.current = window.setTimeout(() => {
         setShopNoticeMessage('');
         shopNoticeTimerRef.current = null;
-     }, 2200);
+     }, 4200);
   };
 
   const startKurumiPantsEvent = () => {
@@ -12352,10 +13164,14 @@ export default function App() {
 
   const handleShopActionClick = () => {
      const item = shopItemsForDisplay[selectedShopItemIndex] ?? shopItemsForDisplay[0];
+     if (!item) return;
      const itemStock = item.type === '売る'
         ? (item.fishName || item.sizedInventoryName ? item.stock : (inventoryCounts[item.name] ?? 0))
         : item.stock;
      const tradePrice = item.price;
+     const missingRequiredItems = (item.requiredItems ?? []).filter(requirement => (
+       (inventoryCounts[requirement.itemName] ?? 0) < requirement.amount
+     ));
      if (itemStock <= 0) {
         playFixSound();
         setDialogMessage(item.type === '買う' ? '売り切れです。' : '売却できる在庫がありません。');
@@ -12365,6 +13181,14 @@ export default function App() {
         playFixSound();
         showShopNotice(`お金が足りません\n必要：${tradePrice.toLocaleString()} G / 所持：${gold.toLocaleString()} G`);
         setDialogMessage('お金が足りません。');
+        return;
+     }
+     if (item.type === '買う' && missingRequiredItems.length > 0) {
+        playFixSound();
+        showShopNotice(`交換素材が足りません\n${missingRequiredItems.map(requirement => (
+          `${requirement.itemName} ${inventoryCounts[requirement.itemName] ?? 0}/${requirement.amount}`
+        )).join('\n')}`);
+        setDialogMessage('交換素材が足りません。');
         return;
      }
      setShopNoticeMessage('');
@@ -12393,6 +13217,14 @@ export default function App() {
         )));
      }
      setInventoryCounts(prev => {
+        if (item.farmFieldId) return prev;
+        if (item.girlSeedId) {
+          const next = { ...prev };
+          (item.requiredItems ?? []).forEach(requirement => {
+            next[requirement.itemName] = Math.max(0, (next[requirement.itemName] ?? 0) - requirement.amount);
+          });
+          return next;
+        }
         const next = {
            ...prev,
            [inventoryName]: Math.max(0, (prev[inventoryName] ?? 0) + (item.type === '買う' ? 1 : -1)),
@@ -12404,6 +13236,27 @@ export default function App() {
         }
         return next;
      });
+     if (item.farmFieldId) {
+        const fieldConfig = getFarmFieldConfig(difficulty, item.farmFieldId);
+        setFarmFieldSlots(prev => {
+          if (prev.some(slot => slot.fieldId === item.farmFieldId)) return prev;
+          return [
+            ...prev,
+            ...Array.from({ length: fieldConfig.slotCount }, (_, index): FarmFieldSlotState => ({
+              fieldId: item.farmFieldId!,
+              slotIndex: index + 1,
+              girlId: null,
+              state: 'none',
+              plantedDay: null,
+            })),
+          ].sort((a, b) => (
+            a.fieldId === b.fieldId
+              ? a.slotIndex - b.slotIndex
+              : a.fieldId === 'left' ? -1 : 1
+          ));
+        });
+     }
+     if (item.girlSeedId) addOwnedGirlSeed(item.girlSeedId);
      if (item.type === '売る' && item.fishName && typeof item.fishPrice === 'number') {
         setFishInventorySizes(prev => ({
            ...prev,
@@ -12444,6 +13297,15 @@ export default function App() {
      }
      if (isReturningKurumiPants) {
         startKurumiPantsEvent();
+     } else if (item.farmFieldId) {
+        setDialogMessage(`${item.name}が完了しました。\n右畑に苗娘を植えられるようになりました。`);
+     } else if (item.girlSeedId) {
+        const acquisitionLabel = item.requiredItems?.length
+          ? '素材と交換して受け取り'
+          : item.price > 0
+            ? '購入し'
+            : '受け取り';
+        setDialogMessage(`${item.name}を${acquisitionLabel}ました。\n農場メニュから植えられます。`);
      } else {
         setDialogMessage(`${item.name}を${item.type === '買う' ? '購入' : '売却'}しました。`);
      }
@@ -15533,7 +16395,7 @@ export default function App() {
 
 	          if (currentMenuItem.id === 'kurumiNotebook') {
 	            const currentIndex = selectedKurumiNotebookIndexRef.current;
-	            const notebookLength = 12;
+	            const notebookLength = 14;
 	            if (e.key === 'ArrowLeft') {
 	              if (menuContentFocusRef.current === 'secondary') {
 	                setMenuContentFocus('primary');
@@ -15590,7 +16452,7 @@ export default function App() {
                   : getZukanGirlAndKurumiCards().length;
 	            setSelectedZukanIndex(prev => (prev + moveBy + zukanLength) % zukanLength);
 	          } else if (currentMenuItem.id === 'kurumiNotebook') {
-	            const notebookLength = 12;
+	            const notebookLength = 14;
 	            setSelectedKurumiNotebookIndex(prev => (prev + moveBy + notebookLength) % notebookLength);
 	          } else if (currentMenuItem.id === 'system') {
             const actions = ['セーブ', 'ロード', 'タイトルへ戻る'];
@@ -15627,12 +16489,10 @@ export default function App() {
 			                  }
 			                } else if (selectedPrimaryAction === 'harvest') {
 			                  const harvestInfo = getFarmGirlHarvestInfo(selectedGirl.id);
-			                  const farmGirlState = farmGirls.find(entry => entry.girlId === selectedGirl.id);
-		                  const harvestModifier = getSkillAdjustedCompanionHarvestModifier(companionGirlId === selectedGirl.id, farmGirlState?.trust ?? 0);
-		                  if (harvestInfo.canHarvest && harvestModifier.multiplier > 0) {
+		                  if (harvestInfo.canHarvest) {
 		                    harvestFarmGirl(selectedGirl.id);
 		                  } else {
-		                    setDialogMessage(harvestModifier.multiplier === 0 ? '同行中のため収穫できません' : `次回収穫まであと${harvestInfo.daysUntilHarvest ?? 0}日です。`);
+		                    setDialogMessage(`次回収穫まであと${harvestInfo.daysUntilHarvest ?? 0}日です。`);
 		                  }
 		                } else {
 		                  requestSeedlingCare(selectedGirl.id, selectedPrimaryAction);
@@ -15663,6 +16523,16 @@ export default function App() {
             const currentLabel = equipmentLabels[currentIndex];
             const currentSlotMatch = /slot(\d+)$/.exec(selectedEquipmentSlotRef.current);
             const currentSlotIndex = Math.max(0, currentSlotMatch ? Number(currentSlotMatch[1]) - 1 : 0);
+            if (currentLabel !== '主人公' && companionGirlId) {
+              const slotIndex = Math.min(2, currentSlotIndex + 1) as GirlEquipmentSlotIndex;
+              const slot = (girlEquipment[companionGirlId] ?? getGirlEquipmentSlots(companionGirlId)).find(entry => entry.slotIndex === slotIndex);
+              if (slot?.equippedItemId) {
+                removeGirlEquipment(companionGirlId, slotIndex);
+              } else {
+                requestGirlEquipmentInsert(companionGirlId, slotIndex);
+              }
+              return;
+            }
             const slotLabelsByCharacter: Record<string, string[]> = {
               '主人公': ['釣具・武器系', '採取道具系', '採取道具系', 'アクセサリー・防具'],
               'ちびいち': ['slot1', 'slot2'],
@@ -17396,6 +18266,12 @@ export default function App() {
             <div className="absolute inset-0 z-[300] flex items-center justify-center bg-black">
               <div className="relative aspect-[1672/941] w-full max-h-full overflow-hidden bg-black">
                 <img src={titleImageSrc} alt="孕ませ苗床ファーム タイトル" className="absolute inset-0 h-full w-full object-contain" />
+                {easyClearTitleNotice && (
+                  <div className="pointer-events-none absolute left-1/2 top-[7%] z-20 w-[min(760px,82%)] -translate-x-1/2 rounded-xl border-2 border-[#ffd166] bg-[#1a100d]/92 px-6 py-4 text-center text-xl font-black text-[#fff7dc] shadow-[0_12px_36px_rgba(0,0,0,0.72)]">
+                    イージーモードクリア！<br />
+                    <span className="text-[#ffd166]">次はノーマルモード以上で攻略してみよう！</span>
+                  </div>
+                )}
                 {isEndlessTitleTheme() ? (
                   <>
                     <button
@@ -17918,7 +18794,7 @@ export default function App() {
            {currentMap === 'farm' && (
               <>
                  {/* 左の畑 (21列 x 10行, 1マス30px) */}
-                 {isFarmFieldInitiallyUnlocked(difficulty, 'left') && (
+                 {farmFieldSlots.some(slot => slot.fieldId === 'left') && (
                     <FieldGrid
                        fieldId="left"
                        topLeft={fieldCorners.left.topLeft}
@@ -17933,7 +18809,7 @@ export default function App() {
                     />
                  )}
                  {/* 右の畑 (26列 x 10行, 1マス30px) */}
-                 {isFarmFieldInitiallyUnlocked(difficulty, 'right') && (
+                 {farmFieldSlots.some(slot => slot.fieldId === 'right') && (
                     <FieldGrid
                        fieldId="right"
                        topLeft={fieldCorners.right.topLeft}
@@ -17947,6 +18823,20 @@ export default function App() {
                        onCellClick={handleCropCellClick}
                     />
                  )}
+                 {!farmFieldSlots.some(slot => slot.fieldId === 'right') && Object.entries(rightFieldGrassPlacements).map(([key, placement]) => (
+                    <img
+                       key={key}
+                       src="/img/kusa.jpg"
+                       alt=""
+                       aria-hidden="true"
+                       className="pointer-events-none absolute z-[12] -translate-x-1/2 -translate-y-1/2 rounded-sm object-cover opacity-95 shadow-[0_4px_12px_rgba(0,0,0,0.35)]"
+                       style={{
+                         left: placement.x,
+                         top: placement.y,
+                         width: placement.width,
+                       }}
+                    />
+                 ))}
                  {farmFieldSlots.filter(slot => slot.girlId).map(slot => {
                     const point = getFarmFieldSlotPoint(slot);
                     const slotKey = `${slot.fieldId}_${slot.slotIndex}`;
@@ -17955,23 +18845,24 @@ export default function App() {
                     const farmGirl = farmGirls.find(entry => entry.girlId === slot.girlId);
                     const crop = FARM_GIRL_CROP_DATA.find(entry => entry.girlId === slot.girlId);
                     const harvestInfo = slot.girlId ? getFarmGirlHarvestInfo(slot.girlId) : null;
-                    const slotStatus = slot.state === 'appeared'
+                    const slotStatusLabel = slot.state === 'appeared' ? '出現中' : '成長中';
+                    const slotProgressLabel = slot.state === 'appeared'
                        ? harvestInfo?.canHarvest
-                          ? '出現中・収穫可'
-                          : `出現中・あと${harvestInfo?.daysUntilHarvest ?? 0}日`
-                       : `成長中 ${farmGirl?.growthProgress ?? 0}/${crop?.growthDays ?? '?'}日`;
+                          ? '収穫可'
+                          : `あと${harvestInfo?.daysUntilHarvest ?? 0}日`
+                       : `${farmGirl?.growthProgress ?? 0}/${crop?.growthDays ?? '?'}日`;
+                    const slotStatus = `${slotStatusLabel} ${slotProgressLabel}`;
                     const slotName = seed?.seedName ?? '苗娘';
-                    const isNtr = farmGirl?.condition === 'affected';
+                    const slotDisplayName = slotName.replace(/の苗娘$/, '');
                     const isCompanion = companionGirlId === slot.girlId;
                     const canHarvest = Boolean(harvestInfo?.canHarvest);
-                    // 受精システム実装前は通常を未受精、affected をNTRとして表示する。
-                    const fertilizationStatus = isNtr ? 'NTR' : '未受精';
+                    const seedlingBoxPlacement = farmSeedlingBoxPlacements[slotKey] ?? { offsetX: 0, offsetY: 0 };
                     return (
                        <button
                           key={`${slot.fieldId}_${slot.slotIndex}_${slot.girlId}`}
                           type="button"
-                          disabled={!canHarvest || isCompanion}
-                          aria-label={canHarvest && !isCompanion ? `${slotName}を収穫` : `${slotName} ${slotStatus}`}
+                          disabled={!canHarvest}
+                          aria-label={canHarvest ? `${slotName}を収穫` : `${slotName} ${slotStatus}`}
                           onPointerDown={(event) => {
                             event.preventDefault();
                             event.stopPropagation();
@@ -17985,57 +18876,45 @@ export default function App() {
                             event.preventDefault();
                             event.stopPropagation();
                           }}
-                          className={`absolute z-20 flex -translate-x-1/2 -translate-y-1/2 items-center gap-1.5 rounded-lg border-0 bg-transparent p-0 text-center font-black ${
-                            canHarvest && !isCompanion
+                          className={`absolute z-20 -translate-x-1/2 -translate-y-1/2 rounded-lg border-0 bg-transparent p-0 text-center font-black ${
+                            canHarvest
                               ? 'cursor-pointer pointer-events-auto transition-transform hover:scale-[1.04] focus:outline-none focus:ring-4 focus:ring-lime-200/80'
                               : 'pointer-events-none'
                           }`}
                           style={{
-                            left: point.x + slotPlacement.offsetX,
-                            top: point.y + slotPlacement.offsetY,
+                            left: point.x + slotPlacement.offsetX + seedlingBoxPlacement.offsetX,
+                            top: point.y + slotPlacement.offsetY + seedlingBoxPlacement.offsetY,
                             transform: `translate(-50%, -50%) scale(${slotPlacement.scale / 100})`,
                           }}
                        >
-                          <div className="flex w-[92px] flex-col items-center gap-1">
-                            <div className="w-full truncate rounded-md border border-[#ffd166]/80 bg-[#1a100d]/92 px-1 py-1 text-[11px] leading-none text-white shadow-[0_3px_8px_rgba(0,0,0,0.55)]">
-                              {slotName}
-                            </div>
-                            <div className={`relative h-20 w-16 overflow-hidden rounded-xl border-2 shadow-[0_4px_12px_rgba(0,0,0,0.55)] ${
-                              slot.state === 'appeared'
-                                 ? 'border-[#86efac]/90 bg-[#14532d]/88'
-                                 : 'border-[#ffd166]/85 bg-[#1a100d]/82'
-                            }`}>
-                              <img
-                                src="/img/nae.png"
-                                alt={slotName}
-                                className="h-full w-full object-contain"
-                              />
-                              {isCompanion && (
-                                <div className="absolute inset-x-1 bottom-1 rounded border border-cyan-100 bg-cyan-700/95 px-1 py-1 text-[10px] leading-none text-white shadow">
-                                  同行中
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                          <div className={`flex w-[104px] flex-col gap-1.5 rounded-md border px-1.5 py-1.5 text-[11px] leading-tight shadow-[0_3px_8px_rgba(0,0,0,0.55)] ${
+	                          <div className={`w-[140px] rounded-lg border-2 p-1.5 shadow-[0_4px_12px_rgba(0,0,0,0.62)] ${
                             slot.state === 'appeared'
-                               ? 'border-[#86efac]/90 bg-[#14532d]/90 text-[#dcfce7]'
-                               : 'border-[#ffd166]/85 bg-[#1a100d]/90 text-[#ffe8a3]'
+                              ? 'border-[#86efac]/90 bg-[#14532d]/92 text-[#dcfce7]'
+                              : 'border-[#ffd166]/85 bg-[#1a100d]/94 text-[#ffe8a3]'
                           }`}>
-                            <div className="whitespace-nowrap text-[11px] text-white">{slotStatus}</div>
-                            <div className={`rounded-md border px-1 py-1.5 text-center text-[12px] leading-none text-white ${
-                              fertilizationStatus === 'NTR'
-                                ? 'border-red-300 bg-red-700'
-                                : 'border-slate-300 bg-slate-600'
-                            }`}>
-                              {fertilizationStatus}
+                            <div className="w-full truncate rounded-md border border-[#ffd166]/70 bg-black/45 px-1.5 py-1 text-[15px] leading-none text-white">
+                              {slotDisplayName}
                             </div>
-                            <div className={`rounded-md border px-1 py-1.5 text-center text-[12px] leading-none ${
-                              canHarvest
-                                ? 'border-lime-200 bg-green-700 text-lime-50'
-                                : 'border-white/10 bg-slate-950/65 text-slate-500 grayscale'
-                            }`}>
-                              {canHarvest && !isCompanion ? '収穫可 / H' : '収穫不可'}
+	                            <div className="mt-1.5 grid grid-cols-[50px_minmax(72px,1fr)] gap-1.5">
+                              <div className="relative h-[66px] overflow-hidden rounded-md border border-white/25 bg-black/30">
+                                <img src="/img/nae.png" alt={slotName} className="h-full w-full object-contain" />
+                                {isCompanion && (
+                                  <div className="absolute inset-x-0 bottom-0 bg-cyan-700/95 py-0.5 text-[9px] leading-none text-white">同行中</div>
+                                )}
+                              </div>
+                              <div className="flex min-w-0 flex-col gap-1">
+                                <div className="whitespace-nowrap rounded bg-black/35 px-1 py-1 text-[12px] font-black leading-none text-white">{slotStatusLabel}</div>
+	                                <div className="whitespace-nowrap rounded border border-[#ffd166]/55 bg-[#3a2409]/80 px-1 py-1 text-[17px] font-black leading-none text-[#fff3b0]">
+                                  {slotProgressLabel}
+                                </div>
+                                <div className={`whitespace-nowrap rounded border px-0.5 py-1 text-[10px] font-black leading-none ${
+                                  canHarvest
+                                    ? 'border-lime-200 bg-green-700 text-lime-50'
+                                    : 'border-white/10 bg-slate-950/65 text-slate-400'
+                                }`}>
+                                  {canHarvest ? '収穫可' : '収穫不可'}
+                                </div>
+                              </div>
                             </div>
                           </div>
                        </button>
@@ -20709,24 +21588,53 @@ export default function App() {
           </div>
         )}
 
+        {momonaSeedEventOpen && createPortal(
+          <div className="fixed inset-0 z-[10025] flex items-center justify-center bg-black/72 px-8 pointer-events-auto">
+            <div className="grid w-[920px] max-w-full grid-cols-[360px_minmax(0,1fr)] overflow-hidden rounded-2xl border-4 border-[#f9a8d4] bg-[#24140f] text-[#fff7dc] shadow-[0_24px_80px_rgba(0,0,0,0.78)]">
+              <div className="relative min-h-[480px] bg-[radial-gradient(circle_at_50%_35%,rgba(251,207,232,0.35),rgba(36,20,15,0.95))]">
+                <img src="/img/momona-card.png" alt="ももな" className="absolute inset-0 h-full w-full object-contain object-bottom p-5" />
+              </div>
+              <div className="flex flex-col justify-center p-8">
+                <div className="text-sm font-black tracking-[0.2em] text-[#f9a8d4]">牧場の朝</div>
+                <div className="mt-3 text-3xl font-black text-[#fff1a8]">桃色の苗との出会い</div>
+                <div className="mt-6 whitespace-pre-line rounded-xl border border-[#f9a8d4]/55 bg-black/30 px-5 py-5 text-lg font-bold leading-relaxed">
+                  3人の苗娘を立派に育てた朝、牧場の片隅で淡い桃色に輝く苗を見つけた。{`\n\n`}
+                  これまでの農場の温もりに引かれて、ももの苗娘が目覚めたようだ。
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    playFixSound();
+                    addOwnedGirlSeed('peach');
+                    unlockCollectionEvent('momona_seed_unlock');
+                    setMomonaSeedEventOpen(false);
+                    setDialogMessage('ももの苗娘を手に入れた！\n農場メニュから植えられます。');
+                  }}
+                  className="mt-7 rounded-xl border-2 border-[#fff7dc] bg-[#be185d] px-6 py-4 text-xl font-black text-white transition hover:bg-[#db2777]"
+                >
+                  ももの苗娘を持ち帰る
+                </button>
+              </div>
+            </div>
+          </div>,
+          document.body
+        )}
+
         {storyEndingVideoOpen && createPortal(
           <div className="fixed inset-0 z-[10040] flex items-center justify-center bg-black px-6 py-6 pointer-events-auto">
             <video
-              src={STORY_ENDING_VIDEO_SRC}
+              src={difficulty === 'easy' ? EASY_STORY_ENDING_VIDEO_SRC : STORY_ENDING_VIDEO_SRC}
               className="max-h-full max-w-full object-contain"
               autoPlay
               controls
               playsInline
-              onEnded={() => {
-                setDialogMessage('借金を完済した！\n物語はひとまず完了です。');
-                returnToTitle(false);
-              }}
+              onEnded={finishStoryEndingVideo}
             />
             <button
               type="button"
               onClick={() => {
                 playFixSound();
-                returnToTitle(false);
+                finishStoryEndingVideo();
               }}
               className="absolute right-6 top-6 rounded border border-white/60 bg-black/70 px-4 py-2 text-sm font-black text-white transition hover:bg-[#4a241b]"
             >
@@ -22289,6 +23197,14 @@ export default function App() {
            setSelectedFarmPlantButtonKey={setSelectedFarmPlantButtonKey}
            farmPlantButtonPlacements={farmPlantButtonPlacements}
            setFarmPlantButtonPlacements={setFarmPlantButtonPlacements}
+           selectedFarmSeedlingBoxKey={selectedFarmSeedlingBoxKey}
+           setSelectedFarmSeedlingBoxKey={setSelectedFarmSeedlingBoxKey}
+           farmSeedlingBoxPlacements={farmSeedlingBoxPlacements}
+           setFarmSeedlingBoxPlacements={setFarmSeedlingBoxPlacements}
+           selectedRightFieldGrassKey={selectedRightFieldGrassKey}
+           setSelectedRightFieldGrassKey={setSelectedRightFieldGrassKey}
+           rightFieldGrassPlacements={rightFieldGrassPlacements}
+           setRightFieldGrassPlacements={setRightFieldGrassPlacements}
 	        />
 	        )}
         {craftConfirmRecipeName && (
@@ -22429,7 +23345,18 @@ export default function App() {
            </div>
         )}
         {farmCareCinematicAction && createPortal(
-          <div className="farm-care-cinematic fixed inset-0 z-[10002] flex items-center justify-center pointer-events-none" aria-live="polite">
+          <div
+            className="farm-care-cinematic fixed inset-0 z-[10002] flex items-center justify-center pointer-events-auto"
+            aria-live="polite"
+            role="button"
+            tabIndex={0}
+            onClick={finishFarmCareCinematic}
+            onKeyDown={(event) => {
+              if (event.key !== 'Enter') return;
+              event.preventDefault();
+              finishFarmCareCinematic();
+            }}
+          >
             <div className="farm-care-cinematic-stage">
               <video
                 key={farmCareCinematicAction}
@@ -22437,13 +23364,7 @@ export default function App() {
                 className="farm-care-cinematic-video"
                 autoPlay
                 playsInline
-                onEnded={() => {
-                  if (farmCareCinematicTimerRef.current !== null) {
-                    window.clearTimeout(farmCareCinematicTimerRef.current);
-                    farmCareCinematicTimerRef.current = null;
-                  }
-                  setFarmCareCinematicAction(null);
-                }}
+                onEnded={finishFarmCareCinematic}
               />
             </div>
           </div>,
@@ -22507,6 +23428,201 @@ export default function App() {
           </div>,
           document.body
         )}
+        {girlEquipmentNoticeGirlId && createPortal((() => {
+          const noticeGirl = GIRL_DATA.find(girl => girl.id === girlEquipmentNoticeGirlId);
+          const noticeCrop = getRequiredHarvestItemForGirlEquipment(girlEquipmentNoticeGirlId);
+          return (
+            <div className="fixed inset-0 z-[10002] flex items-center justify-center bg-black/78 px-8 pointer-events-auto">
+              <div className="w-[620px] rounded-2xl border-4 border-[#ffd166] bg-[#1a100d]/98 p-7 text-center text-[#fdf6e3] shadow-2xl">
+                <div className="text-sm font-black tracking-[0.2em] text-[#86efac]">NEW SYSTEM</div>
+                <div className="mt-2 text-3xl font-black">挿入強化が解放されました！</div>
+                <div className="mt-4 text-lg font-bold leading-relaxed text-[#ffe4b5]">
+                  {noticeGirl?.girlName ?? '苗娘'}に、自分の畑で育てた作物を使って挿入強化できるようになりました。<br />
+                  装備メニューの同行娘スロットから挑戦できます。
+                </div>
+                <div className="mt-4 rounded-lg border border-[#bc6c25]/70 bg-black/35 px-4 py-3 font-bold text-[#c8a87a]">
+                  必要：{noticeCrop?.requiredHarvestItemId ?? '専用作物'} ×1<br />
+                  タイミングに失敗すると作物は失われます。
+                </div>
+                <button type="button" onClick={() => setGirlEquipmentNoticeGirlId(null)} className="mt-6 rounded-xl border-2 border-white bg-[#4a5823] px-10 py-3 text-lg font-black hover:bg-[#60732d]">
+                  わかった
+                </button>
+              </div>
+            </div>
+          );
+        })(), document.body)}
+        {pendingGirlEquipmentInsert && girlEquipmentTutorialStep === null && !girlEquipmentMiniGame && createPortal((() => {
+          const pendingGirl = GIRL_DATA.find(girl => girl.id === pendingGirlEquipmentInsert.girlId);
+          const pendingCrop = getRequiredHarvestItemForGirlEquipment(pendingGirlEquipmentInsert.girlId);
+          return (
+            <div className="fixed inset-0 z-[10003] flex items-center justify-center bg-black/82 px-8 pointer-events-auto">
+              <div className="w-[560px] rounded-2xl border-4 border-[#ffd166] bg-[#1a100d]/98 p-7 text-center text-[#fdf6e3] shadow-2xl">
+                <div className="text-3xl font-black">挿入強化しますか？</div>
+                <div className="mt-4 text-lg font-bold leading-relaxed text-[#ffe4b5]">
+                  {pendingGirl?.girlName ?? '苗娘'}の{pendingGirlEquipmentInsert.slotIndex === 1 ? '活力作物' : '守り作物'}スロット<br />
+                  使用：{pendingCrop?.requiredHarvestItemId ?? '専用作物'} ×1
+                </div>
+                <div className="mt-2 text-sm font-bold text-[#ffb4a2]">本番に失敗すると作物を失います。</div>
+                <div className="mt-6 grid grid-cols-2 gap-4">
+                  {(['yes', 'no'] as const).map(choice => (
+                    <button
+                      key={choice}
+                      type="button"
+                      onMouseEnter={() => setGirlEquipmentInsertConfirmChoice(choice)}
+                      onClick={() => {
+                        setGirlEquipmentInsertConfirmChoice(choice);
+                        if (choice === 'no') setPendingGirlEquipmentInsert(null);
+                        else confirmGirlEquipmentInsert(choice);
+                      }}
+                      className={`h-14 rounded-xl border-2 text-xl font-black ${girlEquipmentInsertConfirmChoice === choice ? 'border-white bg-[#bc6c25] ring-4 ring-[#ffd166]/60' : 'border-[#76502c] bg-[#2d1b15]'}`}
+                    >
+                      {choice === 'yes' ? 'はい' : 'いいえ'}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          );
+        })(), document.body)}
+        {girlEquipmentTutorialStep !== null && pendingGirlEquipmentInsert && createPortal((() => {
+          const tutorialGirl = GIRL_DATA.find(girl => girl.id === pendingGirlEquipmentInsert.girlId);
+          const tutorialProbeLimit = getGirlEquipmentProbeLimit(pendingGirlEquipmentInsert.slotIndex);
+          const tutorialMessages = [
+            'ユウくん、苗娘達の強化に繋がる挿入強化のやり方を説明するねっ！\nほら見てっ！緑の円のまわりを、一本の線がぐるぐる回ってるでしょ？\nこの円のどこかに、苗娘達の一番感じやすい秘密のポイントが隠れてるの！\nまずは回っている線を止めて、その場所を探してみよー♪',
+            `決定ボタンを短く押すと、その場所を調べられるよっ！\n秘密のポイントに近いほど、音がピピピッて速く連続して鳴るの。\n少し遠いと音はゆっくり、すっごく遠いと何も鳴らないよ！\n挑戦できるのは${tutorialProbeLimit}回までだから、音をよーく聞いて場所を絞り込んでね♪`,
+            '「ここだっ！」って思ったら、決定ボタンを長押ししてね♡\n長押しを始めた場所で線が止まって、パワーが100％になると挿入強化開始！\n秘密のポイントに近ければ成功だよっ♪\n本番は失敗すると作物がなくなっちゃうから、まずは練習してみよー！',
+          ];
+          const isLastTutorialStep = girlEquipmentTutorialStep >= tutorialMessages.length - 1;
+          return (
+            <div className="fixed inset-0 z-[10004] flex items-center justify-center bg-black/82 px-8 py-6 pointer-events-auto">
+              <div className="grid h-[690px] w-[1120px] max-h-[92vh] max-w-[calc(100vw-64px)] grid-cols-[minmax(0,1fr)_390px] overflow-hidden rounded-2xl border-4 border-[#ffd166] bg-[#1a100d]/98 text-[#fdf6e3] shadow-2xl">
+                <div className="flex min-h-0 flex-col gap-4 p-8">
+                  <div>
+                    <div className="text-sm font-black tracking-[0.22em] text-[#86efac]">INSERT ENHANCEMENT TUTORIAL</div>
+                    <div className="mt-2 text-3xl font-black">挿入強化の練習</div>
+                  </div>
+                  <div className="min-h-[300px] flex-1 whitespace-pre-line overflow-y-auto rounded-xl border-2 border-[#bc6c25]/70 bg-[#2d1b15]/88 p-6 text-[23px] font-black leading-[1.62]">
+                    くるみ{`\n`}「{tutorialMessages[girlEquipmentTutorialStep]}」
+                  </div>
+                  <div className="flex shrink-0 items-center justify-between gap-4">
+                    <span className="font-bold text-[#c8a87a]">{girlEquipmentTutorialStep + 1} / {tutorialMessages.length}</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (!isLastTutorialStep) {
+                          setGirlEquipmentTutorialStep(step => step === null ? 0 : step + 1);
+                          return;
+                        }
+                        setGirlEquipmentTutorialStep(null);
+                        beginGirlEquipmentMiniGame(pendingGirlEquipmentInsert.girlId, pendingGirlEquipmentInsert.slotIndex, 'practice');
+                      }}
+                      className="min-w-[170px] rounded-xl border-2 border-white bg-[#4a5823] px-9 py-4 text-lg font-black hover:bg-[#60732d]"
+                    >
+                      {isLastTutorialStep ? '練習する' : '次へ'}
+                    </button>
+                  </div>
+                </div>
+                <div className="relative border-l border-[#bc6c25]/60 bg-gradient-to-b from-[#3b2418] to-[#160d0a]">
+                  <div className="absolute left-6 right-6 top-8 z-10 rounded-2xl border-2 border-[#f1c27d]/80 bg-[#fdf6e3]/95 px-5 py-4 text-[#2d1b15] shadow-xl">
+                    <div className="text-2xl font-black">くるみ</div>
+                    <div className="mt-1 font-bold">まずは練習してみよっ♪</div>
+                  </div>
+                  <img src="/img/kurumi.png" alt="くるみ" className="absolute inset-x-0 bottom-0 mx-auto h-[540px] w-[370px] object-contain object-bottom" />
+                </div>
+              </div>
+            </div>
+          );
+        })(), document.body)}
+        {girlEquipmentMiniGame && createPortal((() => {
+          const miniGameGirl = GIRL_DATA.find(girl => girl.id === girlEquipmentMiniGame.girlId);
+          const miniGameProbeLimit = getGirlEquipmentProbeLimit(girlEquipmentMiniGame.slotIndex);
+          const resultLabel = girlEquipmentMiniGame.result === 'perfect' || girlEquipmentMiniGame.result === 'good' || girlEquipmentMiniGame.result === 'normal'
+            ? '成功！'
+            : girlEquipmentMiniGame.result === 'fail'
+              ? '失敗…'
+              : null;
+          return (
+            <div className="fixed inset-0 z-[10003] flex items-center justify-center bg-black/88 px-8 pointer-events-auto">
+              <div className="w-[820px] rounded-2xl border-4 border-[#f1c27d] bg-[#160d0a]/98 p-8 text-[#fdf6e3] shadow-2xl">
+                <div className="text-center">
+                  <div className="text-sm font-black tracking-[0.22em] text-[#ffd166]">CROP EQUIPMENT</div>
+                  <div className="mt-2 text-3xl font-black">{miniGameGirl?.girlName ?? '苗娘'}の挿入強化</div>
+                  <div className="mt-2 font-bold text-[#c8a87a]">{girlEquipmentMiniGame.harvestItemName}をタイミングよく定着させよう！</div>
+                </div>
+                <div className="relative mx-auto mt-6 h-[330px] w-[330px] rounded-full border-[10px] border-[#4ade80] bg-[radial-gradient(circle,#123020_0%,#07150d_62%,#020806_100%)] shadow-[0_0_38px_rgba(74,222,128,0.38),inset_0_0_34px_rgba(74,222,128,0.2)]">
+                  {girlEquipmentMiniGame.pulseKey > 0 && (
+                    <div key={girlEquipmentMiniGame.pulseKey} className="farm-equipment-sound-pulse pointer-events-none absolute inset-[-10px] rounded-full border-[10px] border-[#86efac]" />
+                  )}
+                  <div className="absolute inset-0" style={{ transform: `rotate(${girlEquipmentMiniGame.cursor * 3.6}deg)` }}>
+                    <div className="absolute bottom-1/2 left-1/2 top-[5%] w-[5px] -translate-x-1/2 rounded-full bg-[#fff7dc] shadow-[0_0_14px_rgba(255,247,220,0.95)]" />
+                  </div>
+                  <div className="absolute left-1/2 top-1/2 h-5 w-5 -translate-x-1/2 -translate-y-1/2 rounded-full border-4 border-[#fff7dc] bg-[#4a5823]" />
+                  {girlEquipmentMiniGame.probeAngles.map((angle, index) => {
+                    const radians = angle * 3.6 * Math.PI / 180;
+                    return (
+                      <div
+                        key={`${angle}-${index}`}
+                        className="absolute flex h-7 w-7 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border-2 border-white bg-[#9a5a1d] text-xs font-black text-white shadow-lg"
+                        style={{ left: `${50 + Math.sin(radians) * 44}%`, top: `${50 - Math.cos(radians) * 44}%` }}
+                      >
+                        {index + 1}
+                      </div>
+                    );
+                  })}
+                </div>
+                <div className="mt-3 text-center">
+                  <div className="text-sm font-black text-[#d9f99d]">探索 {girlEquipmentMiniGame.probeCount} / {miniGameProbeLimit}</div>
+                  <div className="mt-1 min-h-6 font-bold text-[#ffd166]">{girlEquipmentMiniGame.feedbackText}</div>
+                  <div className="mx-auto mt-3 h-6 w-[440px] overflow-hidden rounded-full border-2 border-[#76502c] bg-black/65">
+                    <div className="h-full bg-[linear-gradient(90deg,#4ade80,#facc15,#ff7a5c)] transition-[width]" style={{ width: `${girlEquipmentMiniGame.chargePower}%` }} />
+                  </div>
+                  <div className="mt-1 text-xs font-black text-[#c8a87a]">挿入パワー {Math.round(girlEquipmentMiniGame.chargePower)}%</div>
+                </div>
+                {resultLabel ? (
+                  <div className="mt-7 text-center">
+                    <div className={`text-4xl font-black ${girlEquipmentMiniGame.result === 'fail' ? 'text-[#ff9b85]' : 'text-[#ffd166]'}`}>{resultLabel}</div>
+                    <div className="mt-3 font-bold text-[#c8a87a]">
+                      {girlEquipmentMiniGame.mode === 'practice'
+                        ? '練習なので作物は消費していません。次は本番です。'
+                        : girlEquipmentMiniGame.result === 'fail'
+                          ? `${girlEquipmentMiniGame.harvestItemName}は失われました。`
+                          : '苗娘の感じる場所を探し当てた！'}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (girlEquipmentMiniGame.mode === 'practice' && pendingGirlEquipmentInsert) {
+                          const nextTarget = pendingGirlEquipmentInsert;
+                          unlockCollectionEvent('girl_equipment_tutorial_completed');
+                          setGirlEquipmentMiniGame(null);
+                          beginGirlEquipmentMiniGame(nextTarget.girlId, nextTarget.slotIndex, 'real');
+                          return;
+                        }
+                        setGirlEquipmentMiniGame(null);
+                      }}
+                      className="mt-5 rounded-xl border-2 border-white bg-[#4a5823] px-10 py-3 text-lg font-black hover:bg-[#60732d]"
+                    >
+                      {girlEquipmentMiniGame.mode === 'practice' ? '本番へ進む' : '閉じる'}
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onPointerDown={(event) => {
+                      event.currentTarget.setPointerCapture(event.pointerId);
+                      startGirlEquipmentCharge();
+                    }}
+                    onPointerUp={releaseGirlEquipmentCharge}
+                    onPointerCancel={releaseGirlEquipmentCharge}
+                    className="mx-auto mt-5 block w-[420px] rounded-xl border-4 border-white bg-[#9a5a1d] px-8 py-4 text-xl font-black shadow-[0_0_24px_rgba(255,209,102,0.45)] hover:bg-[#b66d21]"
+                  >
+                    短押し：探索　／　長押し：ここに挿入！
+                  </button>
+                )}
+              </div>
+            </div>
+          );
+        })(), document.body)}
         {activeTrustEvent && createPortal(
           <div className="fixed inset-0 z-[10001] flex items-center justify-center bg-black/88 px-8 py-6 pointer-events-auto">
             <div className="relative h-full max-h-[880px] w-full max-w-[1280px] overflow-hidden rounded-2xl border-[4px] border-[#f9a8d4] bg-[#090504] text-[#fdf6e3] shadow-2xl">
@@ -22563,9 +23679,9 @@ export default function App() {
                   alt={`${revealGirl.girlName} 娘化`}
                   className="farm-girl-reveal-card-image"
                 />
-                <div className="farm-girl-reveal-name">{revealGirl.girlName}</div>
               </div>
               <div className="farm-girl-reveal-message">
+                <div className="farm-girl-reveal-name">{revealGirl.girlName}</div>
                 {revealMessage}
                 <div className="mt-3 rounded-lg border border-[#ffd166]/60 bg-[#1a100d]/82 px-4 py-3 text-base font-black leading-relaxed text-[#fff1a8]">
                   {getFarmGirlSeedbedBirthMessage(revealSeed?.seedName ?? `${revealGirl.girlName}の苗`)}

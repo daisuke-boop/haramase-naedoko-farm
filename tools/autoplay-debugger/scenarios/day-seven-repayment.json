@@ -1,0 +1,10 @@
+{
+  "id": "day-seven-repayment",
+  "description": "ハードモードを通常操作し、7日目の1回目返済期日まで到達して返済イベントを処理する",
+  "difficulty": "ハード",
+  "targetDay": 8,
+  "finishAfterStart": false,
+  "humanEstimate": true,
+  "humanEstimateMinMultiplier": 4,
+  "humanEstimateEventExtraMs": 1800
+}

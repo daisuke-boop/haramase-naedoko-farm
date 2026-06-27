@@ -1,0 +1,10 @@
+{
+  "id": "save-load",
+  "description": "専用セーブ領域で保存とロード後の状態復元を確認する",
+  "difficulty": "イージー",
+  "targetDay": 2,
+  "finishAfterStart": false,
+  "humanEstimate": true,
+  "humanEstimateMinMultiplier": 4,
+  "humanEstimateEventExtraMs": 1800
+}

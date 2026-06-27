@@ -2,6 +2,7 @@ import React from 'react';
 import type { GameMap, TimeOfDay } from './types';
 
 type SetupMode = 'none' | 'animation' | 'collision' | 'hideArea' | 'doors' | 'footstep' | 'crops' | 'bed' | 'bathTub';
+const FARM_SLOT_KEYS = ['left_1', 'left_2', 'left_3', 'left_4', 'left_5', 'left_6', 'right_1', 'right_2', 'right_3', 'right_4'] as const;
 
 type AudioFileEntry = {
   src: string;
@@ -21,6 +22,8 @@ type MiningBgmRhythmOption = {
   label: string;
 };
 type FarmPlantButtonPlacement = { offsetX: number; offsetY: number };
+type FarmSeedlingBoxPlacement = { offsetX: number; offsetY: number };
+type RightFieldGrassPlacement = { x: number; y: number; width: number };
 type DebugGirlAffinityEntry = {
   id: string;
   name: string;
@@ -107,6 +110,14 @@ type DebugPanelProps = {
   setSelectedFarmPlantButtonKey: React.Dispatch<React.SetStateAction<string>>;
   farmPlantButtonPlacements: Record<string, FarmPlantButtonPlacement>;
   setFarmPlantButtonPlacements: React.Dispatch<React.SetStateAction<Record<string, FarmPlantButtonPlacement>>>;
+  selectedFarmSeedlingBoxKey: string;
+  setSelectedFarmSeedlingBoxKey: React.Dispatch<React.SetStateAction<string>>;
+  farmSeedlingBoxPlacements: Record<string, FarmSeedlingBoxPlacement>;
+  setFarmSeedlingBoxPlacements: React.Dispatch<React.SetStateAction<Record<string, FarmSeedlingBoxPlacement>>>;
+  selectedRightFieldGrassKey: string;
+  setSelectedRightFieldGrassKey: React.Dispatch<React.SetStateAction<string>>;
+  rightFieldGrassPlacements: Record<string, RightFieldGrassPlacement>;
+  setRightFieldGrassPlacements: React.Dispatch<React.SetStateAction<Record<string, RightFieldGrassPlacement>>>;
 };
 
 const DebugPanel = ({
@@ -184,6 +195,14 @@ const DebugPanel = ({
   setSelectedFarmPlantButtonKey,
   farmPlantButtonPlacements,
   setFarmPlantButtonPlacements,
+  selectedFarmSeedlingBoxKey,
+  setSelectedFarmSeedlingBoxKey,
+  farmSeedlingBoxPlacements,
+  setFarmSeedlingBoxPlacements,
+  selectedRightFieldGrassKey,
+  setSelectedRightFieldGrassKey,
+  rightFieldGrassPlacements,
+  setRightFieldGrassPlacements,
 }: DebugPanelProps) => {
   const [isMinimized, setIsMinimized] = React.useState(false);
   const [selectedDebugDialogueKey, setSelectedDebugDialogueKey] = React.useState(debugDialogueOptions[0]?.key ?? '');
@@ -733,7 +752,7 @@ const DebugPanel = ({
                  onChange={(e) => setSelectedFarmPlantButtonKey(e.target.value)}
                  className="w-full rounded border border-yellow-700 bg-[#2d1b15] px-1 py-1 text-[10px] font-bold text-white"
               >
-                 {['left_1', 'left_2', 'left_3', 'left_4', 'left_5', 'left_6', 'right_1', 'right_2', 'right_3', 'right_4'].map(key => (
+                 {FARM_SLOT_KEYS.map(key => (
                     <option key={key} value={key}>{key.replace('left_', '左畑 ').replace('right_', '右畑 ')}枠</option>
                  ))}
               </select>
@@ -777,6 +796,138 @@ const DebugPanel = ({
                  );
               })}
               <div className="text-[8px] leading-tight text-gray-500">選択中は白枠で強調。変更は自動保存されます。</div>
+           </div>
+
+           <div className="flex flex-col gap-1.5 border-t border-yellow-500/40 pt-1.5">
+              <div className="text-center text-[9px] font-bold text-yellow-200">🌿 苗状態ボックス位置調整</div>
+              <select
+                 value={selectedFarmSeedlingBoxKey}
+                 onChange={(e) => setSelectedFarmSeedlingBoxKey(e.target.value)}
+                 className="w-full rounded border border-yellow-700 bg-[#2d1b15] px-1 py-1 text-[10px] font-bold text-white"
+              >
+                 {FARM_SLOT_KEYS.map(key => (
+                    <option key={key} value={key}>{key.replace('left_', '左畑 ').replace('right_', '右畑 ')}枠</option>
+                 ))}
+              </select>
+              {([
+                 ['offsetX', 'X', -240, 240],
+                 ['offsetY', 'Y', -240, 240],
+              ] as const).map(([key, label, min, max]) => {
+                 const placement = farmSeedlingBoxPlacements[selectedFarmSeedlingBoxKey] ?? { offsetX: 0, offsetY: 0 };
+                 return (
+                    <label key={key} className="flex flex-col gap-0.5 text-[8px] text-gray-300">
+                       <span className="flex items-center justify-between gap-2">
+                          <span>{label}</span>
+                          <input
+                             type="number"
+                             min={min}
+                             max={max}
+                             value={placement[key]}
+                             onChange={(e) => {
+                               const value = Math.max(min, Math.min(max, Number(e.target.value) || 0));
+                               setFarmSeedlingBoxPlacements(prev => ({
+                                 ...prev,
+                                 [selectedFarmSeedlingBoxKey]: { ...(prev[selectedFarmSeedlingBoxKey] ?? { offsetX: 0, offsetY: 0 }), [key]: value },
+                               }));
+                             }}
+                             className="w-16 rounded border border-yellow-700 bg-black px-1 py-0.5 text-right text-[9px] font-bold text-yellow-100"
+                          />
+                          <span>px</span>
+                       </span>
+                       <input
+                          type="range"
+                          min={min}
+                          max={max}
+                          value={placement[key]}
+                          onChange={(e) => setFarmSeedlingBoxPlacements(prev => ({
+                            ...prev,
+                            [selectedFarmSeedlingBoxKey]: { ...(prev[selectedFarmSeedlingBoxKey] ?? { offsetX: 0, offsetY: 0 }), [key]: Number(e.target.value) },
+                          }))}
+                          className="h-1 w-full cursor-pointer appearance-none rounded-lg bg-gray-700 accent-yellow-400"
+                       />
+                    </label>
+                 );
+              })}
+              <div className="text-[8px] leading-tight text-gray-500">苗状態ボックスだけを移動します。変更は自動保存されます。</div>
+           </div>
+
+           <div className="flex flex-col gap-1.5 border-t border-green-500/40 pt-1.5">
+              <div className="text-center text-[9px] font-bold text-green-200">🌾 右畑の草配置</div>
+              <select
+                 value={selectedRightFieldGrassKey}
+                 onChange={(e) => setSelectedRightFieldGrassKey(e.target.value)}
+                 className="w-full rounded border border-green-700 bg-[#1f2d15] px-1 py-1 text-[10px] font-bold text-white"
+              >
+                 {Array.from({ length: 12 }, (_, index) => `grass_${index + 1}`).map(key => (
+                    <option key={key} value={key}>草 {key.replace('grass_', '')}</option>
+                 ))}
+              </select>
+              {([
+                 ['x', 'X', 0, 1920],
+                 ['y', 'Y', 0, 1080],
+                 ['width', '幅', 20, 420],
+              ] as const).map(([key, label, min, max]) => {
+                 const placement = rightFieldGrassPlacements[selectedRightFieldGrassKey] ?? { x: 1220, y: 740, width: 120 };
+                 return (
+                    <label key={key} className="flex flex-col gap-0.5 text-[8px] text-gray-300">
+                       <span className="flex items-center justify-between gap-2">
+                          <span>{label}</span>
+                          <input
+                             type="number"
+                             min={min}
+                             max={max}
+                             value={placement[key]}
+                             onChange={(e) => {
+                               const value = Math.max(min, Math.min(max, Number(e.target.value) || 0));
+                               setRightFieldGrassPlacements(prev => ({
+                                 ...prev,
+                                 [selectedRightFieldGrassKey]: { ...(prev[selectedRightFieldGrassKey] ?? { x: 1220, y: 740, width: 120 }), [key]: value },
+                               }));
+                             }}
+                             className="w-16 rounded border border-green-700 bg-black px-1 py-0.5 text-right text-[9px] font-bold text-green-100"
+                          />
+                          <span>px</span>
+                       </span>
+                       <input
+                          type="range"
+                          min={min}
+                          max={max}
+                          value={placement[key]}
+                          onChange={(e) => setRightFieldGrassPlacements(prev => ({
+                            ...prev,
+                            [selectedRightFieldGrassKey]: { ...(prev[selectedRightFieldGrassKey] ?? { x: 1220, y: 740, width: 120 }), [key]: Number(e.target.value) },
+                          }))}
+                          className="h-1 w-full cursor-pointer appearance-none rounded-lg bg-gray-700 accent-green-400"
+                       />
+                    </label>
+                 );
+              })}
+              <button
+                 type="button"
+                 onClick={() => setRightFieldGrassPlacements(prev => ({
+                   ...prev,
+                   [selectedRightFieldGrassKey]: prev[selectedRightFieldGrassKey] ?? { x: 1220, y: 740, width: 120 },
+                 }))}
+                 className={`rounded border px-1 py-1 text-[9px] font-bold ${
+                   rightFieldGrassPlacements[selectedRightFieldGrassKey]
+                     ? 'border-green-300 bg-green-700 text-white'
+                     : 'border-green-800 bg-[#1f2d15] text-green-200 hover:bg-green-950'
+                 }`}
+              >
+                 {rightFieldGrassPlacements[selectedRightFieldGrassKey] ? '✓ 選択中の草を表示中' : '選択中の草を表示'}
+              </button>
+              <button
+                 type="button"
+                 onClick={() => setRightFieldGrassPlacements(prev => {
+                   const next = { ...prev };
+                   delete next[selectedRightFieldGrassKey];
+                   return next;
+                 })}
+                 className="rounded border border-green-800 bg-black/35 px-1 py-1 text-[9px] font-bold text-green-200 hover:bg-green-950"
+              >
+                 選択中の草を非表示
+              </button>
+              <div className="text-[8px] leading-tight text-gray-500">右畑が未開墾の間だけ表示。変更は自動保存されます。</div>
            </div>
 
            {/* Dialogue Line Break Debug */}

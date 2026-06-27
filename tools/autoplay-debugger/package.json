@@ -6,6 +6,11 @@
   "scripts": {
     "debug:startup": "node src/run.mjs startup-hard",
     "debug:day1": "node src/run.mjs day-one",
+    "debug:day3": "node src/run.mjs day-three",
+    "debug:day7": "node src/run.mjs day-seven-repayment",
+    "debug:harvest-sell": "node src/run.mjs harvest-sell",
+    "debug:save-load": "node src/run.mjs save-load",
+    "debug:fishing": "node src/run.mjs fishing",
     "check": "node --check src/run.mjs"
   },
   "dependencies": {

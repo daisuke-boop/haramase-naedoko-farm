@@ -1,0 +1,10 @@
+{
+  "id": "fishing",
+  "description": "2日目の釣りチュートリアルを通常操作で確認する",
+  "difficulty": "イージー",
+  "targetDay": 2,
+  "finishAfterStart": false,
+  "humanEstimate": true,
+  "humanEstimateMinMultiplier": 4,
+  "humanEstimateEventExtraMs": 1800
+}

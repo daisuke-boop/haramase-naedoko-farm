@@ -90,7 +90,7 @@ export const GIRL_SEED_ACQUISITION_DATA: readonly GirlSeedAcquisitionData[] = [
     seedName: 'かぶの苗娘',
     acquisitionType: 'creditUnlock',
     unlockDifficulty: 'easy',
-    requiredFarmCredit: 10,
+    requiredFarmCredit: 5,
     isRepeatable: false,
   },
   {
@@ -130,7 +130,8 @@ export const GIRL_SEED_ACQUISITION_DATA: readonly GirlSeedAcquisitionData[] = [
     seedName: 'だいこんの苗娘',
     acquisitionType: 'creditUnlock',
     unlockDifficulty: 'normal',
-    requiredFarmCredit: 25,
+    requiredFarmCredit: 15,
+    requiredSuccessfulRepayments: 3,
     isRepeatable: false,
   },
   {
