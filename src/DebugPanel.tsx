@@ -1,4 +1,5 @@
 import React from 'react';
+import { createPortal } from 'react-dom';
 import type { GameMap, TimeOfDay } from './types';
 
 type SetupMode = 'none' | 'animation' | 'collision' | 'hideArea' | 'doors' | 'footstep' | 'crops' | 'bed' | 'bathTub';
@@ -235,9 +236,9 @@ const DebugPanel = ({
     e.stopPropagation();
   };
 
-  return (
+  const panel = (
         <div 
-           className={`absolute flex flex-col bg-[#1a100d]/90 border-[3px] border-red-600 rounded-lg z-[140] text-[#fdf6e3] text-xs shadow-2xl w-[240px] select-none transition-opacity duration-200 overflow-hidden ${setupMode !== 'none' ? 'opacity-40 hover:opacity-100' : ''}`}
+           className="fixed z-[11000] flex w-[240px] select-none flex-col overflow-hidden rounded-lg border-[3px] border-red-600 bg-[#1a100d]/90 text-xs text-[#fdf6e3] shadow-2xl"
            style={{
               left: debugPanelPos.x,
               top: debugPanelPos.y,
@@ -402,26 +403,26 @@ const DebugPanel = ({
                   <button
                     type="button"
                     disabled={!selectedTrustGirl}
-                    onClick={() => selectedTrustGirl && adjustDebugGirlTrust(selectedTrustGirl.id, 10)}
+                    onClick={() => selectedTrustGirl && adjustDebugGirlTrust(selectedTrustGirl.id, 1)}
                     className="rounded border border-pink-300/60 bg-pink-900/70 py-1 font-black hover:bg-pink-800 disabled:cursor-not-allowed disabled:opacity-40"
                   >
-                    信+10
+                    信+1
                   </button>
                   <button
                     type="button"
                     disabled={!selectedTrustGirl}
-                    onClick={() => selectedTrustGirl && setDebugGirlTrust(selectedTrustGirl.id, 50)}
+                    onClick={() => selectedTrustGirl && adjustDebugGirlTrust(selectedTrustGirl.id, 5)}
                     className="rounded border border-pink-300/60 bg-black/30 py-1 font-black hover:bg-pink-900 disabled:cursor-not-allowed disabled:opacity-40"
                   >
-                    信50
+                    信+5
                   </button>
                   <button
                     type="button"
                     disabled={!selectedTrustGirl}
-                    onClick={() => selectedTrustGirl && setDebugGirlTrust(selectedTrustGirl.id, 100)}
+                    onClick={() => selectedTrustGirl && adjustDebugGirlTrust(selectedTrustGirl.id, 10)}
                     className="rounded border border-pink-200 bg-pink-800 py-1 font-black hover:bg-pink-700 disabled:cursor-not-allowed disabled:opacity-40"
                   >
-                    信100
+                    信+10
                   </button>
                 </div>
               </div>
@@ -1009,6 +1010,8 @@ const DebugPanel = ({
           )}
         </div>
   );
+
+  return createPortal(panel, document.body);
 };
 
 export default DebugPanel;
