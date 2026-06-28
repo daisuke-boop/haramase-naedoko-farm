@@ -181,6 +181,84 @@ const getMapLabel = (map: GameMap) => {
   }
 };
 
+const GAME_MAP_ORDER: GameMap[] = ['farm', 'house', 'shed', 'waterfall', 'kawa', 'doukutsu', 'takiura'];
+
+type TilePointGroup = {
+  id: string;
+  map: GameMap;
+  keys: string[];
+};
+
+const createTilePointGroups = (tiles: Record<string, boolean>, prefix: string): TilePointGroup[] => {
+  const byMap: Partial<Record<GameMap, Array<{ key: string; gx: number; gy: number }>>> = {};
+
+  Object.keys(tiles).forEach(key => {
+    if (!tiles[key]) return;
+    const [mapKey, posKey] = key.split('_');
+    if (!GAME_MAP_ORDER.includes(mapKey as GameMap) || !posKey) return;
+    const [gx, gy] = posKey.split(',').map(Number);
+    if (!Number.isInteger(gx) || !Number.isInteger(gy)) return;
+    const map = mapKey as GameMap;
+    byMap[map] = [...(byMap[map] ?? []), { key, gx, gy }];
+  });
+
+  return GAME_MAP_ORDER.flatMap(map => {
+    const mapTiles = byMap[map] ?? [];
+    const remaining = new Set(mapTiles.map(tile => tile.key));
+    const byGrid = new Map(mapTiles.map(tile => [`${tile.gx},${tile.gy}`, tile]));
+    const groups: TilePointGroup[] = [];
+
+    mapTiles.forEach(tile => {
+      if (!remaining.has(tile.key)) return;
+      const stack = [tile];
+      const component: typeof mapTiles = [];
+      remaining.delete(tile.key);
+
+      while (stack.length > 0) {
+        const current = stack.pop();
+        if (!current) continue;
+        component.push(current);
+        [
+          [current.gx + 1, current.gy],
+          [current.gx - 1, current.gy],
+          [current.gx, current.gy + 1],
+          [current.gx, current.gy - 1],
+        ].forEach(([gx, gy]) => {
+          const nextTile = byGrid.get(`${gx},${gy}`);
+          if (!nextTile || !remaining.has(nextTile.key)) return;
+          remaining.delete(nextTile.key);
+          stack.push(nextTile);
+        });
+      }
+
+      const xs = component.map(item => item.gx);
+      const ys = component.map(item => item.gy);
+      groups.push({
+        id: `${prefix}_${map}_${Math.min(...xs)},${Math.min(...ys)}_${component.length}`,
+        map,
+        keys: component.map(item => item.key),
+      });
+    });
+
+    return groups;
+  });
+};
+
+const createActiveTileKeySet = (
+  groups: TilePointGroup[],
+  targetCount: number,
+  seed: string,
+  forceInclude: (group: TilePointGroup) => boolean = () => false,
+) => {
+  const selected = groups.filter(forceInclude);
+  const selectedIds = new Set(selected.map(group => group.id));
+  const remainingSlots = Math.max(0, targetCount - selected.length);
+  shuffleBySeed(groups.filter(group => !selectedIds.has(group.id)), seed)
+    .slice(0, remainingSlots)
+    .forEach(group => selected.push(group));
+  return new Set(selected.flatMap(group => group.keys));
+};
+
 const LOGGING_POINT_COUNT_BY_TIME: Record<TimeOfDay, number> = {
   morning: 10,
   day: 10,
@@ -189,6 +267,19 @@ const LOGGING_POINT_COUNT_BY_TIME: Record<TimeOfDay, number> = {
 };
 const LOGGING_POINT_MAPS: GameMap[] = ['farm', 'waterfall', 'kawa'];
 const LOGGING_REWARD_WOOD = 3;
+const FISHING_POINT_COUNT_BY_TIME: Record<TimeOfDay, number> = {
+  morning: 10,
+  day: 6,
+  evening: 10,
+  night: 6,
+};
+const MINING_POINT_COUNT_BY_TIME: Record<TimeOfDay, number> = {
+  morning: 10,
+  day: 10,
+  evening: 10,
+  night: 10,
+};
+const KURUMI_NOTEBOOK_SECTION_COUNT = 15;
 
 const hashString = (value: string) => {
   let hash = 2166136261;
@@ -586,6 +677,7 @@ type FishingTutorialStep = 'intro' | 'rod' | 'direction' | 'power' | 'bite' | 'h
 type FishingTutorialResult = 'success' | 'fail' | null;
 type MiningTutorialStep = 'arrows' | 'timing' | 'reward';
 type SeedAfterPlantTutorialStep = 'rooted' | 'growth_days' | 'care' | 'secret_book' | 'hud_check';
+type SkillTreeTutorialStep = 'sp_gain' | 'open_menu' | 'choose_skill';
 type CraftCircle = { id: number; x: number; y: number; size: number; expiresAt: number; durationMs: number };
 type CraftRecipeId =
   | '【レシピ】のこぎり'
@@ -1547,6 +1639,8 @@ const migrateInventoryItemNames = (inventoryCounts: Record<string, number>): Rec
   });
   return changed ? next : inventoryCounts;
 };
+const FARM_GOD_RING_NAME = '農神の指輪';
+const FARM_GOD_RING_PLANT_QUALITY_BONUS = 5;
 const ITEM_MENU_NORMAL_ITEMS: Record<string, string[]> = {
   '消耗品': [...BATTLE_CONSUMABLE_ITEMS.map(item => item.name)],
   '素材': Array.from(new Set([
@@ -1556,7 +1650,7 @@ const ITEM_MENU_NORMAL_ITEMS: Record<string, string[]> = {
     '猪の硬皮', '巨獣の強剛糸', '古代の神木',
     ...BEAST_DROP_DATA.flatMap(drop => drop.drops.map(item => item.dropItemName)),
   ])),
-  '装備品': ['竹の釣竿', '丈夫な釣竿', '高級釣竿', '伝説の釣り竿', 'のこぎり', '丈夫なのこぎり', '高級のこぎり', '伝説ののこぎり', 'つるはし', '丈夫なつるはし', '高級つるはし', '伝説のつるはし', '農神の指輪', FISHING_NUSHI_RING_NAME, '木剣', '獣殺し', '天の裁き', '毛皮の服', '剛牙の鎧', '神域の加護'],
+  '装備品': ['竹の釣竿', '丈夫な釣竿', '高級釣竿', '伝説の釣り竿', 'のこぎり', '丈夫なのこぎり', '高級のこぎり', '伝説ののこぎり', 'つるはし', '丈夫なつるはし', '高級つるはし', '伝説のつるはし', FARM_GOD_RING_NAME, FISHING_NUSHI_RING_NAME, '木剣', '獣殺し', '天の裁き', '毛皮の服', '剛牙の鎧', '神域の加護'],
   '売却品': [],
   'だいじなもの': [
     '【レシピ】のこぎり',
@@ -1613,13 +1707,13 @@ const ITEM_MENU_BASE_ITEMS: Record<string, string[]> = Object.fromEntries(
   ]),
 );
 const INITIAL_INVENTORY_COUNTS: Record<string, number> = {
-  '農神の指輪': 1,
+  [FARM_GOD_RING_NAME]: 1,
 };
 const INITIAL_EQUIPPED_ITEMS: Record<string, string> = {
   '主人公-slot1': '',
   '主人公-slot2': '',
   '主人公-slot3': '',
-  '主人公-slot4': '農神の指輪',
+  '主人公-slot4': FARM_GOD_RING_NAME,
   'ちびいち-slot1': '',
   'ちびいち-slot2': '',
 };
@@ -1949,7 +2043,7 @@ const ITEM_MENU_CUSTOM_EFFECT_TEXT: Record<string, string> = {
   '巨獣の鋼角': '巨獣から得られる金属のような角。伝説級の道具を作るための主素材です。',
   '巨獣の強剛糸': '巨獣の体から取れる極太の繊維。強い衝撃にも耐える希少素材です。',
   '神獣の絹糸': '山の主が落とす神秘的な糸。伝説級の装備に祝福を通すための素材です。',
-  '農神の指輪': '農場仕事に小さな加護をくれる指輪。畑仕事の成果を底上げしてくれるお守りです。',
+  [FARM_GOD_RING_NAME]: `農神の指輪：苗娘を植えた時、初期品質 +${FARM_GOD_RING_PLANT_QUALITY_BONUS}。初期装備として植え付けを助けます。`,
   [FISHING_NUSHI_RING_NAME]: '川のヌシに認められた釣り人の指輪。大物との縁をぐっと引き寄せます。',
   '木剣': '村で扱いやすいよう削られた木の剣。獣相手の最初の護身用装備です。',
   '獣殺し': '獣の弱点を狙いやすい重めの剣。強敵との戦いで攻撃力と会心を支えます。',
@@ -2416,6 +2510,28 @@ const GIRL_EQUIPMENT_TUTORIAL_STEPS: DebugDialogueStep[] = [
   { debugKey: 'girl_equipment_tutorial_2', voiceSrc: '/voice/kurumi-soubi2.wav', message: '決定ボタンを短く押すと、その場所を調べられるよっ！\n秘密のポイントに近いほど、音がピピピッて速く連続して鳴るの。\n少し遠いと音はゆっくり、すっごく遠いと何も鳴らないよ！\n挑戦できる回数が決まってるから、音をよーく聞いて場所を絞り込んでね♪' },
   { debugKey: 'girl_equipment_tutorial_3', voiceSrc: '/voice/kurumi-soubi3.wav', message: '「ここだっ！」って思ったら、決定ボタンを長押ししてね♡\n長押しを始めた場所で線が止まって、パワーが100％になると挿入強化開始！\n秘密のポイントに近ければ成功だよっ♪\n本番は失敗すると作物がなくなっちゃうから、気をつけてねっ！\nまずは練習してみよー！' },
 ] as const;
+const SKILL_TREE_TUTORIAL_SEEN_EVENT_ID = 'skill_tree_tutorial_seen';
+const TRUST100_SP_REWARD_EVENT_PREFIX = 'trust100_sp_reward_';
+const SKILL_TREE_TUTORIAL_STEPS: (DebugDialogueStep & { id: SkillTreeTutorialStep })[] = [
+  {
+    id: 'sp_gain',
+    debugKey: 'skill_tree_tutorial_sp_gain',
+    voiceSrc: '/voice/sp1.wav',
+    message: 'わぁー！\n今のでユウくんのレベルが上がって★が増えたよ！\nそれに合わせてSPって言って、スキルポイントも手に入ったから、\nスキルツリーで新しい力を覚えられるようになったんだー♪\nユウくん、すっごーい♡',
+  },
+  {
+    id: 'open_menu',
+    debugKey: 'skill_tree_tutorial_open_menu',
+    voiceSrc: '/voice/sp2.wav',
+    message: 'スキルツリーはメニューの中から開けるよ。\n農場を伸ばしたいなら農場スキル、\n獣の襲撃に備えたいなら戦闘スキル、\n素材集めを楽にしたいなら採集スキルって感じで選んでね！',
+  },
+  {
+    id: 'choose_skill',
+    debugKey: 'skill_tree_tutorial_choose_skill',
+    voiceSrc: '/voice/sp3.wav',
+    message: '最初は「育苗術」や「品質眼」がオススメかなっ。\n苗娘を植えた時の品質や、畑の情報が見やすくなるから、\n借金返済の土台を作りやすいよ！',
+  },
+];
 const BEAST_PREMONITION_RATE_BY_DIFFICULTY: Readonly<Record<GameDifficulty, number>> = {
   easy: 0.12,
   normal: 0.18,
@@ -2834,6 +2950,7 @@ const MINIMUM_REPAYMENT_BY_DIFFICULTY: Readonly<Record<GameDifficulty, number>> 
 };
 const ADDITIONAL_REPAYMENT_OPTIONS = [50_000, 100_000, 300_000] as const;
 type HeroLevel = 1 | 2 | 3 | 4 | 5;
+type SpProgressionMode = GameDifficulty | 'endlessNursery';
 type HeroLevelRequirement = {
   level: Exclude<HeroLevel, 1>;
   successfulRepaymentCount: number;
@@ -2841,6 +2958,18 @@ type HeroLevelRequirement = {
 };
 const MAX_HERO_LEVEL: HeroLevel = 5;
 const SP_GAIN_PER_LEVEL = 2;
+const TRUST100_SP_REWARD_LIMIT_BY_MODE: Readonly<Record<SpProgressionMode, number>> = {
+  easy: 3,
+  normal: 5,
+  hard: 7,
+  endlessNursery: 15,
+};
+const HERO_LEVEL_SP_REWARD_BY_MODE: Readonly<Record<SpProgressionMode, Readonly<Record<HeroLevel, number>>>> = {
+  easy: { 1: 0, 2: 3, 3: 4, 4: 5, 5: 6 },
+  normal: { 1: 0, 2: 3, 3: 5, 4: 6, 5: 7 },
+  hard: { 1: 0, 2: 4, 3: 6, 4: 8, 5: 9 },
+  endlessNursery: { 1: 0, 2: 4, 3: 6, 4: 8, 5: 9 },
+};
 const HERO_LEVEL_REQUIREMENTS: readonly HeroLevelRequirement[] = [
   { level: 2, successfulRepaymentCount: 1, farmCredit: 20 },
   { level: 3, successfulRepaymentCount: 3, farmCredit: 45 },
@@ -3126,6 +3255,7 @@ export default function App() {
   const [trust20CompanionTutorialPending, setTrust20CompanionTutorialPending] = useState(false);
   const [hasSeenTrust20CompanionTutorial, setHasSeenTrust20CompanionTutorial] = useState(false);
   const trust20CompanionTutorialVoiceRef = useRef<HTMLAudioElement | null>(null);
+  const skillTreeTutorialVoiceRef = useRef<HTMLAudioElement | null>(null);
   const girlEquipmentTutorialVoiceRef = useRef<HTMLAudioElement | null>(null);
   const girlEquipmentPracticeCountdownTimerRef = useRef<number | null>(null);
   const girlEquipmentPowerupAudioRef = useRef<HTMLAudioElement | null>(null);
@@ -3137,6 +3267,8 @@ export default function App() {
   const [skillUnlockChoice, setSkillUnlockChoice] = useState<'yes' | 'no'>('yes');
   const [skillUnlockNotice, setSkillUnlockNotice] = useState<string | null>(null);
   const [skillUnlockSparkles, setSkillUnlockSparkles] = useState(false);
+  const [skillTreeTutorialStep, setSkillTreeTutorialStep] = useState<number | null>(null);
+  const [skillTreeTutorialPending, setSkillTreeTutorialPending] = useState(false);
   const [selectedStatusGirlIndex, setSelectedStatusGirlIndex] = useState(0);
   const selectedStatusGirlIndexRef = useRef(0);
   const [selectedFarmGirlIndex, setSelectedFarmGirlIndex] = useState(0);
@@ -3335,6 +3467,59 @@ export default function App() {
         ? previous
         : { ...previous, unlockedEventIds: [...previous.unlockedEventIds, eventId] }
     ));
+  };
+  const getSpProgressionMode = (): SpProgressionMode => (
+    gameMode === 'endlessNursery' ? 'endlessNursery' : difficulty
+  );
+  const getTrust100SpRewardLimit = () => TRUST100_SP_REWARD_LIMIT_BY_MODE[getSpProgressionMode()];
+  const getTrust100SpRewardedCount = (eventIds = collectionProgress.unlockedEventIds) => (
+    eventIds.filter(eventId => eventId.startsWith(TRUST100_SP_REWARD_EVENT_PREFIX)).length
+  );
+  const openSkillTreeTutorial = () => {
+    movementLockedRef.current = true;
+    keys.current = {};
+    clickTargetRef.current = null;
+    setClickTargetMarker(null);
+    setIsWalking(false);
+    setSkillTreeTutorialStep(0);
+  };
+  const stopSkillTreeTutorialVoice = () => {
+    if (!skillTreeTutorialVoiceRef.current) return;
+    skillTreeTutorialVoiceRef.current.pause();
+    skillTreeTutorialVoiceRef.current.currentTime = 0;
+    skillTreeTutorialVoiceRef.current = null;
+  };
+  const closeSkillTreeTutorial = () => {
+    playFixSound();
+    stopSkillTreeTutorialVoice();
+    movementLockedRef.current = false;
+    setSkillTreeTutorialStep(null);
+    setMenuOpen(true);
+    setMenuSelectedIndex(Math.max(0, MENU_ITEMS.findIndex(item => item.id === 'status')));
+    setMenuFocusArea('content');
+    setMenuContentFocus('secondary');
+    setSelectedSkillCategory('farm');
+    setSelectedSkillName('farm_seedling_care');
+  };
+  const advanceSkillTreeTutorial = () => {
+    playFixSound();
+    if (skillTreeTutorialStep === null) return;
+    if (skillTreeTutorialStep >= SKILL_TREE_TUTORIAL_STEPS.length - 1) {
+      closeSkillTreeTutorial();
+      return;
+    }
+    setSkillTreeTutorialStep(step => step === null ? 0 : step + 1);
+  };
+  const grantHeroSPReward = (amount: number) => {
+    setHeroSP(currentSP => grantHeroSP(currentSP, amount));
+    if (
+      amount > 0 &&
+      heroSP <= 0 &&
+      !collectionProgress.unlockedEventIds.includes(SKILL_TREE_TUTORIAL_SEEN_EVENT_ID)
+    ) {
+      unlockCollectionEvent(SKILL_TREE_TUTORIAL_SEEN_EVENT_ID);
+      setSkillTreeTutorialPending(true);
+    }
   };
   const openZukanVideo = (entry: (typeof ZUKAN_VIDEO_ENTRIES)[number]) => {
     playFixSound();
@@ -4038,11 +4223,6 @@ export default function App() {
                   className="mt-auto bg-[#8d6420] hover:bg-[#b87924] border-2 border-[#ffd166] rounded px-4 py-3 font-bold cursor-pointer disabled:cursor-not-allowed disabled:opacity-45"
                 >
                   このレシピで作る
-                </button>
-              )}
-              {!activeRecipe && (
-                <button disabled={!activeItem} onClick={() => { playFixSound(); setDialogMessage(`${activeItem}を確認しました。`); }} className="mt-auto bg-[#4a5823] hover:bg-[#60732d] border-2 border-[#a3b18a] rounded px-4 py-3 font-bold cursor-pointer disabled:cursor-not-allowed disabled:opacity-45">
-                  確認する
                 </button>
               )}
             </div>
@@ -5511,6 +5691,7 @@ export default function App() {
 	          title: 'くるみの仕入れメモ',
 	          imageSrc: '/img/kurumi.png',
 	          imageAlt: 'くるみの仕入れメモ',
+	          imagePosition: 'top',
 	          lead: '一度入荷を確認した苗娘の正式な条件を記録します。未入荷の苗娘は秘密のままです。',
 	          points: unlockedSeedOfferNotes.length > 0
 	            ? unlockedSeedOfferNotes.map(note => note.text)
@@ -5647,6 +5828,21 @@ export default function App() {
 	            'レシピを入手すると、必要素材をそろえてクラフトできます。',
 	            '釣竿、つるはし、のこぎり、武器、防具などの道具作成はクラフトに含まれます。',
 	            'クラフトミニゲームの結果で成功率が変わります。成功しやすい状態で挑むのが安全です。',
+	          ],
+	        },
+	        {
+	          group: 'ゲーム進行',
+		          icon: '🧭',
+		          title: '迷った時の進め方',
+		          imageSrc: '/img/hud-guide.jpg',
+		          imageAlt: '迷った時の進め方',
+		          lead: '次に何をすればいいか分からない時の確認ポイントです。',
+	          points: [
+	            'まず画面上部のNEXTを確認しましょう。今のおすすめ行動や向かう場所が表示されます。',
+	            '目的の相手や場所が分からない時は、マップを歩いて吹き出しや調べられる場所を探してみましょう。',
+	            '所持品はアイテム、苗娘や収穫は農場、収集状況は図鑑で確認できます。',
+	            '返済日が近い時は、収穫物・魚・鉱石・木材・獣素材など、売れるものをくるみの店で確認しましょう。',
+	            '新しい場所やイベント前、返済日前はシステムからセーブしておくと安心です。',
 	          ],
 	        },
 	        {
@@ -6561,6 +6757,7 @@ export default function App() {
   const [shownKurumiTradeRewardThresholds, setShownKurumiTradeRewardThresholds] = useState<number[]>([]);
   const [kurumiPantsEventStepIndex, setKurumiPantsEventStepIndex] = useState<number | null>(null);
   const [farmTrustEventNotice, setFarmTrustEventNotice] = useState<FarmTrustEventNotice | null>(null);
+  const [pendingFarmTrustEventNotice, setPendingFarmTrustEventNotice] = useState<FarmTrustEventNotice | null>(null);
   const [activeTrustEvent, setActiveTrustEvent] = useState<ActiveTrustEvent | null>(null);
   const [activeZukanImage, setActiveZukanImage] = useState<ActiveZukanImage | null>(null);
   const [activeZukanVideo, setActiveZukanVideo] = useState<(typeof ZUKAN_VIDEO_ENTRIES)[number] | null>(null);
@@ -6822,13 +7019,52 @@ export default function App() {
   }, [debugDialogueOverrides]);
 
   useEffect(() => {
-     movementLockedRef.current = sleepPromptVisible || bathPromptVisible || mermaidOfferingPromptVisible || bathSequenceActive || craftPromptVisible || fishingPromptVisible || miningPromptVisible || loggingPromptVisible || fishingMiniGameOpen || miningMiniGameOpen || miningRhythmRecording || craftMiniGameOpen || fishingTutorialOpen || fishingTutorialEndingOpen || sawCraftTutorialIntroOpen || sawCraftTutorialShedDialogueOpen || gatheringTutorialOpen || miningTutorialOpen || kurumiShopOpen || kurumiIntroOpen || kurumiTentFinalEventOpen || seedPlantTutorialOpen || seedAfterPlantTutorialOpen || momonaSeedEventOpen || isSleepSequenceActive || beastAttackPending || repaymentEventPending || storyEndingVideoOpen || activeZukanImage !== null || activeZukanVideo !== null || activeTrustEvent !== null || farmGirlRevealSpotlightId !== null || battlePreviewOpen || farmSlotInteractionStage !== null || girlEquipmentMiniGame !== null || pendingGirlEquipmentInsert !== null || girlEquipmentNoticeGirlId !== null || trust20CompanionTutorialStep !== null;
-  }, [sleepPromptVisible, bathPromptVisible, mermaidOfferingPromptVisible, bathSequenceActive, craftPromptVisible, fishingPromptVisible, miningPromptVisible, loggingPromptVisible, fishingMiniGameOpen, miningMiniGameOpen, miningRhythmRecording, craftMiniGameOpen, fishingTutorialOpen, fishingTutorialEndingOpen, sawCraftTutorialIntroOpen, sawCraftTutorialShedDialogueOpen, gatheringTutorialOpen, miningTutorialOpen, kurumiShopOpen, kurumiIntroOpen, kurumiTentFinalEventOpen, seedPlantTutorialOpen, seedAfterPlantTutorialOpen, momonaSeedEventOpen, isSleepSequenceActive, beastAttackPending, repaymentEventPending, storyEndingVideoOpen, activeZukanImage, activeZukanVideo, activeTrustEvent, farmGirlRevealSpotlightId, battlePreviewOpen, farmSlotInteractionStage, girlEquipmentMiniGame, pendingGirlEquipmentInsert, girlEquipmentNoticeGirlId, trust20CompanionTutorialStep]);
+     movementLockedRef.current = sleepPromptVisible || bathPromptVisible || mermaidOfferingPromptVisible || bathSequenceActive || craftPromptVisible || fishingPromptVisible || miningPromptVisible || loggingPromptVisible || fishingMiniGameOpen || miningMiniGameOpen || miningRhythmRecording || craftMiniGameOpen || fishingTutorialOpen || fishingTutorialEndingOpen || sawCraftTutorialIntroOpen || sawCraftTutorialShedDialogueOpen || gatheringTutorialOpen || miningTutorialOpen || kurumiShopOpen || kurumiIntroOpen || kurumiTentFinalEventOpen || seedPlantTutorialOpen || seedAfterPlantTutorialOpen || momonaSeedEventOpen || isSleepSequenceActive || beastAttackPending || repaymentEventPending || storyEndingVideoOpen || activeZukanImage !== null || activeZukanVideo !== null || activeTrustEvent !== null || farmGirlRevealSpotlightId !== null || battlePreviewOpen || farmSlotInteractionStage !== null || girlEquipmentMiniGame !== null || pendingGirlEquipmentInsert !== null || girlEquipmentNoticeGirlId !== null || trust20CompanionTutorialStep !== null || skillTreeTutorialStep !== null || farmCareCinematicAction !== null || pendingFarmCareConfirm !== null || farmCareUnlockNoticeAction !== null || farmHarvestResultNotice !== null || farmTrustEventNotice !== null || prologueOpen;
+  }, [sleepPromptVisible, bathPromptVisible, mermaidOfferingPromptVisible, bathSequenceActive, craftPromptVisible, fishingPromptVisible, miningPromptVisible, loggingPromptVisible, fishingMiniGameOpen, miningMiniGameOpen, miningRhythmRecording, craftMiniGameOpen, fishingTutorialOpen, fishingTutorialEndingOpen, sawCraftTutorialIntroOpen, sawCraftTutorialShedDialogueOpen, gatheringTutorialOpen, miningTutorialOpen, kurumiShopOpen, kurumiIntroOpen, kurumiTentFinalEventOpen, seedPlantTutorialOpen, seedAfterPlantTutorialOpen, momonaSeedEventOpen, isSleepSequenceActive, beastAttackPending, repaymentEventPending, storyEndingVideoOpen, activeZukanImage, activeZukanVideo, activeTrustEvent, farmGirlRevealSpotlightId, battlePreviewOpen, farmSlotInteractionStage, girlEquipmentMiniGame, pendingGirlEquipmentInsert, girlEquipmentNoticeGirlId, trust20CompanionTutorialStep, skillTreeTutorialStep, farmCareCinematicAction, pendingFarmCareConfirm, farmCareUnlockNoticeAction, farmHarvestResultNotice, farmTrustEventNotice, prologueOpen]);
 
   useEffect(() => {
-     if (!farmGirlRevealSpotlightId) return;
-     movementLockedRef.current = true;
-     keys.current = {};
+    if (!skillTreeTutorialPending || skillTreeTutorialStep !== null) return;
+    if (
+      showDialog ||
+      farmHarvestResultNotice ||
+      farmTrustEventNotice ||
+      farmCareUnlockNoticeAction ||
+      farmCareCinematicAction ||
+      farmGirlRevealSpotlightId ||
+      trust20CompanionTutorialStep !== null ||
+      pendingFarmCareConfirm ||
+      pendingGirlEquipmentInsert ||
+      girlEquipmentNoticeGirlId ||
+      girlEquipmentMiniGame ||
+      battlePreviewOpen ||
+      farmSlotInteractionStage !== null
+    ) {
+      return;
+    }
+    setSkillTreeTutorialPending(false);
+    openSkillTreeTutorial();
+  }, [
+    battlePreviewOpen,
+    farmCareCinematicAction,
+    farmCareUnlockNoticeAction,
+    farmGirlRevealSpotlightId,
+    farmHarvestResultNotice,
+    farmSlotInteractionStage,
+    farmTrustEventNotice,
+    girlEquipmentMiniGame,
+    girlEquipmentNoticeGirlId,
+    pendingFarmCareConfirm,
+    pendingGirlEquipmentInsert,
+    showDialog,
+    skillTreeTutorialPending,
+    skillTreeTutorialStep,
+    trust20CompanionTutorialStep,
+  ]);
+
+  useEffect(() => {
+    if (!farmGirlRevealSpotlightId) return;
+    movementLockedRef.current = true;
+    keys.current = {};
      clickTargetRef.current = null;
      setClickTargetMarker(null);
      setIsWalking(false);
@@ -7695,6 +7931,12 @@ export default function App() {
 	          setSeedAfterPlantTutorialCompleted(loadedSeedAfterPlantTutorialCompleted);
 	          setHasSeenTrust20CompanionTutorial(data.hasSeenTrust20CompanionTutorial === true);
 	          setTrust20CompanionTutorialPending(false);
+	          stopSkillTreeTutorialVoice();
+	          setSkillTreeTutorialStep(null);
+	          setSkillTreeTutorialPending(false);
+	          setFarmHarvestResultNotice(null);
+	          setFarmTrustEventNotice(null);
+	          setPendingFarmTrustEventNotice(null);
 	          setHasKurumiNotebook(
 	            typeof data.hasKurumiNotebook === 'boolean'
 	              ? data.hasKurumiNotebook
@@ -8007,6 +8249,12 @@ export default function App() {
           setSeedAfterPlantTutorialCompleted(false);
           setHasSeenTrust20CompanionTutorial(false);
           setTrust20CompanionTutorialPending(false);
+          stopSkillTreeTutorialVoice();
+          setSkillTreeTutorialStep(null);
+          setSkillTreeTutorialPending(false);
+          setFarmHarvestResultNotice(null);
+          setFarmTrustEventNotice(null);
+          setPendingFarmTrustEventNotice(null);
           setHasKurumiNotebook(false);
           setKurumiPantsReturned(false);
           setKurumiTentFinalAvailableDay(null);
@@ -9852,6 +10100,42 @@ export default function App() {
     trust20CompanionTutorialPending,
     trust20CompanionTutorialStep,
   ]);
+  useEffect(() => {
+    if (skillTreeTutorialStep === null) {
+      stopSkillTreeTutorialVoice();
+      return;
+    }
+    stopSkillTreeTutorialVoice();
+    const step = SKILL_TREE_TUTORIAL_STEPS[skillTreeTutorialStep];
+    if (step?.voiceSrc) {
+      skillTreeTutorialVoiceRef.current = playVoiceSound(step.voiceSrc);
+    }
+    return () => stopSkillTreeTutorialVoice();
+  }, [skillTreeTutorialStep]);
+  useEffect(() => {
+    if (!pendingFarmTrustEventNotice || farmTrustEventNotice) return;
+    if (
+      farmHarvestResultNotice ||
+      farmGirlRevealSpotlightId ||
+      farmCareUnlockNoticeAction ||
+      pendingFarmCareConfirm ||
+      skillTreeTutorialStep !== null ||
+      trust20CompanionTutorialStep !== null
+    ) {
+      return;
+    }
+    setFarmTrustEventNotice(pendingFarmTrustEventNotice);
+    setPendingFarmTrustEventNotice(null);
+  }, [
+    farmCareUnlockNoticeAction,
+    farmGirlRevealSpotlightId,
+    farmHarvestResultNotice,
+    farmTrustEventNotice,
+    pendingFarmCareConfirm,
+    pendingFarmTrustEventNotice,
+    skillTreeTutorialStep,
+    trust20CompanionTutorialStep,
+  ]);
   const addOwnedGirlSeed = (seedId: string) => {
     setOwnedGirlSeeds(prev => prev.includes(seedId) ? prev : [...prev, seedId]);
   };
@@ -9984,6 +10268,20 @@ export default function App() {
     const newlyUnlockedTrustEvents = girl?.trustEvents.filter(event => (
       nextTrust >= event.trust && !(farmGirl?.unlockedTrustEventIds ?? []).includes(event.eventId)
     )) ?? [];
+    const trust100RewardEventId = `${TRUST100_SP_REWARD_EVENT_PREFIX}${girlId}`;
+    const canGrantTrust100SpReward = trustBeforeHarvest < 100 &&
+      nextTrust >= 100 &&
+      !collectionProgress.unlockedEventIds.includes(trust100RewardEventId) &&
+      getTrust100SpRewardedCount() < getTrust100SpRewardLimit();
+    if (canGrantTrust100SpReward) {
+      grantHeroSPReward(1);
+      setCollectionProgress(previous => ({
+        ...previous,
+        unlockedEventIds: previous.unlockedEventIds.includes(trust100RewardEventId)
+          ? previous.unlockedEventIds
+          : [...previous.unlockedEventIds, trust100RewardEventId],
+      }));
+    }
     const isFirstHarvestReveal = !farmGirl?.cardRevealed;
     const newlyUnlockedCareAction: FarmCareAction | null = farmCareUnlockStage === 1
       ? 'finger'
@@ -10052,6 +10350,9 @@ export default function App() {
         qualityLabel: getFarmQualityLabel(effectiveQuality),
         estimatedSellPrice,
       });
+      if (canGrantTrust100SpReward) {
+        setDialogMessage(`${girl?.girlName ?? crop.seedName}の信頼度が100になった！\n信頼度100ボーナス：SP +1`);
+      }
       if (companionGirlId) {
         setPendingCompanionSpeechMoment('harvest');
       }
@@ -10072,12 +10373,17 @@ export default function App() {
         ])),
       }));
       const noticeEvent = newlyUnlockedTrustEvents[0];
-      setFarmTrustEventNotice({
+      const nextTrustEventNotice = {
         eventId: noticeEvent.eventId,
         girlName: girl?.girlName ?? crop.seedName,
         trust: noticeEvent.trust,
         label: noticeEvent.label,
-      });
+      };
+      if (isFirstHarvestReveal) {
+        setFarmTrustEventNotice(nextTrustEventNotice);
+      } else {
+        setPendingFarmTrustEventNotice(nextTrustEventNotice);
+      }
     }
     if (newlyUnlockedCareAction) {
       setFarmCareUnlockStage(previous => normalizeFarmCareUnlockStage(previous + 1, 3));
@@ -10195,8 +10501,14 @@ export default function App() {
       return;
     }
 
+    const farmGodRingQualityBonus = Object.keys(equippedItems).some(
+      slotId => toBaseItemName(equippedItems[slotId] ?? '') === FARM_GOD_RING_NAME,
+    ) ? FARM_GOD_RING_PLANT_QUALITY_BONUS : 0;
     const initialQuality = clampNumber(
-      30 + Math.floor(Math.random() * 11) + (hasHeroSkill('farm_seedling_care') ? 5 : 0),
+      30 +
+        Math.floor(Math.random() * 11) +
+        (hasHeroSkill('farm_seedling_care') ? 5 : 0) +
+        farmGodRingQualityBonus,
       0,
       100,
     );
@@ -10228,7 +10540,7 @@ export default function App() {
         : slot
     )));
     setPlantingSeedId(null);
-    setDialogMessage(`${seedData.seedName}を${getFarmFieldLabel(fieldId)} ${slotIndex}に植えました。`);
+    setDialogMessage(`${seedData.seedName}を${getFarmFieldLabel(fieldId)} ${slotIndex}に植えました。${farmGodRingQualityBonus > 0 ? `\n農神の指輪の加護：初期品質 +${farmGodRingQualityBonus}` : ''}`);
   };
   const getFarmSlotByKey = (slotKey: string | null) => {
     if (!slotKey) return null;
@@ -10398,10 +10710,12 @@ export default function App() {
     if (bootMode !== 'playing') return;
     if (!canLevelUpHero(heroLevel, successfulRepaymentCount, farmCredit)) return;
 
-    setHeroLevel(level => Math.min(MAX_HERO_LEVEL, level + 1) as HeroLevel);
-    setHeroSP(currentSP => grantHeroSP(currentSP));
-    setDialogMessage('主人公の経験が増した！\n★が1つ輝いた！');
-  }, [bootMode, farmCredit, heroLevel, successfulRepaymentCount]);
+    const nextHeroLevel = Math.min(MAX_HERO_LEVEL, heroLevel + 1) as HeroLevel;
+    const spReward = HERO_LEVEL_SP_REWARD_BY_MODE[getSpProgressionMode()][nextHeroLevel] ?? SP_GAIN_PER_LEVEL;
+    setHeroLevel(nextHeroLevel);
+    grantHeroSPReward(spReward);
+    setDialogMessage(`主人公の経験が増した！\n★が1つ輝いた！\nSP +${spReward}`);
+  }, [bootMode, collectionProgress.unlockedEventIds, difficulty, farmCredit, gameMode, heroLevel, successfulRepaymentCount]);
   const advanceToNextDay = (skipRepaymentEvent = false) => {
     if (
       !skipRepaymentEvent &&
@@ -11052,6 +11366,21 @@ export default function App() {
 	    setDialogMessage('デバッグ娘をOFFにしました。娘・畑・同行状態を初期化しました。');
 	  };
   const isKurumiShopUnlocked = kurumiIntroCompletedDay !== null && currentDay > kurumiIntroCompletedDay;
+  const activeFishingTileKeys = useMemo(() => (
+    createActiveTileKeySet(
+      createTilePointGroups(fishingTiles, 'fish'),
+      FISHING_POINT_COUNT_BY_TIME[timeOfDay],
+      `${turn}_${timeOfDay}_fishing`,
+      group => group.map === 'takiura',
+    )
+  ), [fishingTiles, timeOfDay, turn]);
+  const activeMiningTileKeys = useMemo(() => (
+    createActiveTileKeySet(
+      createTilePointGroups(miningTiles, 'mine'),
+      MINING_POINT_COUNT_BY_TIME[timeOfDay],
+      `${turn}_${timeOfDay}_mining`,
+    )
+  ), [miningTiles, timeOfDay, turn]);
   const getIsNearFishingPoint = () => {
     const { x, y } = posRef.current;
     const minGridX = Math.floor((x - 15) / TILE_SIZE);
@@ -11060,7 +11389,7 @@ export default function App() {
     const maxGridY = Math.floor(y / TILE_SIZE);
     for (let gx = minGridX; gx <= maxGridX; gx += 1) {
       for (let gy = minGridY; gy <= maxGridY; gy += 1) {
-        if (fishingTiles[`${currentMap}_${gx},${gy}`]) return true;
+        if (activeFishingTileKeys.has(`${currentMap}_${gx},${gy}`)) return true;
       }
     }
     return false;
@@ -11089,7 +11418,7 @@ export default function App() {
     for (let gx = minGridX; gx <= maxGridX; gx += 1) {
       for (let gy = minGridY; gy <= maxGridY; gy += 1) {
         const pointId = `${currentMap}_${gx},${gy}`;
-        if (miningTiles[pointId]) return pointId;
+        if (activeMiningTileKeys.has(pointId)) return pointId;
       }
     }
     return null;
@@ -11778,6 +12107,53 @@ export default function App() {
     );
   };
 
+  const renderSkillTreeTutorialVisual = (stepIndex: number) => {
+    const step = SKILL_TREE_TUTORIAL_STEPS[stepIndex] ?? SKILL_TREE_TUTORIAL_STEPS[0];
+    const highlight = step.id;
+    return (
+      <div className="absolute inset-6 overflow-hidden rounded-xl border-2 border-[#ffd166]/70 bg-[linear-gradient(180deg,rgba(35,24,18,0.98),rgba(8,11,20,0.98))] p-5 shadow-[inset_0_0_28px_rgba(0,0,0,0.65)]">
+        <div className="flex items-center justify-between">
+          <div className="text-sm font-black tracking-[0.22em] text-[#ffd166]">SKILL TREE</div>
+          <div className={`rounded border px-3 py-1 text-sm font-black ${highlight === 'sp_gain' ? 'border-white bg-[#9a5a1d] text-white ring-4 ring-[#ffd166]/45' : 'border-[#ffd166]/60 bg-black/45 text-[#ffd166]'}`}>SP：{heroSP}</div>
+        </div>
+        <div className="mt-4 grid grid-cols-3 gap-2">
+          {(['農場', '戦闘', '採集'] as const).map(label => (
+            <div key={label} className={`rounded border px-3 py-2 text-center text-sm font-black ${label === '農場' ? 'border-white bg-[#4a5823] text-white ring-4 ring-[#86efac]/35' : 'border-[#5a3010] bg-[#2d1b15] text-[#c8a87a]'}`}>
+              {label}
+            </div>
+          ))}
+        </div>
+        <div className="relative mt-5 h-[315px] rounded-xl border border-[#76502c] bg-black/35 p-4">
+          <svg className="absolute inset-0 h-full w-full">
+            <line x1="80" y1="150" x2="190" y2="90" stroke="#76502c" strokeWidth="4" />
+            <line x1="80" y1="150" x2="190" y2="210" stroke="#76502c" strokeWidth="4" />
+            <line x1="190" y1="90" x2="310" y2="90" stroke="#76502c" strokeWidth="4" />
+            <line x1="190" y1="210" x2="310" y2="210" stroke="#76502c" strokeWidth="4" />
+          </svg>
+          {[
+            { name: '育苗術', sp: 1, x: 42, y: 50, active: highlight === 'choose_skill' },
+            { name: '品質眼', sp: 1, x: 36, y: 24, active: highlight === 'choose_skill' },
+            { name: '収穫術', sp: 2, x: 36, y: 76, active: false },
+            { name: '愛撫術', sp: 2, x: 66, y: 24, active: false },
+            { name: '商才', sp: 3, x: 66, y: 76, active: false },
+          ].map(node => (
+            <div
+              key={node.name}
+              className={`absolute flex h-[74px] w-[98px] -translate-x-1/2 -translate-y-1/2 flex-col items-center justify-center rounded-xl border-2 text-center font-black shadow-lg ${node.active ? 'border-white bg-[#4a5823] text-white ring-4 ring-[#ffd166]/65' : 'border-[#ffd166]/55 bg-[#2d1b15] text-[#fff7dc]'}`}
+              style={{ left: `${node.x}%`, top: `${node.y}%` }}
+            >
+              <div className="text-base leading-tight">{node.name}</div>
+              <div className="mt-1 rounded border border-[#ffd166]/70 bg-black/45 px-2 py-0.5 text-xs text-[#ffd166]">SP {node.sp}</div>
+            </div>
+          ))}
+        </div>
+        <div className={`mt-4 rounded-xl border px-4 py-3 text-center text-base font-black leading-snug ${highlight === 'open_menu' ? 'border-white bg-[#14532d] text-white ring-4 ring-[#86efac]/35' : 'border-[#ffd166]/55 bg-black/45 text-[#ffe8a3]'}`}>
+          メニュー → スキル → SPを使って取得
+        </div>
+      </div>
+    );
+  };
+
   const renderTrust20CompanionTutorialVisual = (stepIndex: number) => {
     const mode = stepIndex <= 1 ? 'companion' : 'equipment';
     return (
@@ -11987,6 +12363,7 @@ export default function App() {
            fishingTutorialVoiceRef.current.pause();
            fishingTutorialVoiceRef.current = null;
         }
+        stopSkillTreeTutorialVoice();
         if (seedPlantTutorialVoiceRef.current) {
            seedPlantTutorialVoiceRef.current.pause();
            seedPlantTutorialVoiceRef.current = null;
@@ -15640,6 +16017,14 @@ export default function App() {
         return;
       }
 
+      if (skillTreeTutorialStep !== null) {
+        if (e.key === 'Enter' || e.key === ' ' || e.key === 'Escape') {
+          e.preventDefault();
+          advanceSkillTreeTutorial();
+        }
+        return;
+      }
+
       if (showDialog) {
         if (e.key === 'Enter' || e.key === ' ' || e.key === 'Escape') {
           e.preventDefault();
@@ -16679,7 +17064,7 @@ export default function App() {
 
 	          if (currentMenuItem.id === 'kurumiNotebook') {
 	            const currentIndex = selectedKurumiNotebookIndexRef.current;
-	            const notebookLength = 14;
+	            const notebookLength = KURUMI_NOTEBOOK_SECTION_COUNT;
 	            if (e.key === 'ArrowLeft') {
 	              if (menuContentFocusRef.current === 'secondary') {
 	                setMenuContentFocus('primary');
@@ -16735,9 +17120,9 @@ export default function App() {
                   ? Math.max(1, getUnlockedZukanVideoEntries().length)
                   : getZukanGirlAndKurumiCards().length;
 	            setSelectedZukanIndex(prev => (prev + moveBy + zukanLength) % zukanLength);
-	          } else if (currentMenuItem.id === 'kurumiNotebook') {
-	            const notebookLength = 14;
-	            setSelectedKurumiNotebookIndex(prev => (prev + moveBy + notebookLength) % notebookLength);
+		          } else if (currentMenuItem.id === 'kurumiNotebook') {
+		            const notebookLength = KURUMI_NOTEBOOK_SECTION_COUNT;
+		            setSelectedKurumiNotebookIndex(prev => (prev + moveBy + notebookLength) % notebookLength);
 	          } else if (currentMenuItem.id === 'system') {
             const actions = ['セーブ', 'ロード', 'タイトルへ戻る'];
             const currentIndex = actions.findIndex(action => systemNoticeRef.current.includes(action));
@@ -17173,7 +17558,7 @@ export default function App() {
 
       for (let gx = minGridX; gx <= maxGridX; gx++) {
         for (let gy = minGridY; gy <= maxGridY; gy++) {
-          if (fishingTiles[`${currentMapRef.current}_${gx},${gy}`]) return true;
+          if (activeFishingTileKeys.has(`${currentMapRef.current}_${gx},${gy}`)) return true;
         }
       }
       return false;
@@ -17202,7 +17587,7 @@ export default function App() {
       for (let gx = minGridX; gx <= maxGridX; gx++) {
         for (let gy = minGridY; gy <= maxGridY; gy++) {
           const pointId = `${currentMapRef.current}_${gx},${gy}`;
-          if (miningTiles[pointId]) return pointId;
+          if (activeMiningTileKeys.has(pointId)) return pointId;
         }
       }
       return null;
@@ -17301,6 +17686,12 @@ export default function App() {
       }
 
       if (movementLockedRef.current) {
+        setIsWalking(false);
+        animationFrameId = requestAnimationFrame(gameLoop);
+        return;
+      }
+
+      if (skillTreeTutorialStep !== null) {
         setIsWalking(false);
         animationFrameId = requestAnimationFrame(gameLoop);
         return;
@@ -17571,7 +17962,7 @@ export default function App() {
       window.removeEventListener('keydown', handleKeyDown); window.removeEventListener('keyup', handleKeyUp);
       cancelAnimationFrame(animationFrameId);
     };
-  }, [setupMode, bedTiles, workbenchTiles, fishingTiles, miningTiles, depletedMiningPointIds, activeMiningPointId, loggingTiles, activeLoggingPoints, activeLoggingPointId, sleepPromptVisible, bathPromptVisible, mermaidOfferingPromptVisible, bathSequenceActive, craftPromptVisible, fishingPromptVisible, miningPromptVisible, loggingPromptVisible, confirmPromptChoice, pendingDeleteSaveSlot, pendingOverwriteSaveSlot, activeAutoEventSpot, activeAutoEventMessage, activeAutoEventMessageIndex, activeAutoEventMessages, displayedAutoEventMessage, turn, currentAP, kurumiShopOpen, kurumiIntroOpen, kurumiIntroSelectedIndex, kurumiIntroAskedTopics, kurumiIntroCompletedDay, seedPlantTutorialOpen, seedPlantTutorialStepIndex, seedAfterPlantTutorialOpen, seedAfterPlantTutorialStepIndex, selectedShopControl, selectedShopItemIndex, shopItems, gold, equipmentActionOpen, equippedItems, inventoryCounts, caughtFishIds, fishingMiniGameOpen, fishingMiniGameStage, miningMiniGameOpen, isFishingResultInputLocked, mermaidLetterNotice, fishingTutorialOpen, fishingTutorialEndingOpen, fishingTutorialEndingStepIndex, sawCraftTutorialIntroOpen, sawCraftTutorialIntroStepIndex, sawCraftTutorialReady, sawCraftTutorialShedDialogueOpen, sawCraftTutorialWorkbenchReady, gatheringTutorialCompleted, gatheringTutorialChoice, miningTutorialCompleted, selectedFishingTutorialAction, selectedFishingResultAction, recipeDetailOpen, farmGirlDetailOpen, showDialog, pendingFarmCareConfirm, farmCareConfirmChoice, farmCareUnlockNoticeAction, farmHarvestResultNotice, farmGirlRevealSpotlightId, bootMode, timeOfDay, isOpeningWalkObjectiveActive, currentDay, nextObjective, battlePreviewOpen, battlePreviewState, battleIntroPhase, battleItemPanelOpen, battleItemSelectionStep, selectedBattleCommandIndex, selectedBattleItemIndex, selectedBattleItemTargetIndex]);
+  }, [setupMode, bedTiles, workbenchTiles, fishingTiles, activeFishingTileKeys, miningTiles, activeMiningTileKeys, depletedMiningPointIds, activeMiningPointId, loggingTiles, activeLoggingPoints, activeLoggingPointId, sleepPromptVisible, bathPromptVisible, mermaidOfferingPromptVisible, bathSequenceActive, craftPromptVisible, fishingPromptVisible, miningPromptVisible, loggingPromptVisible, confirmPromptChoice, pendingDeleteSaveSlot, pendingOverwriteSaveSlot, activeAutoEventSpot, activeAutoEventMessage, activeAutoEventMessageIndex, activeAutoEventMessages, displayedAutoEventMessage, turn, currentAP, kurumiShopOpen, kurumiIntroOpen, kurumiIntroSelectedIndex, kurumiIntroAskedTopics, kurumiIntroCompletedDay, seedPlantTutorialOpen, seedPlantTutorialStepIndex, seedAfterPlantTutorialOpen, seedAfterPlantTutorialStepIndex, selectedShopControl, selectedShopItemIndex, shopItems, gold, equipmentActionOpen, equippedItems, inventoryCounts, caughtFishIds, fishingMiniGameOpen, fishingMiniGameStage, miningMiniGameOpen, isFishingResultInputLocked, mermaidLetterNotice, fishingTutorialOpen, fishingTutorialEndingOpen, fishingTutorialEndingStepIndex, sawCraftTutorialIntroOpen, sawCraftTutorialIntroStepIndex, sawCraftTutorialReady, sawCraftTutorialShedDialogueOpen, sawCraftTutorialWorkbenchReady, gatheringTutorialCompleted, gatheringTutorialChoice, miningTutorialCompleted, selectedFishingTutorialAction, selectedFishingResultAction, recipeDetailOpen, farmGirlDetailOpen, showDialog, pendingFarmCareConfirm, farmCareConfirmChoice, farmCareUnlockNoticeAction, farmHarvestResultNotice, farmGirlRevealSpotlightId, skillTreeTutorialStep, bootMode, timeOfDay, isOpeningWalkObjectiveActive, currentDay, nextObjective, battlePreviewOpen, battlePreviewState, battleIntroPhase, battleItemPanelOpen, battleItemSelectionStep, selectedBattleCommandIndex, selectedBattleItemIndex, selectedBattleItemTargetIndex]);
 
   // Zone creation states
   const [dragStart, setDragStart] = useState<{ x: number, y: number } | null>(null);
@@ -19780,8 +20171,8 @@ export default function App() {
                  return groups;
               };
               const tileMarkerEntries = [
-                 ...createTileMarkerGroups(fishingTiles, 'fish', '釣り', '🎣', '#67e8f9'),
-                 ...createTileMarkerGroups(miningTiles, 'mine', '採掘', '⛏', '#d6d3d1', key => !depletedMiningPointIds[`${timeOfDay}_${key}`]),
+                 ...createTileMarkerGroups(fishingTiles, 'fish', '釣り', '🎣', '#67e8f9', key => activeFishingTileKeys.has(key)),
+                 ...createTileMarkerGroups(miningTiles, 'mine', '採掘', '⛏', '#d6d3d1', key => activeMiningTileKeys.has(key) && !depletedMiningPointIds[`${timeOfDay}_${key}`]),
               ];
               const loggingMarkerEntries = activeLoggingPoints
                  .filter(point => point.map === currentMap)
@@ -23742,12 +24133,45 @@ export default function App() {
             </div>
           );
         })(), document.body)}
+        {skillTreeTutorialStep !== null && createPortal((() => {
+          const currentSkillTreeTutorialStep = SKILL_TREE_TUTORIAL_STEPS[skillTreeTutorialStep] ?? SKILL_TREE_TUTORIAL_STEPS[0];
+          const skillTreeTutorialMessage = getDebugDialogueMessage(currentSkillTreeTutorialStep.debugKey, currentSkillTreeTutorialStep.message);
+          const isLastSkillTreeTutorialStep = skillTreeTutorialStep >= SKILL_TREE_TUTORIAL_STEPS.length - 1;
+          return (
+            <div className="fixed inset-0 z-[10060] flex items-center justify-center bg-black/82 px-8 py-6 pointer-events-auto">
+              <div className="grid h-[690px] w-[1120px] max-h-[92vh] max-w-[calc(100vw-64px)] grid-cols-[minmax(0,1fr)_460px] overflow-hidden rounded-2xl border-4 border-[#ffd166] bg-[#1a100d]/98 text-[#fdf6e3] shadow-2xl">
+                <div className="flex min-h-0 flex-col gap-4 p-8">
+                  <div>
+                    <div className="text-sm font-black tracking-[0.22em] text-[#ffd166]">SKILL TREE TUTORIAL</div>
+                    <div className="mt-2 text-3xl font-black">SPとスキルツリー</div>
+                  </div>
+                  <div className="min-h-[300px] flex-1 whitespace-pre-line overflow-y-auto rounded-xl border-2 border-[#bc6c25]/70 bg-[#2d1b15]/88 p-6 text-[23px] font-black leading-[1.62]">
+                    くるみ{`\n`}「{skillTreeTutorialMessage}」
+                  </div>
+                  <div className="flex shrink-0 items-center justify-between gap-4">
+                    <span className="font-bold text-[#c8a87a]">{skillTreeTutorialStep + 1} / {SKILL_TREE_TUTORIAL_STEPS.length}</span>
+                    <button
+                      type="button"
+                      onClick={advanceSkillTreeTutorial}
+                      className="min-w-[170px] rounded-xl border-2 border-white bg-[#4a5823] px-9 py-4 text-lg font-black hover:bg-[#60732d]"
+                    >
+                      {isLastSkillTreeTutorialStep ? 'スキルを見る' : '次へ'}
+                    </button>
+                  </div>
+                </div>
+                <div className="relative border-l border-[#bc6c25]/60 bg-gradient-to-b from-[#3b2418] to-[#160d0a]">
+                  {renderSkillTreeTutorialVisual(skillTreeTutorialStep)}
+                </div>
+              </div>
+            </div>
+          );
+        })(), document.body)}
         {trust20CompanionTutorialStep !== null && createPortal((() => {
           const currentTrust20CompanionTutorialStep = TRUST20_COMPANION_TUTORIAL_STEPS[trust20CompanionTutorialStep] ?? TRUST20_COMPANION_TUTORIAL_STEPS[0];
           const trust20CompanionTutorialMessage = getDebugDialogueMessage(currentTrust20CompanionTutorialStep.debugKey, currentTrust20CompanionTutorialStep.message);
           const isLastTrust20TutorialStep = trust20CompanionTutorialStep >= TRUST20_COMPANION_TUTORIAL_STEPS.length - 1;
           return (
-            <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/82 px-8 py-6 pointer-events-none">
+            <div className="fixed inset-0 z-[10050] flex items-center justify-center bg-black/82 px-8 py-6 pointer-events-none">
               <div className="pointer-events-auto grid h-[690px] w-[1120px] max-h-[92vh] max-w-[calc(100vw-64px)] grid-cols-[minmax(0,1fr)_460px] overflow-hidden rounded-2xl border-4 border-[#ffd166] bg-[#1a100d]/98 text-[#fdf6e3] shadow-2xl">
                 <div className="flex min-h-0 flex-col gap-4 p-8">
                   <div>

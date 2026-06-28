@@ -1,6 +1,6 @@
 {
   "saveSchemaVersion": 2,
-  "turn": 0,
+  "turn": 4,
   "gold": 5000,
   "gameMode": "story",
   "hasUnlockedEndlessNurseryMode": false,
@@ -8,7 +8,9 @@
     "collectedGirlIds": [],
     "caughtFishIds": [],
     "craftedItemIds": [],
-    "unlockedEventIds": [],
+    "unlockedEventIds": [
+      "video_care_caress"
+    ],
     "viewedEventIds": [],
     "defeatedBeastIds": []
   },
@@ -54,10 +56,10 @@
       "state": "growing",
       "cardRevealed": false,
       "plantedDay": 1,
-      "growthProgress": 0,
-      "quality": 38,
-      "careDay": null,
-      "caressCount": 0,
+      "growthProgress": 1,
+      "quality": 41,
+      "careDay": 2,
+      "caressCount": 1,
       "fingerCount": 0,
       "fertilizeCount": 0,
       "lastHarvestDay": null,
@@ -73,10 +75,10 @@
       "state": "growing",
       "cardRevealed": false,
       "plantedDay": 1,
-      "growthProgress": 0,
-      "quality": 34,
-      "careDay": null,
-      "caressCount": 0,
+      "growthProgress": 1,
+      "quality": 39,
+      "careDay": 2,
+      "caressCount": 1,
       "fingerCount": 0,
       "fertilizeCount": 0,
       "lastHarvestDay": null,
@@ -92,14 +94,14 @@
       "state": "growing",
       "cardRevealed": false,
       "plantedDay": 1,
-      "growthProgress": 0,
-      "quality": 40,
-      "careDay": null,
-      "caressCount": 0,
+      "growthProgress": 1,
+      "quality": 46,
+      "careDay": 2,
+      "caressCount": 1,
       "fingerCount": 0,
       "fertilizeCount": 0,
       "lastHarvestDay": null,
-      "trust": 0,
+      "trust": 18,
       "unlockedTrustEventIds": [],
       "condition": "normal",
       "conditionDay": null,
@@ -396,10 +398,10 @@
       "plantedDay": 1
     }
   ],
-  "currentAP": 5,
+  "currentAP": 2,
   "maxAPPerTimeSlot": 5,
   "difficulty": "hard",
-  "currentMap": "farm",
+  "currentMap": "house",
   "zones": [
     {
       "id": "1781485855659",
@@ -45344,7 +45346,8 @@
     "女神の蜜薬（デバッグ用）": 1,
     "めざめの鈴（デバッグ用）": 1,
     "生命の種火（デバッグ用）": 1,
-    "天命の雫（デバッグ用）": 1
+    "天命の雫（デバッグ用）": 1,
+    "竹の釣竿": 0
   },
   "equippedItems": {
     "主人公-slot1": "",
