@@ -157,6 +157,13 @@ const CURRENT_SAVE_SCHEMA_VERSION = 2;
 const MIN_DIRECT_LOAD_SAVE_SCHEMA_VERSION = 2;
 const DEBUG_SAVE_SLOT = 5;
 const ENABLE_DEBUG_TOOLS = import.meta.env.VITE_ENABLE_DEBUG_TOOLS !== 'false';
+const MAP_ZOOM_STORAGE_KEY = 'farm_map_zoom';
+type MapZoom = 1 | 1.5 | 2;
+const MAP_ZOOM_OPTIONS: Array<{ value: MapZoom; label: string }> = [
+  { value: 1, label: '全体' },
+  { value: 1.5, label: '1.5倍' },
+  { value: 2, label: '2倍' },
+];
 
 const getMapBackgroundUrl = (map: GameMap, timeOfDay: TimeOfDay) => {
   const background = mapBackgrounds[map];
@@ -6317,6 +6324,22 @@ export default function App() {
             <div className="mt-2 text-[11px] text-[#c8a87a]">表示速度: {textDisplaySpeedLevel >= 5 ? '一瞬' : `${textDisplaySpeedLevel}/5`}</div>
           </div>
         </div>
+        <div style={menuPanelBaseStyle} className="col-span-3 flex items-center justify-between gap-4">
+          <div style={menuTinyLabelStyle}>マップ表示</div>
+          <div className="grid w-[420px] grid-cols-3 gap-2" role="group" aria-label="マップ表示倍率">
+            {MAP_ZOOM_OPTIONS.map(option => (
+              <button
+                key={option.value}
+                type="button"
+                onClick={() => setMapZoom(option.value)}
+                className={`h-10 rounded border-2 text-sm font-black ${mapZoom === option.value ? 'border-[#ffd166] bg-[#6b3b18] text-[#fff7dc]' : 'border-[#76502c] bg-black/35 text-[#c8a87a]'}`}
+                aria-pressed={mapZoom === option.value}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+        </div>
         <div style={menuPanelBaseStyle} className="col-span-3 text-[#fdf6e3] font-bold">{systemNotice}</div>
       </div>
     );
@@ -6926,6 +6949,10 @@ export default function App() {
   const [seVolume, setSeVolume] = useState<number>(DEFAULT_MASTER_VOLUME);
   const [voiceVolume, setVoiceVolume] = useState<number>(DEFAULT_MASTER_VOLUME);
   const [textDisplaySpeedLevel, setTextDisplaySpeedLevel] = useState<number>(3);
+  const [mapZoom, setMapZoom] = useState<MapZoom>(() => {
+    const saved = Number(window.localStorage.getItem(MAP_ZOOM_STORAGE_KEY));
+    return saved === 1.5 || saved === 2 ? saved : 1;
+  });
   const [audioGains, setAudioGains] = useState<Record<string, number>>(DEFAULT_AUDIO_GAINS);
   const [mapBgmSources, setMapBgmSources] = useState<Record<GameMap, string>>(DEFAULT_MAP_BGM_SOURCES);
   const [activeAutoEventSpot, setActiveAutoEventSpot] = useState<InspectSpot | null>(null);
@@ -7019,7 +7046,12 @@ export default function App() {
   }, [debugDialogueOverrides]);
 
   useEffect(() => {
-     movementLockedRef.current = sleepPromptVisible || bathPromptVisible || mermaidOfferingPromptVisible || bathSequenceActive || craftPromptVisible || fishingPromptVisible || miningPromptVisible || loggingPromptVisible || fishingMiniGameOpen || miningMiniGameOpen || miningRhythmRecording || craftMiniGameOpen || fishingTutorialOpen || fishingTutorialEndingOpen || sawCraftTutorialIntroOpen || sawCraftTutorialShedDialogueOpen || gatheringTutorialOpen || miningTutorialOpen || kurumiShopOpen || kurumiIntroOpen || kurumiTentFinalEventOpen || seedPlantTutorialOpen || seedAfterPlantTutorialOpen || momonaSeedEventOpen || isSleepSequenceActive || beastAttackPending || repaymentEventPending || storyEndingVideoOpen || activeZukanImage !== null || activeZukanVideo !== null || activeTrustEvent !== null || farmGirlRevealSpotlightId !== null || battlePreviewOpen || farmSlotInteractionStage !== null || girlEquipmentMiniGame !== null || pendingGirlEquipmentInsert !== null || girlEquipmentNoticeGirlId !== null || trust20CompanionTutorialStep !== null || skillTreeTutorialStep !== null || farmCareCinematicAction !== null || pendingFarmCareConfirm !== null || farmCareUnlockNoticeAction !== null || farmHarvestResultNotice !== null || farmTrustEventNotice !== null || prologueOpen;
+    window.localStorage.setItem(MAP_ZOOM_STORAGE_KEY, String(mapZoom));
+  }, [mapZoom]);
+
+  const movementLocked = sleepPromptVisible || bathPromptVisible || mermaidOfferingPromptVisible || bathSequenceActive || craftPromptVisible || fishingPromptVisible || miningPromptVisible || loggingPromptVisible || fishingMiniGameOpen || miningMiniGameOpen || miningRhythmRecording || craftMiniGameOpen || fishingTutorialOpen || fishingTutorialEndingOpen || sawCraftTutorialIntroOpen || sawCraftTutorialShedDialogueOpen || gatheringTutorialOpen || miningTutorialOpen || kurumiShopOpen || kurumiIntroOpen || kurumiTentFinalEventOpen || seedPlantTutorialOpen || seedAfterPlantTutorialOpen || momonaSeedEventOpen || isSleepSequenceActive || beastAttackPending || repaymentEventPending || storyEndingVideoOpen || activeZukanImage !== null || activeZukanVideo !== null || activeTrustEvent !== null || farmGirlRevealSpotlightId !== null || battlePreviewOpen || farmSlotInteractionStage !== null || girlEquipmentMiniGame !== null || pendingGirlEquipmentInsert !== null || girlEquipmentNoticeGirlId !== null || trust20CompanionTutorialStep !== null || skillTreeTutorialStep !== null || farmCareCinematicAction !== null || pendingFarmCareConfirm !== null || farmCareUnlockNoticeAction !== null || farmHarvestResultNotice !== null || farmTrustEventNotice !== null || prologueOpen;
+  useEffect(() => {
+     movementLockedRef.current = movementLocked;
   }, [sleepPromptVisible, bathPromptVisible, mermaidOfferingPromptVisible, bathSequenceActive, craftPromptVisible, fishingPromptVisible, miningPromptVisible, loggingPromptVisible, fishingMiniGameOpen, miningMiniGameOpen, miningRhythmRecording, craftMiniGameOpen, fishingTutorialOpen, fishingTutorialEndingOpen, sawCraftTutorialIntroOpen, sawCraftTutorialShedDialogueOpen, gatheringTutorialOpen, miningTutorialOpen, kurumiShopOpen, kurumiIntroOpen, kurumiTentFinalEventOpen, seedPlantTutorialOpen, seedAfterPlantTutorialOpen, momonaSeedEventOpen, isSleepSequenceActive, beastAttackPending, repaymentEventPending, storyEndingVideoOpen, activeZukanImage, activeZukanVideo, activeTrustEvent, farmGirlRevealSpotlightId, battlePreviewOpen, farmSlotInteractionStage, girlEquipmentMiniGame, pendingGirlEquipmentInsert, girlEquipmentNoticeGirlId, trust20CompanionTutorialStep, skillTreeTutorialStep, farmCareCinematicAction, pendingFarmCareConfirm, farmCareUnlockNoticeAction, farmHarvestResultNotice, farmTrustEventNotice, prologueOpen]);
 
   useEffect(() => {
@@ -13963,6 +13995,12 @@ export default function App() {
      } else {
         setDialogMessage(`${item.name}を${item.type === '買う' ? '購入' : '売却'}しました。`);
      }
+     if (item.type === '売る') {
+        const firstSellItemIndex = shopItemsForDisplay.findIndex(shopItem => shopItem.type === '売る');
+        selectedShopTradeTypeRef.current = '売る';
+        setSelectedShopItemIndex(firstSellItemIndex >= 0 ? firstSellItemIndex : 0);
+        setSelectedShopControl('items');
+     }
      if (!isReturningKurumiPants && !kurumiPantsReturned && nextTradeTotal >= KURUMI_PANTSU_GATE_THRESHOLD) {
         showShopNotice('星4以降には、釣りで入手したパンツをくるみに返す必要があります。');
      }
@@ -15419,15 +15457,24 @@ export default function App() {
       right: [6, 7, 6, 8],
     },
   } as const;
-  const melCompanionSpriteSheet = {
-    url: '/img/mel-walk.png',
+  const createSquareCompanionSpriteSheet = (fileName: string, sourceSize: number) => ({
+    url: `/img/${fileName}-walk.png`,
     columns: 3,
     rows: 3,
-    sourceWidth: 1254,
-    sourceHeight: 1254,
-    cellWidth: 418,
-    cellHeight: 418,
+    sourceWidth: sourceSize,
+    sourceHeight: sourceSize,
+    cellWidth: sourceSize / 3,
+    cellHeight: sourceSize / 3,
     stabilizeMotion: true,
+    frames: {
+      down: [0, 1, 0, 2],
+      up: [3, 4, 3, 5],
+      left: [6, 7, 6, 8],
+      right: [6, 7, 6, 8],
+    },
+  } as const);
+  const melCompanionSpriteSheet = {
+    ...createSquareCompanionSpriteSheet('mel', 1254),
     frameOffsets: {
       0: { x: 0, y: 0 },
       1: { x: 29, y: 1 },
@@ -15439,18 +15486,49 @@ export default function App() {
       7: { x: 36, y: 1 },
       8: { x: 65, y: 1 },
     },
-    frames: {
-      down: [0, 1, 0, 2],
-      up: [3, 4, 3, 5],
-      left: [6, 7, 6, 8],
-      right: [6, 7, 6, 8],
+  } as const;
+  const rubyCompanionSpriteSheet = {
+    ...createSquareCompanionSpriteSheet('ruby', 1254),
+    frameOffsets: {
+      0: { x: 0, y: 0 },
+      1: { x: 54, y: -2 },
+      2: { x: 108, y: -2 },
+      3: { x: 0, y: 0 },
+      4: { x: 15, y: 4 },
+      5: { x: 124, y: 4 },
+      6: { x: 0, y: 0 },
+      7: { x: 54, y: 1 },
+      8: { x: 113, y: -1 },
     },
   } as const;
-  const companionSpriteSheet = companionGirlId === 'chibiichi'
-    ? chibiichiCompanionSpriteSheet
-    : companionGirlId === 'mel'
-      ? melCompanionSpriteSheet
-      : null;
+  const createAlignedCompanionSpriteSheet = (
+    fileName: string,
+    sourceSize: number,
+    offsets: readonly [number, number][],
+  ) => ({
+    ...createSquareCompanionSpriteSheet(fileName, sourceSize),
+    frameOffsets: Object.fromEntries(offsets.map(([x, y], index) => [index, { x, y }])),
+  } as const);
+  const companionSpriteSheets = {
+    chibiichi: chibiichiCompanionSpriteSheet,
+    mel: melCompanionSpriteSheet,
+    ruby: rubyCompanionSpriteSheet,
+    viola: createAlignedCompanionSpriteSheet('viora', 1254, [[0, 0], [16, 0], [46, 0], [0, 0], [25, 3], [49, 2], [0, 0], [16, 0], [38, -1]]),
+    nazuna: createAlignedCompanionSpriteSheet('nazuna', 1024, [[0, 0], [22, 1], [48, 1], [0, 0], [28, 27], [55, 28], [0, 0], [30, 2], [57, 2]]),
+    kabune: createAlignedCompanionSpriteSheet('kabune', 1024, [[0, 0], [23, 0], [48, 0], [0, 0], [25, 0], [49, 0], [0, 0], [30, 2], [55, 0]]),
+    caro: createAlignedCompanionSpriteSheet('kyaro', 1024, [[0, 0], [21, 2], [48, 2], [0, 0], [25, 0], [52, 0], [0, 0], [35, 0], [62, 0]]),
+    theta: createAlignedCompanionSpriteSheet('shita', 1024, [[0, 0], [27, 0], [44, 0], [0, 0], [35, -6], [47, -9], [0, 0], [42, -4], [59, -7]]),
+    cure: createAlignedCompanionSpriteSheet('kyua', 1024, [[0, 0], [20, 0], [40, -1], [0, 0], [18, 0], [40, 23], [0, 0], [28, 1], [48, 0]]),
+    shiro: createAlignedCompanionSpriteSheet('shiro', 1024, [[0, 0], [21, 0], [38, 3], [0, 0], [26, 3], [51, 2], [0, 0], [32, 1], [56, 2]]),
+    momona: createAlignedCompanionSpriteSheet('momona', 1024, [[0, 0], [18, 1], [37, 0], [0, 0], [21, 0], [42, 0], [0, 0], [37, 2], [62, 1]]),
+    pan: createAlignedCompanionSpriteSheet('pan', 1024, [[0, 0], [19, -2], [29, -1], [0, 0], [6, 0], [19, 0], [0, 0], [18, 2], [24, 3]]),
+    puti: createAlignedCompanionSpriteSheet('puthi', 1024, [[0, 0], [22, 0], [29, -13], [0, 0], [36, 0], [44, 0], [0, 0], [-4, -1], [5, -1]]),
+    roma: createAlignedCompanionSpriteSheet('roma', 1024, [[0, 0], [3, 0], [20, 0], [0, 0], [20, 2], [38, 2], [0, 0], [20, 2], [42, 1]]),
+    saffy: createAlignedCompanionSpriteSheet('safi', 1254, [[0, 0], [23, 0], [58, 0], [0, 0], [22, -9], [66, -9], [0, 0], [33, 2], [65, 0]]),
+  } as const;
+  const companionSpriteSheet = companionGirlId
+    ? companionSpriteSheets[companionGirlId as keyof typeof companionSpriteSheets] ?? null
+    : null;
   useEffect(() => {
     const handleResize = () => {
       const availableWidth = window.innerWidth - 32;
@@ -17988,8 +18066,8 @@ export default function App() {
      }
      e.currentTarget.setPointerCapture(e.pointerId);
      const rect = e.currentTarget.getBoundingClientRect();
-     const clickX = (e.clientX - rect.left) / scale;
-     const clickY = (e.clientY - rect.top) / scale;
+     const clickX = (e.clientX - rect.left) / (scale * effectiveMapZoom);
+     const clickY = (e.clientY - rect.top) / (scale * effectiveMapZoom);
 
      if (setupMode === 'animation') {
         setDragStart({ x: clickX, y: clickY });
@@ -18886,6 +18964,14 @@ export default function App() {
      return `${date.getMonth() + 1}/${date.getDate()} ${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
   };
   const selectedRecipeDetail = selectedRecipeName ? RECIPE_DETAILS[selectedRecipeName] : undefined;
+  const cameraTemporarilyDisabled = setupMode !== 'none' || menuOpen || showDialog || movementLocked;
+  const effectiveMapZoom: MapZoom = bootMode === 'playing' && !cameraTemporarilyDisabled ? mapZoom : 1;
+  const cameraOffsetX = effectiveMapZoom === 1
+    ? 0
+    : clampNumber(GAME_WIDTH / 2 - pos.x * effectiveMapZoom, GAME_WIDTH - GAME_WIDTH * effectiveMapZoom, 0);
+  const cameraOffsetY = effectiveMapZoom === 1
+    ? 0
+    : clampNumber(GAME_HEIGHT / 2 - pos.y * effectiveMapZoom, GAME_HEIGHT - GAME_HEIGHT * effectiveMapZoom, 0);
 
   return (
     <div className="min-h-screen bg-[#111] flex items-center justify-center p-4 py-8 overflow-hidden select-none" style={{ fontFamily: '"DotGothic16", sans-serif' }}>
@@ -19124,6 +19210,22 @@ export default function App() {
                               />
                             </label>
                           ))}
+                          <div className="grid gap-2">
+                            <div className="text-lg font-black">マップ表示</div>
+                            <div className="grid grid-cols-3 gap-2" role="group" aria-label="マップ表示倍率">
+                              {MAP_ZOOM_OPTIONS.map(option => (
+                                <button
+                                  key={option.value}
+                                  type="button"
+                                  onClick={() => setMapZoom(option.value)}
+                                  className={`rounded border-2 px-3 py-2 text-base font-black ${mapZoom === option.value ? 'border-[#ffd166] bg-[#6b3b18] text-[#fff7dc]' : 'border-[#76502c] bg-black/35 text-[#c8a87a]'}`}
+                                  aria-pressed={mapZoom === option.value}
+                                >
+                                  {option.label}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
                         </div>
                       )}
 
@@ -19465,6 +19567,9 @@ export default function App() {
             width: GAME_WIDTH, 
             height: GAME_HEIGHT, 
             touchAction: 'none',
+            transform: `matrix(${effectiveMapZoom}, 0, 0, ${effectiveMapZoom}, ${cameraOffsetX}, ${cameraOffsetY})`,
+            transformOrigin: 'top left',
+            transition: effectiveMapZoom === 1 ? 'transform 160ms ease-out' : 'transform 80ms linear',
             backgroundImage: `url(${getMapBackgroundUrl(currentMap, timeOfDay)})`, 
             backgroundSize: getMapBackgroundSize(currentMap),
             backgroundPosition: 'center',
