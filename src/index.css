@@ -1796,3 +1796,40 @@ canvas {
 .farm-equipment-sound-pulse {
   animation: farm-equipment-sound-pulse 280ms ease-out both;
 }
+
+@keyframes farm-equipment-success-sparkle {
+  0% {
+    opacity: 0;
+    transform: translateY(28px) scale(0) rotate(0deg);
+  }
+  25% {
+    opacity: 1;
+    transform: translateY(0) scale(1) rotate(45deg);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-90px) scale(0.35) rotate(135deg);
+  }
+}
+
+.farm-equipment-success-sparkles span {
+  --sparkle-index: 0;
+  position: absolute;
+  left: calc(5% + ((var(--sparkle-index) * 37) % 90) * 1%);
+  top: calc(10% + ((var(--sparkle-index) * 53) % 80) * 1%);
+  width: calc(10px + (var(--sparkle-index) % 4) * 5px);
+  height: calc(10px + (var(--sparkle-index) % 4) * 5px);
+  background: #fff7b2;
+  clip-path: polygon(50% 0, 61% 38%, 100% 50%, 61% 62%, 50% 100%, 39% 62%, 0 50%, 39% 38%);
+  filter: drop-shadow(0 0 8px rgba(255, 224, 102, 0.95));
+  animation: farm-equipment-success-sparkle 1.35s ease-out both;
+  animation-delay: calc((var(--sparkle-index) % 8) * 55ms);
+}
+
+.farm-equipment-success-sparkles span:nth-child(3n) {
+  background: #ffffff;
+}
+
+.farm-equipment-success-sparkles span:nth-child(4n) {
+  background: #86efac;
+}

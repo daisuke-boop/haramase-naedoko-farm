@@ -85,6 +85,7 @@ type CharacterProps = {
     offsetX?: number,
     offsetY?: number,
     frameOffsets?: Readonly<Record<number, { x: number, y: number }>>,
+    nativeRightFrames?: readonly number[],
     stabilizeMotion?: boolean,
     frames: Readonly<Record<PlayerDirection, readonly [number, number, number, number]>>,
   },
@@ -106,7 +107,6 @@ const Character = ({ x, y, direction, isWalking, customSprites, isHidden, isBath
 
   const currentSpriteUrl = spriteSheet?.url ?? getSpriteUrl();
   const spriteImg = useTransparentSprite(currentSpriteUrl);
-  const shouldMirrorSprite = direction === 'right' && (mirrorRightSprite || !!currentSpriteUrl?.includes('player_left'));
 
   useEffect(() => {
     if (!isWalking) {
@@ -129,6 +129,24 @@ const Character = ({ x, y, direction, isWalking, customSprites, isHidden, isBath
     : 'none';
   const sheetRotation = spriteSheet?.stabilizeMotion ? '' : spriteRotation;
 
+  const activeSheetFrame = spriteSheet?.frames[direction][isWalking ? frame : 0];
+  const nativeRightFrames = spriteSheet?.nativeRightFrames;
+  const shouldMirrorSprite = activeSheetFrame !== undefined && nativeRightFrames
+    ? (direction === 'right') !== nativeRightFrames.includes(activeSheetFrame)
+    : direction === 'right' && (mirrorRightSprite || !!currentSpriteUrl?.includes('player_left'));
+  const activeSheetCellWidth = spriteSheet?.cellWidth ?? 1;
+  const activeSheetCellHeight = spriteSheet?.cellHeight ?? 1;
+  const activeSheetFrameOffset = activeSheetFrame === undefined
+    ? { x: 0, y: 0 }
+    : spriteSheet?.frameOffsets?.[activeSheetFrame] ?? { x: 0, y: 0 };
+  // 位置補正でセル外が表示域に入ると、隣フレームの髪や服がにじむ。
+  const sheetClipInsets = {
+    top: Math.max(0, activeSheetFrameOffset.y / activeSheetCellHeight * 100),
+    right: Math.max(0, -activeSheetFrameOffset.x / activeSheetCellWidth * 100),
+    bottom: Math.max(isBathMasked ? 46 : 0, -activeSheetFrameOffset.y / activeSheetCellHeight * 100),
+    left: Math.max(0, activeSheetFrameOffset.x / activeSheetCellWidth * 100),
+  };
+
   const isHorizontal = direction === 'left' || direction === 'right';
 
   return (
@@ -144,7 +162,7 @@ const Character = ({ x, y, direction, isWalking, customSprites, isHidden, isBath
             className="relative z-10 h-full w-full overflow-hidden"
             style={{
               transform: `translateY(${spriteBounce}px) ${sheetRotation} ${shouldMirrorSprite ? 'scaleX(-1)' : ''}`,
-              clipPath: isBathMasked ? 'inset(0 0 46% 0)' : undefined,
+              clipPath: `inset(${sheetClipInsets.top}% ${sheetClipInsets.right}% ${sheetClipInsets.bottom}% ${sheetClipInsets.left}%)`,
             }}
           >
             {(() => {
@@ -157,7 +175,7 @@ const Character = ({ x, y, direction, isWalking, customSprites, isHidden, isBath
               const cellHeight = spriteSheet.cellHeight ?? 1;
               const offsetX = spriteSheet.offsetX ?? 0;
               const offsetY = spriteSheet.offsetY ?? 0;
-              const frameOffset = spriteSheet.frameOffsets?.[sheetFrame] ?? { x: 0, y: 0 };
+              const frameOffset = activeSheetFrameOffset;
               return (
                 <img
                   src={spriteImg.src}

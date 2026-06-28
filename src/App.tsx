@@ -3066,6 +3066,10 @@ export default function App() {
   const [companionFollow, setCompanionFollow] = useState({ x: 960, y: 540, direction: 'down' as const, isWalking: false });
   const companionTrailRef = useRef<Array<{ x: number; y: number; direction: 'up' | 'down' | 'left' | 'right'; isWalking: boolean }>>([]);
   const [isWalking, setIsWalking] = useState(false);
+  const renderedDirectionRef = useRef(dir);
+  const renderedWalkingRef = useRef(isWalking);
+  useEffect(() => { renderedDirectionRef.current = dir; }, [dir]);
+  useEffect(() => { renderedWalkingRef.current = isWalking; }, [isWalking]);
   const [scale, setScale] = useState(1);
   const keys = useRef<{ [key: string]: boolean }>({});
   const posRef = useRef(pos);
@@ -6325,15 +6329,23 @@ export default function App() {
           </div>
         </div>
         <div style={menuPanelBaseStyle} className="col-span-3 flex items-center justify-between gap-4">
-          <div style={menuTinyLabelStyle}>マップ表示</div>
+          <div className="text-lg font-black text-[#fff3c4]">マップ表示</div>
           <div className="grid w-[420px] grid-cols-3 gap-2" role="group" aria-label="マップ表示倍率">
             {MAP_ZOOM_OPTIONS.map(option => (
               <button
                 key={option.value}
                 type="button"
-                onClick={() => setMapZoom(option.value)}
-                className={`h-10 rounded border-2 text-sm font-black ${mapZoom === option.value ? 'border-[#ffd166] bg-[#6b3b18] text-[#fff7dc]' : 'border-[#76502c] bg-black/35 text-[#c8a87a]'}`}
+                onPointerDown={(event) => {
+                  event.stopPropagation();
+                  setMapZoom(option.value);
+                }}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  setMapZoom(option.value);
+                }}
+                className={`h-11 rounded border-2 text-base font-black focus:outline-none focus:ring-2 focus:ring-[#ffe08a] ${mapZoom === option.value ? 'border-[#ffd166] bg-[#6b3b18] text-[#fff7dc]' : 'border-[#76502c] bg-black/35 text-[#c8a87a]'}`}
                 aria-pressed={mapZoom === option.value}
+                aria-label={`マップ表示 ${option.label}`}
               >
                 {option.label}
               </button>
@@ -11054,6 +11066,7 @@ export default function App() {
         )),
       }));
       playUiSound('/se/soubi1.mp3');
+      playUiSound('/se/cure.mp3');
       setDialogMessage('苗娘の感じる場所を探し当てた！');
     }
     setGirlEquipmentMiniGame(previous => previous ? { ...previous, isCharging: false, chargePower: 100, result } : previous);
@@ -15428,6 +15441,7 @@ export default function App() {
       '/img/companions/chibiichi_walk2.png',
     ],
   } as const;
+  const companionSpriteSheets = useMemo(() => {
   const chibiichiCompanionSpriteSheet = {
     url: '/img/chibiichi-walk.png',
     columns: 3,
@@ -15509,7 +15523,7 @@ export default function App() {
     ...createSquareCompanionSpriteSheet(fileName, sourceSize),
     frameOffsets: Object.fromEntries(offsets.map(([x, y], index) => [index, { x, y }])),
   } as const);
-  const companionSpriteSheets = {
+  return {
     chibiichi: chibiichiCompanionSpriteSheet,
     mel: melCompanionSpriteSheet,
     ruby: rubyCompanionSpriteSheet,
@@ -15521,11 +15535,20 @@ export default function App() {
     cure: createAlignedCompanionSpriteSheet('kyua', 1024, [[0, 0], [20, 0], [40, -1], [0, 0], [18, 0], [40, 23], [0, 0], [28, 1], [48, 0]]),
     shiro: createAlignedCompanionSpriteSheet('shiro', 1024, [[0, 0], [21, 0], [38, 3], [0, 0], [26, 3], [51, 2], [0, 0], [32, 1], [56, 2]]),
     momona: createAlignedCompanionSpriteSheet('momona', 1024, [[0, 0], [18, 1], [37, 0], [0, 0], [21, 0], [42, 0], [0, 0], [37, 2], [62, 1]]),
-    pan: createAlignedCompanionSpriteSheet('pan', 1024, [[0, 0], [19, -2], [29, -1], [0, 0], [6, 0], [19, 0], [0, 0], [18, 2], [24, 3]]),
-    puti: createAlignedCompanionSpriteSheet('puthi', 1024, [[0, 0], [22, 0], [29, -13], [0, 0], [36, 0], [44, 0], [0, 0], [-4, -1], [5, -1]]),
+    pan: {
+      ...createAlignedCompanionSpriteSheet('pan', 1024, [[0, 0], [19, -2], [29, -1], [0, 0], [6, 0], [19, 0], [0, 0], [18, 2], [24, 3]]),
+      // ぱんの横向き列は、停止コマだけ左向き、歩行2コマは右向きの素材。
+      nativeRightFrames: [7, 8],
+    },
+    puti: {
+      ...createAlignedCompanionSpriteSheet('puthi', 1024, [[0, 0], [22, 0], [29, -13], [0, 0], [36, 0], [44, 0], [0, 0], [-4, -1], [5, -1]]),
+      // プティの横向き3コマはすべて右向きの素材。
+      nativeRightFrames: [6, 7, 8],
+    },
     roma: createAlignedCompanionSpriteSheet('roma', 1024, [[0, 0], [3, 0], [20, 0], [0, 0], [20, 2], [38, 2], [0, 0], [20, 2], [42, 1]]),
     saffy: createAlignedCompanionSpriteSheet('safi', 1254, [[0, 0], [23, 0], [58, 0], [0, 0], [22, -9], [66, -9], [0, 0], [33, 2], [65, 0]]),
   } as const;
+  }, []);
   const companionSpriteSheet = companionGirlId
     ? companionSpriteSheets[companionGirlId as keyof typeof companionSpriteSheets] ?? null
     : null;
@@ -17748,29 +17771,40 @@ export default function App() {
       }, 260);
     };
 
+    const updateRenderedDirection = (nextDirection: typeof dir) => {
+      if (renderedDirectionRef.current === nextDirection) return;
+      renderedDirectionRef.current = nextDirection;
+      setDir(nextDirection);
+    };
+    const updateRenderedWalking = (nextIsWalking: boolean) => {
+      if (renderedWalkingRef.current === nextIsWalking) return;
+      renderedWalkingRef.current = nextIsWalking;
+      setIsWalking(nextIsWalking);
+    };
+
     const gameLoop = () => {
       if (setupMode !== 'none') return; // Pause movement in setup menu
 
       if (mapTransitioningRef.current) {
-        setIsWalking(false);
+        updateRenderedWalking(false);
         animationFrameId = requestAnimationFrame(gameLoop);
         return;
       }
 
       if (menuOpenRef.current) {
-        setIsWalking(false);
+        updateRenderedWalking(false);
         animationFrameId = requestAnimationFrame(gameLoop);
         return;
       }
 
       if (movementLockedRef.current) {
-        setIsWalking(false);
+        updateRenderedWalking(false);
         animationFrameId = requestAnimationFrame(gameLoop);
         return;
       }
 
       if (skillTreeTutorialStep !== null) {
-        setIsWalking(false);
+        updateRenderedWalking(false);
         animationFrameId = requestAnimationFrame(gameLoop);
         return;
       }
@@ -18024,10 +18058,13 @@ export default function App() {
         setCompanionFollow(previous => previous.isWalking ? { ...previous, isWalking: false } : previous);
       }
 
-      posRef.current = { x: currentX, y: currentY };
-      setPos(posRef.current);
-      setDir(currentDir);
-      setIsWalking(moved);
+      if (posRef.current.x !== currentX || posRef.current.y !== currentY) {
+        const nextPosition = { x: currentX, y: currentY };
+        posRef.current = nextPosition;
+        setPos(nextPosition);
+      }
+      updateRenderedDirection(currentDir);
+      updateRenderedWalking(moved);
 
       animationFrameId = requestAnimationFrame(gameLoop);
     };
@@ -24401,15 +24438,46 @@ export default function App() {
             : girlEquipmentMiniGame.result === 'fail'
               ? '失敗…'
               : null;
+          const equipmentVideoPrefix: Record<string, string> = {
+            chibiichi: 'chibiichi',
+            mel: 'mel',
+            ruby: 'ruby',
+            kabune: 'kabune',
+            caro: 'kyaro',
+          };
+          const equipmentVideoGirlPrefix = equipmentVideoPrefix[girlEquipmentMiniGame.girlId];
+          const equipmentVideoSrc = girlEquipmentMiniGame.mode === 'real' && equipmentVideoGirlPrefix
+            ? `/video/${equipmentVideoGirlPrefix}-soubi${girlEquipmentMiniGame.slotIndex}.mp4`
+            : null;
           return (
             <div className="fixed inset-0 z-[10003] flex items-center justify-center bg-black/88 px-8 pointer-events-auto">
+              {girlEquipmentMiniGame.mode === 'real' && girlEquipmentMiniGame.result && girlEquipmentMiniGame.result !== 'fail' && (
+                <div className="farm-equipment-success-sparkles pointer-events-none absolute inset-0 z-[1] overflow-hidden" aria-hidden="true">
+                  {Array.from({ length: 28 }, (_, index) => (
+                    <span key={index} style={{ '--sparkle-index': index } as React.CSSProperties} />
+                  ))}
+                </div>
+              )}
               <div className="w-[820px] rounded-2xl border-4 border-[#f1c27d] bg-[#160d0a]/98 p-8 text-[#fdf6e3] shadow-2xl">
                 <div className="text-center">
                   <div className="text-sm font-black tracking-[0.22em] text-[#ffd166]">CROP EQUIPMENT</div>
                   <div className="mt-2 text-3xl font-black">{miniGameGirl?.girlName ?? '苗娘'}の挿入強化</div>
                   <div className="mt-2 font-bold text-[#c8a87a]">{girlEquipmentMiniGame.harvestItemName}をタイミングよく定着させよう！</div>
                 </div>
-                <div className="relative mx-auto mt-6 h-[330px] w-[330px] rounded-full border-[10px] border-[#4ade80] bg-[radial-gradient(circle,#123020_0%,#07150d_62%,#020806_100%)] shadow-[0_0_38px_rgba(74,222,128,0.38),inset_0_0_34px_rgba(74,222,128,0.2)]">
+                <div className={`mt-6 flex items-center justify-center gap-5 ${equipmentVideoSrc ? '' : 'mx-auto'}`}>
+                {equipmentVideoSrc && (
+                  <div className="h-[330px] w-[360px] overflow-hidden rounded-xl border-4 border-[#ffd166]/80 bg-[#160d0a] shadow-[0_0_38px_rgba(255,209,102,0.32)]">
+                    <video
+                      key={equipmentVideoSrc}
+                      src={equipmentVideoSrc}
+                      className="h-full w-full object-cover"
+                      autoPlay
+                      loop
+                      playsInline
+                    />
+                  </div>
+                )}
+                <div className="relative h-[330px] w-[330px] shrink-0 rounded-full border-[10px] border-[#4ade80] bg-[radial-gradient(circle,#123020_0%,#07150d_62%,#020806_100%)] shadow-[0_0_38px_rgba(74,222,128,0.38),inset_0_0_34px_rgba(74,222,128,0.2)]">
                   {girlEquipmentMiniGame.pulseKey > 0 && (
                     <div key={girlEquipmentMiniGame.pulseKey} className="farm-equipment-sound-pulse pointer-events-none absolute inset-[-10px] rounded-full border-[10px] border-[#86efac]" />
                   )}
@@ -24429,6 +24497,7 @@ export default function App() {
                       </div>
                     );
                   })}
+                </div>
                 </div>
                 <div className="mt-3 text-center">
                   <div className="text-sm font-black text-[#d9f99d]">探索 {girlEquipmentMiniGame.probeCount} / {miniGameProbeLimit}</div>
