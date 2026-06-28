@@ -1,12 +1,14 @@
 {
   "saveSchemaVersion": 2,
   "turn": 4,
-  "gold": 5000,
+  "gold": 4003,
   "gameMode": "story",
   "hasUnlockedEndlessNurseryMode": false,
   "collectionProgress": {
     "collectedGirlIds": [],
-    "caughtFishIds": [],
+    "caughtFishIds": [
+      "eda"
+    ],
     "craftedItemIds": [],
     "unlockedEventIds": [
       "video_care_caress"
@@ -15,7 +17,7 @@
     "defeatedBeastIds": []
   },
   "achievementStats": {
-    "totalCraftSuccesses": 0,
+    "totalCraftSuccesses": 2,
     "totalNushiCaught": 0,
     "totalRareOresMined": 0,
     "totalRareLumbersCut": 0
@@ -347,7 +349,7 @@
   "hasReceivedKurumiStarterSeeds": true,
   "hasKurumiNotebook": true,
   "hasSeenTrust20CompanionTutorial": false,
-  "kurumiTradeTotal": 0,
+  "kurumiTradeTotal": 1003,
   "shownKurumiTradeRewardThresholds": [],
   "kurumiPantsReturned": false,
   "kurumiTentFinalAvailableDay": null,
@@ -401,7 +403,7 @@
   "currentAP": 2,
   "maxAPPerTimeSlot": 5,
   "difficulty": "hard",
-  "currentMap": "house",
+  "currentMap": "farm",
   "zones": [
     {
       "id": "1781485855659",
@@ -45347,12 +45349,22 @@
     "めざめの鈴（デバッグ用）": 1,
     "生命の種火（デバッグ用）": 1,
     "天命の雫（デバッグ用）": 1,
-    "竹の釣竿": 0
+    "竹の釣竿": 1,
+    "枝": 0,
+    "【レシピ】のこぎり": 1,
+    "モグラの爪": 0,
+    "ウサギの靭帯": 0,
+    "軟らかい銅鉱石": 0,
+    "柔らかな若枝": 0,
+    "のこぎり": 1,
+    "【レシピ】つるはし": 1,
+    "泥混じりの鉄鉱石": 0,
+    "つるはし": 1
   },
   "equippedItems": {
-    "主人公-slot1": "",
-    "主人公-slot2": "",
-    "主人公-slot3": "",
+    "主人公-slot1": "竹の釣竿",
+    "主人公-slot2": "のこぎり",
+    "主人公-slot3": "つるはし",
     "主人公-slot4": "農神の指輪",
     "ちびいち-slot1": "",
     "ちびいち-slot2": ""
@@ -45599,26 +45611,32 @@
       }
     ]
   },
-  "caughtFishIds": [],
+  "caughtFishIds": [
+    "eda"
+  ],
   "nushiCaughtFishIds": [],
-  "fishBestSizes": {},
-  "fishInventorySizes": {},
+  "fishBestSizes": {
+    "eda": 7.7
+  },
+  "fishInventorySizes": {
+    "枝": []
+  },
   "lumberInventorySizes": {},
   "oreInventoryWeights": {},
   "depletedMiningPointIds": {},
-  "fishingTutorialCompleted": false,
+  "fishingTutorialCompleted": true,
   "craftTutorialRecipeName": "【レシピ】つるはし",
   "sawCraftTutorialReady": false,
   "sawCraftTutorialWorkbenchReady": false,
-  "sawCraftTutorialCompleted": false,
-  "loggingTutorialCompleted": false,
+  "sawCraftTutorialCompleted": true,
+  "loggingTutorialCompleted": true,
   "miningTutorialCompleted": false,
   "craftedRecipeIds": [
     "【レシピ】つるはし",
     "【レシピ】のこぎり"
   ],
-  "gatheringTutorialCompleted": false,
-  "gatheringTutorialChoice": null,
+  "gatheringTutorialCompleted": true,
+  "gatheringTutorialChoice": "mining",
   "kurumiIntroAskedTopics": [
     "village",
     "debt",
