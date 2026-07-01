@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>1枚絵モーションデモ</title>
+  <style>
+    :root { color-scheme: dark; font-family: system-ui, sans-serif; }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: #0c1017; color: #fff; overflow: hidden; }
+    .stage { position: relative; width: min(100vw, 177.78vh); aspect-ratio: 16/9; overflow: hidden; background: #000; }
+    .layer { position: absolute; inset: -3%; width: 106%; height: 106%; object-fit: cover; transform-origin: 52% 58%; will-change: transform, filter; }
+    .base { animation: camera 5.2s ease-in-out infinite; }
+    .focus {
+      clip-path: ellipse(32% 34% at 52% 64%);
+      animation: focusMotion 1.65s cubic-bezier(.42,0,.58,1) infinite;
+      filter: saturate(1.035) contrast(1.015);
+    }
+    .upper {
+      clip-path: ellipse(29% 31% at 70% 42%);
+      transform-origin: 70% 45%;
+      animation: breath 3.2s ease-in-out infinite;
+    }
+    .vignette { position: absolute; inset: 0; pointer-events: none; background: radial-gradient(circle at 57% 54%, transparent 35%, rgba(0,0,0,.32) 100%); }
+    .pulse { position: absolute; inset: 0; pointer-events: none; animation: pulse 1.65s ease-in-out infinite; box-shadow: inset 0 0 90px rgba(255,255,255,.06); }
+    .controls { position: fixed; z-index: 10; left: 18px; top: 18px; display: flex; gap: 8px; padding: 10px; border: 1px solid #ffffff44; border-radius: 12px; background: #10131dcc; backdrop-filter: blur(8px); }
+    button { border: 1px solid #ffffff55; border-radius: 8px; padding: 8px 13px; background: #293044; color: white; font-weight: 800; cursor: pointer; }
+    button[aria-pressed="true"] { background: #b94f75; border-color: white; }
+    .note { position: fixed; z-index: 10; right: 18px; top: 18px; max-width: 330px; padding: 10px 13px; border-radius: 10px; background: #10131dcc; font-size: 13px; line-height: 1.5; }
+    body.paused * { animation-play-state: paused !important; }
+    body.strong .focus, body.strong .pulse { animation-duration: 1.05s; }
+    body.strong .base { animation-duration: 3.5s; }
+    @keyframes camera { 0%,100% { transform: scale(1.015) translate3d(-.2%,.1%,0); } 50% { transform: scale(1.055) translate3d(.45%,-.35%,0); } }
+    @keyframes focusMotion { 0%,100% { transform: scale(1.018) translate3d(-.15%,.25%,0) rotate(-.12deg); } 50% { transform: scale(1.055,1.035) translate3d(.5%,-.5%,0) rotate(.16deg); } }
+    @keyframes breath { 0%,100% { transform: scale(1.01) translateY(.1%); } 50% { transform: scale(1.027,1.018) translateY(-.3%); } }
+    @keyframes pulse { 0%,100% { opacity: .25; } 50% { opacity: .75; } }
+    @media (prefers-reduced-motion: reduce) { * { animation: none !important; } }
+  </style>
+</head>
+<body>
+  <main class="stage" aria-label="1枚絵モーションデモ">
+    <img class="layer base" src="/20260520_00583_.png" alt="" />
+    <img class="layer upper" src="/20260520_00583_.png" alt="" />
+    <img class="layer focus" src="/20260520_00583_.png" alt="" />
+    <div class="pulse"></div>
+    <div class="vignette"></div>
+  </main>
+  <nav class="controls" aria-label="デモ操作">
+    <button id="toggle" type="button" aria-pressed="true">動き：ON</button>
+    <button id="strength" type="button" aria-pressed="false">強さ：標準</button>
+  </nav>
+  <aside class="note">同じ画像を3枚重ね、全体カメラ・上半身・中央部分を別々の周期で動かしています。</aside>
+  <script>
+    const toggle = document.querySelector('#toggle');
+    const strength = document.querySelector('#strength');
+    toggle.addEventListener('click', () => {
+      const paused = document.body.classList.toggle('paused');
+      toggle.textContent = `動き：${paused ? 'OFF' : 'ON'}`;
+      toggle.setAttribute('aria-pressed', String(!paused));
+    });
+    strength.addEventListener('click', () => {
+      const strong = document.body.classList.toggle('strong');
+      strength.textContent = `強さ：${strong ? '強め' : '標準'}`;
+      strength.setAttribute('aria-pressed', String(strong));
+    });
+  </script>
+</body>
+</html>

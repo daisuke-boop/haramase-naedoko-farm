@@ -286,7 +286,7 @@ const MINING_POINT_COUNT_BY_TIME: Record<TimeOfDay, number> = {
   evening: 10,
   night: 10,
 };
-const KURUMI_NOTEBOOK_SECTION_COUNT = 15;
+const KURUMI_NOTEBOOK_SECTION_COUNT = 22;
 
 const hashString = (value: string) => {
   let hash = 2166136261;
@@ -912,6 +912,8 @@ const normalizeFarmCareUnlockStage = (value: unknown, fallback: FarmCareUnlockSt
   value === 1 || value === 2 || value === 3 ? value : fallback
 );
 const FARM_CARE_ACTION_ORDER: readonly FarmCareAction[] = ['caress', 'finger', 'fertilize'];
+const BULK_FARM_CARE_UNLOCK_EVENT_ID = 'bulk_farm_care_unlocked';
+const FARM_CARE_VIDEO_EVENT_IDS = ['video_care_caress', 'video_care_finger', 'video_care_fertilize'] as const;
 const FARM_MENU_PRIMARY_ACTION_ORDER: readonly FarmMenuPrimaryAction[] = [...FARM_CARE_ACTION_ORDER, 'companion', 'harvest'];
 const FARM_SEED_SLOT_PLACEMENTS: Readonly<Record<string, { offsetX: number; offsetY: number; scale: number }>> = {
   left_1: { offsetX: 102, offsetY: 53, scale: 86 },
@@ -1353,6 +1355,18 @@ const MERMAID_UNLOCK_EVENT_ID = 'mermaid_fishing_unlocked';
 const MERMAID_LETTER_ITEM_NAME = '手紙の入った空き瓶';
 const MERMAID_SCALE_ITEM_NAME = '人魚の鱗';
 const MERMAID_SCALE_OFFERING_COUNT = 5;
+const MIO_FOLLOW_EVENT_ID = 'mio_cat_follow_unlocked';
+const MIO_SPECIAL_EVENT_STARTED_ID = 'mio_special_event_started';
+const MIO_DEPARTED_EVENT_ID = 'mio_cat_departed';
+const MIO_OFFERING_ITEM_NAME = 'サケ';
+const MIO_OFFERING_COUNT = 3;
+const MIO_SLEEP_SPEECH_EVENTS: Readonly<Record<number, { audioSrc: string; text: string }>> = {
+  2: { audioSrc: '/se/mio1.mp3', text: 'にゃぁ' },
+  5: { audioSrc: '/se/mio2.mp3', text: 'にゃーん' },
+  10: { audioSrc: '/se/mio3.mp3', text: 'うにゃーん' },
+};
+const MIO_GAME_URL = 'https://www.dlsite.com/aix/work/=/product_id/RJ01633062.html';
+const MIO_OFFICIAL_URL = 'https://kinakoboo.fun/special.html';
 const MERMAID_LETTER_HINT_MESSAGE = '空き瓶の中に、濡れた手紙が入っていた。\n\n「滝の裏にある小さな地蔵さまは、夜だけ水底の声を聞いてくれる。\n青白く光る鱗を五つ、そっと供えて一晩待ちなさい。\n翌夜、供えものが消えていたなら、深い水辺に道がひらく。\nただし、その声を釣り上げられるのは、伝説を名乗る竿だけ」\n\n人魚に関係する手がかりかもしれない。';
 const MERMAID_LETTER_PAPER_SRC = '/img/recipe.png';
 const ZUKAN_VIDEO_ENTRIES = [
@@ -2357,6 +2371,7 @@ const CRAFT_TUTORIAL_KURUMI_LABEL_W = 210;
 const CRAFT_TUTORIAL_KURUMI_LABEL_H = 54;
 const WARP_COOLDOWN_MS = 450;
 const COMPANION_TRAIL_DELAY_FRAMES = 18;
+const MIO_TRAIL_DELAY_FRAMES_WITH_COMPANION = COMPANION_TRAIL_DELAY_FRAMES * 2;
 const COMPANION_FOLLOW_DISTANCE = 54;
 const DEBUG_INITIAL_GIRL_TRUST = 0;
 const DEBUG_APPEARED_GIRL_IDS = new Set(
@@ -2381,6 +2396,14 @@ const getCompanionRestPosition = (
     right: { x: -COMPANION_FOLLOW_DISTANCE, y: 0 },
   }[direction];
   return { x: position.x + offset.x, y: position.y + offset.y, direction, isWalking: false };
+};
+const getMioRestPosition = (
+  position: { x: number; y: number },
+  direction: 'up' | 'down' | 'left' | 'right',
+  hasCompanion: boolean,
+) => {
+  const firstFollow = getCompanionRestPosition(position, direction);
+  return hasCompanion ? getCompanionRestPosition(firstFollow, direction) : firstFollow;
 };
 const shouldEquipCraftedGatheringTool = (currentTool: string, craftedTool: string) => {
   if (isSawName(craftedTool)) {
@@ -3065,6 +3088,8 @@ export default function App() {
   // 同行娘は主人公の少し前の足跡をたどる。旋回時も横へワープせず、後ろを自然に追従する。
   const [companionFollow, setCompanionFollow] = useState({ x: 960, y: 540, direction: 'down' as const, isWalking: false });
   const companionTrailRef = useRef<Array<{ x: number; y: number; direction: 'up' | 'down' | 'left' | 'right'; isWalking: boolean }>>([]);
+  const [mioFollow, setMioFollow] = useState({ x: 960, y: 540, direction: 'down' as const, isWalking: false });
+  const mioTrailRef = useRef<Array<{ x: number; y: number; direction: 'up' | 'down' | 'left' | 'right'; isWalking: boolean }>>([]);
   const [isWalking, setIsWalking] = useState(false);
   const renderedDirectionRef = useRef(dir);
   const renderedWalkingRef = useRef(isWalking);
@@ -3126,6 +3151,17 @@ export default function App() {
   const [battleIntroPhase, setBattleIntroPhase] = useState<3 | 2 | 1 | 'start' | null>(null);
   const [battlePreviewState, setBattlePreviewState] = useState<BattlePreviewState>(createInitialBattlePreviewState);
   const [battlePartnerSkillDisplay, setBattlePartnerSkillDisplay] = useState<BattlePartnerSkillDisplay>(null);
+  const [companionRegenCinematicOpen, setCompanionRegenCinematicOpen] = useState(false);
+  const companionRegenCinematicPlayedRef = useRef(false);
+  useEffect(() => {
+    if (import.meta.env.DEV && new URLSearchParams(window.location.search).get('previewCompanionRegen') === '1') {
+      window.setTimeout(() => {
+        setBattleIntroPhase(null);
+        setBattlePreviewOpen(true);
+        setCompanionRegenCinematicOpen(true);
+      }, 5000);
+    }
+  }, []);
   const [battleMotion, setBattleMotion] = useState<BattleMotionState>(null);
   const [battleHitEffect, setBattleHitEffect] = useState<BattleHitEffectState>(null);
   const [battleSupportEffect, setBattleSupportEffect] = useState<BattleSupportEffectState>(null);
@@ -3217,6 +3253,7 @@ export default function App() {
     );
   });
   const [debugGirlAffinities, setDebugGirlAffinities] = useState<Record<string, number>>({});
+  const [debugMioFollowing, setDebugMioFollowing] = useState(false);
   const menuGirls = GIRL_DATA.map((girl, index) => ({
     id: girl.id,
     name: girl.girlName,
@@ -3306,6 +3343,10 @@ export default function App() {
   const [farmCareConfirmChoice, setFarmCareConfirmChoice] = useState<'yes' | 'no'>('yes');
   const [farmCareCinematicAction, setFarmCareCinematicAction] = useState<FarmCareAction | null>(null);
   const farmCareCinematicTimerRef = useRef<number | null>(null);
+  const [bulkFarmCareOpen, setBulkFarmCareOpen] = useState(false);
+  const [bulkFarmCareSelections, setBulkFarmCareSelections] = useState<string[]>([]);
+  const [bulkFarmCareUnlockNotice, setBulkFarmCareUnlockNotice] = useState(false);
+  const [bulkFarmCareResults, setBulkFarmCareResults] = useState<string[] | null>(null);
   const [ownedGirlSeeds, setOwnedGirlSeeds] = useState<string[]>([]);
   const [momonaSeedEventOpen, setMomonaSeedEventOpen] = useState(false);
   const [farmFieldSlots, setFarmFieldSlots] = useState<FarmFieldSlotState[]>(() => createInitialFarmFieldSlots('hard'));
@@ -3777,6 +3818,76 @@ export default function App() {
     window.setTimeout(() => setFarmCareCinematicAction(action), 0);
     farmCareCinematicTimerRef.current = window.setTimeout(finishFarmCareCinematic, 6200);
   };
+  const isBulkFarmCareUnlocked = collectionProgress.unlockedEventIds.includes(BULK_FARM_CARE_UNLOCK_EVENT_ID);
+  useEffect(() => {
+    if (farmCareCinematicAction || isBulkFarmCareUnlocked || !FARM_CARE_VIDEO_EVENT_IDS.every(eventId => collectionProgress.unlockedEventIds.includes(eventId))) return;
+    unlockCollectionEvent(BULK_FARM_CARE_UNLOCK_EVENT_ID);
+    setBulkFarmCareUnlockNotice(true);
+  }, [collectionProgress.unlockedEventIds, farmCareCinematicAction, isBulkFarmCareUnlocked]);
+
+  const executeBulkFarmCare = () => {
+    const selectedKeys = new Set(bulkFarmCareSelections);
+    if (selectedKeys.size === 0 || selectedKeys.size > currentAP) return;
+    const resultLines: string[] = [];
+    const appearedGirlIds = new Set<string>();
+    const nextFarmGirls = farmGirls.map(girl => {
+      const crop = FARM_GIRL_CROP_DATA.find(entry => entry.girlId === girl.girlId);
+      const fieldSlot = farmFieldSlots.find(slot => slot.girlId === girl.girlId);
+      if (!crop || !canCareForFarmGirlSeedling(girl.girlId)) return girl;
+      let nextGirl = { ...girl };
+      const appliedResults: string[] = [];
+      FARM_CARE_ACTION_ORDER.forEach(action => {
+        if (!selectedKeys.has(`${girl.girlId}:${action}`)) return;
+        const currentCount = girl.careDay === currentDay
+          ? action === 'caress' ? girl.caressCount : action === 'finger' ? girl.fingerCount : girl.fertilizeCount
+          : 0;
+        if (!isFarmCareActionUnlocked(action) || currentCount >= getSkillAdjustedSeedlingCareLimit(action, crop)) return;
+        const baseQualityGain = action === 'caress'
+          ? 3 + Math.floor(Math.random() * 4)
+          : action === 'finger' ? 6 + Math.floor(Math.random() * 5) : 0;
+        const qualityGain = currentCount >= 1 ? Math.max(1, Math.round(baseQualityGain * 0.5)) : baseQualityGain;
+        const isRegrowingAppearedGirl = (fieldSlot?.state === 'appeared' || girl.state === 'appeared') && girl.lastHarvestDay !== null;
+        if (action === 'fertilize') {
+          nextGirl.growthProgress = Math.min(crop.growthDays, nextGirl.growthProgress + 1);
+          if (isRegrowingAppearedGirl && nextGirl.lastHarvestDay !== null) nextGirl.lastHarvestDay = Math.max(1, nextGirl.lastHarvestDay - 1);
+          appliedResults.push('肥料注入：成長＋1日');
+        } else {
+          nextGirl.quality = clampNumber(nextGirl.quality + qualityGain, 0, 100);
+          appliedResults.push(`${FARM_CARE_UNLOCK_ACTION_LABELS[action]}：品質＋${qualityGain}`);
+        }
+        const isSameDay = nextGirl.careDay === currentDay;
+        nextGirl.careDay = currentDay;
+        if (action === 'caress') nextGirl.caressCount = (isSameDay ? nextGirl.caressCount : 0) + 1;
+        if (action === 'finger') nextGirl.fingerCount = (isSameDay ? nextGirl.fingerCount : 0) + 1;
+        if (action === 'fertilize') nextGirl.fertilizeCount = (isSameDay ? nextGirl.fertilizeCount : 0) + 1;
+      });
+      if (appliedResults.length === 0) return girl;
+      if (nextGirl.growthProgress >= crop.growthDays) {
+        nextGirl.state = 'appeared';
+        appearedGirlIds.add(girl.girlId);
+      } else {
+        nextGirl.state = 'growing';
+      }
+      const girlName = GIRL_DATA.find(entry => entry.id === girl.girlId)?.girlName ?? girl.girlId;
+      resultLines.push(`${girlName}｜${appliedResults.join(' / ')}`);
+      return nextGirl;
+    });
+    setFarmGirls(nextFarmGirls);
+    if (appearedGirlIds.size > 0) {
+      setFarmFieldSlots(previous => previous.map(slot => slot.girlId && appearedGirlIds.has(slot.girlId) ? { ...slot, state: 'appeared' } : slot));
+    }
+    const nextAP = currentAP - selectedKeys.size;
+    if (nextAP > 0) setCurrentAP(nextAP);
+    else if (timeOfDay === 'night') setCurrentAP(0);
+    else {
+      setTurn(turn => turn + 1);
+      setCurrentAP(maxAPPerTimeSlot);
+    }
+    playUiSound('/se/cure.mp3');
+    setBulkFarmCareOpen(false);
+    setBulkFarmCareSelections([]);
+    setBulkFarmCareResults(resultLines);
+  };
   const requestSeedlingCare = (girlId: string, action: FarmCareAction) => {
     if (!isFarmCareActionUnlocked(action)) {
       playFixSound();
@@ -3846,6 +3957,11 @@ export default function App() {
     if (recoveredHp <= 0) return;
     hero.hp += recoveredHp;
     turnLogs.push(`母乳分泌促進：主人公のHPが${recoveredHp}回復！`);
+    if (!companionRegenCinematicPlayedRef.current) {
+      companionRegenCinematicPlayedRef.current = true;
+      setCompanionRegenCinematicOpen(true);
+      playUiSound(BATTLE_SE_SOURCES.skill);
+    }
     triggerBattleSupportEffect(hero.id);
     triggerBattleDamagePopup(hero.id, recoveredHp, false, true);
     playUiSound(BATTLE_SE_SOURCES.cure);
@@ -5100,6 +5216,20 @@ export default function App() {
             </div>
           </div>
           <div style={{ ...menuPanelBaseStyle, ...menuKeyboardFocusStyle(menuFocusArea === 'content' && menuContentFocus === 'primary') }} className="farm-menu-scroll-area flex min-h-0 flex-col gap-4 overflow-y-auto pr-2 text-base">
+            {isBulkFarmCareUnlocked && (
+              <button
+                type="button"
+                onClick={() => {
+                  playFixSound();
+                  setBulkFarmCareSelections([]);
+                  setBulkFarmCareOpen(true);
+                }}
+                className="rounded-xl border-2 border-[#ffd166]/85 bg-[#5f4214] px-4 py-3 text-left text-[#fff7dc] shadow-[0_0_18px_rgba(255,209,102,0.18)] transition hover:bg-[#79561b]"
+              >
+                <span className="block text-lg font-black text-[#fff1a8]">✨ 一括お世話</span>
+                <span className="mt-1 block text-xs font-bold text-[#d7b98a]">現在APの範囲で複数のお世話をまとめて実行</span>
+              </button>
+            )}
             <div className="bg-black/30 border border-[#5a3010]/70 rounded px-4 py-4">
               <div style={menuTinyLabelStyle}>詳細</div>
               <div className="mt-3 grid grid-cols-2 gap-3 text-base">
@@ -5726,6 +5856,21 @@ export default function App() {
 	            '複数の苗娘を育てていると、朝の牧場で思いがけない出会いが起こるかもしれません。',
 	          ],
 	        },
+	        ...(isBulkFarmCareUnlocked ? [{
+	          group: '農場メイン',
+	          icon: '✨',
+	          title: '一括お世話',
+	          imageSrc: '/img/nae.png',
+	          imageAlt: '一括お世話',
+	          lead: '経験済みのお世話を、複数の苗娘へまとめて実行するための効率化機能です。',
+	          points: [
+	            '農場メニューの「一括お世話」から、苗娘ごとに愛撫・指入れ・肥料注入を選択できます。',
+	            '1チェックにつきAPを1消費します。現在APを超えると実行できません。',
+	            '収穫可能な苗娘と、本日のお世話上限に達した項目は選択できません。',
+	            '一括実行では動画を省略し、キラキラ演出の後に結果をまとめて表示します。',
+	            'APを使い切ると、通常のお世話と同じように次の時間帯へ進みます。',
+	          ],
+	        }] : []),
 	        {
 	          group: '農場メイン',
 		          icon: '🃏',
@@ -5897,6 +6042,102 @@ export default function App() {
 	            '農場では苗娘、娘カード、収穫、同行を確認できます。',
 	            '図鑑では苗娘や魚の収集状況を見られます。',
 	            'システムではセーブ、ロード、音量などを調整できます。',
+	          ],
+	        },
+	        {
+	          group: 'ヒント帳',
+		          icon: '🐾',
+		          title: 'MIOイベント',
+		          imageSrc: '/img/jizou.jpg',
+		          imageAlt: '滝裏の地蔵',
+		          lead: '別の世界にいる猫娘へ、好物の匂いを届ける方法があるらしい……。',
+	          points: [
+	            '「サケ」を3匹持って、滝裏にひっそり立つ地蔵を訪ねてみよう。',
+	            '供えものをした日は、すぐには何も起こらないかもしれない。',
+	            'そのまま一晩眠れば、翌朝には別世界から小さなお客さんが遊びに来る……かも？',
+	          ],
+	        },
+	        {
+	          group: 'ヒント帳',
+		          icon: '💍',
+		          title: '農神イベント',
+		          imageSrc: '/img/yubiwa.jpg',
+		          imageAlt: '農神の指輪',
+		          lead: '古びた農神の指輪は、この農場で結ばれた絆を静かに見守っているらしい……。',
+	          points: [
+	            'すべての苗娘と、これ以上ないほど深い信頼を結んでみよう。',
+	            'その願いが満ちた時、眠っていた指輪が淡く光り始めるという。',
+	            '指輪が光った夜は、少しだけ期待して朝を迎えてみるといいかもしれない。',
+	          ],
+	        },
+	        {
+	          group: 'ヒント帳',
+		          icon: '🐰',
+		          title: 'くるみの信頼イベント',
+		          imageSrc: '/img/tent.png',
+		          imageAlt: 'くるみのテント',
+		          lead: 'くるみと仲よくなりたい人へ、特別なヒントだよっ♪',
+	          points: [
+	            'お店をたくさん利用してくれる人は、ちゃんと覚えてるよ！',
+	            '川でくるみの落とし物を見つけたら、返してくれると嬉しいな。',
+	            '十分に仲よくなったら、夜のテントへ来てみて。次の晩にも来てくれたら……あとは秘密♡',
+	          ],
+	        },
+	        {
+	          group: 'ヒント帳',
+		          icon: '📦',
+		          title: '新しい苗娘の入荷',
+		          imageSrc: '/img/kurumi-trade.png',
+		          imageAlt: 'くるみの仕入れ',
+		          imagePosition: 'center top',
+		          lead: 'くるみのお店には、冒険の進み具合で新しい苗娘が入ることもあるよ！',
+	          points: [
+	            '何日か過ごしたり、返済で信用を上げたりすると、仕入れが増えるかも。',
+	            '伐採や採掘、獣退治で珍しい素材を集めておくのもおすすめ！',
+	            '何かを達成した後は、くるみのお店をのぞいてみてねっ♪',
+	          ],
+	        },
+	        {
+	          group: 'ヒント帳',
+		          icon: '🗓️',
+		          title: '上手な一日の進め方',
+		          imageSrc: '/img/hud-guide.jpg',
+		          imageAlt: '一日の進め方',
+		          lead: '借金返済も農場づくりも、毎日のちょっとした段取りが大事だよっ！',
+	          points: [
+	            '朝になったら、まず畑を見てみよう！ 収穫できる娘と今日のお世話を先に確認すると忘れにくいよ。',
+	            '急いで育てたい時は肥料注入、じっくり価値を高めたい時は品質を上げるお世話を選んでみてね。',
+	            '畑仕事が終わったら、残った元気で釣り・採掘・伐採！ 道具を新しくすると狙える獲物も広がるよ。',
+	            '返済日の直前に慌てないように、売れる物は少しずつ集めておくのがくるみのおすすめっ♪',
+	          ],
+	        },
+	        {
+	          group: 'ヒント帳',
+		          icon: '🎣',
+		          title: '魚と時間帯の秘密',
+		          imageSrc: '/img/fishing1.jpg',
+		          imageAlt: '時間帯で変わる釣り場',
+		          lead: '同じ水辺でも、時間が変わると魚たちの様子がちょっと違うみたい！',
+	          points: [
+	            '朝と夕方は水辺がにぎやかで、見つけられる釣り場も多くなるらしいよ。',
+	            '昼と夜は釣り場が少なめ。見当たらない時は、別の水辺も探してみてね。',
+	            '普通の魚をたくさん狙うなら朝や昼、珍しい魚との出会いを狙うなら夕方から夜がおすすめ！',
+	            'いいタイミングを続けるほど大物に近づくって、釣り好きの間では噂になってるよっ♪',
+	          ],
+	        },
+	        {
+	          group: 'ヒント帳',
+		          icon: '🌱',
+		          title: '苗娘を上手に育てるコツ',
+		          imageSrc: '/img/nae.png',
+		          imageAlt: '苗娘のお世話',
+		          lead: 'たくさん実ってもらうには、信頼と品質も大切だよ！',
+	          points: [
+	            '同じお世話を重ねると、2回目から品質の伸びが控えめになるよ。',
+	            '信頼が深まるほど、収穫量と作物の売値が上がるよ！',
+	            '成長に時間がかかる娘ほど、一度の収穫で信頼が深まりやすいみたい。',
+	            '同行中の娘は、信頼が浅いと収穫量が減ることもあるよ。',
+	            'もっと仲よくなれば、本来の力を出してくれるからねっ♪',
 	          ],
 	        },
 	        {
@@ -6422,6 +6663,15 @@ export default function App() {
   const [bathSequenceActive, setBathSequenceActive] = useState(false);
   const [bathNoticeMessage, setBathNoticeMessage] = useState<string | null>(null);
   const [mermaidOfferingPromptVisible, setMermaidOfferingPromptVisible] = useState(false);
+  const [mioOfferingPromptVisible, setMioOfferingPromptVisible] = useState(false);
+  const [mioArrivalNoticeVisible, setMioArrivalNoticeVisible] = useState(false);
+  const [mioSleepCount, setMioSleepCount] = useState(0);
+  const [mioSpeech, setMioSpeech] = useState<{ key: number; text: string } | null>(null);
+  const mioSpeechTimerRef = useRef<number | null>(null);
+  const [mioSpecialEventPhase, setMioSpecialEventPhase] = useState<'event' | 'end' | null>(null);
+  useEffect(() => () => {
+    if (mioSpeechTimerRef.current !== null) window.clearTimeout(mioSpeechTimerRef.current);
+  }, []);
   const [isCompanionWaitingForBath, setIsCompanionWaitingForBath] = useState(false);
   const [bathForcedDisplayDirection, setBathForcedDisplayDirection] = useState<PlayerDirection | null>(null);
   const [craftPromptVisible, setCraftPromptVisible] = useState(false);
@@ -6920,6 +7170,12 @@ export default function App() {
     companionTrailRef.current = Array.from({ length: COMPANION_TRAIL_DELAY_FRAMES }, () => initialFollow);
     setCompanionFollow(initialFollow);
   }, [companionGirlId, currentMap]);
+  useEffect(() => {
+    const initialFollow = getMioRestPosition(posRef.current, dir, Boolean(companionGirlId));
+    const delayFrames = companionGirlId ? MIO_TRAIL_DELAY_FRAMES_WITH_COMPANION : COMPANION_TRAIL_DELAY_FRAMES;
+    mioTrailRef.current = Array.from({ length: delayFrames }, () => initialFollow);
+    setMioFollow(initialFollow);
+  }, [companionGirlId, currentMap]);
   const [doors, setDoors] = useState<WarpDoor[]>(() => ensureRequiredRouteDoors(defaultDoors));
   const [selectedDoorId, setSelectedDoorId] = useState<string | null>(null);
   const [inspectSpots, setInspectSpots] = useState<InspectSpot[]>([]);
@@ -7061,10 +7317,10 @@ export default function App() {
     window.localStorage.setItem(MAP_ZOOM_STORAGE_KEY, String(mapZoom));
   }, [mapZoom]);
 
-  const movementLocked = sleepPromptVisible || bathPromptVisible || mermaidOfferingPromptVisible || bathSequenceActive || craftPromptVisible || fishingPromptVisible || miningPromptVisible || loggingPromptVisible || fishingMiniGameOpen || miningMiniGameOpen || miningRhythmRecording || craftMiniGameOpen || fishingTutorialOpen || fishingTutorialEndingOpen || sawCraftTutorialIntroOpen || sawCraftTutorialShedDialogueOpen || gatheringTutorialOpen || miningTutorialOpen || kurumiShopOpen || kurumiIntroOpen || kurumiTentFinalEventOpen || seedPlantTutorialOpen || seedAfterPlantTutorialOpen || momonaSeedEventOpen || isSleepSequenceActive || beastAttackPending || repaymentEventPending || storyEndingVideoOpen || activeZukanImage !== null || activeZukanVideo !== null || activeTrustEvent !== null || farmGirlRevealSpotlightId !== null || battlePreviewOpen || farmSlotInteractionStage !== null || girlEquipmentMiniGame !== null || pendingGirlEquipmentInsert !== null || girlEquipmentNoticeGirlId !== null || trust20CompanionTutorialStep !== null || skillTreeTutorialStep !== null || farmCareCinematicAction !== null || pendingFarmCareConfirm !== null || farmCareUnlockNoticeAction !== null || farmHarvestResultNotice !== null || farmTrustEventNotice !== null || prologueOpen;
+  const movementLocked = sleepPromptVisible || bathPromptVisible || mermaidOfferingPromptVisible || mioOfferingPromptVisible || mioArrivalNoticeVisible || mioSpecialEventPhase !== null || bathSequenceActive || craftPromptVisible || fishingPromptVisible || miningPromptVisible || loggingPromptVisible || fishingMiniGameOpen || miningMiniGameOpen || miningRhythmRecording || craftMiniGameOpen || fishingTutorialOpen || fishingTutorialEndingOpen || sawCraftTutorialIntroOpen || sawCraftTutorialShedDialogueOpen || gatheringTutorialOpen || miningTutorialOpen || kurumiShopOpen || kurumiIntroOpen || kurumiTentFinalEventOpen || seedPlantTutorialOpen || seedAfterPlantTutorialOpen || momonaSeedEventOpen || isSleepSequenceActive || beastAttackPending || repaymentEventPending || storyEndingVideoOpen || activeZukanImage !== null || activeZukanVideo !== null || activeTrustEvent !== null || farmGirlRevealSpotlightId !== null || battlePreviewOpen || farmSlotInteractionStage !== null || girlEquipmentMiniGame !== null || pendingGirlEquipmentInsert !== null || girlEquipmentNoticeGirlId !== null || trust20CompanionTutorialStep !== null || skillTreeTutorialStep !== null || farmCareCinematicAction !== null || pendingFarmCareConfirm !== null || farmCareUnlockNoticeAction !== null || farmHarvestResultNotice !== null || farmTrustEventNotice !== null || prologueOpen;
   useEffect(() => {
      movementLockedRef.current = movementLocked;
-  }, [sleepPromptVisible, bathPromptVisible, mermaidOfferingPromptVisible, bathSequenceActive, craftPromptVisible, fishingPromptVisible, miningPromptVisible, loggingPromptVisible, fishingMiniGameOpen, miningMiniGameOpen, miningRhythmRecording, craftMiniGameOpen, fishingTutorialOpen, fishingTutorialEndingOpen, sawCraftTutorialIntroOpen, sawCraftTutorialShedDialogueOpen, gatheringTutorialOpen, miningTutorialOpen, kurumiShopOpen, kurumiIntroOpen, kurumiTentFinalEventOpen, seedPlantTutorialOpen, seedAfterPlantTutorialOpen, momonaSeedEventOpen, isSleepSequenceActive, beastAttackPending, repaymentEventPending, storyEndingVideoOpen, activeZukanImage, activeZukanVideo, activeTrustEvent, farmGirlRevealSpotlightId, battlePreviewOpen, farmSlotInteractionStage, girlEquipmentMiniGame, pendingGirlEquipmentInsert, girlEquipmentNoticeGirlId, trust20CompanionTutorialStep, skillTreeTutorialStep, farmCareCinematicAction, pendingFarmCareConfirm, farmCareUnlockNoticeAction, farmHarvestResultNotice, farmTrustEventNotice, prologueOpen]);
+  }, [sleepPromptVisible, bathPromptVisible, mermaidOfferingPromptVisible, mioOfferingPromptVisible, mioArrivalNoticeVisible, bathSequenceActive, craftPromptVisible, fishingPromptVisible, miningPromptVisible, loggingPromptVisible, fishingMiniGameOpen, miningMiniGameOpen, miningRhythmRecording, craftMiniGameOpen, fishingTutorialOpen, fishingTutorialEndingOpen, sawCraftTutorialIntroOpen, sawCraftTutorialShedDialogueOpen, gatheringTutorialOpen, miningTutorialOpen, kurumiShopOpen, kurumiIntroOpen, kurumiTentFinalEventOpen, seedPlantTutorialOpen, seedAfterPlantTutorialOpen, momonaSeedEventOpen, isSleepSequenceActive, beastAttackPending, repaymentEventPending, storyEndingVideoOpen, activeZukanImage, activeZukanVideo, activeTrustEvent, farmGirlRevealSpotlightId, battlePreviewOpen, farmSlotInteractionStage, girlEquipmentMiniGame, pendingGirlEquipmentInsert, girlEquipmentNoticeGirlId, trust20CompanionTutorialStep, skillTreeTutorialStep, farmCareCinematicAction, pendingFarmCareConfirm, farmCareUnlockNoticeAction, farmHarvestResultNotice, farmTrustEventNotice, prologueOpen]);
 
   useEffect(() => {
     if (!skillTreeTutorialPending || skillTreeTutorialStep !== null) return;
@@ -7997,6 +8253,11 @@ export default function App() {
 	              ? data.mermaidScaleOfferingDay
 	              : null
 	          );
+	          setMioSleepCount(
+	            typeof data.mioSleepCount === 'number' && Number.isInteger(data.mioSleepCount) && data.mioSleepCount >= 0
+	              ? data.mioSleepCount
+	              : 0
+	          );
 	          setShownKurumiTradeRewardThresholds(Array.isArray(data.shownKurumiTradeRewardThresholds)
 	            ? data.shownKurumiTradeRewardThresholds.filter((threshold: unknown): threshold is number => (
 	              typeof threshold === 'number' && KURUMI_TRADE_REWARDS.some(reward => reward.threshold === threshold)
@@ -8263,6 +8524,9 @@ export default function App() {
           setStoryCleared(false);
           setFarmCredit(0);
           setCollectionProgress(createInitialCollectionProgress());
+          setMioSleepCount(0);
+          setMioSpeech(null);
+          setMioSpecialEventPhase(null);
           setAchievementStats(createInitialAchievementStats());
           setEndlessStats(createInitialEndlessStats());
           setSuccessfulRepaymentCount(0);
@@ -8435,6 +8699,7 @@ export default function App() {
     kurumiTentFinalAvailableDay,
     kurumiTentFinalCompleted,
     mermaidScaleOfferingDay,
+    mioSleepCount,
     seedAfterPlantTutorialCompleted,
     farmFieldSlots,
     currentAP,
@@ -8911,6 +9176,8 @@ export default function App() {
     previousBattleVitalsRef.current = null;
     resolvedPartnerTurnRef.current = null;
     setBattlePartnerSkillDisplay(null);
+    companionRegenCinematicPlayedRef.current = false;
+    setCompanionRegenCinematicOpen(false);
     setBattleItemPanelOpen(false);
     setBattleItemSelectionStep('item');
     setSelectedBattleCommandIndex(0);
@@ -8950,6 +9217,8 @@ export default function App() {
     previousBattleVitalsRef.current = null;
     resolvedPartnerTurnRef.current = null;
     setBattlePartnerSkillDisplay(null);
+    companionRegenCinematicPlayedRef.current = false;
+    setCompanionRegenCinematicOpen(false);
     setBattleItemPanelOpen(false);
     setBattleItemSelectionStep('item');
     setSelectedBattleCommandIndex(0);
@@ -9522,6 +9791,7 @@ export default function App() {
 
   useEffect(() => {
     if (!battlePreviewOpen) return;
+    if (companionRegenCinematicOpen) return;
     if (battleIntroPhase !== null) return;
     if (battlePreviewState.result !== 'ongoing') return;
     if ((battlePreviewState.turn ?? 'party') !== 'enemy') return;
@@ -9596,10 +9866,11 @@ export default function App() {
     }, BATTLE_ENEMY_TURN_DELAY_MS);
 
     return () => window.clearTimeout(timer);
-  }, [battlePreviewOpen, battleIntroPhase, battlePreviewState.turn, battlePreviewState.turnIndex, battlePreviewState.result]);
+  }, [battlePreviewOpen, companionRegenCinematicOpen, battleIntroPhase, battlePreviewState.turn, battlePreviewState.turnIndex, battlePreviewState.result]);
 
   useEffect(() => {
     if (!battlePreviewOpen) return;
+    if (companionRegenCinematicOpen) return;
     if (battleIntroPhase !== null) return;
     if (battlePreviewState.result !== 'ongoing') return;
     if ((battlePreviewState.turn ?? 'party') !== 'partner') {
@@ -9753,7 +10024,7 @@ export default function App() {
     }, 850);
 
     return () => window.clearTimeout(timer);
-  }, [battlePreviewOpen, battleIntroPhase, battlePreviewState.turn, battlePreviewState.turnIndex, battlePreviewState.result]);
+  }, [battlePreviewOpen, companionRegenCinematicOpen, battleIntroPhase, battlePreviewState.turn, battlePreviewState.turnIndex, battlePreviewState.result]);
 
   useEffect(() => {
     if (battlePreviewState.result !== 'victory') return;
@@ -10069,6 +10340,10 @@ export default function App() {
   const missedRepaymentPenalty = getMissedRepaymentPenalty(missedRepaymentCount);
   const formatInterestRate = (rate: number) => `${rate.toFixed(1)}%`;
   const mermaidFishingUnlocked = collectionProgress.unlockedEventIds.includes(MERMAID_UNLOCK_EVENT_ID);
+  const isMioFollowing = canUseDebugTools
+    ? debugMioFollowing
+    : collectionProgress.unlockedEventIds.includes(MIO_FOLLOW_EVENT_ID) &&
+      !collectionProgress.unlockedEventIds.includes(MIO_DEPARTED_EVENT_ID);
   useEffect(() => {
     const momonaEventCompleted = collectionProgress.unlockedEventIds.includes('momona_seed_unlock');
     const canStartMomonaEvent = (
@@ -10760,6 +11035,46 @@ export default function App() {
     grantHeroSPReward(spReward);
     setDialogMessage(`主人公の経験が増した！\n★が1つ輝いた！\nSP +${spReward}`);
   }, [bootMode, collectionProgress.unlockedEventIds, difficulty, farmCredit, gameMode, heroLevel, successfulRepaymentCount]);
+  const recordMioSleep = () => {
+    if (!isMioFollowing) return;
+    const nextSleepCount = mioSleepCount + 1;
+    setMioSleepCount(nextSleepCount);
+    if (
+      nextSleepCount === 11 &&
+      (canUseDebugTools || !collectionProgress.unlockedEventIds.includes(MIO_SPECIAL_EVENT_STARTED_ID))
+    ) {
+      if (!canUseDebugTools) unlockCollectionEvent(MIO_SPECIAL_EVENT_STARTED_ID);
+      window.setTimeout(() => setMioSpecialEventPhase('event'), 900);
+      return;
+    }
+    const speechEvent = MIO_SLEEP_SPEECH_EVENTS[nextSleepCount];
+    if (!speechEvent) return;
+    window.setTimeout(() => {
+      playUiSound(speechEvent.audioSrc);
+      setMioSpeech({ key: Date.now(), text: speechEvent.text });
+      if (mioSpeechTimerRef.current !== null) window.clearTimeout(mioSpeechTimerRef.current);
+      mioSpeechTimerRef.current = window.setTimeout(() => {
+        setMioSpeech(null);
+        mioSpeechTimerRef.current = null;
+      }, 3200);
+    }, 900);
+  };
+  const returnFromMioSpecialEvent = () => {
+    if (canUseDebugTools) setDebugMioFollowing(false);
+    else unlockCollectionEvent(MIO_DEPARTED_EVENT_ID);
+    setMioSpecialEventPhase(null);
+    setMioSpeech(null);
+    movementLockedRef.current = false;
+    setDialogMessage('MIOは元の世界へ帰っていった。');
+  };
+  useEffect(() => {
+    if (mioSpecialEventPhase !== null) {
+      movementLockedRef.current = true;
+      keys.current = {};
+      clickTargetRef.current = null;
+      setClickTargetMarker(null);
+    }
+  }, [mioSpecialEventPhase]);
   const advanceToNextDay = (skipRepaymentEvent = false) => {
     if (
       !skipRepaymentEvent &&
@@ -10783,6 +11098,7 @@ export default function App() {
     }
 
     proceedToNextDay();
+    recordMioSleep();
 
     if (
       timeOfDay === 'night' &&
@@ -14139,6 +14455,11 @@ export default function App() {
     triggeredAutoEventIdsRef.current.add(spot.id);
     clickTargetRef.current = null;
     setClickTargetMarker(null);
+    if (isMermaidJizoSpot(spot) && canOfferMioSalmon()) {
+      setConfirmPromptChoice('yes');
+      setMioOfferingPromptVisible(true);
+      return;
+    }
     if (isMermaidJizoSpot(spot) && canOfferMermaidScales()) {
       setConfirmPromptChoice('yes');
       setMermaidOfferingPromptVisible(true);
@@ -14179,6 +14500,69 @@ export default function App() {
     !collectionProgress.unlockedEventIds.includes(MERMAID_OFFERING_EVENT_ID) &&
     (inventoryCounts[MERMAID_SCALE_ITEM_NAME] ?? 0) >= MERMAID_SCALE_OFFERING_COUNT
   );
+
+  const canOfferMioSalmon = () => (
+    !collectionProgress.unlockedEventIds.includes(MIO_FOLLOW_EVENT_ID) &&
+    (inventoryCounts[MIO_OFFERING_ITEM_NAME] ?? 0) >= MIO_OFFERING_COUNT
+  );
+
+  const cancelMioOfferingPrompt = () => {
+    playFixSound();
+    setMioOfferingPromptVisible(false);
+    setConfirmPromptChoice('yes');
+    setDialogMessage('地蔵の前に立つと、どこからか小さな鳴き声が聞こえた気がした。');
+  };
+
+  const confirmMioOffering = () => {
+    if (!canOfferMioSalmon()) {
+      setMioOfferingPromptVisible(false);
+      setConfirmPromptChoice('yes');
+      setDialogMessage('供えるには、サケが3匹必要です。');
+      return;
+    }
+    playFixSound();
+    setInventoryCounts(previous => ({
+      ...previous,
+      [MIO_OFFERING_ITEM_NAME]: Math.max(0, (previous[MIO_OFFERING_ITEM_NAME] ?? 0) - MIO_OFFERING_COUNT),
+    }));
+    unlockCollectionEvent(MIO_FOLLOW_EVENT_ID);
+    setMioOfferingPromptVisible(false);
+    setConfirmPromptChoice('yes');
+    setMioArrivalNoticeVisible(true);
+  };
+
+  useEffect(() => {
+    if (!mioOfferingPromptVisible && !mioArrivalNoticeVisible) return undefined;
+    const handleMioEventKeyDown = (event: KeyboardEvent) => {
+      if (event.repeat) return;
+      if (mioArrivalNoticeVisible) {
+        if (event.key !== 'Enter' && event.key !== ' ' && event.key !== 'Escape') return;
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        playFixSound();
+        setMioArrivalNoticeVisible(false);
+        return;
+      }
+      if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        const nextChoice = event.key === 'ArrowLeft' ? 'yes' : 'no';
+        if (confirmPromptChoice !== nextChoice) playCursorSound();
+        setConfirmPromptChoice(nextChoice);
+      } else if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        if (confirmPromptChoice === 'yes') confirmMioOffering();
+        else cancelMioOfferingPrompt();
+      } else if (event.key === 'Escape') {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        cancelMioOfferingPrompt();
+      }
+    };
+    window.addEventListener('keydown', handleMioEventKeyDown, true);
+    return () => window.removeEventListener('keydown', handleMioEventKeyDown, true);
+  }, [confirmPromptChoice, mioArrivalNoticeVisible, mioOfferingPromptVisible]);
 
   const cancelMermaidOfferingPrompt = () => {
     playFixSound();
@@ -15552,6 +15936,22 @@ export default function App() {
   const companionSpriteSheet = companionGirlId
     ? companionSpriteSheets[companionGirlId as keyof typeof companionSpriteSheets] ?? null
     : null;
+  const mioSpriteSheet = useMemo(() => ({
+    url: '/img/miocat.png',
+    columns: 3,
+    rows: 3,
+    sourceWidth: 1254,
+    sourceHeight: 1254,
+    cellWidth: 418,
+    cellHeight: 418,
+    stabilizeMotion: true,
+    frames: {
+      down: [0, 1, 0, 2],
+      up: [6, 7, 6, 8],
+      left: [3, 4, 3, 5],
+      right: [3, 4, 3, 5],
+    },
+  } as const), []);
   useEffect(() => {
     const handleResize = () => {
       const availableWidth = window.innerWidth - 32;
@@ -16044,6 +16444,37 @@ export default function App() {
         return;
       }
 
+      if (mioOfferingPromptVisible) {
+        if (e.repeat) return;
+        if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+          e.preventDefault();
+          const nextChoice = e.key === 'ArrowLeft' ? 'yes' : 'no';
+          if (confirmPromptChoice !== nextChoice) playCursorSound();
+          setConfirmPromptChoice(nextChoice);
+          return;
+        }
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          if (confirmPromptChoice === 'yes') confirmMioOffering();
+          else cancelMioOfferingPrompt();
+          return;
+        }
+        if (e.key === 'Escape') {
+          e.preventDefault();
+          cancelMioOfferingPrompt();
+          return;
+        }
+        return;
+      }
+
+      if (mioArrivalNoticeVisible) {
+        if (e.repeat || (e.key !== 'Enter' && e.key !== ' ' && e.key !== 'Escape')) return;
+        e.preventDefault();
+        playFixSound();
+        setMioArrivalNoticeVisible(false);
+        return;
+      }
+
       if (mermaidOfferingPromptVisible) {
         if (e.repeat) return;
         if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
@@ -16122,6 +16553,18 @@ export default function App() {
         if (e.key === 'Enter' || e.key === ' ' || e.key === 'Escape') {
           e.preventDefault();
           advanceSkillTreeTutorial();
+        }
+        return;
+      }
+
+      if (bulkFarmCareOpen || bulkFarmCareUnlockNotice || bulkFarmCareResults) {
+        if (e.key === 'Escape') {
+          e.preventDefault();
+          playFixSound();
+          setBulkFarmCareOpen(false);
+          setBulkFarmCareUnlockNotice(false);
+          setBulkFarmCareResults(null);
+          setBulkFarmCareSelections([]);
         }
         return;
       }
@@ -16213,6 +16656,10 @@ export default function App() {
 
       if (battlePreviewOpen) {
         if (e.repeat) return;
+        if (companionRegenCinematicOpen) {
+          e.preventDefault();
+          return;
+        }
         const actionButtons = ['攻撃', '強攻撃', '防御', 'アイテム', 'あきらめる'];
         const activeTurn = battlePreviewState.turnQueue[battlePreviewState.turnIndex];
         const isHeroTurn = battlePreviewState.result === 'ongoing' &&
@@ -16836,6 +17283,15 @@ export default function App() {
       }
 
       // RPGメニュー操作
+      if (!menuOpenRef.current && setupMode === 'none' && e.key === 'Escape') {
+        e.preventDefault();
+        playFixSound();
+        menuOpenRef.current = true;
+        setMenuOpen(true);
+        setMenuSelectedIndex(0);
+        setMenuFocusArea('nav');
+        return;
+      }
       if (e.key.toLowerCase() === 'm') {
         e.preventDefault();
         playFixSound();
@@ -18024,7 +18480,7 @@ export default function App() {
         movementLockedRef.current = true;
       }
 
-      const currentAutoEventSpots = mermaidOfferingPromptVisible ? [] : inspectSpotsRef.current.filter(spot => (
+      const currentAutoEventSpots = mermaidOfferingPromptVisible || mioOfferingPromptVisible || mioArrivalNoticeVisible ? [] : inspectSpotsRef.current.filter(spot => (
         spot.autoTrigger &&
         spot.map === currentMapRef.current &&
         currentX + 18 >= spot.x &&
@@ -18047,15 +18503,26 @@ export default function App() {
         const companionRestPosition = getCompanionRestPosition(companionStep, currentDir);
         companionTrailRef.current = Array.from({ length: COMPANION_TRAIL_DELAY_FRAMES }, () => companionRestPosition);
         setCompanionFollow(companionRestPosition);
+        const mioRestPosition = getMioRestPosition(companionStep, currentDir, Boolean(companionGirlId));
+        const mioDelayFrames = companionGirlId ? MIO_TRAIL_DELAY_FRAMES_WITH_COMPANION : COMPANION_TRAIL_DELAY_FRAMES;
+        mioTrailRef.current = Array.from({ length: mioDelayFrames }, () => mioRestPosition);
+        setMioFollow(mioRestPosition);
       } else if (moved) {
         companionTrailRef.current.push(companionStep);
         if (companionTrailRef.current.length > COMPANION_TRAIL_DELAY_FRAMES) {
           companionTrailRef.current.shift();
         }
         setCompanionFollow(companionTrailRef.current[0] ?? companionStep);
+        const mioDelayFrames = companionGirlId ? MIO_TRAIL_DELAY_FRAMES_WITH_COMPANION : COMPANION_TRAIL_DELAY_FRAMES;
+        mioTrailRef.current.push(companionStep);
+        if (mioTrailRef.current.length > mioDelayFrames) {
+          mioTrailRef.current.shift();
+        }
+        setMioFollow(mioTrailRef.current[0] ?? companionStep);
       } else {
         // 主人公が止まったら、娘も現在位置のまま待機ポーズへ戻す。
         setCompanionFollow(previous => previous.isWalking ? { ...previous, isWalking: false } : previous);
+        setMioFollow(previous => previous.isWalking ? { ...previous, isWalking: false } : previous);
       }
 
       if (posRef.current.x !== currentX || posRef.current.y !== currentY) {
@@ -18077,7 +18544,7 @@ export default function App() {
       window.removeEventListener('keydown', handleKeyDown); window.removeEventListener('keyup', handleKeyUp);
       cancelAnimationFrame(animationFrameId);
     };
-  }, [setupMode, bedTiles, workbenchTiles, fishingTiles, activeFishingTileKeys, miningTiles, activeMiningTileKeys, depletedMiningPointIds, activeMiningPointId, loggingTiles, activeLoggingPoints, activeLoggingPointId, sleepPromptVisible, bathPromptVisible, mermaidOfferingPromptVisible, bathSequenceActive, craftPromptVisible, fishingPromptVisible, miningPromptVisible, loggingPromptVisible, confirmPromptChoice, pendingDeleteSaveSlot, pendingOverwriteSaveSlot, activeAutoEventSpot, activeAutoEventMessage, activeAutoEventMessageIndex, activeAutoEventMessages, displayedAutoEventMessage, turn, currentAP, kurumiShopOpen, kurumiIntroOpen, kurumiIntroSelectedIndex, kurumiIntroAskedTopics, kurumiIntroCompletedDay, seedPlantTutorialOpen, seedPlantTutorialStepIndex, seedAfterPlantTutorialOpen, seedAfterPlantTutorialStepIndex, selectedShopControl, selectedShopItemIndex, shopItems, gold, equipmentActionOpen, equippedItems, inventoryCounts, caughtFishIds, fishingMiniGameOpen, fishingMiniGameStage, miningMiniGameOpen, isFishingResultInputLocked, mermaidLetterNotice, fishingTutorialOpen, fishingTutorialEndingOpen, fishingTutorialEndingStepIndex, sawCraftTutorialIntroOpen, sawCraftTutorialIntroStepIndex, sawCraftTutorialReady, sawCraftTutorialShedDialogueOpen, sawCraftTutorialWorkbenchReady, gatheringTutorialCompleted, gatheringTutorialChoice, miningTutorialCompleted, selectedFishingTutorialAction, selectedFishingResultAction, recipeDetailOpen, farmGirlDetailOpen, showDialog, pendingFarmCareConfirm, farmCareConfirmChoice, farmCareUnlockNoticeAction, farmHarvestResultNotice, farmGirlRevealSpotlightId, skillTreeTutorialStep, bootMode, timeOfDay, isOpeningWalkObjectiveActive, currentDay, nextObjective, battlePreviewOpen, battlePreviewState, battleIntroPhase, battleItemPanelOpen, battleItemSelectionStep, selectedBattleCommandIndex, selectedBattleItemIndex, selectedBattleItemTargetIndex]);
+  }, [setupMode, bedTiles, workbenchTiles, fishingTiles, activeFishingTileKeys, miningTiles, activeMiningTileKeys, depletedMiningPointIds, activeMiningPointId, loggingTiles, activeLoggingPoints, activeLoggingPointId, sleepPromptVisible, bathPromptVisible, mermaidOfferingPromptVisible, bathSequenceActive, craftPromptVisible, fishingPromptVisible, miningPromptVisible, loggingPromptVisible, confirmPromptChoice, pendingDeleteSaveSlot, pendingOverwriteSaveSlot, activeAutoEventSpot, activeAutoEventMessage, activeAutoEventMessageIndex, activeAutoEventMessages, displayedAutoEventMessage, turn, currentAP, kurumiShopOpen, kurumiIntroOpen, kurumiIntroSelectedIndex, kurumiIntroAskedTopics, kurumiIntroCompletedDay, seedPlantTutorialOpen, seedPlantTutorialStepIndex, seedAfterPlantTutorialOpen, seedAfterPlantTutorialStepIndex, selectedShopControl, selectedShopItemIndex, shopItems, gold, equipmentActionOpen, equippedItems, inventoryCounts, caughtFishIds, fishingMiniGameOpen, fishingMiniGameStage, miningMiniGameOpen, isFishingResultInputLocked, mermaidLetterNotice, fishingTutorialOpen, fishingTutorialEndingOpen, fishingTutorialEndingStepIndex, sawCraftTutorialIntroOpen, sawCraftTutorialIntroStepIndex, sawCraftTutorialReady, sawCraftTutorialShedDialogueOpen, sawCraftTutorialWorkbenchReady, gatheringTutorialCompleted, gatheringTutorialChoice, miningTutorialCompleted, selectedFishingTutorialAction, selectedFishingResultAction, recipeDetailOpen, farmGirlDetailOpen, showDialog, pendingFarmCareConfirm, farmCareConfirmChoice, farmCareUnlockNoticeAction, farmHarvestResultNotice, farmGirlRevealSpotlightId, skillTreeTutorialStep, bootMode, timeOfDay, isOpeningWalkObjectiveActive, currentDay, nextObjective, battlePreviewOpen, battlePreviewState, battleIntroPhase, battleItemPanelOpen, battleItemSelectionStep, selectedBattleCommandIndex, selectedBattleItemIndex, selectedBattleItemTargetIndex, companionRegenCinematicOpen]);
 
   // Zone creation states
   const [dragStart, setDragStart] = useState<{ x: number, y: number } | null>(null);
@@ -20559,6 +21026,35 @@ export default function App() {
             </>
           )}
 
+          {setupMode !== 'animation' && isMioFollowing && !isPlayerInBath && (
+            <>
+              {mioSpeech && !isPlayerInHideArea(mioFollow.x, mioFollow.y, currentMap) && (
+                <div
+                  key={mioSpeech.key}
+                  className="absolute z-[65] -translate-x-1/2 -translate-y-full rounded-2xl border-2 border-[#fff7dc] bg-[#fff4c7] px-4 py-2 text-center text-[17px] font-black text-[#4a2a14] shadow-[0_8px_18px_rgba(0,0,0,0.42)] pointer-events-none"
+                  style={{ left: clampNumber(mioFollow.x, 90, GAME_WIDTH - 90), top: Math.max(90, mioFollow.y - 58) }}
+                >
+                  {mioSpeech.text}
+                  <span className="absolute left-1/2 top-full h-3 w-3 -translate-x-1/2 -translate-y-1/2 rotate-45 border-b-2 border-r-2 border-[#fff7dc] bg-[#fff4c7]" />
+                </div>
+              )}
+              <Character
+                x={mioFollow.x}
+                y={mioFollow.y}
+                direction={mioFollow.direction}
+                isWalking={mioFollow.isWalking}
+                customSprites={chibiichiCompanionSprites}
+                isHidden={isPlayerInHideArea(mioFollow.x, mioFollow.y, currentMap)}
+                playerWalkSprites={chibiichiCompanionWalkSprites}
+                mirrorRightSprite
+                walkFrameMs={150}
+                scale={0.78}
+                showGroundShadow={false}
+                spriteSheet={mioSpriteSheet}
+              />
+            </>
+          )}
+
           {/* Player */}
           {setupMode !== 'animation' && (
              <Character
@@ -21019,6 +21515,45 @@ export default function App() {
                     </div>
                   )}
                 </div>
+                {companionRegenCinematicOpen && (
+                  <div
+                    className="absolute inset-0 z-[140] flex items-center justify-center overflow-hidden bg-black/58"
+                    role="dialog"
+                    aria-modal="true"
+                    aria-label="母乳分泌促進スキル演出"
+                    onPointerDown={(event) => event.stopPropagation()}
+                    onClick={(event) => event.stopPropagation()}
+                  >
+                    <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(255,244,184,0.24),rgba(255,182,225,0.12)_38%,rgba(0,0,0,0.42)_74%)]" />
+                    <video
+                      src="/video/sparkle.webm"
+                      className="pointer-events-none absolute inset-0 h-full w-full object-cover opacity-85 mix-blend-screen"
+                      autoPlay
+                      loop
+                      muted
+                      playsInline
+                      aria-hidden="true"
+                    />
+                    <div className="relative z-10 w-[760px] max-w-[72vw] overflow-hidden rounded-2xl border-4 border-[#fff3a6] bg-black shadow-[0_0_28px_rgba(255,245,170,0.95),0_0_90px_rgba(244,114,182,0.72),0_28px_70px_rgba(0,0,0,0.82)]">
+                      <div className="pointer-events-none absolute inset-x-0 top-0 z-20 bg-gradient-to-b from-black/95 via-[#3a1728]/88 to-transparent px-6 pb-8 pt-4 text-center drop-shadow-[0_3px_3px_rgba(0,0,0,0.95)]">
+                        <div className="text-2xl font-black tracking-[0.12em] text-[#fff3a6]">
+                          母乳分泌促進スキル発動
+                        </div>
+                        <div className="mt-1.5 text-lg font-black tracking-[0.04em] text-white">
+                          母乳の力でユウの精力が上がった！
+                        </div>
+                      </div>
+                      <video
+                        src="/video/chichi.mp4"
+                        className="block max-h-[72vh] w-full object-contain"
+                        autoPlay
+                        playsInline
+                        onEnded={() => setCompanionRegenCinematicOpen(false)}
+                        onError={() => setCompanionRegenCinematicOpen(false)}
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
             );
           })()}
@@ -21032,7 +21567,24 @@ export default function App() {
               {/* メニューを開くボタン（閉じているとき） */}
               {!menuOpen && (
                 <button
-                  onClick={() => { playFixSound(); setMenuOpen(true); setMenuSelectedIndex(3); setMenuFocusArea('content'); setMenuContentFocus('secondary'); }}
+                  type="button"
+                  onPointerDown={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    suppressNextMapPointerRef.current = true;
+                    clickTargetRef.current = null;
+                    setClickTargetMarker(null);
+                  }}
+                  onClick={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    playFixSound();
+                    menuOpenRef.current = true;
+                    setMenuOpen(true);
+                    setMenuSelectedIndex(3);
+                    setMenuFocusArea('content');
+                    setMenuContentFocus('secondary');
+                  }}
                   className="flex items-center gap-2 px-4 py-2 text-sm font-bold text-[#fdf6e3] cursor-pointer select-none"
                   style={{
                     background: 'linear-gradient(180deg, #3b2a1a 0%, #1a100d 100%)',
@@ -23881,6 +24433,16 @@ export default function App() {
 	           debugGirlsEnabled={debugGirlsEnabled}
 	           onEnableDebugGirls={enableDebugGirls}
 	           onDisableDebugGirls={disableDebugGirls}
+	           debugMioFollowing={debugMioFollowing}
+	           onToggleDebugMioFollowing={() => {
+	             if (!debugMioFollowing) {
+	               setMioSleepCount(0);
+	               setMioSpeech(null);
+	               setMioSpecialEventPhase(null);
+	             }
+	             setDebugMioFollowing(previous => !previous);
+	             setDialogMessage(`MIOのデバッグ追従を${debugMioFollowing ? 'OFF' : 'ON'}にしました。`);
+	           }}
 	           debugGirlAffinities={menuGirls.map(girl => ({ id: girl.id, name: girl.name, affinity: girl.affinity }))}
            adjustDebugGirlAffinity={(girlId, delta) => {
              setDebugGirlAffinities(previous => {
@@ -24444,10 +25006,22 @@ export default function App() {
             ruby: 'ruby',
             kabune: 'kabune',
             caro: 'kyaro',
+            cure: 'kyua',
+            nazuna: 'nazuna',
+            momona: 'momona',
+            pan: 'pan',
+            puti: 'puthi',
+            roma: 'roma',
+            saffy: 'safi',
+            shiro: 'shiro',
+            theta: 'thita',
+            viola: 'viora',
           };
           const equipmentVideoGirlPrefix = equipmentVideoPrefix[girlEquipmentMiniGame.girlId];
           const equipmentVideoSrc = girlEquipmentMiniGame.mode === 'real' && equipmentVideoGirlPrefix
-            ? `/video/${equipmentVideoGirlPrefix}-soubi${girlEquipmentMiniGame.slotIndex}.mp4`
+            ? girlEquipmentMiniGame.girlId === 'nazuna' && girlEquipmentMiniGame.slotIndex === 2
+              ? '/video/nazana-soubi2.mp4'
+              : `/video/${equipmentVideoGirlPrefix}-soubi${girlEquipmentMiniGame.slotIndex}.mp4`
             : null;
           return (
             <div className="fixed inset-0 z-[10003] flex items-center justify-center bg-black/88 px-8 pointer-events-auto">
@@ -24552,6 +25126,33 @@ export default function App() {
             </div>
           );
         })(), document.body)}
+        {mioSpecialEventPhase && createPortal(
+          <div className="fixed inset-0 z-[10008] flex items-center justify-center bg-black/92 px-8 py-6 pointer-events-auto">
+            {mioSpecialEventPhase === 'event' ? (
+              <div className="relative h-full max-h-[880px] w-full max-w-[1280px] overflow-hidden rounded-2xl border-[4px] border-[#f9a8d4] bg-[#090504] text-[#fdf6e3] shadow-2xl">
+                <div className="absolute left-6 top-5 z-20 rounded border border-[#f9a8d4]/70 bg-black/62 px-4 py-2">
+                  <div className="text-xs font-black tracking-[0.28em] text-[#f9a8d4]">MIO SPECIAL EVENT</div>
+                  <div className="text-xl font-black text-[#fff3b0]">小さな来訪者</div>
+                </div>
+                <img src="/img/miocat.png" alt="MIO" className="absolute inset-x-0 top-0 h-[calc(100%-190px)] w-full object-contain p-10" />
+                <div className="absolute bottom-0 left-0 right-0 z-10 border-t-4 border-[#bc6c25] bg-[#1a100d]/97 p-4 shadow-[0_-16px_44px_rgba(0,0,0,0.65)]">
+                  <div className="rounded-lg border-[3px] border-[#dda15e] bg-[#2d1b15]/96 px-6 py-5 shadow-inner">
+                    <p className="min-h-[70px] whitespace-pre-line text-[22px] font-black leading-relaxed">イベントの画像・動画・テキストは後から追加できます。</p>
+                    <button type="button" onClick={() => { playFixSound(); setMioSpecialEventPhase('end'); }} className="mt-3 w-full rounded border-2 border-[#f9a8d4] bg-[#831843] px-5 py-3 text-lg font-black text-white hover:bg-[#9d174d]">イベントを終える</button>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="relative w-full max-w-[1400px] overflow-hidden rounded-2xl border-2 border-[#f9a8d4] bg-black shadow-[0_0_44px_rgba(244,114,182,0.36)]">
+                <img src="/img/mioend.png" alt="MIOのおんがえし案内" className="block h-auto w-full" />
+                <a href={MIO_GAME_URL} target="_blank" rel="noopener noreferrer" aria-label="MIOのおんがえし購入ページを開く" className="absolute bottom-[1.5%] left-[2.5%] h-[12.5%] w-[32%] rounded-[999px] focus:outline-none focus:ring-4 focus:ring-white/90" />
+                <a href={MIO_OFFICIAL_URL} target="_blank" rel="noopener noreferrer" aria-label="MIO公式WEBサイトを開く" className="absolute bottom-[1.5%] left-[35.5%] h-[12.5%] w-[30%] rounded-[999px] focus:outline-none focus:ring-4 focus:ring-white/90" />
+                <button type="button" onClick={returnFromMioSpecialEvent} aria-label="ゲームに戻る" className="absolute bottom-[1.5%] right-[2.5%] h-[12.5%] w-[31%] rounded-[999px] focus:outline-none focus:ring-4 focus:ring-white/90" />
+              </div>
+            )}
+          </div>,
+          document.body
+        )}
         {activeTrustEvent && createPortal(
           <div className="fixed inset-0 z-[10001] flex items-center justify-center bg-black/88 px-8 py-6 pointer-events-auto">
             <div className="relative h-full max-h-[880px] w-full max-w-[1280px] overflow-hidden rounded-2xl border-[4px] border-[#f9a8d4] bg-[#090504] text-[#fdf6e3] shadow-2xl">
@@ -24630,6 +25231,88 @@ export default function App() {
             </div>
           );
         })(), document.body)}
+        {bulkFarmCareOpen && createPortal((() => {
+          const plantedGirls = farmGirls.filter(girl => farmFieldSlots.some(slot => slot.girlId === girl.girlId));
+          const requiredAP = bulkFarmCareSelections.length;
+          const isAPShortage = requiredAP > currentAP;
+          const toggleSelection = (key: string) => setBulkFarmCareSelections(previous => (
+            previous.includes(key) ? previous.filter(entry => entry !== key) : [...previous, key]
+          ));
+          return (
+            <div className="fixed inset-0 z-[10012] flex items-center justify-center bg-black/75 px-6 py-8">
+              <div className="flex max-h-[92vh] w-full max-w-4xl flex-col rounded-2xl border-2 border-[#ffd166] bg-[#24140f] p-6 text-[#fff7dc] shadow-[0_24px_80px_rgba(0,0,0,.82)]">
+                <div className="text-center">
+                  <div className="text-sm font-black tracking-[0.18em] text-[#ffd166]">BULK CARE</div>
+                  <div className="mt-1 text-3xl font-black">一括お世話</div>
+                  <div className="mt-2 text-sm font-bold text-[#c8a87a]">1チェックにつきAPを1消費します。動画は再生されません。</div>
+                </div>
+                <div className="mt-5 min-h-0 flex-1 overflow-y-auto rounded-xl border border-[#76502c] bg-black/25">
+                  <div className="sticky top-0 z-10 grid grid-cols-[minmax(180px,1fr)_150px_150px_150px] border-b border-[#76502c] bg-[#352017] px-4 py-3 text-center text-sm font-black text-[#ffd166]">
+                    <div className="text-left">苗娘</div><div>愛撫</div><div>指入れ</div><div>肥料注入</div>
+                  </div>
+                  {plantedGirls.map(girl => {
+                    const crop = FARM_GIRL_CROP_DATA.find(entry => entry.girlId === girl.girlId);
+                    const harvestable = getFarmGirlHarvestInfo(girl.girlId).canHarvest;
+                    const careable = Boolean(crop) && canCareForFarmGirlSeedling(girl.girlId);
+                    const girlName = GIRL_DATA.find(entry => entry.id === girl.girlId)?.girlName ?? girl.girlId;
+                    return (
+                      <div key={girl.girlId} className="grid grid-cols-[minmax(180px,1fr)_150px_150px_150px] items-center border-b border-[#5a3010]/70 px-4 py-3 last:border-b-0">
+                        <div>
+                          <div className="font-black text-[#fff1a8]">{girlName}</div>
+                          <div className="mt-1 text-xs font-bold text-[#c8a87a]">{harvestable ? '収穫可能のため対象外' : careable ? 'お世話可能' : '現在は対象外'}</div>
+                        </div>
+                        {FARM_CARE_ACTION_ORDER.map(action => {
+                          const currentCount = girl.careDay === currentDay
+                            ? action === 'caress' ? girl.caressCount : action === 'finger' ? girl.fingerCount : girl.fertilizeCount
+                            : 0;
+                          const available = Boolean(crop) && careable && isFarmCareActionUnlocked(action) && currentCount < getSkillAdjustedSeedlingCareLimit(action, crop!);
+                          const key = `${girl.girlId}:${action}`;
+                          return (
+                            <label key={action} className={`flex items-center justify-center ${available ? 'cursor-pointer' : 'cursor-not-allowed opacity-30'}`}>
+                              <input
+                                type="checkbox"
+                                checked={bulkFarmCareSelections.includes(key)}
+                                disabled={!available}
+                                onChange={() => toggleSelection(key)}
+                                className="h-7 w-7 accent-[#ffd166]"
+                              />
+                            </label>
+                          );
+                        })}
+                      </div>
+                    );
+                  })}
+                </div>
+                <div className={`mt-4 rounded-xl border px-5 py-4 ${isAPShortage ? 'border-red-400 bg-red-950/55' : 'border-[#ffd166]/60 bg-black/30'}`}>
+                  <div className={`text-xl font-black ${isAPShortage ? 'text-red-300' : 'text-[#fff1a8]'}`}>必要AP {requiredAP} / 所持AP {currentAP}</div>
+                  {isAPShortage && <div className="mt-1 font-bold text-red-300">APが足りません。選択を減らしてください。</div>}
+                </div>
+                <div className="mt-4 grid grid-cols-2 gap-3">
+                  <button type="button" onClick={() => { playFixSound(); setBulkFarmCareOpen(false); setBulkFarmCareSelections([]); }} className="rounded-xl border border-[#c8a87a] bg-black/35 px-5 py-3 font-black hover:bg-black/55">戻る</button>
+                  <button type="button" disabled={requiredAP === 0 || isAPShortage} onClick={executeBulkFarmCare} className="rounded-xl border border-[#ffd166] bg-[#6b4b16] px-5 py-3 font-black text-[#fff1a8] hover:bg-[#85621e] disabled:cursor-not-allowed disabled:opacity-40">一括実行</button>
+                </div>
+              </div>
+            </div>
+          );
+        })(), document.body)}
+        {bulkFarmCareUnlockNotice && createPortal(
+          <div className="fixed inset-0 z-[10013] flex items-center justify-center bg-black/70 px-6">
+            <div className="w-full max-w-xl rounded-2xl border-2 border-[#ffd166] bg-[#24140f] p-7 text-center text-[#fff7dc] shadow-2xl">
+              <div className="text-sm font-black tracking-[0.18em] text-[#ffd166]">便利機能解放！</div>
+              <div className="mt-3 text-3xl font-black text-[#fff1a8]">✨ 一括お世話</div>
+              <div className="mt-4 whitespace-pre-line rounded-xl border border-[#76502c] bg-black/30 p-4 font-bold leading-relaxed">{'農場メニューから複数の苗娘をまとめてお世話できるようになりました。\n1チェックにつきAPを1消費し、結果をまとめて表示します。\n詳しい使い方が「くるみの秘密帳」に追記されました！'}</div>
+              <button type="button" onClick={() => { playFixSound(); setBulkFarmCareUnlockNotice(false); }} className="mt-6 w-full rounded-xl border border-[#ffd166] bg-[#6b4b16] px-5 py-3 text-lg font-black hover:bg-[#85621e]">確認した</button>
+            </div>
+          </div>, document.body)}
+        {bulkFarmCareResults && createPortal(
+          <div className="fixed inset-0 z-[10013] flex items-center justify-center bg-black/70 px-6">
+            <div className="farm-equipment-success-sparkles pointer-events-none absolute inset-0 z-[1] overflow-hidden" aria-hidden="true">{Array.from({ length: 28 }, (_, index) => <span key={index} style={{ '--sparkle-index': index } as React.CSSProperties} />)}</div>
+            <div className="relative z-[2] w-full max-w-2xl rounded-2xl border-2 border-[#ffd166] bg-[#24140f] p-7 text-[#fff7dc] shadow-2xl">
+              <div className="text-center text-3xl font-black text-[#fff1a8]">✨ 一括お世話完了</div>
+              <div className="mt-5 max-h-[48vh] space-y-2 overflow-y-auto rounded-xl border border-[#76502c] bg-black/30 p-4">{bulkFarmCareResults.map(line => <div key={line} className="rounded border border-[#5a3010] px-3 py-2 font-bold">{line}</div>)}</div>
+              <button type="button" onClick={() => { playFixSound(); setBulkFarmCareResults(null); }} className="mt-6 w-full rounded-xl border border-[#ffd166] bg-[#6b4b16] px-5 py-3 text-lg font-black hover:bg-[#85621e]">閉じる</button>
+            </div>
+          </div>, document.body)}
         {pendingFarmCareConfirm && createPortal((() => {
           const targetGirl = GIRL_DATA.find(girl => girl.id === pendingFarmCareConfirm.girlId);
           const actionLabel = FARM_CARE_UNLOCK_ACTION_LABELS[pendingFarmCareConfirm.action];
@@ -24776,6 +25459,34 @@ export default function App() {
               >
                 今すぐ見る
               </button>
+            </div>
+          </div>, document.body)}
+        {mioOfferingPromptVisible && createPortal(
+          <div className="fixed inset-0 z-[10006] flex items-center justify-center bg-black/62 px-6 pointer-events-auto">
+            <div className="w-[560px] max-w-[92vw] rounded-xl border-4 border-[#ffd166] bg-[#24140f]/96 p-6 text-center text-[#fdf6e3] shadow-[0_24px_70px_rgba(0,0,0,0.75),0_0_32px_rgba(255,209,102,0.24)]">
+              <div className="text-sm font-black tracking-[0.24em] text-[#ffd166]">滝裏の地蔵</div>
+              <div className="mt-3 text-2xl font-black text-[#fff1a8]">サケを供えますか？</div>
+              <div className="mt-4 whitespace-pre-line rounded border border-[#ffd166]/45 bg-black/35 px-4 py-4 text-left text-sm font-bold leading-relaxed text-[#fff7dc]">
+                地蔵の前に立つと、どこからか小さな鳴き声が聞こえた気がした。
+                {'\n'}サケを3匹供えれば、匂いに誘われて何かが現れるかもしれない。
+                {'\n'}サケを3匹消費します。
+              </div>
+              <div className="mt-5 grid grid-cols-2 gap-3">
+                <button type="button" onMouseEnter={() => setConfirmPromptChoice('yes')} onClick={() => { setConfirmPromptChoice('yes'); confirmMioOffering(); }} className={`h-[52px] rounded-lg border-2 bg-[#6b4b16] text-lg font-black text-[#fff7dc] transition-colors hover:bg-[#85621e] ${confirmPromptChoice === 'yes' ? 'border-white ring-4 ring-[#ffd166]/70' : 'border-[#ffd166]'}`}>はい</button>
+                <button type="button" onMouseEnter={() => setConfirmPromptChoice('no')} onClick={() => { setConfirmPromptChoice('no'); cancelMioOfferingPrompt(); }} className={`h-[52px] rounded-lg border-2 bg-black/35 text-lg font-black text-[#fdf6e3] transition-colors hover:bg-[#3a2418] ${confirmPromptChoice === 'no' ? 'border-white ring-4 ring-[#ffd166]/70' : 'border-[#c8a87a]'}`}>いいえ</button>
+              </div>
+            </div>
+          </div>, document.body)}
+        {mioArrivalNoticeVisible && createPortal(
+          <div className="fixed inset-0 z-[10007] flex items-center justify-center overflow-hidden bg-black/70 px-6 pointer-events-auto" aria-live="polite">
+            <div className="farm-equipment-success-sparkles pointer-events-none absolute inset-0 z-[1] overflow-hidden" aria-hidden="true">
+              {Array.from({ length: 32 }, (_, index) => <span key={index} style={{ '--sparkle-index': index } as React.CSSProperties} />)}
+            </div>
+            <div className="relative z-[2] w-full max-w-xl rounded-2xl border-4 border-[#ffd166] bg-[#24140f]/98 p-8 text-center text-[#fff7dc] shadow-[0_0_48px_rgba(255,209,102,0.42)]">
+              <img src="/img/miocat.png" alt="白くて小さな子猫MIO" className="mx-auto h-48 w-48 rounded-xl object-cover object-left-top" />
+              <div className="mt-6 text-3xl font-black text-[#fff1a8]">白くて小さな子猫が現れた！</div>
+              <div className="mt-3 font-bold leading-relaxed text-[#fdf6e3]">首輪には「MIO」と書かれている。<br />どうやらユウの後をついてくるようだ。</div>
+              <button type="button" onClick={() => { playFixSound(); setMioArrivalNoticeVisible(false); }} className="mt-7 w-full rounded-lg border-2 border-[#ffd166] bg-[#6b4b16] px-5 py-3 text-lg font-black hover:bg-[#85621e]">一緒に行こう</button>
             </div>
           </div>, document.body)}
         {mermaidOfferingPromptVisible && createPortal(

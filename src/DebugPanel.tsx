@@ -54,6 +54,8 @@ type DebugPanelProps = {
   debugGirlsEnabled: boolean;
   onEnableDebugGirls: () => void;
   onDisableDebugGirls: () => void;
+  debugMioFollowing: boolean;
+  onToggleDebugMioFollowing: () => void;
   debugGirlAffinities: readonly DebugGirlAffinityEntry[];
   adjustDebugGirlAffinity: (girlId: string, delta: number) => void;
   debugGirlTrusts: readonly DebugGirlTrustEntry[];
@@ -139,6 +141,8 @@ const DebugPanel = ({
   debugGirlsEnabled,
   onEnableDebugGirls,
   onDisableDebugGirls,
+  debugMioFollowing,
+  onToggleDebugMioFollowing,
   debugGirlAffinities,
   adjustDebugGirlAffinity,
   debugGirlTrusts,
@@ -333,6 +337,13 @@ const DebugPanel = ({
               夜 🌙
             </button>
           </div>
+          <button
+            type="button"
+            onClick={onToggleDebugMioFollowing}
+            className={`rounded border-2 px-2 py-1.5 text-[10px] font-black transition-colors ${debugMioFollowing ? 'border-emerald-200 bg-emerald-700 text-white hover:bg-emerald-600' : 'border-cyan-300 bg-cyan-950/80 text-cyan-100 hover:bg-cyan-700'}`}
+          >
+            🐾 MIO追従 {debugMioFollowing ? 'OFFにする' : 'ONにする'}
+          </button>
           <div className="rounded border border-amber-400/70 bg-amber-950/35 p-2">
             <div className="mb-1 flex items-center justify-between font-black text-amber-100">
               <span>星デバッグ</span>
