@@ -10,8 +10,11 @@ var PORT = process.env.PORT || 4173;
 var SAVE_DIR = process.env.FARM_SAVE_DIR ? path.resolve(process.env.FARM_SAVE_DIR) : path.resolve(__dirname, "saves");
 var SAVE_FILE = path.resolve(SAVE_DIR, "save_data.json");
 var PREVIOUS_SAVE_FILE = path.resolve(SAVE_DIR, "save_data.previous.json");
+var AUTO_SAVE_FILE = path.resolve(SAVE_DIR, "save_data.autosave.json");
+var PREVIOUS_AUTO_SAVE_FILE = path.resolve(SAVE_DIR, "save_data.autosave.previous.json");
 var MAP_SETTINGS_FILE = path.resolve(SAVE_DIR, "map_settings.json");
 var SAVE_SLOT_COUNT = 5;
+var AUTO_SAVE_SLOT = 0;
 var FARM_GIRL_CARD_BACK_SRC = "/img/card.png";
 var FARM_GIRL_CARD_IMAGES = ["/img/chibiichi-card.jpg", "/img/ruby-card.jpg", "/img/mel-card.jpg"];
 var OPEN_FARM_GIRL_CARD_COUNT = FARM_GIRL_CARD_IMAGES.filter((src) => src !== FARM_GIRL_CARD_BACK_SRC).length;
@@ -120,10 +123,10 @@ var extractMapSettings = (data) => Object.fromEntries(
 );
 var getSaveSlot = (rawSlot) => {
   const slot = Number(rawSlot ?? 1);
-  return Number.isInteger(slot) && slot >= 1 && slot <= SAVE_SLOT_COUNT ? slot : 1;
+  return Number.isInteger(slot) && slot >= AUTO_SAVE_SLOT && slot <= SAVE_SLOT_COUNT ? slot : 1;
 };
-var getSaveFileForSlot = (slot) => slot === 1 ? SAVE_FILE : path.resolve(SAVE_DIR, `save_data.slot${slot}.json`);
-var getPreviousSaveFileForSlot = (slot) => slot === 1 ? PREVIOUS_SAVE_FILE : path.resolve(SAVE_DIR, `save_data.slot${slot}.previous.json`);
+var getSaveFileForSlot = (slot) => slot === AUTO_SAVE_SLOT ? AUTO_SAVE_FILE : slot === 1 ? SAVE_FILE : path.resolve(SAVE_DIR, `save_data.slot${slot}.json`);
+var getPreviousSaveFileForSlot = (slot) => slot === AUTO_SAVE_SLOT ? PREVIOUS_AUTO_SAVE_FILE : slot === 1 ? PREVIOUS_SAVE_FILE : path.resolve(SAVE_DIR, `save_data.slot${slot}.previous.json`);
 var createSaveSlotSummary = (slot) => {
   const saveFile = getSaveFileForSlot(slot);
   if (!fs.existsSync(saveFile)) {

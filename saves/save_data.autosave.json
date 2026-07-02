@@ -63,12 +63,12 @@
       "cardRevealed": true,
       "plantedDay": 1,
       "growthProgress": 2,
-      "quality": 49,
+      "quality": 53,
       "careDay": 10,
       "caressCount": 1,
       "fingerCount": 1,
-      "fertilizeCount": 0,
-      "lastHarvestDay": 10,
+      "fertilizeCount": 1,
+      "lastHarvestDay": 9,
       "trust": 24,
       "unlockedTrustEventIds": [],
       "condition": "normal",
@@ -405,7 +405,7 @@
       "plantedDay": 1
     }
   ],
-  "currentAP": 2,
+  "currentAP": 1,
   "maxAPPerTimeSlot": 5,
   "difficulty": "hard",
   "currentMap": "farm",
@@ -768,9 +768,9 @@
       "spawnY": 950
     }
   ],
-  "bgmVolume": 0.15000000000000002,
-  "seVolume": 0.10000000000000002,
-  "voiceVolume": 0.15000000000000002,
+  "bgmVolume": 0.1,
+  "seVolume": 0.1,
+  "voiceVolume": 0.1,
   "audioGains": {
     "/voice/1.wav": 0.72,
     "/voice/2.wav": 0.92,

@@ -328,6 +328,7 @@ const POST_DEBT_NOTICE_SEEN_STORAGE_KEY = 'farm_post_debt_notice_seen';
 const POST_DEBT_NOTICE_REPEAT_TEXT = 'お爺さんが危ない連中から借りた借用書が入っている。';
 const STORY_ENDING_VIDEO_SRC = '/video/end.mp4';
 const EASY_STORY_ENDING_VIDEO_SRC = '/video/easyend.mp4';
+const AUTO_SAVE_SLOT = 0;
 const isPostDebtNoticeEvent = (spot: InspectSpot | null) => {
   if (!spot) return false;
   const imageSrc = spot.imageSrc?.trim().replace(/^\/+/, '');
@@ -817,7 +818,7 @@ type FarmGirlState = 'none' | 'planted' | 'growing' | 'appeared' | 'companion' |
 type FarmGirlCondition = 'normal' | 'affected';
 type FarmCareUnlockStage = 1 | 2 | 3;
 type FarmCareAction = 'caress' | 'finger' | 'fertilize';
-type FarmMenuPrimaryAction = FarmCareAction | 'companion' | 'harvest';
+type FarmMenuPrimaryAction = 'bulkCare' | FarmCareAction | 'companion' | 'harvest';
 type FarmCareConfirmTarget = {
   girlId: string;
   action: FarmCareAction;
@@ -914,7 +915,7 @@ const normalizeFarmCareUnlockStage = (value: unknown, fallback: FarmCareUnlockSt
 const FARM_CARE_ACTION_ORDER: readonly FarmCareAction[] = ['caress', 'finger', 'fertilize'];
 const BULK_FARM_CARE_UNLOCK_EVENT_ID = 'bulk_farm_care_unlocked';
 const FARM_CARE_VIDEO_EVENT_IDS = ['video_care_caress', 'video_care_finger', 'video_care_fertilize'] as const;
-const FARM_MENU_PRIMARY_ACTION_ORDER: readonly FarmMenuPrimaryAction[] = [...FARM_CARE_ACTION_ORDER, 'companion', 'harvest'];
+const FARM_MENU_PRIMARY_ACTION_ORDER: readonly FarmMenuPrimaryAction[] = ['bulkCare', ...FARM_CARE_ACTION_ORDER, 'companion', 'harvest'];
 const FARM_SEED_SLOT_PLACEMENTS: Readonly<Record<string, { offsetX: number; offsetY: number; scale: number }>> = {
   left_1: { offsetX: 102, offsetY: 53, scale: 86 },
   left_2: { offsetX: 101, offsetY: 53, scale: 86 },
@@ -1367,6 +1368,24 @@ const MIO_SLEEP_SPEECH_EVENTS: Readonly<Record<number, { audioSrc: string; text:
 };
 const MIO_GAME_URL = 'https://www.dlsite.com/aix/work/=/product_id/RJ01633062.html';
 const MIO_OFFICIAL_URL = 'https://kinakoboo.fun/special.html';
+const MIO_ZUKAN_CARD_ENTRIES = [
+  {
+    id: 'mio_humanized',
+    name: 'MIO',
+    variantLabel: '擬人化',
+    imageSrc: '/img/miocat.png',
+    unlockEventId: MIO_SPECIAL_EVENT_STARTED_ID,
+    tier: 'base' as FarmGirlTrustCardTier,
+  },
+  {
+    id: 'mio_return',
+    name: 'MIOのおんがえし',
+    variantLabel: 'イベント完了',
+    imageSrc: '/img/mioend.png',
+    unlockEventId: MIO_DEPARTED_EVENT_ID,
+    tier: 'trust50' as FarmGirlTrustCardTier,
+  },
+] as const;
 const MERMAID_LETTER_HINT_MESSAGE = '空き瓶の中に、濡れた手紙が入っていた。\n\n「滝の裏にある小さな地蔵さまは、夜だけ水底の声を聞いてくれる。\n青白く光る鱗を五つ、そっと供えて一晩待ちなさい。\n翌夜、供えものが消えていたなら、深い水辺に道がひらく。\nただし、その声を釣り上げられるのは、伝説を名乗る竿だけ」\n\n人魚に関係する手がかりかもしれない。';
 const MERMAID_LETTER_PAPER_SRC = '/img/recipe.png';
 const ZUKAN_VIDEO_ENTRIES = [
@@ -3345,8 +3364,15 @@ export default function App() {
   const farmCareCinematicTimerRef = useRef<number | null>(null);
   const [bulkFarmCareOpen, setBulkFarmCareOpen] = useState(false);
   const [bulkFarmCareSelections, setBulkFarmCareSelections] = useState<string[]>([]);
+  const [bulkFarmCareConfirmOpen, setBulkFarmCareConfirmOpen] = useState(false);
+  const [bulkFarmCareConfirmChoice, setBulkFarmCareConfirmChoice] = useState<'back' | 'execute'>('execute');
   const [bulkFarmCareUnlockNotice, setBulkFarmCareUnlockNotice] = useState(false);
   const [bulkFarmCareResults, setBulkFarmCareResults] = useState<string[] | null>(null);
+  const [selectedBulkFarmCareControlIndex, setSelectedBulkFarmCareControlIndex] = useState(0);
+  const selectedBulkFarmCareControlIndexRef = useRef(0);
+  const bulkFarmCareDialogRef = useRef<HTMLDivElement | null>(null);
+  const bulkFarmCareNoticeRef = useRef<HTMLDivElement | null>(null);
+  const bulkFarmCareResultsRef = useRef<HTMLDivElement | null>(null);
   const [ownedGirlSeeds, setOwnedGirlSeeds] = useState<string[]>([]);
   const [momonaSeedEventOpen, setMomonaSeedEventOpen] = useState(false);
   const [farmFieldSlots, setFarmFieldSlots] = useState<FarmFieldSlotState[]>(() => createInitialFarmFieldSlots('hard'));
@@ -3453,6 +3479,8 @@ export default function App() {
   const systemNoticeRef = useRef('システム項目を選択してください。');
   const [selectedSystemActionIndex, setSelectedSystemActionIndex] = useState(0);
   const selectedSystemActionIndexRef = useRef(0);
+  const [selectedAchievementIndex, setSelectedAchievementIndex] = useState(0);
+  const selectedAchievementIndexRef = useRef(0);
   const [gold, setGold] = useState(5000);
   const [difficulty, setDifficulty] = useState<GameDifficulty>('hard');
   const [gameMode, setGameMode] = useState<GameMode>('story');
@@ -3705,7 +3733,17 @@ export default function App() {
         viewed: true,
       },
     ];
-    return [...zukanGirlCards, ...zukanKurumiCards, ...zukanGirlTrustEvents];
+    const zukanMioCards = MIO_ZUKAN_CARD_ENTRIES.map(entry => ({
+      id: entry.id,
+      name: entry.name,
+      variantLabel: entry.variantLabel,
+      imageSrc: entry.imageSrc,
+      unlocked: collectionProgress.unlockedEventIds.includes(entry.unlockEventId),
+      tier: entry.tier,
+      kind: 'card' as const,
+      viewed: true,
+    }));
+    return [...zukanGirlCards, ...zukanKurumiCards, ...zukanMioCards, ...zukanGirlTrustEvents];
   };
   const getCollectionCompletionRate = () => {
     const totalTrustEventCount = GIRL_DATA.reduce((sum, girl) => sum + girl.trustEvents.length, 0);
@@ -3842,6 +3880,8 @@ export default function App() {
           ? action === 'caress' ? girl.caressCount : action === 'finger' ? girl.fingerCount : girl.fertilizeCount
           : 0;
         if (!isFarmCareActionUnlocked(action) || currentCount >= getSkillAdjustedSeedlingCareLimit(action, crop)) return;
+        const qualityBefore = nextGirl.quality;
+        const growthBefore = nextGirl.growthProgress;
         const baseQualityGain = action === 'caress'
           ? 3 + Math.floor(Math.random() * 4)
           : action === 'finger' ? 6 + Math.floor(Math.random() * 5) : 0;
@@ -3850,10 +3890,10 @@ export default function App() {
         if (action === 'fertilize') {
           nextGirl.growthProgress = Math.min(crop.growthDays, nextGirl.growthProgress + 1);
           if (isRegrowingAppearedGirl && nextGirl.lastHarvestDay !== null) nextGirl.lastHarvestDay = Math.max(1, nextGirl.lastHarvestDay - 1);
-          appliedResults.push('肥料注入：成長＋1日');
+          appliedResults.push(`肥料注入：成長 ${growthBefore}→${nextGirl.growthProgress}`);
         } else {
           nextGirl.quality = clampNumber(nextGirl.quality + qualityGain, 0, 100);
-          appliedResults.push(`${FARM_CARE_UNLOCK_ACTION_LABELS[action]}：品質＋${qualityGain}`);
+          appliedResults.push(`${FARM_CARE_UNLOCK_ACTION_LABELS[action]}：品質 ${qualityBefore}→${nextGirl.quality}`);
         }
         const isSameDay = nextGirl.careDay === currentDay;
         nextGirl.careDay = currentDay;
@@ -3885,8 +3925,23 @@ export default function App() {
     }
     playUiSound('/se/cure.mp3');
     setBulkFarmCareOpen(false);
+    setBulkFarmCareConfirmOpen(false);
     setBulkFarmCareSelections([]);
     setBulkFarmCareResults(resultLines);
+  };
+  const requestBulkFarmCareExecution = () => {
+    if (bulkFarmCareSelections.length === 0 || bulkFarmCareSelections.length > currentAP) return;
+    playFixSound();
+    setBulkFarmCareConfirmChoice('execute');
+    setBulkFarmCareConfirmOpen(true);
+  };
+  const closeBulkFarmCareDialog = () => {
+    playFixSound();
+    setBulkFarmCareOpen(false);
+    setBulkFarmCareConfirmOpen(false);
+    setBulkFarmCareUnlockNotice(false);
+    setBulkFarmCareResults(null);
+    setBulkFarmCareSelections([]);
   };
   const requestSeedlingCare = (girlId: string, action: FarmCareAction) => {
     if (!isFarmCareActionUnlocked(action)) {
@@ -4261,7 +4316,16 @@ export default function App() {
         kind: 'card' as const,
       },
     ];
-    const zukanGirlAndKurumiCards = [...zukanGirlCards, ...zukanKurumiCards, ...zukanGirlTrustEvents];
+    const zukanMioCards = MIO_ZUKAN_CARD_ENTRIES.map(entry => ({
+      id: entry.id,
+      name: entry.name,
+      variantLabel: entry.variantLabel,
+      imageSrc: entry.imageSrc,
+      unlocked: collectionProgress.unlockedEventIds.includes(entry.unlockEventId),
+      tier: entry.tier,
+      kind: 'card' as const,
+    }));
+    const zukanGirlAndKurumiCards = [...zukanGirlCards, ...zukanKurumiCards, ...zukanMioCards, ...zukanGirlTrustEvents];
     const itemByTab = createItemMenuItems(inventoryCounts);
     const getOwnedMenuItems = (items: string[]) => items.filter(name => (inventoryCounts[name] ?? 0) > 0);
     const selectedTabItems = getOwnedMenuItems(itemByTab[itemMenuTab] ?? itemByTab['消耗品']);
@@ -5107,11 +5171,26 @@ export default function App() {
         finger: isFarmCareActionUnlocked('finger'),
         fertilize: isFarmCareActionUnlocked('fertilize'),
       };
+      const selectedFarmPrimaryActions: FarmMenuPrimaryAction[] = selectedGirlData
+        ? [
+          ...(isBulkFarmCareUnlocked ? ['bulkCare' as const] : []),
+          ...(selectedCanCareForSeedling ? [...FARM_CARE_ACTION_ORDER] : []),
+          ...(selectedFarmGirlState ? ['companion' as const] : []),
+          ...(selectedHarvestInfo?.crop && selectedFarmGirlStateForMenu?.state === 'appeared' ? ['harvest' as const] : []),
+        ]
+        : [...(isBulkFarmCareUnlocked ? ['bulkCare' as const] : []), ...FARM_CARE_ACTION_ORDER];
+      const selectedFarmPrimaryAction = selectedFarmPrimaryActions[
+        Math.max(0, Math.min(selectedFarmPrimaryActions.length - 1, selectedFarmCareActionIndex))
+      ];
+      const getSelectedFarmPrimaryActionIndex = (action: FarmMenuPrimaryAction) => (
+        Math.max(0, selectedFarmPrimaryActions.indexOf(action))
+      );
       const handleSeedlingCareButtonPress = (action: FarmCareAction) => {
         if (!selectedGirlData) return;
         playFixSound();
         setMenuFocusArea('content');
         setMenuContentFocus('primary');
+        setSelectedFarmCareActionIndex(getSelectedFarmPrimaryActionIndex(action));
         requestSeedlingCare(selectedGirlData.id, action);
       };
       const handleSeedlingCarePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
@@ -5219,12 +5298,29 @@ export default function App() {
             {isBulkFarmCareUnlocked && (
               <button
                 type="button"
-                onClick={() => {
+                data-farm-primary-action-index={getSelectedFarmPrimaryActionIndex('bulkCare')}
+                data-farm-primary-selected={selectedFarmPrimaryAction === 'bulkCare'}
+                onPointerEnter={() => { if (selectedFarmPrimaryAction !== 'bulkCare') playCursorSound(); setMenuFocusArea('content'); setMenuContentFocus('primary'); setSelectedFarmCareActionIndex(getSelectedFarmPrimaryActionIndex('bulkCare')); }}
+                onFocus={() => { setMenuFocusArea('content'); setMenuContentFocus('primary'); setSelectedFarmCareActionIndex(getSelectedFarmPrimaryActionIndex('bulkCare')); }}
+                onPointerDown={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
                   playFixSound();
+                  setMenuFocusArea('content');
+                  setMenuContentFocus('primary');
+                  setSelectedFarmCareActionIndex(getSelectedFarmPrimaryActionIndex('bulkCare'));
                   setBulkFarmCareSelections([]);
+                  setBulkFarmCareConfirmOpen(false);
+                  setBulkFarmCareUnlockNotice(false);
+                  setBulkFarmCareResults(null);
+                  setSelectedBulkFarmCareControlIndex(0);
                   setBulkFarmCareOpen(true);
                 }}
-                className="rounded-xl border-2 border-[#ffd166]/85 bg-[#5f4214] px-4 py-3 text-left text-[#fff7dc] shadow-[0_0_18px_rgba(255,209,102,0.18)] transition hover:bg-[#79561b]"
+                onClick={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                }}
+                className={`rounded-xl border-2 px-4 py-3 text-left text-[#fff7dc] transition hover:bg-[#79561b] focus:outline-none ${selectedFarmPrimaryAction === 'bulkCare' ? 'border-white bg-[#85621e] ring-4 ring-[#ffd166]/85 shadow-[0_0_26px_rgba(255,209,102,0.55)]' : 'border-[#ffd166]/85 bg-[#5f4214] shadow-[0_0_18px_rgba(255,209,102,0.18)]'}`}
               >
                 <span className="block text-lg font-black text-[#fff1a8]">✨ 一括お世話</span>
                 <span className="mt-1 block text-xs font-bold text-[#d7b98a]">現在APの範囲で複数のお世話をまとめて実行</span>
@@ -5287,10 +5383,12 @@ export default function App() {
 	                      <button
 	                        type="button"
 	                        data-farm-care-action="caress"
-	                        onMouseEnter={() => { if (selectedFarmCareActionIndex !== 0) playCursorSound(); setMenuFocusArea('content'); setMenuContentFocus('primary'); setSelectedFarmCareActionIndex(0); }}
+	                        data-farm-primary-action-index={getSelectedFarmPrimaryActionIndex('caress')}
+	                        data-farm-primary-selected={selectedFarmPrimaryAction === 'caress'}
+	                        onMouseEnter={() => { if (selectedFarmPrimaryAction !== 'caress') playCursorSound(); setMenuFocusArea('content'); setMenuContentFocus('primary'); setSelectedFarmCareActionIndex(getSelectedFarmPrimaryActionIndex('caress')); }}
 	                        aria-disabled={selectedSeedlingCareCounts.caress >= selectedSeedlingCareLimits.caress || currentAP <= 0}
 	                        onClick={(event) => { if (event.detail === 0) handleSeedlingCareButtonPress('caress'); }}
-	                        className={`relative z-10 min-h-[74px] rounded border px-2 py-2 text-center text-sm font-black text-[#fff1f7] transition hover:bg-[#8d4170] pointer-events-auto ${(selectedSeedlingCareCounts.caress >= selectedSeedlingCareLimits.caress || currentAP <= 0) ? 'opacity-55' : ''} ${selectedFarmCareActionIndex === 0 ? 'border-white bg-[#8d4170] ring-2 ring-[#ffd166]/70' : 'border-[#e5a6c8]/80 bg-[#6d3157]/80'}`}
+	                        className={`relative z-10 min-h-[74px] rounded border px-2 py-2 text-center text-sm font-black text-[#fff1f7] transition hover:bg-[#8d4170] pointer-events-auto ${(selectedSeedlingCareCounts.caress >= selectedSeedlingCareLimits.caress || currentAP <= 0) ? 'opacity-55' : ''} ${selectedFarmPrimaryAction === 'caress' ? 'border-white bg-[#8d4170] ring-2 ring-[#ffd166]/70' : 'border-[#e5a6c8]/80 bg-[#6d3157]/80'}`}
 	                      >
                         <span className="block">愛撫</span>
                         <span className="mt-1 block whitespace-nowrap">+3〜6</span>
@@ -5299,10 +5397,12 @@ export default function App() {
 	                      <button
 	                        type="button"
 	                        data-farm-care-action="finger"
-	                        onMouseEnter={() => { if (selectedFarmCareActionIndex !== 1) playCursorSound(); setMenuFocusArea('content'); setMenuContentFocus('primary'); setSelectedFarmCareActionIndex(1); }}
+	                        data-farm-primary-action-index={getSelectedFarmPrimaryActionIndex('finger')}
+	                        data-farm-primary-selected={selectedFarmPrimaryAction === 'finger'}
+	                        onMouseEnter={() => { if (selectedFarmPrimaryAction !== 'finger') playCursorSound(); setMenuFocusArea('content'); setMenuContentFocus('primary'); setSelectedFarmCareActionIndex(getSelectedFarmPrimaryActionIndex('finger')); }}
 	                        aria-disabled={!selectedSeedlingCareUnlocked.finger || selectedSeedlingCareCounts.finger >= selectedSeedlingCareLimits.finger || currentAP <= 0}
 	                        onClick={(event) => { if (event.detail === 0) handleSeedlingCareButtonPress('finger'); }}
-	                        className={`relative z-10 min-h-[74px] rounded border px-2 py-2 text-center text-sm font-black text-[#f6efff] transition hover:bg-[#62458b] pointer-events-auto ${(!selectedSeedlingCareUnlocked.finger || selectedSeedlingCareCounts.finger >= selectedSeedlingCareLimits.finger || currentAP <= 0) ? 'opacity-55' : ''} ${selectedFarmCareActionIndex === 1 ? 'border-white bg-[#62458b] ring-2 ring-[#ffd166]/70' : 'border-[#c7a6e5]/80 bg-[#4c356e]/80'}`}
+	                        className={`relative z-10 min-h-[74px] rounded border px-2 py-2 text-center text-sm font-black text-[#f6efff] transition hover:bg-[#62458b] pointer-events-auto ${(!selectedSeedlingCareUnlocked.finger || selectedSeedlingCareCounts.finger >= selectedSeedlingCareLimits.finger || currentAP <= 0) ? 'opacity-55' : ''} ${selectedFarmPrimaryAction === 'finger' ? 'border-white bg-[#62458b] ring-2 ring-[#ffd166]/70' : 'border-[#c7a6e5]/80 bg-[#4c356e]/80'}`}
 	                      >
                         <span className="block">指入れ</span>
                         {selectedSeedlingCareUnlocked.finger ? (
@@ -5317,10 +5417,12 @@ export default function App() {
 	                      <button
 	                        type="button"
 	                        data-farm-care-action="fertilize"
-	                        onMouseEnter={() => { if (selectedFarmCareActionIndex !== 2) playCursorSound(); setMenuFocusArea('content'); setMenuContentFocus('primary'); setSelectedFarmCareActionIndex(2); }}
+	                        data-farm-primary-action-index={getSelectedFarmPrimaryActionIndex('fertilize')}
+	                        data-farm-primary-selected={selectedFarmPrimaryAction === 'fertilize'}
+	                        onMouseEnter={() => { if (selectedFarmPrimaryAction !== 'fertilize') playCursorSound(); setMenuFocusArea('content'); setMenuContentFocus('primary'); setSelectedFarmCareActionIndex(getSelectedFarmPrimaryActionIndex('fertilize')); }}
 	                        aria-disabled={!selectedSeedlingCareUnlocked.fertilize || selectedSeedlingCareCounts.fertilize >= selectedSeedlingCareLimits.fertilize || currentAP <= 0}
 	                        onClick={(event) => { if (event.detail === 0) handleSeedlingCareButtonPress('fertilize'); }}
-	                        className={`relative z-10 min-h-[74px] rounded border px-2 py-2 text-center text-sm font-black text-[#f1ffe4] transition hover:bg-[#517f34] pointer-events-auto ${(!selectedSeedlingCareUnlocked.fertilize || selectedSeedlingCareCounts.fertilize >= selectedSeedlingCareLimits.fertilize || currentAP <= 0) ? 'opacity-55' : ''} ${selectedFarmCareActionIndex === 2 ? 'border-white bg-[#517f34] ring-2 ring-[#ffd166]/70' : 'border-[#a3d977]/80 bg-[#3f6528]/80'}`}
+	                        className={`relative z-10 min-h-[74px] rounded border px-2 py-2 text-center text-sm font-black text-[#f1ffe4] transition hover:bg-[#517f34] pointer-events-auto ${(!selectedSeedlingCareUnlocked.fertilize || selectedSeedlingCareCounts.fertilize >= selectedSeedlingCareLimits.fertilize || currentAP <= 0) ? 'opacity-55' : ''} ${selectedFarmPrimaryAction === 'fertilize' ? 'border-white bg-[#517f34] ring-2 ring-[#ffd166]/70' : 'border-[#a3d977]/80 bg-[#3f6528]/80'}`}
 	                      >
                         <span className="block">肥料注入</span>
                         {selectedSeedlingCareUnlocked.fertilize ? (
@@ -5347,8 +5449,10 @@ export default function App() {
                       </div>
 	                      <button
 	                        type="button"
+	                        data-farm-primary-action-index={getSelectedFarmPrimaryActionIndex('companion')}
+	                        data-farm-primary-selected={selectedFarmPrimaryAction === 'companion'}
 	                        disabled={!selectedGirlIsCompanion && !selectedGirlCanBecomeCompanion}
-		                        onMouseEnter={() => { if (selectedFarmCareActionIndex !== 3) playCursorSound(); setMenuFocusArea('content'); setMenuContentFocus('primary'); setSelectedFarmCareActionIndex(3); }}
+		                        onMouseEnter={() => { if (selectedFarmPrimaryAction !== 'companion') playCursorSound(); setMenuFocusArea('content'); setMenuContentFocus('primary'); setSelectedFarmCareActionIndex(getSelectedFarmPrimaryActionIndex('companion')); }}
 	                        onPointerDown={(event) => event.stopPropagation()}
 	                        onClick={(event) => {
 	                          event.stopPropagation();
@@ -5362,7 +5466,7 @@ export default function App() {
                           );
                         }}
 	                        className={`rounded border px-4 py-2 text-sm font-bold transition disabled:cursor-not-allowed disabled:border-[#4d4d4d] disabled:bg-[#292929] disabled:text-[#8d8d8d] ${
-	                          selectedFarmCareActionIndex === 3 && (selectedGirlIsCompanion || selectedGirlCanBecomeCompanion)
+	                          selectedFarmPrimaryAction === 'companion' && (selectedGirlIsCompanion || selectedGirlCanBecomeCompanion)
 	                            ? 'border-white ring-2 ring-[#ffd166]/70 '
 	                            : ''
 	                        }${
@@ -5518,8 +5622,10 @@ export default function App() {
                       </div>
 	                      <button
 	                        type="button"
+	                        data-farm-primary-action-index={getSelectedFarmPrimaryActionIndex('harvest')}
+	                        data-farm-primary-selected={selectedFarmPrimaryAction === 'harvest'}
 	                        disabled={!selectedHarvestInfo.canHarvest}
-		                        onMouseEnter={() => { if (selectedFarmCareActionIndex !== 4) playCursorSound(); setMenuFocusArea('content'); setMenuContentFocus('primary'); setSelectedFarmCareActionIndex(4); }}
+		                        onMouseEnter={() => { if (selectedFarmPrimaryAction !== 'harvest') playCursorSound(); setMenuFocusArea('content'); setMenuContentFocus('primary'); setSelectedFarmCareActionIndex(getSelectedFarmPrimaryActionIndex('harvest')); }}
 	                        onPointerDown={(event) => event.stopPropagation()}
 	                        onClick={(event) => {
 	                          event.stopPropagation();
@@ -5529,7 +5635,7 @@ export default function App() {
 	                        }}
 	                        className={`shrink-0 rounded border px-4 py-2 text-sm font-black ${
 	                          selectedHarvestInfo.canHarvest
-	                            ? selectedFarmCareActionIndex === 4
+	                            ? selectedFarmPrimaryAction === 'harvest'
 	                              ? 'border-white bg-[#166534] text-[#f0fdf4] ring-2 ring-[#ffd166]/70 hover:bg-[#166534]'
 	                              : 'border-[#86efac]/80 bg-[#14532d]/85 text-[#f0fdf4] hover:bg-[#166534]'
 	                            : 'border-[#76502c]/70 bg-black/40 text-[#8f7b63] disabled:cursor-not-allowed'
@@ -6463,8 +6569,13 @@ export default function App() {
           </div>
           <div style={{ ...menuPanelBaseStyle, ...menuKeyboardFocusStyle(menuFocusArea === 'content' && menuContentFocus === 'secondary') }} className="min-h-0 overflow-y-auto p-4">
             <div className="grid gap-3">
-              {achievementRows.map(row => (
-                <div key={row.title} className={`rounded-xl border px-4 py-3 ${row.done ? 'border-[#ffd166]/75 bg-[#5b3a12]/55' : 'border-[#5a3010] bg-black/30'}`}>
+              {achievementRows.map((row, index) => (
+                <div
+                  key={row.title}
+                  data-achievement-index={index}
+                  onMouseEnter={() => { if (selectedAchievementIndex !== index) playCursorSound(); setMenuFocusArea('content'); setMenuContentFocus('secondary'); setSelectedAchievementIndex(index); }}
+                  className={`rounded-xl border px-4 py-3 transition ${selectedAchievementIndex === index ? 'border-white bg-[#6b4b16]/70 ring-4 ring-[#ffd166]/70 shadow-[0_0_18px_rgba(255,209,102,0.42)]' : row.done ? 'border-[#ffd166]/75 bg-[#5b3a12]/55' : 'border-[#5a3010] bg-black/30'}`}
+                >
                   <div className="flex items-center justify-between gap-4">
                     <div className="min-w-0">
                       <div className={`text-lg font-black ${row.done ? 'text-[#fff1a8]' : 'text-[#c8a87a]'}`}>{row.title}</div>
@@ -6492,8 +6603,8 @@ export default function App() {
     return (
       <div className="grid grid-cols-3 gap-3 h-full rounded-2xl" style={menuKeyboardFocusStyle(menuFocusArea === 'content' && menuContentFocus === 'primary')}>
         {systemActions.map((action, index) => (
-	          <button
-	            key={action.label}
+		          <button
+		            key={action.label}
 	            type="button"
 	            data-system-action-index={index}
 	            onPointerDown={(event) => {
@@ -6506,7 +6617,7 @@ export default function App() {
 	              setSystemNotice(`${action.label}を選択しました。`);
 	              action.action();
 	            }}
-	            onMouseEnter={() => { playCursorSound(); setSelectedSystemActionIndex(index); }}
+		            onMouseEnter={() => { playCursorSound(); setSelectedSystemActionIndex(index); setMenuFocusArea('content'); setMenuContentFocus('primary'); }}
 	            onClick={() => { setMenuFocusArea('content'); setMenuContentFocus('primary'); setSelectedSystemActionIndex(index); setSystemNotice(`${action.label}を選択しました。`); }}
             className={`farm-menu-system-action has-art group relative overflow-hidden border-2 border-[#bc6c25] cursor-pointer ${selectedSystemActionIndex === index ? 'is-selected' : ''}`}
             style={{
@@ -6529,10 +6640,15 @@ export default function App() {
             { label: 'BGM', value: bgmVolume, setValue: (value: number) => setBgmVolume(value), color: '#facc15', percentClass: 'text-yellow-200' },
             { label: 'SE', value: seVolume, setValue: (value: number) => setSeVolume(value), color: '#22c55e', percentClass: 'text-green-200' },
             { label: 'VOICE', value: voiceVolume, setValue: (value: number) => setVoiceVolume(value), color: '#3b82f6', percentClass: 'text-blue-200' },
-          ].map(({ label, value, setValue, color, percentClass }) => {
-            const percent = Math.round(value * 100);
-            return (
-              <div key={label} className="rounded border border-[#5a3010]/70 bg-black/25 px-3 py-3">
+	          ].map(({ label, value, setValue, color, percentClass }, index) => {
+	            const percent = Math.round(value * 100);
+              const controlIndex = index + 3;
+	            return (
+	              <div
+                  key={label}
+                  onMouseEnter={() => { if (selectedSystemActionIndex !== controlIndex) playCursorSound(); setMenuFocusArea('content'); setMenuContentFocus('primary'); setSelectedSystemActionIndex(controlIndex); }}
+                  className={`rounded border px-3 py-3 transition ${selectedSystemActionIndex === controlIndex ? 'border-white bg-[#4a310b]/70 ring-4 ring-[#ffd166]/70' : 'border-[#5a3010]/70 bg-black/25'}`}
+                >
                 <div className="flex items-center justify-between gap-2">
                   <div style={menuTinyLabelStyle}>{label}</div>
                   <span className={`farm-volume-percent ${percentClass}`}>{percent}%</span>
@@ -6551,7 +6667,10 @@ export default function App() {
               </div>
             );
           })}
-          <div className="rounded border border-[#5a3010]/70 bg-black/25 px-3 py-3">
+	          <div
+              onMouseEnter={() => { if (selectedSystemActionIndex !== 6) playCursorSound(); setMenuFocusArea('content'); setMenuContentFocus('primary'); setSelectedSystemActionIndex(6); }}
+              className={`rounded border px-3 py-3 transition ${selectedSystemActionIndex === 6 ? 'border-white bg-[#4a310b]/70 ring-4 ring-[#ffd166]/70' : 'border-[#5a3010]/70 bg-black/25'}`}
+            >
             <div className="flex items-center justify-between gap-2">
               <div style={menuTinyLabelStyle}>テキスト表示スピード</div>
               <span className="farm-volume-percent text-orange-200">{textDisplaySpeedLevel >= 5 ? '一瞬' : `${textDisplaySpeedLevel}/5`}</span>
@@ -6569,7 +6688,11 @@ export default function App() {
             <div className="mt-2 text-[11px] text-[#c8a87a]">表示速度: {textDisplaySpeedLevel >= 5 ? '一瞬' : `${textDisplaySpeedLevel}/5`}</div>
           </div>
         </div>
-        <div style={menuPanelBaseStyle} className="col-span-3 flex items-center justify-between gap-4">
+	        <div
+            style={menuPanelBaseStyle}
+            onMouseEnter={() => { if (selectedSystemActionIndex !== 7) playCursorSound(); setMenuFocusArea('content'); setMenuContentFocus('primary'); setSelectedSystemActionIndex(7); }}
+            className={`col-span-3 flex items-center justify-between gap-4 ${selectedSystemActionIndex === 7 ? 'ring-4 ring-[#ffd166]/70' : ''}`}
+          >
           <div className="text-lg font-black text-[#fff3c4]">マップ表示</div>
           <div className="grid w-[420px] grid-cols-3 gap-2" role="group" aria-label="マップ表示倍率">
             {MAP_ZOOM_OPTIONS.map(option => (
@@ -6642,12 +6765,26 @@ export default function App() {
   useEffect(() => { selectedStatusGirlIndexRef.current = selectedStatusGirlIndex; }, [selectedStatusGirlIndex]);
   useEffect(() => { selectedFarmGirlIndexRef.current = selectedFarmGirlIndex; }, [selectedFarmGirlIndex]);
   useEffect(() => { selectedFarmCareActionIndexRef.current = selectedFarmCareActionIndex; }, [selectedFarmCareActionIndex]);
+  useEffect(() => { selectedBulkFarmCareControlIndexRef.current = selectedBulkFarmCareControlIndex; }, [selectedBulkFarmCareControlIndex]);
+  useEffect(() => {
+    if (!bulkFarmCareOpen) return;
+    window.setTimeout(() => bulkFarmCareDialogRef.current?.focus(), 0);
+  }, [bulkFarmCareOpen]);
+  useEffect(() => {
+    if (!bulkFarmCareUnlockNotice) return;
+    window.setTimeout(() => bulkFarmCareNoticeRef.current?.focus(), 0);
+  }, [bulkFarmCareUnlockNotice]);
+  useEffect(() => {
+    if (!bulkFarmCareResults) return;
+    window.setTimeout(() => bulkFarmCareResultsRef.current?.focus(), 0);
+  }, [bulkFarmCareResults]);
   useEffect(() => { selectedFarmFacilityIndexRef.current = selectedFarmFacilityIndex; }, [selectedFarmFacilityIndex]);
 	  useEffect(() => { zukanFilterRef.current = zukanFilter; }, [zukanFilter]);
 	  useEffect(() => { selectedZukanIndexRef.current = selectedZukanIndex; }, [selectedZukanIndex]);
 	  useEffect(() => { selectedKurumiNotebookIndexRef.current = selectedKurumiNotebookIndex; }, [selectedKurumiNotebookIndex]);
 	  useEffect(() => { systemNoticeRef.current = systemNotice; }, [systemNotice]);
   useEffect(() => { selectedSystemActionIndexRef.current = selectedSystemActionIndex; }, [selectedSystemActionIndex]);
+  useEffect(() => { selectedAchievementIndexRef.current = selectedAchievementIndex; }, [selectedAchievementIndex]);
   useEffect(() => { systemSlotModeRef.current = systemSlotMode; }, [systemSlotMode]);
   useEffect(() => { selectedSystemSlotRef.current = selectedSystemSlot; }, [selectedSystemSlot]);
   useEffect(() => { saveSlotSummariesRef.current = saveSlotSummaries; }, [saveSlotSummaries]);
@@ -8895,15 +9032,15 @@ export default function App() {
     }
   }, [hasUnlockedEndlessNurseryMode]);
 
-  // 状態変更を検知して自動セーブする useEffect
+  // 状態変更を検知して、手動セーブ枠とは別の非表示スロットへ自動セーブする
   useEffect(() => {
     if (isLoading) return; // ロード中は保存しない
     if (bootMode !== 'playing') return; // タイトル画面では保存しない
     if (pendingDeleteSaveSlot !== null) return; // 削除確認中に予約済み自動セーブを残さない
-    if (autoSaveBlockedSlotsRef.current.has(currentSaveSlot)) return; // 削除直後のスロットを自動復活させない
+    if (autoSaveBlockedSlotsRef.current.has(AUTO_SAVE_SLOT)) return; // 削除直後のスロットを自動復活させない
 
     const timer = setTimeout(() => {
-      fetch(`/api/save?slot=${currentSaveSlot}`, {
+      fetch(`/api/save?slot=${AUTO_SAVE_SLOT}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(createSaveData())
@@ -9623,12 +9760,16 @@ export default function App() {
   useEffect(() => {
     if (!menuOpen) return;
     const selectedMenuId = selectedMenuItem.id;
+    const farmSelector = menuContentFocus === 'primary'
+      ? '[data-farm-primary-selected="true"]'
+      : `[data-farm-girl-index="${selectedFarmGirlIndex}"]`;
     const selectors: Partial<Record<MenuItemId, string>> = {
       item: `[data-menu-item-name="${CSS.escape(selectedItemName)}"]`,
       equipment: `[data-equipment-option-index="${selectedEquipmentOptionIndex}"]`,
-	      farm: `[data-farm-girl-index="${selectedFarmGirlIndex}"]`,
+	      farm: farmSelector,
 	      zukan: `[data-zukan-index="${selectedZukanIndex}"]`,
 	      kurumiNotebook: `[data-kurumi-notebook-index="${selectedKurumiNotebookIndex}"]`,
+	      achievement: `[data-achievement-index="${selectedAchievementIndex}"]`,
 	      system: `[data-system-action-index="${selectedSystemActionIndex}"]`,
 	    };
     const selector = selectors[selectedMenuId];
@@ -9640,10 +9781,20 @@ export default function App() {
     selectedItemName,
     selectedEquipmentOptionIndex,
 	    selectedFarmGirlIndex,
+	    selectedFarmCareActionIndex,
 	    selectedZukanIndex,
 	    selectedKurumiNotebookIndex,
+	    selectedAchievementIndex,
 	    selectedSystemActionIndex,
+	    menuContentFocus,
 	  ]);
+
+  useEffect(() => {
+    if (!bulkFarmCareOpen) return;
+    document
+      .querySelector<HTMLElement>(`[data-bulk-care-control-index="${selectedBulkFarmCareControlIndex}"]`)
+      ?.scrollIntoView({ block: 'nearest' });
+  }, [bulkFarmCareOpen, selectedBulkFarmCareControlIndex]);
 
   useEffect(() => {
     if (farmSlotInteractionStage !== 'selectSeed') return;
@@ -16376,7 +16527,9 @@ export default function App() {
       
       // ゲームの操作キーが押された場合はブラウザのスクロールを防ぐ
       const gameKeys = ['arrowup', 'arrowdown', 'arrowleft', 'arrowright', 'w', 's', 'a', 'd', 'q', 'e', ' ', 'enter'];
-      if (gameKeys.includes(e.key.toLowerCase())) {
+      const keyTarget = e.target as HTMLElement | null;
+      const isFormControlKey = Boolean(keyTarget?.closest('button,input,textarea,select'));
+      if (gameKeys.includes(e.key.toLowerCase()) && !isFormControlKey) {
         e.preventDefault();
       }
       if (miningMiniGameOpen) return;
@@ -16557,14 +16710,21 @@ export default function App() {
         return;
       }
 
-      if (bulkFarmCareOpen || bulkFarmCareUnlockNotice || bulkFarmCareResults) {
-        if (e.key === 'Escape') {
+      if (bulkFarmCareOpen || bulkFarmCareConfirmOpen || bulkFarmCareUnlockNotice || bulkFarmCareResults) {
+        if (bulkFarmCareUnlockNotice && (e.key === 'Enter' || e.key === ' ' || e.key === 'Escape')) {
           e.preventDefault();
           playFixSound();
-          setBulkFarmCareOpen(false);
           setBulkFarmCareUnlockNotice(false);
-          setBulkFarmCareResults(null);
-          setBulkFarmCareSelections([]);
+          return;
+        }
+        if (e.key === 'Escape') {
+          e.preventDefault();
+          if (bulkFarmCareConfirmOpen) {
+            playFixSound();
+            setBulkFarmCareConfirmOpen(false);
+          } else {
+            closeBulkFarmCareDialog();
+          }
         }
         return;
       }
@@ -17313,6 +17473,20 @@ export default function App() {
           if (key === 'ArrowDown') return Math.min(length - 1, currentIndex + columns);
           return currentIndex;
         };
+        const getVisibleFarmMenuPrimaryActions = (girlId?: string): FarmMenuPrimaryAction[] => {
+          if (!girlId) return [...(isBulkFarmCareUnlocked ? ['bulkCare' as const] : []), ...FARM_CARE_ACTION_ORDER];
+          const farmGirlState = farmGirls.find(entry => entry.girlId === girlId);
+          const fieldSlot = farmFieldSlots.find(slot => slot.girlId === girlId);
+          const stateForMenu = farmGirlState && fieldSlot?.state === 'growing'
+            ? { ...farmGirlState, state: 'growing' as FarmGirlState }
+            : farmGirlState;
+          return [
+            ...(isBulkFarmCareUnlocked ? ['bulkCare' as const] : []),
+            ...(canCareForFarmGirlSeedling(girlId) ? [...FARM_CARE_ACTION_ORDER] : []),
+            ...(farmGirlState ? ['companion' as const] : []),
+            ...(getFarmGirlHarvestInfo(girlId).crop && stateForMenu?.state === 'appeared' ? ['harvest' as const] : []),
+          ];
+        };
 
         if (menuFocusAreaRef.current === 'nav' && e.key === 'ArrowUp') {
           e.preventDefault();
@@ -17574,9 +17748,9 @@ export default function App() {
 		                return;
 			              }
 			              const selectedGirl = menuGirls[currentIndex];
-			              const primaryActionCount = selectedGirl ? FARM_MENU_PRIMARY_ACTION_ORDER.length : FARM_CARE_ACTION_ORDER.length;
+			              const primaryActions = getVisibleFarmMenuPrimaryActions(selectedGirl?.id);
 		              const nextCareIndex = Math.max(0, Math.min(
-		                primaryActionCount - 1,
+		                Math.max(0, primaryActions.length - 1),
 		                selectedFarmCareActionIndexRef.current + (
 		                  e.key === 'ArrowRight' || e.key === 'ArrowDown' ? 1 :
 		                  e.key === 'ArrowUp' ? -1 :
@@ -17619,9 +17793,9 @@ export default function App() {
 	            return;
 	          }
 
-	          if (currentMenuItem.id === 'kurumiNotebook') {
-	            const currentIndex = selectedKurumiNotebookIndexRef.current;
-	            const notebookLength = KURUMI_NOTEBOOK_SECTION_COUNT;
+		          if (currentMenuItem.id === 'kurumiNotebook') {
+		            const currentIndex = selectedKurumiNotebookIndexRef.current;
+		            const notebookLength = KURUMI_NOTEBOOK_SECTION_COUNT;
 	            if (e.key === 'ArrowLeft') {
 	              if (menuContentFocusRef.current === 'secondary') {
 	                setMenuContentFocus('primary');
@@ -17634,20 +17808,74 @@ export default function App() {
 	              setMenuContentFocus('secondary');
 	              return;
 	            }
-	            setSelectedKurumiNotebookIndex(Math.max(0, Math.min(notebookLength - 1, currentIndex + (e.key === 'ArrowDown' ? 1 : e.key === 'ArrowUp' ? -1 : 0))));
+		            setSelectedKurumiNotebookIndex(Math.max(0, Math.min(notebookLength - 1, currentIndex + (e.key === 'ArrowDown' ? 1 : e.key === 'ArrowUp' ? -1 : 0))));
+		            return;
+		          }
+
+	          if (currentMenuItem.id === 'achievement') {
+	            const achievementLength = 27;
+	            if (menuContentFocusRef.current === 'primary') {
+	              if (e.key === 'ArrowLeft') {
+	                setMenuFocusArea('nav');
+	                return;
+	              }
+	              if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+	                setMenuContentFocus('secondary');
+	                return;
+	              }
+	              return;
+	            }
+	            if (e.key === 'ArrowLeft') {
+	              setMenuContentFocus('primary');
+	              return;
+	            }
+	            setSelectedAchievementIndex(Math.max(0, Math.min(achievementLength - 1, selectedAchievementIndexRef.current + (e.key === 'ArrowDown' ? 1 : e.key === 'ArrowUp' ? -1 : 0))));
 	            return;
 	          }
 
 	          if (currentMenuItem.id === 'system') {
-            const actions = ['セーブ', 'ロード', 'タイトルへ戻る'];
             const currentIndex = selectedSystemActionIndexRef.current;
-            if (e.key === 'ArrowLeft' && currentIndex === 0) {
+            const clampSystemIndex = (index: number) => Math.max(0, Math.min(7, index));
+            if (currentIndex === 0 && e.key === 'ArrowLeft') {
               setMenuFocusArea('nav');
               return;
             }
-            const nextIndex = e.key === 'ArrowRight' ? Math.min(actions.length - 1, currentIndex + 1) : e.key === 'ArrowLeft' ? Math.max(0, currentIndex - 1) : currentIndex;
+            if (currentIndex === 5 && e.key === 'ArrowDown') {
+              setSelectedSystemActionIndex(6);
+              return;
+            }
+            if (currentIndex === 6 && e.key === 'ArrowUp') {
+              setSelectedSystemActionIndex(5);
+              return;
+            }
+            if (currentIndex === 6 && e.key === 'ArrowDown') {
+              setSelectedSystemActionIndex(7);
+              return;
+            }
+            if (currentIndex >= 3 && currentIndex <= 6 && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
+              const delta = e.key === 'ArrowRight' ? 0.05 : -0.05;
+              if (currentIndex === 3) setBgmVolume(value => clampNumber(value + delta, 0, 1));
+              if (currentIndex === 4) setSeVolume(value => clampNumber(value + delta, 0, 1));
+              if (currentIndex === 5) setVoiceVolume(value => clampNumber(value + delta, 0, 1));
+              if (currentIndex === 6) setTextDisplaySpeedLevel(value => Math.max(1, Math.min(5, value + (e.key === 'ArrowRight' ? 1 : -1))));
+              return;
+            }
+            if (currentIndex === 7 && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
+              const currentZoomIndex = Math.max(0, MAP_ZOOM_OPTIONS.findIndex(option => option.value === mapZoom));
+              const nextZoomIndex = Math.max(0, Math.min(MAP_ZOOM_OPTIONS.length - 1, currentZoomIndex + (e.key === 'ArrowRight' ? 1 : -1)));
+              setMapZoom(MAP_ZOOM_OPTIONS[nextZoomIndex].value);
+              return;
+            }
+            const nextIndex = e.key === 'ArrowRight'
+              ? clampSystemIndex(currentIndex + 1)
+              : e.key === 'ArrowLeft'
+                ? clampSystemIndex(currentIndex - 1)
+                : e.key === 'ArrowDown'
+                  ? clampSystemIndex(currentIndex + 3)
+                  : e.key === 'ArrowUp'
+                    ? clampSystemIndex(currentIndex - 3)
+                    : currentIndex;
             setSelectedSystemActionIndex(nextIndex);
-            setSystemNotice(`${actions[nextIndex]}を選択しました。`);
             return;
           }
 
@@ -17677,14 +17905,13 @@ export default function App() {
                   ? Math.max(1, getUnlockedZukanVideoEntries().length)
                   : getZukanGirlAndKurumiCards().length;
 	            setSelectedZukanIndex(prev => (prev + moveBy + zukanLength) % zukanLength);
-		          } else if (currentMenuItem.id === 'kurumiNotebook') {
+	          } else if (currentMenuItem.id === 'kurumiNotebook') {
 		            const notebookLength = KURUMI_NOTEBOOK_SECTION_COUNT;
 		            setSelectedKurumiNotebookIndex(prev => (prev + moveBy + notebookLength) % notebookLength);
+	          } else if (currentMenuItem.id === 'achievement') {
+	            setSelectedAchievementIndex(prev => Math.max(0, Math.min(26, prev + moveBy)));
 	          } else if (currentMenuItem.id === 'system') {
-            const actions = ['セーブ', 'ロード', 'タイトルへ戻る'];
-            const currentIndex = actions.findIndex(action => systemNoticeRef.current.includes(action));
-            const nextAction = actions[((currentIndex >= 0 ? currentIndex : 0) + moveBy + actions.length) % actions.length];
-            setSystemNotice(`${nextAction}を選択しました。`);
+            setSelectedSystemActionIndex(prev => Math.max(0, Math.min(7, prev + moveBy)));
           }
         } else if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault();
@@ -17692,7 +17919,19 @@ export default function App() {
 		          if (currentMenuItem.id === 'farm') {
 		            if (menuContentFocusRef.current === 'primary') {
 		              const selectedGirl = menuGirls[selectedFarmGirlIndexRef.current];
-			              const selectedPrimaryAction = FARM_MENU_PRIMARY_ACTION_ORDER[selectedFarmCareActionIndexRef.current] ?? 'caress';
+			              const primaryActions = getVisibleFarmMenuPrimaryActions(selectedGirl?.id);
+			              const selectedPrimaryAction = primaryActions[
+			                Math.max(0, Math.min(primaryActions.length - 1, selectedFarmCareActionIndexRef.current))
+			              ] ?? 'caress';
+                    if (selectedPrimaryAction === 'bulkCare') {
+                      setBulkFarmCareSelections([]);
+                      setBulkFarmCareConfirmOpen(false);
+                      setBulkFarmCareUnlockNotice(false);
+                      setBulkFarmCareResults(null);
+                      setSelectedBulkFarmCareControlIndex(0);
+                      setBulkFarmCareOpen(true);
+                      return;
+                    }
 			              if (selectedGirl) {
 			                if (selectedPrimaryAction === 'companion') {
 			                  const farmGirlState = farmGirls.find(entry => entry.girlId === selectedGirl.id);
@@ -17795,10 +18034,22 @@ export default function App() {
               const firstSkill = getHeroSkillsByCategory(selectedSkillCategoryRef.current)[0];
               if (firstSkill) setSelectedSkillName(firstSkill.id);
               setMenuContentFocus('secondary');
-            } else {
-              requestHeroSkillUnlock(selectedSkillNameRef.current);
-            }
-          } else if (currentMenuItem.id === 'zukan') {
+	            } else {
+	              requestHeroSkillUnlock(selectedSkillNameRef.current);
+	            }
+	          } else if (currentMenuItem.id === 'kurumiNotebook') {
+	            if (menuContentFocusRef.current === 'primary') {
+	              setMenuContentFocus('secondary');
+	            } else {
+	              setDialogMessage('くるみの秘密帳を確認しました。');
+	            }
+	          } else if (currentMenuItem.id === 'achievement') {
+	            if (menuContentFocusRef.current === 'primary') {
+	              setMenuContentFocus('secondary');
+	            } else {
+	              setDialogMessage('アチーブメントの進捗を確認しました。');
+	            }
+	          } else if (currentMenuItem.id === 'zukan') {
             if (zukanFilterRef.current === '動画') {
               const entry = getUnlockedZukanVideoEntries()[selectedZukanIndexRef.current];
               if (entry) {
@@ -17823,9 +18074,21 @@ export default function App() {
               }
             }
 	          } else if (currentMenuItem.id === 'system') {
-	            const actions = ['セーブ', 'ロード', 'タイトルへ戻る'];
-	            const action = actions[selectedSystemActionIndexRef.current] ?? actions[0];
-	            setSystemNotice(`${action}を選択しました。`);
+		            const actions = ['セーブ', 'ロード', 'タイトルへ戻る'];
+		            const action = actions[selectedSystemActionIndexRef.current];
+                if (!action) {
+                  if (selectedSystemActionIndexRef.current >= 3 && selectedSystemActionIndexRef.current <= 5) {
+                    const setters = [setBgmVolume, setSeVolume, setVoiceVolume];
+                    setters[selectedSystemActionIndexRef.current - 3](value => clampNumber(value + 0.05, 0, 1));
+                  } else if (selectedSystemActionIndexRef.current === 6) {
+                    setTextDisplaySpeedLevel(value => Math.min(5, value + 1));
+                  } else if (selectedSystemActionIndexRef.current === 7) {
+                    const currentZoomIndex = Math.max(0, MAP_ZOOM_OPTIONS.findIndex(option => option.value === mapZoom));
+                    setMapZoom(MAP_ZOOM_OPTIONS[(currentZoomIndex + 1) % MAP_ZOOM_OPTIONS.length].value);
+                  }
+                  return;
+                }
+		            setSystemNotice(`${action}を選択しました。`);
 	            setDialogMessage(`${action}を選択しました。`);
 	            if (action === 'セーブ') {
 	              setSystemSlotMode('save');
@@ -18544,7 +18807,7 @@ export default function App() {
       window.removeEventListener('keydown', handleKeyDown); window.removeEventListener('keyup', handleKeyUp);
       cancelAnimationFrame(animationFrameId);
     };
-  }, [setupMode, bedTiles, workbenchTiles, fishingTiles, activeFishingTileKeys, miningTiles, activeMiningTileKeys, depletedMiningPointIds, activeMiningPointId, loggingTiles, activeLoggingPoints, activeLoggingPointId, sleepPromptVisible, bathPromptVisible, mermaidOfferingPromptVisible, bathSequenceActive, craftPromptVisible, fishingPromptVisible, miningPromptVisible, loggingPromptVisible, confirmPromptChoice, pendingDeleteSaveSlot, pendingOverwriteSaveSlot, activeAutoEventSpot, activeAutoEventMessage, activeAutoEventMessageIndex, activeAutoEventMessages, displayedAutoEventMessage, turn, currentAP, kurumiShopOpen, kurumiIntroOpen, kurumiIntroSelectedIndex, kurumiIntroAskedTopics, kurumiIntroCompletedDay, seedPlantTutorialOpen, seedPlantTutorialStepIndex, seedAfterPlantTutorialOpen, seedAfterPlantTutorialStepIndex, selectedShopControl, selectedShopItemIndex, shopItems, gold, equipmentActionOpen, equippedItems, inventoryCounts, caughtFishIds, fishingMiniGameOpen, fishingMiniGameStage, miningMiniGameOpen, isFishingResultInputLocked, mermaidLetterNotice, fishingTutorialOpen, fishingTutorialEndingOpen, fishingTutorialEndingStepIndex, sawCraftTutorialIntroOpen, sawCraftTutorialIntroStepIndex, sawCraftTutorialReady, sawCraftTutorialShedDialogueOpen, sawCraftTutorialWorkbenchReady, gatheringTutorialCompleted, gatheringTutorialChoice, miningTutorialCompleted, selectedFishingTutorialAction, selectedFishingResultAction, recipeDetailOpen, farmGirlDetailOpen, showDialog, pendingFarmCareConfirm, farmCareConfirmChoice, farmCareUnlockNoticeAction, farmHarvestResultNotice, farmGirlRevealSpotlightId, skillTreeTutorialStep, bootMode, timeOfDay, isOpeningWalkObjectiveActive, currentDay, nextObjective, battlePreviewOpen, battlePreviewState, battleIntroPhase, battleItemPanelOpen, battleItemSelectionStep, selectedBattleCommandIndex, selectedBattleItemIndex, selectedBattleItemTargetIndex, companionRegenCinematicOpen]);
+  }, [setupMode, bedTiles, workbenchTiles, fishingTiles, activeFishingTileKeys, miningTiles, activeMiningTileKeys, depletedMiningPointIds, activeMiningPointId, loggingTiles, activeLoggingPoints, activeLoggingPointId, sleepPromptVisible, bathPromptVisible, mermaidOfferingPromptVisible, bathSequenceActive, craftPromptVisible, fishingPromptVisible, miningPromptVisible, loggingPromptVisible, confirmPromptChoice, pendingDeleteSaveSlot, pendingOverwriteSaveSlot, activeAutoEventSpot, activeAutoEventMessage, activeAutoEventMessageIndex, activeAutoEventMessages, displayedAutoEventMessage, turn, currentAP, kurumiShopOpen, kurumiIntroOpen, kurumiIntroSelectedIndex, kurumiIntroAskedTopics, kurumiIntroCompletedDay, seedPlantTutorialOpen, seedPlantTutorialStepIndex, seedAfterPlantTutorialOpen, seedAfterPlantTutorialStepIndex, selectedShopControl, selectedShopItemIndex, shopItems, gold, equipmentActionOpen, equippedItems, inventoryCounts, caughtFishIds, fishingMiniGameOpen, fishingMiniGameStage, miningMiniGameOpen, isFishingResultInputLocked, mermaidLetterNotice, fishingTutorialOpen, fishingTutorialEndingOpen, fishingTutorialEndingStepIndex, sawCraftTutorialIntroOpen, sawCraftTutorialIntroStepIndex, sawCraftTutorialReady, sawCraftTutorialShedDialogueOpen, sawCraftTutorialWorkbenchReady, gatheringTutorialCompleted, gatheringTutorialChoice, miningTutorialCompleted, selectedFishingTutorialAction, selectedFishingResultAction, recipeDetailOpen, farmGirlDetailOpen, showDialog, pendingFarmCareConfirm, farmCareConfirmChoice, farmCareUnlockNoticeAction, farmHarvestResultNotice, farmGirlRevealSpotlightId, skillTreeTutorialStep, bulkFarmCareOpen, bulkFarmCareConfirmOpen, bulkFarmCareUnlockNotice, bulkFarmCareResults, bootMode, timeOfDay, isOpeningWalkObjectiveActive, currentDay, nextObjective, battlePreviewOpen, battlePreviewState, battleIntroPhase, battleItemPanelOpen, battleItemSelectionStep, selectedBattleCommandIndex, selectedBattleItemIndex, selectedBattleItemTargetIndex, companionRegenCinematicOpen]);
 
   // Zone creation states
   const [dragStart, setDragStart] = useState<{ x: number, y: number } | null>(null);
@@ -25233,18 +25496,94 @@ export default function App() {
         })(), document.body)}
         {bulkFarmCareOpen && createPortal((() => {
           const plantedGirls = farmGirls.filter(girl => farmFieldSlots.some(slot => slot.girlId === girl.girlId));
+          const availableBulkCareKeys = plantedGirls.flatMap(girl => {
+            const crop = FARM_GIRL_CROP_DATA.find(entry => entry.girlId === girl.girlId);
+            const careable = Boolean(crop) && canCareForFarmGirlSeedling(girl.girlId);
+            if (!crop || !careable) return [];
+            return FARM_CARE_ACTION_ORDER.filter(action => {
+              const currentCount = girl.careDay === currentDay
+                ? action === 'caress' ? girl.caressCount : action === 'finger' ? girl.fingerCount : girl.fertilizeCount
+                : 0;
+              return isFarmCareActionUnlocked(action) && currentCount < getSkillAdjustedSeedlingCareLimit(action, crop);
+            }).map(action => `${girl.girlId}:${action}`);
+          });
           const requiredAP = bulkFarmCareSelections.length;
           const isAPShortage = requiredAP > currentAP;
           const toggleSelection = (key: string) => setBulkFarmCareSelections(previous => (
             previous.includes(key) ? previous.filter(entry => entry !== key) : [...previous, key]
           ));
+          const selectRecommendedBulkCare = () => {
+            playFixSound();
+            setBulkFarmCareSelections(availableBulkCareKeys.slice(0, currentAP));
+          };
+          const clearBulkCareSelection = () => {
+            playFixSound();
+            setBulkFarmCareSelections([]);
+          };
+          const bulkCareControls = [
+            { key: 'recommend', disabled: availableBulkCareKeys.length === 0 || currentAP <= 0, action: selectRecommendedBulkCare },
+            { key: 'clear', disabled: requiredAP === 0, action: clearBulkCareSelection },
+            ...availableBulkCareKeys.map(key => ({ key, disabled: false, action: () => toggleSelection(key) })),
+            { key: 'back', disabled: false, action: closeBulkFarmCareDialog },
+            { key: 'execute', disabled: requiredAP === 0 || isAPShortage, action: requestBulkFarmCareExecution },
+          ];
+          const clampedBulkCareControlIndex = Math.max(0, Math.min(bulkCareControls.length - 1, selectedBulkFarmCareControlIndex));
+          const selectedBulkCareControl = bulkCareControls[clampedBulkCareControlIndex];
+          const isBulkCareControlSelected = (key: string) => (
+            selectedBulkCareControl?.key === key && !selectedBulkCareControl.disabled
+          );
+          const moveBulkCareControl = (delta: number) => {
+            const enabledControls = bulkCareControls
+              .map((control, index) => ({ control, index }))
+              .filter(entry => !entry.control.disabled);
+            if (enabledControls.length === 0) return;
+            const currentEnabledIndex = Math.max(0, enabledControls.findIndex(entry => entry.index === clampedBulkCareControlIndex));
+            const nextEnabled = enabledControls[Math.max(0, Math.min(enabledControls.length - 1, currentEnabledIndex + delta))];
+            if (nextEnabled && nextEnabled.index !== selectedBulkFarmCareControlIndexRef.current) {
+              playCursorSound();
+              setSelectedBulkFarmCareControlIndex(nextEnabled.index);
+            }
+          };
+          const activateSelectedBulkCareControl = () => {
+            if (!selectedBulkCareControl || selectedBulkCareControl.disabled) return;
+            selectedBulkCareControl.action();
+          };
           return (
-            <div className="fixed inset-0 z-[10012] flex items-center justify-center bg-black/75 px-6 py-8">
+	              <div
+	              ref={bulkFarmCareDialogRef}
+	              tabIndex={-1}
+	              className="fixed inset-0 z-[10012] flex items-center justify-center bg-black/75 px-6 py-8"
+	              onKeyDown={(event) => {
+                if (event.key === 'Escape') {
+                  event.preventDefault();
+                  closeBulkFarmCareDialog();
+                  return;
+                }
+                if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') {
+                  event.preventDefault();
+                  moveBulkCareControl(event.key === 'ArrowUp' ? -4 : -1);
+                  return;
+                }
+                if (event.key === 'ArrowRight' || event.key === 'ArrowDown') {
+                  event.preventDefault();
+                  moveBulkCareControl(event.key === 'ArrowDown' ? 4 : 1);
+                  return;
+                }
+                if (event.key === 'Enter' || event.key === ' ') {
+                  event.preventDefault();
+                  activateSelectedBulkCareControl();
+                }
+              }}
+            >
               <div className="flex max-h-[92vh] w-full max-w-4xl flex-col rounded-2xl border-2 border-[#ffd166] bg-[#24140f] p-6 text-[#fff7dc] shadow-[0_24px_80px_rgba(0,0,0,.82)]">
                 <div className="text-center">
                   <div className="text-sm font-black tracking-[0.18em] text-[#ffd166]">BULK CARE</div>
                   <div className="mt-1 text-3xl font-black">一括お世話</div>
                   <div className="mt-2 text-sm font-bold text-[#c8a87a]">1チェックにつきAPを1消費します。動画は再生されません。</div>
+                </div>
+                <div className="mt-4 grid grid-cols-2 gap-3">
+	                  <button type="button" data-bulk-care-control-index={0} onPointerEnter={() => setSelectedBulkFarmCareControlIndex(0)} onFocus={() => setSelectedBulkFarmCareControlIndex(0)} onClick={selectRecommendedBulkCare} disabled={availableBulkCareKeys.length === 0 || currentAP <= 0} className={`rounded-xl border px-4 py-3 font-black text-[#fff1a8] hover:bg-[#79561b] focus:outline-none disabled:cursor-not-allowed disabled:opacity-40 ${isBulkCareControlSelected('recommend') ? 'border-white bg-[#79561b] ring-4 ring-[#ffd166]/75' : 'border-[#ffd166] bg-[#5f4214]'}`}>AP内でおすすめ選択</button>
+	                  <button type="button" data-bulk-care-control-index={1} onPointerEnter={() => setSelectedBulkFarmCareControlIndex(1)} onFocus={() => setSelectedBulkFarmCareControlIndex(1)} onClick={clearBulkCareSelection} disabled={requiredAP === 0} className={`rounded-xl border px-4 py-3 font-black hover:bg-black/55 focus:outline-none disabled:cursor-not-allowed disabled:opacity-40 ${isBulkCareControlSelected('clear') ? 'border-white bg-black/55 ring-4 ring-[#ffd166]/75' : 'border-[#c8a87a] bg-black/35'}`}>選択を全解除</button>
                 </div>
                 <div className="mt-5 min-h-0 flex-1 overflow-y-auto rounded-xl border border-[#76502c] bg-black/25">
                   <div className="sticky top-0 z-10 grid grid-cols-[minmax(180px,1fr)_150px_150px_150px] border-b border-[#76502c] bg-[#352017] px-4 py-3 text-center text-sm font-black text-[#ffd166]">
@@ -25267,14 +25606,16 @@ export default function App() {
                             : 0;
                           const available = Boolean(crop) && careable && isFarmCareActionUnlocked(action) && currentCount < getSkillAdjustedSeedlingCareLimit(action, crop!);
                           const key = `${girl.girlId}:${action}`;
+                          const controlIndex = bulkCareControls.findIndex(control => control.key === key);
                           return (
-                            <label key={action} className={`flex items-center justify-center ${available ? 'cursor-pointer' : 'cursor-not-allowed opacity-30'}`}>
-                              <input
-                                type="checkbox"
-                                checked={bulkFarmCareSelections.includes(key)}
-                                disabled={!available}
-                                onChange={() => toggleSelection(key)}
-                                className="h-7 w-7 accent-[#ffd166]"
+	                            <label key={action} data-bulk-care-control-index={controlIndex >= 0 ? controlIndex : undefined} onPointerEnter={() => { if (available && controlIndex >= 0) setSelectedBulkFarmCareControlIndex(controlIndex); }} className={`flex min-h-[46px] items-center justify-center rounded-lg border transition ${available ? 'cursor-pointer' : 'cursor-not-allowed opacity-30'} ${isBulkCareControlSelected(key) ? 'border-white bg-[#6b4b16]/70 ring-4 ring-[#ffd166]/70' : 'border-transparent'}`}>
+	                              <input
+	                                type="checkbox"
+	                                checked={bulkFarmCareSelections.includes(key)}
+	                                disabled={!available}
+	                                onFocus={() => { if (available && controlIndex >= 0) setSelectedBulkFarmCareControlIndex(controlIndex); }}
+	                                onChange={() => toggleSelection(key)}
+	                                className="h-7 w-7 accent-[#ffd166] focus:outline-none focus:ring-4 focus:ring-[#ffd166]/70"
                               />
                             </label>
                           );
@@ -25288,24 +25629,102 @@ export default function App() {
                   {isAPShortage && <div className="mt-1 font-bold text-red-300">APが足りません。選択を減らしてください。</div>}
                 </div>
                 <div className="mt-4 grid grid-cols-2 gap-3">
-                  <button type="button" onClick={() => { playFixSound(); setBulkFarmCareOpen(false); setBulkFarmCareSelections([]); }} className="rounded-xl border border-[#c8a87a] bg-black/35 px-5 py-3 font-black hover:bg-black/55">戻る</button>
-                  <button type="button" disabled={requiredAP === 0 || isAPShortage} onClick={executeBulkFarmCare} className="rounded-xl border border-[#ffd166] bg-[#6b4b16] px-5 py-3 font-black text-[#fff1a8] hover:bg-[#85621e] disabled:cursor-not-allowed disabled:opacity-40">一括実行</button>
+	                  <button type="button" data-bulk-care-control-index={bulkCareControls.findIndex(control => control.key === 'back')} onPointerEnter={() => setSelectedBulkFarmCareControlIndex(bulkCareControls.findIndex(control => control.key === 'back'))} onFocus={() => setSelectedBulkFarmCareControlIndex(bulkCareControls.findIndex(control => control.key === 'back'))} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); event.stopPropagation(); closeBulkFarmCareDialog(); } }} onClick={closeBulkFarmCareDialog} className={`rounded-xl border px-5 py-3 font-black hover:bg-black/55 focus:outline-none ${isBulkCareControlSelected('back') ? 'border-white bg-black/55 ring-4 ring-[#ffd166]/75' : 'border-[#c8a87a] bg-black/35'}`}>戻る</button>
+	                  <button type="button" data-bulk-care-control-index={bulkCareControls.findIndex(control => control.key === 'execute')} onPointerEnter={() => setSelectedBulkFarmCareControlIndex(bulkCareControls.findIndex(control => control.key === 'execute'))} onFocus={() => setSelectedBulkFarmCareControlIndex(bulkCareControls.findIndex(control => control.key === 'execute'))} disabled={requiredAP === 0 || isAPShortage} onClick={requestBulkFarmCareExecution} className={`rounded-xl border px-5 py-3 font-black text-[#fff1a8] hover:bg-[#85621e] focus:outline-none disabled:cursor-not-allowed disabled:opacity-40 ${isBulkCareControlSelected('execute') ? 'border-white bg-[#85621e] ring-4 ring-[#ffd166]/75' : 'border-[#ffd166] bg-[#6b4b16]'}`}>一括実行</button>
                 </div>
               </div>
             </div>
           );
         })(), document.body)}
-        {bulkFarmCareUnlockNotice && createPortal(
-          <div className="fixed inset-0 z-[10013] flex items-center justify-center bg-black/70 px-6">
+        {bulkFarmCareConfirmOpen && createPortal(
+          <div
+            className="fixed inset-0 z-[10014] flex items-center justify-center bg-black/72 px-6"
+            onKeyDown={(event) => {
+              if (event.key === 'Escape') {
+                event.preventDefault();
+                playFixSound();
+                setBulkFarmCareConfirmOpen(false);
+                return;
+              }
+              if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
+                event.preventDefault();
+                playCursorSound();
+                setBulkFarmCareConfirmChoice(choice => choice === 'execute' ? 'back' : 'execute');
+                return;
+              }
+              if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault();
+                if (bulkFarmCareConfirmChoice === 'back') {
+                  playFixSound();
+                  setBulkFarmCareConfirmOpen(false);
+                } else {
+                  executeBulkFarmCare();
+                }
+              }
+            }}
+          >
+            <div className="w-full max-w-lg rounded-2xl border-2 border-[#ffd166] bg-[#24140f] p-7 text-center text-[#fff7dc] shadow-2xl">
+              <div className="text-sm font-black tracking-[0.18em] text-[#ffd166]">一括実行の確認</div>
+              <div className="mt-3 text-2xl font-black text-[#fff1a8]">選択したお世話をまとめて実行しますか？</div>
+              <div className="mt-4 rounded-xl border border-[#76502c] bg-black/30 p-4 text-left font-bold leading-relaxed">
+                選択数：{bulkFarmCareSelections.length}
+                {'\n'}消費AP：{bulkFarmCareSelections.length}
+                {'\n'}残りAP：{Math.max(0, currentAP - bulkFarmCareSelections.length)}
+              </div>
+              <div className="mt-6 grid grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onMouseEnter={() => setBulkFarmCareConfirmChoice('back')}
+                  onFocus={() => setBulkFarmCareConfirmChoice('back')}
+                  onClick={() => { playFixSound(); setBulkFarmCareConfirmOpen(false); }}
+                  className={`rounded-xl border px-5 py-3 font-black hover:bg-black/55 focus:outline-none ${bulkFarmCareConfirmChoice === 'back' ? 'border-white bg-black/55 ring-4 ring-[#ffd166]/75' : 'border-[#c8a87a] bg-black/35'}`}
+                >
+                  戻る
+                </button>
+                <button
+                  type="button"
+                  autoFocus
+                  onMouseEnter={() => setBulkFarmCareConfirmChoice('execute')}
+                  onFocus={() => setBulkFarmCareConfirmChoice('execute')}
+                  onClick={executeBulkFarmCare}
+                  className={`rounded-xl border px-5 py-3 font-black text-[#fff1a8] hover:bg-[#85621e] focus:outline-none ${bulkFarmCareConfirmChoice === 'execute' ? 'border-white bg-[#85621e] ring-4 ring-[#ffd166]/75' : 'border-[#ffd166] bg-[#6b4b16]'}`}
+                >
+                  実行する
+                </button>
+              </div>
+            </div>
+          </div>, document.body)}
+	        {bulkFarmCareUnlockNotice && createPortal(
+	          <div
+	            ref={bulkFarmCareNoticeRef}
+	            tabIndex={-1}
+	            className="fixed inset-0 z-[10013] flex items-center justify-center bg-black/70 px-6"
+            onKeyDown={(event) => {
+              if (event.key !== 'Enter' && event.key !== ' ' && event.key !== 'Escape') return;
+              event.preventDefault();
+              playFixSound();
+              setBulkFarmCareUnlockNotice(false);
+            }}
+          >
             <div className="w-full max-w-xl rounded-2xl border-2 border-[#ffd166] bg-[#24140f] p-7 text-center text-[#fff7dc] shadow-2xl">
               <div className="text-sm font-black tracking-[0.18em] text-[#ffd166]">便利機能解放！</div>
               <div className="mt-3 text-3xl font-black text-[#fff1a8]">✨ 一括お世話</div>
               <div className="mt-4 whitespace-pre-line rounded-xl border border-[#76502c] bg-black/30 p-4 font-bold leading-relaxed">{'農場メニューから複数の苗娘をまとめてお世話できるようになりました。\n1チェックにつきAPを1消費し、結果をまとめて表示します。\n詳しい使い方が「くるみの秘密帳」に追記されました！'}</div>
-              <button type="button" onClick={() => { playFixSound(); setBulkFarmCareUnlockNotice(false); }} className="mt-6 w-full rounded-xl border border-[#ffd166] bg-[#6b4b16] px-5 py-3 text-lg font-black hover:bg-[#85621e]">確認した</button>
+              <button type="button" autoFocus onClick={() => { playFixSound(); setBulkFarmCareUnlockNotice(false); }} className="mt-6 w-full rounded-xl border border-[#ffd166] bg-[#6b4b16] px-5 py-3 text-lg font-black hover:bg-[#85621e]">確認した</button>
             </div>
           </div>, document.body)}
-        {bulkFarmCareResults && createPortal(
-          <div className="fixed inset-0 z-[10013] flex items-center justify-center bg-black/70 px-6">
+	        {bulkFarmCareResults && createPortal(
+	          <div
+	            ref={bulkFarmCareResultsRef}
+	            tabIndex={-1}
+	            className="fixed inset-0 z-[10013] flex items-center justify-center bg-black/70 px-6"
+            onKeyDown={(event) => {
+              if (event.key !== 'Enter' && event.key !== ' ' && event.key !== 'Escape') return;
+              event.preventDefault();
+              playFixSound();
+              setBulkFarmCareResults(null);
+            }}
+          >
             <div className="farm-equipment-success-sparkles pointer-events-none absolute inset-0 z-[1] overflow-hidden" aria-hidden="true">{Array.from({ length: 28 }, (_, index) => <span key={index} style={{ '--sparkle-index': index } as React.CSSProperties} />)}</div>
             <div className="relative z-[2] w-full max-w-2xl rounded-2xl border-2 border-[#ffd166] bg-[#24140f] p-7 text-[#fff7dc] shadow-2xl">
               <div className="text-center text-3xl font-black text-[#fff1a8]">✨ 一括お世話完了</div>
