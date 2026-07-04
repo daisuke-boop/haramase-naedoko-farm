@@ -2,7 +2,7 @@ import React from 'react';
 import { createPortal } from 'react-dom';
 import type { GameMap, TimeOfDay } from './types';
 
-type SetupMode = 'none' | 'animation' | 'collision' | 'hideArea' | 'doors' | 'footstep' | 'crops' | 'bed' | 'bathTub';
+type SetupMode = 'none' | 'animation' | 'collision' | 'hideArea' | 'doors' | 'footstep' | 'crops' | 'bed' | 'bathTub' | 'forbiddenLand';
 const FARM_SLOT_KEYS = ['left_1', 'left_2', 'left_3', 'left_4', 'left_5', 'left_6', 'right_1', 'right_2', 'right_3', 'right_4'] as const;
 
 type AudioFileEntry = {
@@ -35,6 +35,7 @@ type DebugGirlTrustEntry = {
   name: string;
   trust: number;
 };
+type DebugGirlCardState = 'base' | 'trust50' | 'trust100' | 'affected';
 
 type DebugPanelProps = {
   setupMode: SetupMode;
@@ -61,6 +62,7 @@ type DebugPanelProps = {
   debugGirlTrusts: readonly DebugGirlTrustEntry[];
   adjustDebugGirlTrust: (girlId: string, delta: number) => void;
   setDebugGirlTrust: (girlId: string, trust: number) => void;
+  setDebugGirlCardState: (girlId: string, state: DebugGirlCardState) => void;
   currentHeroSkillCategoryLabel: string;
   unlockedHeroSkillCount: number;
   onUnlockCurrentHeroSkillCategory: () => void;
@@ -148,6 +150,7 @@ const DebugPanel = ({
   debugGirlTrusts,
   adjustDebugGirlTrust,
   setDebugGirlTrust,
+  setDebugGirlCardState,
   currentHeroSkillCategoryLabel,
   unlockedHeroSkillCount,
   onUnlockCurrentHeroSkillCategory,
@@ -435,6 +438,27 @@ const DebugPanel = ({
                   >
                     信+10
                   </button>
+                </div>
+              </div>
+              <div className="mt-2 rounded border border-rose-300/35 bg-rose-950/25 p-1.5">
+                <div className="mb-1 text-[10px] font-black text-rose-100">カード状態（スロット5専用）</div>
+                <div className="grid grid-cols-4 gap-1">
+                  {([
+                    ['base', '通常'],
+                    ['trust50', '信頼50'],
+                    ['trust100', '信頼100'],
+                    ['affected', '傷つき'],
+                  ] as const).map(([state, label]) => (
+                    <button
+                      key={state}
+                      type="button"
+                      disabled={!selectedTrustGirl}
+                      onClick={() => selectedTrustGirl && setDebugGirlCardState(selectedTrustGirl.id, state)}
+                      className={`rounded border py-1 text-[9px] font-black disabled:cursor-not-allowed disabled:opacity-40 ${state === 'affected' ? 'border-rose-200 bg-rose-800/85 text-white hover:bg-rose-700' : 'border-rose-300/60 bg-black/30 text-rose-100 hover:bg-rose-900'}`}
+                    >
+                      {label}
+                    </button>
+                  ))}
                 </div>
               </div>
             </div>

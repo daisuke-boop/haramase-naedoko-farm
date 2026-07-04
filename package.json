@@ -12,7 +12,9 @@
     "preview": "npm run build && node server.js",
     "clean": "rm -rf dist server.js",
     "start": "node server.js",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "codex:summary": "node scripts/codex-summary.mjs",
+    "codex:error": "node scripts/codex-error-summary.mjs"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",

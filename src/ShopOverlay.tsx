@@ -14,6 +14,9 @@ type ShopItem = {
   girlSeedId?: string;
   requiredItems?: readonly { itemName: string; amount: number }[];
   seedOfferMessage?: string;
+  basePrice?: number;
+  marketCategory?: string;
+  marketAdjustmentPercent?: number;
 };
 
 type ShopOverlayProps = {
@@ -31,11 +34,17 @@ type ShopOverlayProps = {
   kurumiRewardImageSrc?: string;
   kurumiRewardMessage?: string;
   shopNoticeMessage?: string;
+  marketSummary: string;
+  kurumiMarketComment: string;
   menuTinyLabelStyle: React.CSSProperties;
   handleShopBackdropPointerDown: () => void;
   handleShopCloseClick: () => void;
   handleShopItemClick: (index: number) => void;
   handleShopActionClick: () => void;
+  handleShopBulkSell: (items: ShopItem[]) => void;
+  checkedSellItemIndices: Set<number>;
+  toggleCheckedSellItem: (index: number) => void;
+  toggleAllSellItems: (indices: number[]) => void;
 };
 
 const ShopOverlay = ({
@@ -53,11 +62,17 @@ const ShopOverlay = ({
   kurumiRewardImageSrc,
   kurumiRewardMessage,
   shopNoticeMessage,
+  marketSummary,
+  kurumiMarketComment,
   menuTinyLabelStyle,
   handleShopBackdropPointerDown,
   handleShopCloseClick,
   handleShopItemClick,
   handleShopActionClick,
+  handleShopBulkSell,
+  checkedSellItemIndices,
+  toggleCheckedSellItem,
+  toggleAllSellItems,
 }: ShopOverlayProps) => {
   const selectedItemButtonRef = React.useRef<HTMLButtonElement | null>(null);
   const buyItems = shopItems.map((item, index) => ({ item, index })).filter(({ item }) => item.type === '買う');
@@ -68,6 +83,10 @@ const ShopOverlay = ({
   const getDisplayStock = (item: ShopItem) => item.type === '売る'
     ? (item.fishName || item.sizedInventoryName ? item.stock : (inventoryCounts[item.name] ?? 0))
     : item.stock;
+  const bulkSellItems = sellItems.filter(({ item }) => item.name !== 'パンツ' && getDisplayStock(item) > 0);
+  const checkedSellItems = bulkSellItems.filter(({ index }) => checkedSellItemIndices.has(index));
+  const bulkSellTotal = checkedSellItems.reduce((total, { item }) => total + item.price * getDisplayStock(item), 0);
+  const allSellItemsChecked = bulkSellItems.length > 0 && checkedSellItems.length === bulkSellItems.length;
   const selectTradeType = (type: '買う' | '売る') => {
     const next = type === '売る' ? sellItems[0] : buyItems[0];
     if (!next) return;
@@ -78,7 +97,8 @@ const ShopOverlay = ({
   const kurumiMessage = kurumiRewardMessage || (isShopTradePose ? 'ありがとー！' : (
     <>
       いらっしゃいませ！<br />
-      ゆっくり見ていってね！
+      ゆっくり見ていってね！<br />
+      <span className="text-[16px] text-[#7a4317]">{kurumiMarketComment}</span>
     </>
   ));
 
@@ -107,16 +127,21 @@ const ShopOverlay = ({
                     <div className="mb-3 flex shrink-0 items-center justify-between border-b border-[#bc6c25]/60 pb-3">
                        <div>
                           <div className="text-[#fdf6e3] text-3xl font-bold">くるみ商店</div>
-                          <div className="text-[#c8a87a] text-sm">←→ 購入/売却 切替 / ↑↓ 選択 Enter 決定 Esc 閉じる</div>
+                          <div className="text-[#c8a87a] text-sm">
+                            {activeTradeType === '売る'
+                              ? '↑↓ / W・S 商品選択　Enter / Space チェック　Q すべて選択／解除　→ / D 一括売却　Esc 閉じる'
+                              : '←→ 購入/売却 切替　↑↓ / W・S 選択　Enter 決定　Esc 閉じる'}
+                          </div>
+                          <div className="mt-1 text-sm font-black text-[#b9f6ca]">市場　{marketSummary}</div>
                        </div>
-                       <div className="ml-auto mr-4 grid grid-cols-2 gap-2 text-right">
+                       <div className="ml-auto mr-4 grid grid-cols-[minmax(112px,auto)_minmax(132px,auto)] gap-2 text-right">
                           <div className="rounded border border-[#ffd166]/60 bg-black/45 px-4 py-2">
                           <div style={menuTinyLabelStyle}>所持金</div>
-                          <div className="text-[#ffd166] text-xl font-bold">{gold.toLocaleString()} G</div>
+                          <div className={`whitespace-nowrap font-bold tabular-nums text-[#ffd166] ${gold >= 10_000_000 ? 'text-lg' : 'text-xl'}`}>{gold.toLocaleString()} G</div>
                           </div>
                           <div className="rounded border border-[#67e8f9]/60 bg-black/45 px-4 py-2">
                              <div style={menuTinyLabelStyle}>取引累計</div>
-                             <div className="text-[#67e8f9] text-xl font-bold">{kurumiTradeTotal.toLocaleString()} G</div>
+                             <div className={`whitespace-nowrap font-bold tabular-nums text-[#67e8f9] ${kurumiTradeTotal >= 10_000_000 ? 'text-lg' : 'text-xl'}`}>{kurumiTradeTotal.toLocaleString()} G</div>
                           </div>
                        </div>
                        <button
@@ -155,8 +180,19 @@ const ShopOverlay = ({
                              </button>
                           </div>
                           <div className="min-h-0 flex-1 space-y-2 overflow-y-auto pr-2">
+                             {activeTradeType === '売る' && (
+                               <button
+                                 type="button"
+                                 onClick={() => toggleAllSellItems(bulkSellItems.map(({ index }) => index))}
+                                 className="flex w-full items-center gap-3 rounded-lg border border-[#8f6b3d] bg-[#3a2418] px-4 py-3 text-left font-black text-[#fff1a8] hover:bg-[#4a301f]"
+                               >
+                                 <span className="flex h-6 w-6 items-center justify-center rounded border-2 border-[#ffd166] bg-black/35">{allSellItemsChecked ? '✓' : ''}</span>
+                                 すべて選択／解除
+                               </button>
+                             )}
                              {visibleItems.map(({ item, index }) => {
                                 const selected = selectedShopItemIndex === index;
+                                const canBulkSell = item.type === '売る' && item.name !== 'パンツ' && getDisplayStock(item) > 0;
                                 return (
                                    <button
                                       key={`${item.name}-${item.price}-${index}`}
@@ -164,13 +200,28 @@ const ShopOverlay = ({
                                       ref={selected ? selectedItemButtonRef : undefined}
                                       onPointerDown={() => { setSelectedShopItemIndex(index); setSelectedShopControl('items'); }}
                                       onClick={() => handleShopItemClick(index)}
-                                      className={`grid min-h-[64px] w-full grid-cols-[minmax(0,1fr)_108px_76px] items-center gap-3 rounded-lg border px-4 py-2 text-left cursor-pointer ${
+                                      className={`grid min-h-[64px] w-full ${item.type === '売る' ? 'grid-cols-[32px_minmax(0,1fr)_108px_76px]' : 'grid-cols-[minmax(0,1fr)_108px_76px]'} items-center gap-3 rounded-lg border px-4 py-2 text-left cursor-pointer ${
                                          selected && selectedShopControl === 'items' ? 'border-white bg-[#bc6c25]/55' : 'border-[#5a3010] bg-[#2d1b15]/72 hover:bg-[#3a2418]'
                                       }`}
                                    >
+                                      {item.type === '売る' && (
+                                        <span
+                                          role="checkbox"
+                                          aria-checked={checkedSellItemIndices.has(index)}
+                                          aria-disabled={!canBulkSell}
+                                          onClick={(event) => {
+                                            event.stopPropagation();
+                                            if (!canBulkSell) return;
+                                            toggleCheckedSellItem(index);
+                                          }}
+                                          className={`flex h-6 w-6 items-center justify-center rounded border-2 ${canBulkSell ? 'border-[#ffd166] bg-black/35 text-[#fff1a8]' : 'border-[#5a4a3a] bg-black/20 text-[#766]'}`}
+                                        >{checkedSellItemIndices.has(index) ? '✓' : ''}</span>
+                                      )}
                                       <span className="min-w-0 text-[16px] font-bold leading-snug text-[#fdf6e3] break-words">{item.name}</span>
                                       <span className="text-right text-[16px] font-black text-[#ffd166] whitespace-nowrap">
-                                         {item.requiredItems?.length ? '素材交換' : item.girlSeedId && item.price === 0 ? '受け取る' : `${item.price.toLocaleString()} G`}
+                                         {item.marketAdjustmentPercent
+                                           ? <><span className={item.marketAdjustmentPercent > 0 ? 'text-[#86efac]' : 'text-[#fca5a5]'}>{item.marketAdjustmentPercent > 0 ? '特需' : '不調'} </span>{item.price.toLocaleString()} G</>
+                                           : item.requiredItems?.length ? '素材交換' : item.girlSeedId && item.price === 0 ? '受け取る' : `${item.price.toLocaleString()} G`}
                                       </span>
                                       <span className="text-right text-sm font-bold text-[#c8a87a] whitespace-nowrap">在庫 {getDisplayStock(item)}</span>
                                    </button>
@@ -194,16 +245,25 @@ const ShopOverlay = ({
                           <div className="mt-3 text-xl font-bold text-[#ffd166]">
                              {selectedItem?.requiredItems?.length ? '指定素材と交換' : selectedItem?.girlSeedId && selectedItem.price === 0 ? '信用報酬・無料' : `${selectedItem?.price.toLocaleString()} G`}
                           </div>
+                          {selectedItem?.marketAdjustmentPercent && selectedItem.basePrice !== undefined && (
+                            <div className={`mt-2 rounded border px-3 py-2 text-sm font-black ${selectedItem.marketAdjustmentPercent > 0 ? 'border-[#86efac]/70 bg-[#14532d]/45 text-[#bbf7d0]' : 'border-[#fca5a5]/70 bg-[#5b1111]/45 text-[#fecaca]'}`}>
+                              {selectedItem.marketAdjustmentPercent > 0 ? '特需 ＋10％' : '不調 −5％'}　通常 {selectedItem.basePrice.toLocaleString()}G → {selectedItem.price.toLocaleString()}G
+                            </div>
+                          )}
                           <p className="mt-4 min-h-0 flex-1 overflow-y-auto pr-1 leading-relaxed text-[#c8a87a]">{selectedItem?.desc}</p>
                           <button
                              type="button"
                              onPointerDown={() => setSelectedShopControl('action')}
-                             onClick={handleShopActionClick}
+                             onClick={() => checkedSellItems.length > 0
+                               ? handleShopBulkSell(checkedSellItems.map(({ item }) => item))
+                               : handleShopActionClick()}
                              className={`mt-5 w-full shrink-0 rounded-lg border-2 px-4 py-3 text-[#fdf6e3] text-lg font-bold cursor-pointer hover:bg-[#60732d] ${
                                 selectedShopControl === 'action' ? 'border-white bg-[#60732d]' : 'border-[#a3b18a] bg-[#4a5823]'
                              }`}
                           >
-                             {selectedItem?.requiredItems?.length
+                             {checkedSellItems.length > 0
+                               ? `選択品を一括売却（${bulkSellTotal.toLocaleString()} G）`
+                               : selectedItem?.requiredItems?.length
                                ? '素材と交換する'
                                : selectedItem?.girlSeedId && selectedItem.price === 0
                                  ? '受け取る'
