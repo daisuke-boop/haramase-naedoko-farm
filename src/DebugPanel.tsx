@@ -57,6 +57,16 @@ type DebugPanelProps = {
   onDisableDebugGirls: () => void;
   debugMioFollowing: boolean;
   onToggleDebugMioFollowing: () => void;
+  mermaidScaleCount: number;
+  salmonCount: number;
+  onSetMermaidScales: (enabled: boolean) => void;
+  onSetSalmon: (enabled: boolean) => void;
+  mermaidUnlocked: boolean;
+  onSetMermaidUnlocked: (enabled: boolean) => void;
+  debugForbiddenLandEnabled: boolean;
+  onSetDebugForbiddenLandEnabled: (enabled: boolean) => void;
+  darkKingDefeated: boolean;
+  onSetDarkKingDefeated: (enabled: boolean) => void;
   debugGirlAffinities: readonly DebugGirlAffinityEntry[];
   adjustDebugGirlAffinity: (girlId: string, delta: number) => void;
   debugGirlTrusts: readonly DebugGirlTrustEntry[];
@@ -145,6 +155,16 @@ const DebugPanel = ({
   onDisableDebugGirls,
   debugMioFollowing,
   onToggleDebugMioFollowing,
+  mermaidScaleCount,
+  salmonCount,
+  onSetMermaidScales,
+  onSetSalmon,
+  mermaidUnlocked,
+  onSetMermaidUnlocked,
+  debugForbiddenLandEnabled,
+  onSetDebugForbiddenLandEnabled,
+  darkKingDefeated,
+  onSetDarkKingDefeated,
   debugGirlAffinities,
   adjustDebugGirlAffinity,
   debugGirlTrusts,
@@ -347,6 +367,28 @@ const DebugPanel = ({
           >
             🐾 MIO追従 {debugMioFollowing ? 'OFFにする' : 'ONにする'}
           </button>
+          <div className="rounded border border-cyan-400/70 bg-cyan-950/35 p-2">
+            <div className="mb-1 text-[10px] font-black text-cyan-100">供え物デバッグ（スロット5専用）</div>
+            <div className="grid grid-cols-[1fr_auto_auto] items-center gap-1 text-[10px]">
+              <span className="font-black text-cyan-100">人魚の鱗 {mermaidScaleCount}</span>
+              <button type="button" onClick={() => onSetMermaidScales(true)} className="rounded border border-cyan-200 bg-cyan-700 px-2 py-1 font-black text-white hover:bg-cyan-600">5枚ON</button>
+              <button type="button" onClick={() => onSetMermaidScales(false)} className="rounded border border-cyan-300/60 bg-black/30 px-2 py-1 font-black text-cyan-100 hover:bg-cyan-900">OFF</button>
+              <span className="font-black text-emerald-100">サケ {salmonCount}</span>
+              <button type="button" onClick={() => onSetSalmon(true)} className="rounded border border-emerald-200 bg-emerald-700 px-2 py-1 font-black text-white hover:bg-emerald-600">3匹ON</button>
+              <button type="button" onClick={() => onSetSalmon(false)} className="rounded border border-emerald-300/60 bg-black/30 px-2 py-1 font-black text-emerald-100 hover:bg-emerald-900">OFF</button>
+            </div>
+            <div className="mt-2 grid grid-cols-[1fr_auto_auto] items-center gap-1 border-t border-cyan-300/25 pt-2 text-[10px]">
+              <span className="font-black text-cyan-100">人魚供え条件 {mermaidUnlocked ? 'ON' : 'OFF'}</span>
+              <button type="button" onClick={() => onSetMermaidUnlocked(true)} className="rounded border border-cyan-200 bg-cyan-700 px-2 py-1 font-black text-white hover:bg-cyan-600">ON</button>
+              <button type="button" onClick={() => onSetMermaidUnlocked(false)} className="rounded border border-cyan-300/60 bg-black/30 px-2 py-1 font-black text-cyan-100 hover:bg-cyan-900">OFF</button>
+              <span className="font-black text-rose-100">闇王出現（炎） {debugForbiddenLandEnabled ? 'ON' : 'OFF'}</span>
+              <button type="button" onClick={() => onSetDebugForbiddenLandEnabled(true)} className="rounded border border-rose-200 bg-rose-700 px-2 py-1 font-black text-white hover:bg-rose-600">ON</button>
+              <button type="button" onClick={() => onSetDebugForbiddenLandEnabled(false)} className="rounded border border-rose-300/60 bg-black/30 px-2 py-1 font-black text-rose-100 hover:bg-rose-900">OFF</button>
+              <span className="font-black text-rose-100">闇王討伐 {darkKingDefeated ? 'ON' : 'OFF'}</span>
+              <button type="button" onClick={() => onSetDarkKingDefeated(true)} className="rounded border border-rose-200 bg-rose-700 px-2 py-1 font-black text-white hover:bg-rose-600">ON</button>
+              <button type="button" onClick={() => onSetDarkKingDefeated(false)} className="rounded border border-rose-300/60 bg-black/30 px-2 py-1 font-black text-rose-100 hover:bg-rose-900">OFF</button>
+            </div>
+          </div>
           <div className="rounded border border-amber-400/70 bg-amber-950/35 p-2">
             <div className="mb-1 flex items-center justify-between font-black text-amber-100">
               <span>星デバッグ</span>

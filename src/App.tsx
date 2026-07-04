@@ -1546,12 +1546,65 @@ const KABUNE_TRUST_100_EVENT_SCENES = [
   { mediaType: 'video', mediaSrc: '/img/100/kabune010.mp4', message: 'あんっ！ユウ、激しいっ！アタイすっごく気持ちいよ！あんっ、あっ、ああっ、んっ、あん♡' },
 ] as const;
 const VIOLA_TRUST_50_EVENT_ID = 'viola_trust_50';
+const VIOLA_TRUST_100_EVENT_ID = 'viola_trust_100';
 const VIOLA_TRUST_50_EVENT_SCENES = [
   { mediaType: 'image', mediaSrc: '/img/50/viora001.jpg', voiceSrc: '/voice/viora50a.wav', message: 'ふふ……ユウ、このブドウ...いいワインになりそうですわ...ちょっと味わってみませんか？' },
   { mediaType: 'image', mediaSrc: '/img/50/viora002.jpg', voiceSrc: '/voice/viora50b.wav', message: 'あらっ、ユウはブドウよりわたくしの口の方を味わってみたいようですわねっ！' },
   { mediaType: 'image', mediaSrc: '/img/50/viora003.jpg', voiceSrc: '/voice/viora50c.wav', message: 'まぁっ！ユウったら、大胆！そんなに積極的にわたくしのおっぱいを触られたら、その気になってしまいますわっ♡' },
   { mediaType: 'image', mediaSrc: '/img/50/viora004.jpg', voiceSrc: '/voice/viora50d.wav', message: 'ほらほらっ、つ・ぎ・は？何をしたいのですか？ユウはいけない子ですねっ♪' },
-  { mediaType: 'video', mediaSrc: '/img/50/viora005.mp4', message: 'ふふ……ユウ、このブドウ...いいワインになりそうですわ...ちょっと味わってみませんか？' },
+  { mediaType: 'video', mediaSrc: '/img/50/viora005.mp4', message: 'ユウ...わたくしともっともっと愛を深めたくないですか？んっ...キスも上手....ですわね...' },
+] as const;
+const VIOLA_TRUST_100_EVENT_SCENES = [
+  { mediaType: 'image', mediaSrc: '/img/100/viora006.jpg', voiceSrc: '/voice/viora100a.wav', message: 'んっ...ん......はぁっ...ちゅっ...ユウったらすっごく大胆にキスしてきますわね...んっ' },
+  { mediaType: 'image', mediaSrc: '/img/100/viora007.jpg', voiceSrc: '/voice/viora100b.wav', message: 'わたくし......ブドウの木陰でユウとエッチなこと...したいです...' },
+  { mediaType: 'image', mediaSrc: '/img/100/viora008.jpg', voiceSrc: '/voice/viora100c.wav', message: 'あああっ！！ユウっ！いきなり激しいっ...すごいですわっ！こんなの......あん、あんっ、はぁっ...ああーん♡' },
+  { mediaType: 'video', mediaSrc: '/img/100/viora009.mp4', message: 'もっと優しくしてっ...あんっ！でも、力強いユウも大好きですわ！あんっ、気持ちいいぃ......' },
+] as const;
+const CURE_TRUST_50_EVENT_ID = 'cure_trust_50';
+const CURE_TRUST_100_EVENT_ID = 'cure_trust_100';
+const CURE_TRUST_50_EVENT_SCENES = [
+  { mediaType: 'image', mediaSrc: '/img/50/kyua001.jpg', voiceSrc: '/voice/kyua50a.wav', message: 'あら、ユウ様...今日はどちらへ？きゅうりがこんなにたくさん出来てるから、ユウ様、少し手伝っていただけません？' },
+  { mediaType: 'image', mediaSrc: '/img/50/kyua002.jpg', voiceSrc: '/voice/kyua50b.wav', message: '今日はとっても暑くて...ふぅ...汗が吹き出てしまいます...ほら、ユウ様も汗がこんなに...ふふふっ♡' },
+  { mediaType: 'image', mediaSrc: '/img/50/kyua003.jpg', voiceSrc: '/voice/kyua50c.wav', message: '私のブラウスは薄手ですからすぐに乾くんですよっ、やんっ！ユウ様ったら...おっぱいが好きなんですの？' },
+  { mediaType: 'video', mediaSrc: '/img/50/kyua004.mp4', message: 'んっ...おっぱい触るだけじゃ物足りないんじゃありません？ユウ様...大好きです...' },
+] as const;
+const CURE_TRUST_100_EVENT_SCENES = [
+  { mediaType: 'image', mediaSrc: '/img/100/kyua005.jpg', voiceSrc: '/voice/kyua100a.wav', message: 'ユウ様...今日はすっごく暑いですから、この際二人で裸になってしまいましょう！' },
+  { mediaType: 'image', mediaSrc: '/img/100/kyua006.jpg', voiceSrc: '/voice/kyua100b.wav', message: 'ついでに...ユウ様...私とキスしましょう！んっ...あんっ...キスは作物に栄養を与えるんですよっ！' },
+  { mediaType: 'image', mediaSrc: '/img/100/kyua007.jpg', voiceSrc: '/voice/kyua100c.wav', message: 'それから、それから、更についでに...ユウ様のお股に生えてるきゅうりを私のおまんこに入れてくださいっ......' },
+  { mediaType: 'video', mediaSrc: '/img/100/kyua008.mp4', message: 'ああーんっ...ユウ様、ユウ様の...きゅうりがすごく太くてたくましくて...私壊れちゃいそう...でも...幸せ...' },
+] as const;
+const CARO_TRUST_50_EVENT_ID = 'caro_trust_50';
+const CARO_TRUST_100_EVENT_ID = 'caro_trust_100';
+const CARO_TRUST_50_EVENT_SCENES = [
+  { mediaType: 'image', mediaSrc: '/img/50/kyaro001.jpg', voiceSrc: '/voice/kyaro50a.wav', message: 'ユウくーん！ほら！みてみてーっ！今日はこんなにたっくさんにんじん採れたよーっ' },
+  { mediaType: 'image', mediaSrc: '/img/50/kyaro002.jpg', voiceSrc: '/voice/kyaro50b.wav', message: 'いつもいっぱい畑のお手入れしてくれてありがとねっ！ごほーびっ！' },
+  { mediaType: 'image', mediaSrc: '/img/50/kyaro003.jpg', voiceSrc: '/voice/kyaro50c.wav', message: 'ユウ君、今日は気分がとってもいいからユウ君がいっつもチラチラみてた私のおっぱい触らせたげるっ！横目でいつもみてるの知ってるんだからねー♪' },
+  { mediaType: 'image', mediaSrc: '/img/50/kyaro004.jpg', voiceSrc: '/voice/kyaro50d.wav', message: 'じゃあ......この流れでっ！キスしちゃおうっ♪んっ...はうん...ユウ君...キス上手なんだね...' },
+  { mediaType: 'image', mediaSrc: '/img/50/kyaro005.jpg', voiceSrc: '/voice/kyaro50e.wav', message: 'よぉーしっ！今日は、ここまでっ！つ・づ・き・はっ。また今度ねー♪' },
+] as const;
+const CARO_TRUST_100_EVENT_SCENES = [
+  { mediaType: 'image', mediaSrc: '/img/100/kyaro006.jpg', voiceSrc: '/voice/kyaro100a.wav', message: 'ユウ君！おねがいっ！一本無駄にしちゃうけど、にんじんを私のおまんこに挿れて欲しい......なんだかにんじん見てたらムラムラしちゃって...' },
+  { mediaType: 'image', mediaSrc: '/img/100/kyaro007.jpg', voiceSrc: '/voice/kyaro100b.wav', message: 'あっ、ああぁっ！ああーーっ！ユウ君、すごい、すごいっっ！ニンジンが全部入っちゃぅー！' },
+  { mediaType: 'video', mediaSrc: '/img/100/kyaro008.mp4', message: 'ああぁーー！なんか、なんか......おしっこじゃないの......ユウ君ー！止まらないぃいいーー！ああーっ！' },
+  { mediaType: 'video', mediaSrc: '/img/100/kyaro009.mp4', message: 'はぁ、はぁっ....ふぅ...さっきは取り乱しちゃってごめんね...今度はユウ君と一緒に気持ちよくなりたい...後ろから挿れて♡' },
+  { mediaType: 'image', mediaSrc: '/img/100/kyaro010.jpg', voiceSrc: '/voice/kyaro100e.wav', message: 'はぁ、はぁっ....いっぱいしちゃったね♡ユウ君6回も逝っちゃうんだもん♪エッチ♡' },
+] as const;
+const SAFFY_TRUST_50_EVENT_ID = 'saffy_trust_50';
+const SAFFY_TRUST_100_EVENT_ID = 'saffy_trust_100';
+const SAFFY_TRUST_50_EVENT_SCENES = [
+  { mediaType: 'image', mediaSrc: '/img/50/safi001.jpg', voiceSrc: '/voice/safi50a.wav', message: 'ユウ様っ！見てください、綺麗なサフランがたくさん咲きましたっ！本当にありがとうございます♪サフィ嬉しい......' },
+  { mediaType: 'image', mediaSrc: '/img/50/safi002.jpg', voiceSrc: '/voice/safi50b.wav', message: 'ユウ様っ、お礼にサフィからキスのプレゼントですっ。ユウ様とずっとこうしていたい......' },
+  { mediaType: 'image', mediaSrc: '/img/50/safi003.jpg', voiceSrc: '/voice/safi50c.wav', message: 'んっ、はんっ......ユウ様...大好きですっ...サフィ...とろけてしまいそう......' },
+  { mediaType: 'image', mediaSrc: '/img/50/safi004.jpg', voiceSrc: '/voice/safi50d.wav', message: 'ほらっ！見てくださいっ！サフランがこんなにいっぱいっ♪あ、ユウ様、私...下を履いていないのであまり足をあげないでほしいです。恥ずかしい......' },
+  { mediaType: 'image', mediaSrc: '/img/50/safi005.jpg', voiceSrc: '/voice/safi50e.wav', message: 'もっともっとユウ様のお役に立てるように...サフィ頑張りますので！一緒にサフラン育てていきましょうねっ♡' },
+] as const;
+const SAFFY_TRUST_100_EVENT_SCENES = [
+  { mediaType: 'video', mediaSrc: '/img/100/safi006.mp4', message: 'ユウ様、今日はもっともっと気持ちいいことしましょう！ユウ様もそっちの方は得意なんでしょ？もうおっぱい触ってるし...うふふっ♪' },
+  { mediaType: 'image', mediaSrc: '/img/100/safi007.jpg', voiceSrc: '/voice/safi100a.wav', message: 'やんっ！だからぁ.....パンティ履いてないんですから...私のおまんこが見えちゃうじゃないですかー、ユウ様のえっちぃー！' },
+  { mediaType: 'image', mediaSrc: '/img/100/safi008.jpg', voiceSrc: '/voice/safi100b.wav', message: 'あんっ、もうっ！ユウ様せっかちなんですからぁ....でも、サフィのおまんこの準備はいつでも出来てますよ...あん、くちゅくちゅ言ってる...' },
+  { mediaType: 'video', mediaSrc: '/img/100/safi009.mp4', message: 'あんっ、ユウ様...すごい太い...奥まで届いちゃう♡あんっ、あっ、あっ、あん...サフィ、エッチな声が出ちゃう...' },
+  { mediaType: 'image', mediaSrc: '/img/100/safi010.jpg', voiceSrc: '/voice/safi100c.wav', message: 'はぁっ、はぁっ、ふぅ......ユウ様と繋がれてサフィとっても幸せです。このままずっとこうしていたい......' },
 ] as const;
 const getSpecialTrustEventScenes = (eventId?: string) => {
   if (eventId === CHIBIICHI_TRUST_50_EVENT_ID) return CHIBIICHI_TRUST_50_EVENT_SCENES;
@@ -1559,6 +1612,13 @@ const getSpecialTrustEventScenes = (eventId?: string) => {
   if (eventId === KABUNE_TRUST_50_EVENT_ID) return KABUNE_TRUST_50_EVENT_SCENES;
   if (eventId === KABUNE_TRUST_100_EVENT_ID) return KABUNE_TRUST_100_EVENT_SCENES;
   if (eventId === VIOLA_TRUST_50_EVENT_ID) return VIOLA_TRUST_50_EVENT_SCENES;
+  if (eventId === VIOLA_TRUST_100_EVENT_ID) return VIOLA_TRUST_100_EVENT_SCENES;
+  if (eventId === CURE_TRUST_50_EVENT_ID) return CURE_TRUST_50_EVENT_SCENES;
+  if (eventId === CURE_TRUST_100_EVENT_ID) return CURE_TRUST_100_EVENT_SCENES;
+  if (eventId === CARO_TRUST_50_EVENT_ID) return CARO_TRUST_50_EVENT_SCENES;
+  if (eventId === CARO_TRUST_100_EVENT_ID) return CARO_TRUST_100_EVENT_SCENES;
+  if (eventId === SAFFY_TRUST_50_EVENT_ID) return SAFFY_TRUST_50_EVENT_SCENES;
+  if (eventId === SAFFY_TRUST_100_EVENT_ID) return SAFFY_TRUST_100_EVENT_SCENES;
   return null;
 };
 const MIO_ZUKAN_CARD_ENTRIES = [
@@ -3415,6 +3475,7 @@ export default function App() {
   const [menuOpen, setMenuOpen] = useState(true);
   const [battlePreviewOpen, setBattlePreviewOpen] = useState(false);
   const [battleIntroPhase, setBattleIntroPhase] = useState<3 | 2 | 1 | 'start' | null>(null);
+  const [battleIntroSequence, setBattleIntroSequence] = useState(0);
   const [battlePreviewState, setBattlePreviewState] = useState<BattlePreviewState>(createInitialBattlePreviewState);
   const [darkKingChallengePromptOpen, setDarkKingChallengePromptOpen] = useState(false);
   const [darkKingTransformPhase, setDarkKingTransformPhase] = useState<2 | 3 | null>(null);
@@ -3451,6 +3512,8 @@ export default function App() {
   const [battleTestBeastId, setBattleTestBeastId] = useState<BattleTestTargetId>('mole');
   const [battleTestPartnerId, setBattleTestPartnerId] = useState<string>('');
   const [darkKingTestPartnerIds, setDarkKingTestPartnerIds] = useState<string[]>([...DARK_KING_PARTY_IDS]);
+  const [darkKingPartnerIds, setDarkKingPartnerIds] = useState<string[]>([...DARK_KING_PARTY_IDS]);
+  const [darkKingPartnerSelectionIndex, setDarkKingPartnerSelectionIndex] = useState(0);
   const menuOpenRef = useRef(false);
   const [menuSelectedIndex, setMenuSelectedIndex] = useState(3);
   const menuSelectedIndexRef = useRef(3);
@@ -3527,6 +3590,7 @@ export default function App() {
   });
   const [debugGirlAffinities, setDebugGirlAffinities] = useState<Record<string, number>>({});
   const [debugMioFollowing, setDebugMioFollowing] = useState(false);
+  const [debugForbiddenLandEnabled, setDebugForbiddenLandEnabled] = useState(false);
   const menuGirls = GIRL_DATA.map((girl, index) => ({
     id: girl.id,
     name: girl.girlName,
@@ -6391,13 +6455,13 @@ export default function App() {
       const unlockedSeedOfferIds = new Set(collectionProgress.unlockedEventIds.filter(eventId => eventId.startsWith('seed_offer_')));
       const unlockedSeedOfferNotes = [
         { id: 'grape', text: 'ヴィオラ（ブドウ）：5日目以降、くるみ商店に120,000Gで入荷。' },
-        { id: 'eggplant', text: 'ナズナ（なす）：伐採・採掘を学び、獣を倒した後、しなやかな軟木×5・軟らかい銅鉱石×5・ウサギの靭帯×8と交換。' },
+        { id: 'eggplant', text: 'ナズナ（なす）：伐採・採掘を学んだ後、しなやかな軟木×8・軟らかい銅鉱石×8と交換。' },
         { id: 'turnip', text: 'かぶね（かぶ）：初回返済成功、または農場信用度5以上で、くるみから受け取れる。' },
         { id: 'cucumber', text: 'キュア（きゅうり）：初回返済成功後、くるみから受け取れる。' },
         { id: 'carrot', text: 'キャロ（にんじん）：初回返済成功後かつ9日目以降、くるみ商店に180,000Gで入荷。' },
-        { id: 'shiitake', text: 'シータ（しいたけ）：伐採・採掘を学び、猿を倒した後、堅実な中木×6・良質な鉄鉱石×4・猿の牙×5と交換。' },
+        { id: 'shiitake', text: 'シータ（しいたけ）：伐採・採掘を学んだ後、堅実な中木×10・良質な鉄鉱石×8と交換。' },
         { id: 'daikon', text: 'シロ（だいこん）：返済成功3回かつ農場信用度15以上で、くるみから受け取れる。' },
-        { id: 'pumpkin', text: 'ぱん（かぼちゃ）：猪を倒した後、猪の牙×8・猪の硬皮×4・錫鉱石×6と交換。' },
+        { id: 'pumpkin', text: 'ぱん（かぼちゃ）：伐採・採掘を学んだ後、堅実な中木×12・錫鉱石×10と交換。' },
       ].filter(note => unlockedSeedOfferIds.has(`seed_offer_${note.id}`));
       const notebookSections = [
 	        {
@@ -7563,14 +7627,13 @@ export default function App() {
       stock: 1,
       type: '買う',
       category: '特別交換',
-      desc: '交換素材：しなやかな軟木×5、軟らかい銅鉱石×5、ウサギの靭帯×8。伐採・採掘・獣戦闘を経験すると入荷します。',
+      desc: '交換素材：しなやかな軟木×8、軟らかい銅鉱石×8。伐採・採掘を経験すると入荷します。',
       girlSeedId: 'eggplant',
       requiredItems: [
-        { itemName: 'しなやかな軟木', amount: 5 },
-        { itemName: '軟らかい銅鉱石', amount: 5 },
-        { itemName: 'ウサギの靭帯', amount: 8 },
+        { itemName: 'しなやかな軟木', amount: 8 },
+        { itemName: '軟らかい銅鉱石', amount: 8 },
       ],
-      seedOfferMessage: 'お兄さん、伐採も採掘も獣退治も頑張ってるね！\n珍しいなすの苗娘を仕入れたから、集めた素材と交換してあげるよっ♪',
+      seedOfferMessage: 'お兄さん、伐採も採掘も頑張ってるね！\n珍しいなすの苗娘を仕入れたから、集めた素材と交換してあげるよっ♪',
     },
     {
       name: 'かぶの苗娘',
@@ -7587,7 +7650,7 @@ export default function App() {
     if (ownedGirlSeeds.includes(item.girlSeedId!)) return false;
     if (item.girlSeedId === 'grape') return Math.floor(turn / 4) + 1 >= 5;
     if (item.girlSeedId === 'eggplant') {
-      return loggingTutorialCompleted && miningTutorialCompleted && collectionProgress.defeatedBeastIds.length > 0;
+      return loggingTutorialCompleted && miningTutorialCompleted;
     }
     return successfulRepaymentCount >= 1 || farmCredit >= 5;
   });
@@ -7618,14 +7681,13 @@ export default function App() {
       stock: 1,
       type: '買う',
       category: '特別交換',
-      desc: '交換素材：堅実な中木×6、良質な鉄鉱石×4、猿の牙×5。伐採・採掘を学び、猿を倒すと入荷します。',
+      desc: '交換素材：堅実な中木×10、良質な鉄鉱石×8。伐採・採掘を学ぶと入荷します。',
       girlSeedId: 'shiitake',
       requiredItems: [
-        { itemName: '堅実な中木', amount: 6 },
-        { itemName: '良質な鉄鉱石', amount: 4 },
-        { itemName: '猿の牙', amount: 5 },
+        { itemName: '堅実な中木', amount: 10 },
+        { itemName: '良質な鉄鉱石', amount: 8 },
       ],
-      seedOfferMessage: '森と洞窟の素材を扱えるようになったみたいだね！\n珍しいしいたけの苗娘を仕入れたから、猿の素材と一緒に交換してあげるよっ♪',
+      seedOfferMessage: '森と洞窟の素材を扱えるようになったみたいだね！\n珍しいしいたけの苗娘を仕入れたから、集めた素材と交換してあげるよっ♪',
     },
     {
       name: 'だいこんの苗娘',
@@ -7643,14 +7705,13 @@ export default function App() {
       stock: 1,
       type: '買う',
       category: '特別交換',
-      desc: '交換素材：猪の牙×8、猪の硬皮×4、錫鉱石×6。猪を倒すと特別交換に入荷します。',
+      desc: '交換素材：堅実な中木×12、錫鉱石×10。伐採・採掘を学ぶと特別交換に入荷します。',
       girlSeedId: 'pumpkin',
       requiredItems: [
-        { itemName: '猪の牙', amount: 8 },
-        { itemName: '猪の硬皮', amount: 4 },
-        { itemName: '錫鉱石', amount: 6 },
+        { itemName: '堅実な中木', amount: 12 },
+        { itemName: '錫鉱石', amount: 10 },
       ],
-      seedOfferMessage: '猪を倒すなんて、お兄さんやるぅ！\nその強い素材なら、ずっしり元気なかぼちゃの苗娘と交換できるよっ♪',
+      seedOfferMessage: '伐採も採掘も、すっかり慣れてきたみたいだね！\n集めた素材なら、ずっしり元気なかぼちゃの苗娘と交換できるよっ♪',
     },
   ];
   const normalGirlSeedShopItems = normalGirlSeedShopCandidates.filter(item => {
@@ -7658,10 +7719,10 @@ export default function App() {
     if (item.girlSeedId === 'cucumber') return successfulRepaymentCount >= 1;
     if (item.girlSeedId === 'carrot') return successfulRepaymentCount >= 1 && Math.floor(turn / 4) + 1 >= 9;
     if (item.girlSeedId === 'shiitake') {
-      return loggingTutorialCompleted && miningTutorialCompleted && collectionProgress.defeatedBeastIds.includes('monkey');
+      return loggingTutorialCompleted && miningTutorialCompleted;
     }
     if (item.girlSeedId === 'daikon') return successfulRepaymentCount >= 3 && farmCredit >= 15;
-    return hasBoarProgress;
+    return loggingTutorialCompleted && miningTutorialCompleted;
   });
   const rightFarmFieldConfig = getFarmFieldConfig(difficulty, 'right');
   const isRightFarmFieldUnlocked = farmFieldSlots.some(slot => slot.fieldId === 'right');
@@ -10280,6 +10341,7 @@ export default function App() {
         : [createBattleUnitFromBeast(selectedBeast), null, null];
     setBattlePreviewState(createInitialBattlePreviewState(equippedItems, testBeasts, battleTestPartnerId || null, 'test', heroLevel, unlockedHeroSkills, girlEquipment));
     setBattleIntroPhase(3);
+    setBattleIntroSequence(sequence => sequence + 1);
     setBattlePreviewOpen(true);
   };
 
@@ -10309,6 +10371,7 @@ export default function App() {
     setSelectedBattleItemTargetIndex(0);
     setBattlePreviewState(createInitialBattlePreviewState(equippedItems, beasts, companionGirlId, encounterType, heroLevel, unlockedHeroSkills, girlEquipment));
     setBattleIntroPhase(3);
+    setBattleIntroSequence(sequence => sequence + 1);
     setBattlePreviewOpen(true);
   };
 
@@ -10339,7 +10402,35 @@ export default function App() {
       logs: ['闇王が姿を現した！', 'ユウと三人の苗娘は身構えた。'],
     });
     setBattleIntroPhase(3);
+    setBattleIntroSequence(sequence => sequence + 1);
     setBattlePreviewOpen(true);
+  };
+
+  const availableDarkKingPartnerGirls = GIRL_DATA.filter(girl => {
+    const farmGirl = farmGirls.find(entry => entry.girlId === girl.id);
+    return Boolean(
+      farmGirl?.cardRevealed &&
+      farmGirl.trust >= 20 &&
+      ['appeared', 'companion', 'lover'].includes(farmGirl.state)
+    );
+  });
+
+  const openDarkKingChallengePrompt = () => {
+    const availableIds = availableDarkKingPartnerGirls.map(girl => girl.id);
+    const preferredIds = DARK_KING_PARTY_IDS.filter(girlId => availableIds.includes(girlId));
+    const nextIds = [...preferredIds, ...availableIds.filter(girlId => !preferredIds.includes(girlId as typeof DARK_KING_PARTY_IDS[number]))].slice(0, 3);
+    setDarkKingPartnerIds(nextIds);
+    setDarkKingPartnerSelectionIndex(0);
+    setDarkKingChallengePromptOpen(true);
+  };
+
+  const toggleDarkKingPartner = (girlId: string) => {
+    if (!availableDarkKingPartnerGirls.some(girl => girl.id === girlId)) return;
+    setDarkKingPartnerIds(previous => {
+      if (previous.includes(girlId)) return previous.filter(id => id !== girlId);
+      if (previous.length >= 3) return previous;
+      return [...previous, girlId];
+    });
   };
 
 	  const proceedToNextDay = () => {
@@ -10952,7 +11043,7 @@ export default function App() {
       window.setTimeout(() => setBattleIntroPhase(null), 3700),
     ];
     return () => timers.forEach(timer => window.clearTimeout(timer));
-  }, [battlePreviewOpen]);
+  }, [battlePreviewOpen, battleIntroSequence]);
 
   useEffect(() => {
     if (!battlePreviewOpen || !['darkKing', 'darkKingTest'].includes(battlePreviewState.encounterType) || battlePreviewState.result !== 'ongoing' || darkKingTransformPhase !== null) return;
@@ -11732,7 +11823,8 @@ export default function App() {
   }, [bootMode, currentRepaymentCycleIndex, daysUntilRepayment, gameMode, shownMarketForecastCycleIndexes]);
   const mermaidFishingUnlocked = collectionProgress.unlockedEventIds.includes(MERMAID_UNLOCK_EVENT_ID);
   const isMioFollowing = canUseDebugTools
-    ? debugMioFollowing
+    ? debugMioFollowing || collectionProgress.unlockedEventIds.includes(MIO_FOLLOW_EVENT_ID) &&
+      !collectionProgress.unlockedEventIds.includes(MIO_DEPARTED_EVENT_ID)
     : collectionProgress.unlockedEventIds.includes(MIO_FOLLOW_EVENT_ID) &&
       !collectionProgress.unlockedEventIds.includes(MIO_DEPARTED_EVENT_ID);
   useEffect(() => {
@@ -11756,16 +11848,6 @@ export default function App() {
     );
     if (canStartMomonaEvent) setMomonaSeedEventOpen(true);
   }, [beastAttackPending, bootMode, collectionProgress.collectedGirlIds.length, collectionProgress.unlockedEventIds, currentDay, currentMap, difficulty, gameMode, kurumiShopOpen, menuOpen, momonaSeedEventOpen, ownedGirlSeeds, repaymentEventPending, storyEndingVideoOpen, timeOfDay]);
-  useEffect(() => {
-    if (
-      mermaidScaleOfferingDay !== null &&
-      currentDay > mermaidScaleOfferingDay &&
-      !mermaidFishingUnlocked
-    ) {
-      unlockCollectionEvent(MERMAID_UNLOCK_EVENT_ID);
-      setDialogMessage('滝裏の地蔵に供えた鱗が消えていた。\n夜の水辺から、不思議な歌声が聞こえる。\nこれからは伝説の釣り竿で人魚を釣れるかもしれない。');
-    }
-  }, [currentDay, mermaidFishingUnlocked, mermaidScaleOfferingDay]);
   useEffect(() => {
     if (!companionGirlId) {
       setCompanionSpeech(null);
@@ -16041,6 +16123,12 @@ export default function App() {
     triggeredAutoEventIdsRef.current.add(spot.id);
     clickTargetRef.current = null;
     setClickTargetMarker(null);
+    if (isMermaidJizoSpot(spot) && canConfirmMermaidOffering()) {
+      unlockCollectionEvent(MERMAID_UNLOCK_EVENT_ID);
+      setMermaidScaleOfferingDay(null);
+      setDialogMessage('滝裏の地蔵に供えた鱗が消えていた。夜の水辺から、不思議な歌声が聞こえる。これからは伝説の釣り竿で人魚を釣れるかもしれない。');
+      return;
+    }
     if (isMermaidJizoSpot(spot) && canOfferMioSalmon()) {
       setConfirmPromptChoice('yes');
       setMioOfferingPromptVisible(true);
@@ -16085,6 +16173,14 @@ export default function App() {
     collectionProgress.unlockedEventIds.includes(MERMAID_LETTER_EVENT_ID) &&
     !collectionProgress.unlockedEventIds.includes(MERMAID_OFFERING_EVENT_ID) &&
     (inventoryCounts[MERMAID_SCALE_ITEM_NAME] ?? 0) >= MERMAID_SCALE_OFFERING_COUNT
+  );
+
+  const canConfirmMermaidOffering = () => (
+    timeOfDay === 'night' &&
+    mermaidScaleOfferingDay !== null &&
+    currentDay > mermaidScaleOfferingDay &&
+    collectionProgress.unlockedEventIds.includes(MERMAID_OFFERING_EVENT_ID) &&
+    !mermaidFishingUnlocked
   );
 
   const canOfferMioSalmon = () => (
@@ -18973,6 +19069,25 @@ export default function App() {
             return;
           }
         }
+        const forbiddenLandVisible = Boolean(
+          forbiddenLandZone?.map === currentMapRef.current &&
+          (canUseDebugTools
+            ? debugForbiddenLandEnabled
+            : debtAmount <= getInitialDebtAmount(difficulty) * 0.25 &&
+              collectionProgress.defeatedBeastIds.includes('mountain_lord') &&
+              !collectionProgress.unlockedEventIds.includes(DARK_KING_DEFEATED_EVENT_ID))
+        );
+        if (forbiddenLandVisible && forbiddenLandZone) {
+          const centerX = forbiddenLandZone.x + forbiddenLandZone.w / 2;
+          const centerY = forbiddenLandZone.y + forbiddenLandZone.h / 2;
+          if (Math.hypot(playerPos.x - centerX, playerPos.y - centerY) <= 180) {
+            e.preventDefault();
+            clickTargetRef.current = null;
+            setClickTargetMarker(null);
+            openDarkKingChallengePrompt();
+            return;
+          }
+        }
         const currentSpots = inspectSpotsRef.current.filter(spot => spot.map === currentMapRef.current && !spot.autoTrigger);
         const foundSpot = currentSpots.find(spot => (
           playerPos.x + 18 >= spot.x &&
@@ -18984,6 +19099,10 @@ export default function App() {
           e.preventDefault();
           clickTargetRef.current = null;
           setClickTargetMarker(null);
+          if (isMermaidJizoSpot(foundSpot) && (canConfirmMermaidOffering() || canOfferMioSalmon() || canOfferMermaidScales())) {
+            triggerAutoEventSpot(foundSpot);
+            return;
+          }
           setDialogMessage(foundSpot.text || foundSpot.label);
           setShowDialog(true);
         }
@@ -22255,7 +22374,9 @@ export default function App() {
               </div>
            )}
 
-           {setupMode === 'none' && forbiddenLandZone?.map === currentMap && debtAmount <= getInitialDebtAmount(difficulty) * 0.25 && collectionProgress.defeatedBeastIds.includes('mountain_lord') && !collectionProgress.unlockedEventIds.includes(DARK_KING_DEFEATED_EVENT_ID) && (
+           {setupMode === 'none' && forbiddenLandZone?.map === currentMap && (canUseDebugTools
+             ? debugForbiddenLandEnabled
+             : debtAmount <= getInitialDebtAmount(difficulty) * 0.25 && collectionProgress.defeatedBeastIds.includes('mountain_lord') && !collectionProgress.unlockedEventIds.includes(DARK_KING_DEFEATED_EVENT_ID)) && (
               <button
                 type="button"
                 className="absolute z-20 flex items-end justify-center bg-transparent p-0"
@@ -22265,15 +22386,15 @@ export default function App() {
                   event.stopPropagation();
                   const centerX = forbiddenLandZone.x + forbiddenLandZone.w / 2;
                   const centerY = forbiddenLandZone.y + forbiddenLandZone.h / 2;
-                  if (Math.hypot(pos.x - centerX, pos.y - centerY) > 180) {
+                  if (!canUseDebugTools && Math.hypot(pos.x - centerX, pos.y - centerY) > 180) {
                     setDialogMessage('洞窟の奥のほうから何か異様な空気を感じる...。');
                     return;
                   }
-                  setDarkKingChallengePromptOpen(true);
+                  openDarkKingChallengePrompt();
                 }}
                 aria-label="禁足地の闇の炎"
               >
-                <span className="yamino-honou-preview block h-full max-w-full" />
+                <span className="yamino-honou-preview block h-full max-w-full origin-bottom scale-[2]" />
               </button>
            )}
 
@@ -23050,11 +23171,73 @@ export default function App() {
 
           {darkKingChallengePromptOpen && (
             <div className="absolute inset-0 z-[114] flex items-center justify-center bg-black/75 pointer-events-auto" onPointerDown={event => event.stopPropagation()}>
-              <div className="w-[680px] rounded-2xl border-4 border-[#8b1e3f] bg-[#160b12]/98 p-8 text-center text-white shadow-[0_0_70px_rgba(120,0,45,0.75)]">
+              <div className="w-[760px] rounded-2xl border-4 border-[#8b1e3f] bg-[#160b12]/98 p-8 text-center text-white shadow-[0_0_70px_rgba(120,0,45,0.75)]" onKeyDown={event => {
+                if (event.key === 'Escape') {
+                  event.preventDefault();
+                  setDarkKingChallengePromptOpen(false);
+                }
+              }}>
                 <div className="text-4xl font-black text-[#ff8ca8]">禁足地</div>
-                <div className="mt-5 whitespace-pre-line text-xl font-bold leading-relaxed">この先から、山の主とは比べものにならない闇を感じる。{collectionProgress.unlockedEventIds.includes(FARM_GOD_EVENT_ID) ? '\n農神の加護が、ユウと娘たちを包んでいる。' : '\n指輪から、まだ眠ったままの力を感じる……。'}</div>
+                <div className="mt-5 text-xl font-bold leading-relaxed">この先から、山の主とは比べものにならない闇を感じる。{collectionProgress.unlockedEventIds.includes(FARM_GOD_EVENT_ID) ? '農神の加護が、ユウと娘たちを包んでいる。' : '指輪から、まだ眠ったままの力を感じる……。'}</div>
+                <div className="mt-6 rounded-xl border-2 border-[#ff8ca8]/65 bg-black/30 p-4 text-left">
+                  <div className="mb-3 flex items-center justify-between gap-4">
+                    <div className="text-lg font-black text-[#ffd1dc]">闇王戦に同行する苗娘を3人選ぶ</div>
+                    <div className={`rounded-full border px-4 py-1 text-sm font-black ${darkKingPartnerIds.length === 3 ? 'border-emerald-300 bg-emerald-950/70 text-emerald-100' : 'border-[#ff8ca8] bg-[#4b1325] text-[#ffd1dc]'}`}>選択中 {darkKingPartnerIds.length} / 3</div>
+                  </div>
+                  <div
+                    role="group"
+                    aria-label="闇王戦の同行者一覧"
+                    tabIndex={0}
+                    autoFocus
+                    className="grid max-h-[300px] grid-cols-2 gap-2 overflow-y-auto rounded-lg p-1 focus:outline-none focus:ring-4 focus:ring-[#ff8ca8]/55"
+                    onKeyDown={event => {
+                      const columnCount = 2;
+                      let nextIndex = darkKingPartnerSelectionIndex;
+                      if (event.key === 'ArrowUp') nextIndex -= columnCount;
+                      else if (event.key === 'ArrowDown') nextIndex += columnCount;
+                      else if (event.key === 'ArrowLeft') nextIndex -= 1;
+                      else if (event.key === 'ArrowRight') nextIndex += 1;
+                      else if (event.key === 'Enter' || event.key === ' ') {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        const girl = GIRL_DATA[darkKingPartnerSelectionIndex];
+                        if (girl) toggleDarkKingPartner(girl.id);
+                        return;
+                      } else return;
+                      event.preventDefault();
+                      event.stopPropagation();
+                      setDarkKingPartnerSelectionIndex(Math.max(0, Math.min(GIRL_DATA.length - 1, nextIndex)));
+                    }}
+                  >
+                    {GIRL_DATA.map((girl, index) => {
+                      const farmGirl = farmGirls.find(entry => entry.girlId === girl.id);
+                      const selectable = availableDarkKingPartnerGirls.some(entry => entry.id === girl.id);
+                      const selected = darkKingPartnerIds.includes(girl.id);
+                      const skill = PARTNER_SKILL_PREVIEWS[girl.id];
+                      return (
+                        <button
+                          key={girl.id}
+                          type="button"
+                          disabled={!selectable}
+                          aria-pressed={selected}
+                          onFocus={() => setDarkKingPartnerSelectionIndex(index)}
+                          onPointerEnter={() => setDarkKingPartnerSelectionIndex(index)}
+                          onClick={() => toggleDarkKingPartner(girl.id)}
+                          className={`grid min-h-[68px] grid-cols-[32px_1fr] items-center gap-2 rounded-lg border-2 px-3 py-2 text-left transition ${darkKingPartnerSelectionIndex === index ? 'ring-4 ring-[#ffd166]/65' : ''} ${selected ? 'border-emerald-300 bg-emerald-900/65' : selectable ? 'border-[#76502c] bg-[#28151b] hover:border-[#ff8ca8] hover:bg-[#4b1b2c]' : 'cursor-not-allowed border-[#4b3b3b] bg-black/35 opacity-45'}`}
+                        >
+                          <span className={`flex h-7 w-7 items-center justify-center rounded border-2 text-lg font-black ${selected ? 'border-emerald-200 bg-emerald-600 text-white' : 'border-[#bda278] bg-black/40 text-transparent'}`}>{selected ? '✓' : '✓'}</span>
+                          <span>
+                            <span className="flex items-center justify-between gap-2"><span className="font-black text-white">{girl.girlName}</span><span className="text-xs font-bold text-[#ffd1dc]">信頼 {farmGirl?.trust ?? 0}</span></span>
+                            <span className="mt-0.5 block text-xs font-bold text-[#d7b98a]">{selectable ? `${skill?.name ?? '基本支援'}・${skill?.effectLabel ?? '支援'}` : '信頼20・娘カード解禁で同行可能'}</span>
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {availableDarkKingPartnerGirls.length < 3 && <div className="mt-3 text-center text-sm font-bold text-[#ffb0c4]">同行できる苗娘が3人必要です。娘カード解禁・信頼20以上の苗娘を増やしてください。</div>}
+                </div>
                 <div className="mt-7 flex justify-center gap-5">
-                  <button type="button" onClick={startDarkKingBattle} className="h-14 min-w-[180px] rounded-xl border-2 border-white bg-[#8b1e3f] text-lg font-black hover:bg-[#b32652]">挑戦する</button>
+                  <button type="button" disabled={darkKingPartnerIds.length !== 3 || new Set(darkKingPartnerIds).size !== 3 || darkKingPartnerIds.some(girlId => !availableDarkKingPartnerGirls.some(girl => girl.id === girlId))} onClick={() => startDarkKingBattle('darkKing', darkKingPartnerIds)} className="h-14 min-w-[180px] rounded-xl border-2 border-white bg-[#8b1e3f] text-lg font-black hover:bg-[#b32652] disabled:cursor-not-allowed disabled:opacity-40">挑戦する</button>
                   <button type="button" onClick={() => setDarkKingChallengePromptOpen(false)} className="h-14 min-w-[180px] rounded-xl border-2 border-[#a3b18a] bg-[#384326] text-lg font-black hover:bg-[#4a5823]">今はやめる</button>
                 </div>
               </div>
@@ -26709,6 +26892,64 @@ export default function App() {
 	             setDebugMioFollowing(previous => !previous);
 	             setDialogMessage(`MIOのデバッグ追従を${debugMioFollowing ? 'OFF' : 'ON'}にしました。`);
 	           }}
+	           mermaidScaleCount={inventoryCounts[MERMAID_SCALE_ITEM_NAME] ?? 0}
+	           salmonCount={inventoryCounts[MIO_OFFERING_ITEM_NAME] ?? 0}
+	           onSetMermaidScales={(enabled) => {
+	             if (!canUseDebugTools) return;
+	             setInventoryCounts(previous => ({ ...previous, [MERMAID_SCALE_ITEM_NAME]: enabled ? MERMAID_SCALE_OFFERING_COUNT : 0 }));
+	             setDialogMessage(`人魚の鱗5枚を${enabled ? 'ON' : 'OFF'}にしました。`);
+	           }}
+	           onSetSalmon={(enabled) => {
+	             if (!canUseDebugTools) return;
+	             setInventoryCounts(previous => ({ ...previous, [MIO_OFFERING_ITEM_NAME]: enabled ? MIO_OFFERING_COUNT : 0 }));
+	             setDialogMessage(`サケ3匹を${enabled ? 'ON' : 'OFF'}にしました。`);
+	           }}
+	           mermaidUnlocked={
+	             collectionProgress.unlockedEventIds.includes(MERMAID_LETTER_EVENT_ID) &&
+	             !collectionProgress.unlockedEventIds.includes(MERMAID_OFFERING_EVENT_ID) &&
+	             !mermaidFishingUnlocked
+	           }
+	           onSetMermaidUnlocked={(enabled) => {
+	             if (!canUseDebugTools) return;
+	             setCollectionProgress(previous => ({
+	               ...previous,
+	               unlockedEventIds: enabled
+	                 ? Array.from(new Set([
+	                     ...previous.unlockedEventIds.filter(eventId => eventId !== MERMAID_OFFERING_EVENT_ID && eventId !== MERMAID_UNLOCK_EVENT_ID),
+	                     MERMAID_LETTER_EVENT_ID,
+	                   ]))
+	                 : previous.unlockedEventIds.filter(eventId =>
+	                     eventId !== MERMAID_LETTER_EVENT_ID &&
+	                     eventId !== MERMAID_OFFERING_EVENT_ID &&
+	                     eventId !== MERMAID_UNLOCK_EVENT_ID
+	                   ),
+	             }));
+	             setInventoryCounts(previous => ({
+	               ...previous,
+	               [MERMAID_SCALE_ITEM_NAME]: enabled ? MERMAID_SCALE_OFFERING_COUNT : previous[MERMAID_SCALE_ITEM_NAME] ?? 0,
+	             }));
+	             setMermaidScaleOfferingDay(null);
+	             setDialogMessage(`人魚の供え条件を${enabled ? 'ON' : 'OFF'}にしました。`);
+	           }}
+	           debugForbiddenLandEnabled={debugForbiddenLandEnabled}
+	           onSetDebugForbiddenLandEnabled={(enabled) => {
+	             if (!canUseDebugTools) return;
+	             setDebugForbiddenLandEnabled(enabled);
+	             setDarkKingChallengePromptOpen(false);
+	             setDialogMessage(`禁足地の発生条件を${enabled ? 'ON' : 'OFF'}にしました。`);
+	           }}
+	           darkKingDefeated={collectionProgress.unlockedEventIds.includes(DARK_KING_DEFEATED_EVENT_ID)}
+	           onSetDarkKingDefeated={(enabled) => {
+	             if (!canUseDebugTools) return;
+	             setCollectionProgress(previous => ({
+	               ...previous,
+	               unlockedEventIds: enabled
+	                 ? Array.from(new Set([...previous.unlockedEventIds, DARK_KING_DEFEATED_EVENT_ID]))
+	                 : previous.unlockedEventIds.filter(eventId => eventId !== DARK_KING_DEFEATED_EVENT_ID),
+	             }));
+	             setDarkKingChallengePromptOpen(false);
+	             setDialogMessage(`闇王の討伐フラグを${enabled ? 'ON' : 'OFF'}にしました。`);
+	           }}
 	           debugGirlAffinities={menuGirls.map(girl => ({ id: girl.id, name: girl.name, affinity: girl.affinity }))}
            adjustDebugGirlAffinity={(girlId, delta) => {
              setDebugGirlAffinities(previous => {
@@ -28067,7 +28308,7 @@ export default function App() {
             <div className="w-full max-w-xl rounded-2xl border-2 border-[#ffd166] bg-[#24140f] p-7 text-center text-[#fff7dc] shadow-2xl">
               <div className="text-sm font-black tracking-[0.18em] text-[#ffd166]">便利機能解放！</div>
               <div className="mt-3 text-3xl font-black text-[#fff1a8]">✨ 一括お世話</div>
-              <div className="mt-4 whitespace-pre-line rounded-xl border border-[#76502c] bg-black/30 p-4 font-bold leading-relaxed">{'農場メニューから、複数の苗娘を\nまとめてお世話できるようになりました。\n1チェックにつきAPを1消費します。\n結果は最後にまとめて表示されます。\n詳しい使い方は「くるみの秘密帳」に\n追記されています！'}</div>
+              <div className="mt-4 rounded-xl border border-[#76502c] bg-black/30 p-4 font-bold leading-relaxed">農場メニューから、複数の苗娘をまとめてお世話できるようになりました。1チェックにつきAPを1消費します。結果は最後にまとめて表示されます。詳しい使い方は「くるみの秘密帳」に追記されています！</div>
               <button type="button" autoFocus onClick={closeBulkFarmCareUnlockNotice} className="mt-6 w-full rounded-xl border border-[#ffd166] bg-[#6b4b16] px-5 py-3 text-lg font-black hover:bg-[#85621e]">確認した</button>
             </div>
           </div>, document.body)}
@@ -28085,7 +28326,7 @@ export default function App() {
 	            <div className="w-full max-w-xl rounded-2xl border-2 border-[#9ee6b5] bg-[#16251d] p-7 text-center text-[#f3fff6] shadow-2xl">
 	              <div className="text-sm font-black tracking-[0.18em] text-[#9ee6b5]">便利機能解放！</div>
 	              <div className="mt-3 whitespace-nowrap text-3xl font-black text-[#d9ffe4]">📦 一括出荷</div>
-	              <div className="mt-4 whitespace-pre-line rounded-xl border border-[#527260] bg-black/30 p-4 font-bold leading-relaxed">{'農場メニューから、収穫した作物を\nまとめて出荷できるようになりました。\n出荷する作物を選ぶと、在庫・単価・\n合計金額を確認して売却できます。\n詳しい使い方は「くるみの秘密帳」に\n追記されています！'}</div>
+	              <div className="mt-4 rounded-xl border border-[#527260] bg-black/30 p-4 font-bold leading-relaxed">農場メニューから、収穫した作物をまとめて出荷できるようになりました。出荷する作物を選ぶと、在庫・単価・合計金額を確認して売却できます。詳しい使い方は「くるみの秘密帳」に追記されています！</div>
 	              <button type="button" autoFocus onClick={closeBulkShippingUnlockNotice} className="mt-6 w-full rounded-xl border border-[#9ee6b5] bg-[#315642] px-5 py-3 text-lg font-black hover:bg-[#477d5d] focus:outline-none focus:ring-4 focus:ring-[#9ee6b5]/65">確認した</button>
 	            </div>
 	          </div>, document.body)}
@@ -28098,7 +28339,7 @@ export default function App() {
 	            <div className="w-full max-w-xl rounded-2xl border-2 border-[#ffd166] bg-[#24140f] p-7 text-center text-[#fff7dc] shadow-2xl">
 	              <div className="text-sm font-black tracking-[0.18em] text-[#ffd166]">便利機能解放！</div>
 	              <div className="mt-3 whitespace-nowrap text-3xl font-black text-[#fff1a8]">🌾 一括収穫</div>
-	              <div className="mt-4 whitespace-pre-line rounded-xl border border-[#76502c] bg-black/30 p-4 font-bold leading-relaxed">{'農場メニューから、収穫可能な娘を\nまとめて収穫できるようになりました。\n収穫する娘を選ぶと、作物・収穫数・\n信頼度を確認してから収穫できます。\n詳しい使い方は「くるみの秘密帳」に\n追記されています！'}</div>
+	              <div className="mt-4 rounded-xl border border-[#76502c] bg-black/30 p-4 font-bold leading-relaxed">農場メニューから、収穫可能な娘をまとめて収穫できるようになりました。収穫する娘を選ぶと、作物・収穫数・信頼度を確認してから収穫できます。詳しい使い方は「くるみの秘密帳」に追記されています！</div>
 	              <button type="button" autoFocus onClick={closeBulkHarvestUnlockNotice} className="mt-6 w-full rounded-xl border border-[#ffd166] bg-[#6b4b16] px-5 py-3 text-lg font-black hover:bg-[#85621e] focus:outline-none focus:ring-4 focus:ring-[#ffd166]/75">確認した</button>
 	            </div>
 	          </div>, document.body)}
@@ -28274,10 +28515,8 @@ export default function App() {
             <div className="w-[560px] max-w-[92vw] rounded-xl border-4 border-[#ffd166] bg-[#24140f]/96 p-6 text-center text-[#fdf6e3] shadow-[0_24px_70px_rgba(0,0,0,0.75),0_0_32px_rgba(255,209,102,0.24)]">
               <div className="text-sm font-black tracking-[0.24em] text-[#ffd166]">滝裏の地蔵</div>
               <div className="mt-3 text-2xl font-black text-[#fff1a8]">サケを供えますか？</div>
-              <div className="mt-4 whitespace-pre-line rounded border border-[#ffd166]/45 bg-black/35 px-4 py-4 text-left text-sm font-bold leading-relaxed text-[#fff7dc]">
-                地蔵の前に立つと、どこからか小さな鳴き声が聞こえた気がした。
-                {'\n'}サケを3匹供えれば、匂いに誘われて何かが現れるかもしれない。
-                {'\n'}サケを3匹消費します。
+              <div className="mt-4 rounded border border-[#ffd166]/45 bg-black/35 px-4 py-4 text-left text-sm font-bold leading-relaxed text-[#fff7dc]">
+                地蔵の前に立つと、どこからか小さな鳴き声が聞こえた気がした。サケを3匹供えれば、匂いに誘われて何かが現れるかもしれない。サケを3匹消費します。
               </div>
               <div className="mt-5 grid grid-cols-2 gap-3">
                 <button type="button" onMouseEnter={() => setConfirmPromptChoice('yes')} onClick={() => { setConfirmPromptChoice('yes'); confirmMioOffering(); }} className={`h-[52px] rounded-lg border-2 bg-[#6b4b16] text-lg font-black text-[#fff7dc] transition-colors hover:bg-[#85621e] ${confirmPromptChoice === 'yes' ? 'border-white ring-4 ring-[#ffd166]/70' : 'border-[#ffd166]'}`}>はい</button>
@@ -28291,7 +28530,9 @@ export default function App() {
               {Array.from({ length: 32 }, (_, index) => <span key={index} style={{ '--sparkle-index': index } as React.CSSProperties} />)}
             </div>
             <div className="relative z-[2] w-full max-w-xl rounded-2xl border-4 border-[#ffd166] bg-[#24140f]/98 p-8 text-center text-[#fff7dc] shadow-[0_0_48px_rgba(255,209,102,0.42)]">
-              <img src="/img/miocat.png" alt="白くて小さな子猫MIO" className="mx-auto h-48 w-48 rounded-xl object-cover object-left-top" />
+              <div className="relative mx-auto h-52 w-52 overflow-hidden rounded-xl" role="img" aria-label="白くて小さな子猫MIO">
+                <img src="/img/miocat.png" alt="" className="absolute left-0 top-0 h-[300%] w-[300%] max-w-none" />
+              </div>
               <div className="mt-6 text-3xl font-black text-[#fff1a8]">白くて小さな子猫が現れた！</div>
               <div className="mt-3 font-bold leading-relaxed text-[#fdf6e3]">首輪には「MIO」と書かれている。<br />どうやらユウの後をついてくるようだ。</div>
               <button type="button" onClick={() => { playFixSound(); setMioArrivalNoticeVisible(false); }} className="mt-7 w-full rounded-lg border-2 border-[#ffd166] bg-[#6b4b16] px-5 py-3 text-lg font-black hover:bg-[#85621e]">一緒に行こう</button>
@@ -28302,9 +28543,8 @@ export default function App() {
             <div className="w-[560px] max-w-[92vw] rounded-xl border-4 border-[#67e8f9] bg-[#0f172a]/96 p-6 text-center text-[#fdf6e3] shadow-[0_24px_70px_rgba(0,0,0,0.75),0_0_32px_rgba(103,232,249,0.24)]">
               <div className="text-sm font-black tracking-[0.24em] text-[#67e8f9]">滝裏の地蔵</div>
               <div className="mt-3 text-2xl font-black text-[#fff1a8]">人魚の鱗を供えますか？</div>
-              <div className="mt-4 whitespace-pre-line rounded border border-[#67e8f9]/45 bg-black/35 px-4 py-4 text-left text-sm font-bold leading-relaxed text-[#dbeafe]">
-                濡れた手紙には、夜に滝裏の地蔵へ青白い鱗を五つ供えるよう書かれていた。
-                {'\n'}人魚の鱗を5枚消費します。
+              <div className="mt-4 rounded border border-[#67e8f9]/45 bg-black/35 px-4 py-4 text-left text-sm font-bold leading-relaxed text-[#dbeafe]">
+                濡れた手紙には、夜に滝裏の地蔵へ青白い鱗を五つ供えるよう書かれていた。人魚の鱗を5枚消費します。
               </div>
               <div className="mt-5 grid grid-cols-2 gap-3">
                 <button
