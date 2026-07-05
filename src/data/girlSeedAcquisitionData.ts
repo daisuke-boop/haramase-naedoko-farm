@@ -78,9 +78,8 @@ export const GIRL_SEED_ACQUISITION_DATA: readonly GirlSeedAcquisitionData[] = [
     acquisitionType: 'materialExchange',
     unlockDifficulty: 'easy',
     requiredItems: [
-      { itemName: 'しなやかな軟木', amount: 5 },
-      { itemName: '軟らかい銅鉱石', amount: 5 },
-      { itemName: 'ウサギの靭帯', amount: 8 },
+      { itemName: 'しなやかな軟木', amount: 8 },
+      { itemName: '軟らかい銅鉱石', amount: 8 },
     ],
     isRepeatable: false,
   },

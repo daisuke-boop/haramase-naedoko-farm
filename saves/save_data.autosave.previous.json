@@ -1,28 +1,125 @@
 {
   "saveSchemaVersion": 2,
-  "turn": 0,
-  "gold": 5000,
+  "turn": 35,
+  "gold": 108357,
+  "goldTransactionHistory": [
+    {
+      "id": "legacy-1783251681132",
+      "timestamp": "2026-07-05T11:41:21.132Z",
+      "day": 8,
+      "timeOfDay": "evening",
+      "reason": "既存セーブ読込時の基準値",
+      "amount": 0,
+      "before": 118736,
+      "after": 118736
+    },
+    {
+      "id": "2026-07-05T11:49:16.699Z-q8j24w",
+      "timestamp": "2026-07-05T11:49:16.699Z",
+      "day": 8,
+      "timeOfDay": "night",
+      "reason": "借金・最低返済",
+      "amount": -50000,
+      "before": 118736,
+      "after": 68736
+    },
+    {
+      "id": "2026-07-05T11:50:45.030Z-b3s969",
+      "timestamp": "2026-07-05T11:50:45.030Z",
+      "day": 9,
+      "timeOfDay": "day",
+      "reason": "農場・一括出荷：1種類",
+      "amount": 10500,
+      "before": 68736,
+      "after": 79236
+    },
+    {
+      "id": "2026-07-05T11:51:57.954Z-agvpen",
+      "timestamp": "2026-07-05T11:51:57.954Z",
+      "day": 9,
+      "timeOfDay": "day",
+      "reason": "農場・一括出荷：1種類",
+      "amount": 15752,
+      "before": 79236,
+      "after": 94988
+    },
+    {
+      "id": "2026-07-05T11:52:56.837Z-x8ciff",
+      "timestamp": "2026-07-05T11:52:56.837Z",
+      "day": 9,
+      "timeOfDay": "day",
+      "reason": "くるみ商店・買う：【レシピ】木剣",
+      "amount": -800,
+      "before": 94988,
+      "after": 94188
+    },
+    {
+      "id": "2026-07-05T11:53:10.144Z-kr5oxa",
+      "timestamp": "2026-07-05T11:53:10.144Z",
+      "day": 9,
+      "timeOfDay": "day",
+      "reason": "くるみ商店・買う：【レシピ】毛皮の服",
+      "amount": -900,
+      "before": 94188,
+      "after": 93288
+    },
+    {
+      "id": "2026-07-05T11:54:12.153Z-krm8b9",
+      "timestamp": "2026-07-05T11:54:12.153Z",
+      "day": 9,
+      "timeOfDay": "day",
+      "reason": "くるみ商店・一括売却：25種類",
+      "amount": 15069,
+      "before": 93288,
+      "after": 108357
+    }
+  ],
   "gameMode": "story",
   "hasUnlockedEndlessNurseryMode": false,
   "collectionProgress": {
     "collectedGirlIds": [],
-    "caughtFishIds": [],
+    "caughtFishIds": [
+      "eda",
+      "funa",
+      "gomu",
+      "dojo",
+      "oikawa",
+      "ugui"
+    ],
     "craftedItemIds": [],
     "unlockedEventIds": [
+      "video_care_caress",
+      "seed_offer_eggplant",
+      "video_care_finger",
+      "video_care_fertilize",
+      "bulk_farm_care_unlocked",
+      "bulk_shipping_unlocked",
+      "bulk_harvest_unlocked",
+      "video_kurumi_sleep_1",
+      "girl_equipment_unlocked_chibiichi",
+      "girl_equipment_unlocked_ruby",
+      "seed_offer_grape",
+      "girl_equipment_tutorial_completed",
+      "girl_equipment_unlocked_mel",
+      "video_kurumi_sleep_2",
+      "skill_tree_tutorial_seen",
       "chibiichi_trust_50",
-      "chibiichi_trust_100"
+      "ruby_trust_50",
+      "seed_offer_turnip"
     ],
     "viewedEventIds": [
-      "chibiichi_trust_100"
+      "ruby_trust_50"
     ],
     "defeatedBeastIds": []
   },
   "achievementStats": {
-    "totalCraftSuccesses": 0,
-    "totalNushiCaught": 0,
+    "totalFishCaught": 20,
+    "totalCraftSuccesses": 2,
+    "totalNushiCaught": 2,
     "totalRareOresMined": 0,
     "totalRareLumbersCut": 0
   },
+  "fishingMasterRewardClaimed": false,
   "endlessStats": {
     "daysPlayed": 0,
     "totalHarvestCount": 0,
@@ -34,47 +131,52 @@
     "totalTrustEventsUnlocked": 0,
     "totalMoneyEarned": 0
   },
-  "debt": 30000000,
-  "debtAmount": 30000000,
+  "debt": 1450000,
+  "debtAmount": 1450000,
   "shownDebtMilestoneIds": [],
-  "shownMarketForecastCycleIndexes": [],
-  "marketCycleIndex": 0,
-  "marketBoomCategory": "木材",
-  "marketSlumpCategory": null,
+  "shownMarketForecastCycleIndexes": [
+    1
+  ],
+  "marketCycleIndex": 1,
+  "marketBoomCategory": "魚",
+  "marketSlumpCategory": "鉱石",
   "repaymentCycleDays": 8,
   "storyCleared": false,
-  "farmCredit": 0,
-  "successfulRepaymentCount": 0,
+  "farmCredit": 5,
+  "successfulRepaymentCount": 1,
   "missedRepaymentCount": 0,
-  "heroLevel": 1,
+  "heroLevel": 2,
   "heroSP": 0,
   "debugGirlAffinities": {},
-  "unlockedHeroSkills": [],
+  "unlockedHeroSkills": [
+    "farm_seedling_care",
+    "farm_quality_eye",
+    "gather_fishing_rare_up"
+  ],
   "hasBeastPremonition": false,
   "premonitionDay": null,
   "scheduledBeastAttackDay": null,
   "mountainLordAttackPending": false,
   "beastAttackPending": false,
-  "companionGirlId": null,
-  "currentWeeklyInterestRate": 1.7,
-  "interestRateCycleIndex": 0,
+  "companionGirlId": "mel",
+  "currentWeeklyInterestRate": 0.9,
+  "interestRateCycleIndex": 1,
   "farmGirls": [
     {
       "girlId": "chibiichi",
       "state": "appeared",
       "cardRevealed": true,
-      "plantedDay": null,
-      "growthProgress": 0,
-      "quality": 0,
-      "careDay": null,
-      "caressCount": 0,
-      "fingerCount": 0,
-      "fertilizeCount": 0,
-      "lastHarvestDay": null,
-      "trust": 100,
+      "plantedDay": 1,
+      "growthProgress": 2,
+      "quality": 100,
+      "careDay": 9,
+      "caressCount": 1,
+      "fingerCount": 1,
+      "fertilizeCount": 1,
+      "lastHarvestDay": 9,
+      "trust": 56,
       "unlockedTrustEventIds": [
-        "chibiichi_trust_50",
-        "chibiichi_trust_100"
+        "chibiichi_trust_50"
       ],
       "condition": "normal",
       "conditionDay": null,
@@ -83,17 +185,17 @@
     },
     {
       "girlId": "mel",
-      "state": "none",
-      "cardRevealed": false,
-      "plantedDay": null,
-      "growthProgress": 0,
-      "quality": 0,
-      "careDay": null,
-      "caressCount": 0,
-      "fingerCount": 0,
-      "fertilizeCount": 0,
-      "lastHarvestDay": null,
-      "trust": 0,
+      "state": "appeared",
+      "cardRevealed": true,
+      "plantedDay": 1,
+      "growthProgress": 3,
+      "quality": 100,
+      "careDay": 9,
+      "caressCount": 1,
+      "fingerCount": 1,
+      "fertilizeCount": 1,
+      "lastHarvestDay": 7,
+      "trust": 32,
       "unlockedTrustEventIds": [],
       "condition": "normal",
       "conditionDay": null,
@@ -102,18 +204,20 @@
     },
     {
       "girlId": "ruby",
-      "state": "none",
-      "cardRevealed": false,
-      "plantedDay": null,
-      "growthProgress": 0,
-      "quality": 0,
-      "careDay": null,
-      "caressCount": 0,
-      "fingerCount": 0,
-      "fertilizeCount": 0,
-      "lastHarvestDay": null,
-      "trust": 0,
-      "unlockedTrustEventIds": [],
+      "state": "appeared",
+      "cardRevealed": true,
+      "plantedDay": 1,
+      "growthProgress": 2,
+      "quality": 100,
+      "careDay": 9,
+      "caressCount": 1,
+      "fingerCount": 1,
+      "fertilizeCount": 1,
+      "lastHarvestDay": 9,
+      "trust": 56,
+      "unlockedTrustEventIds": [
+        "ruby_trust_50"
+      ],
       "condition": "normal",
       "conditionDay": null,
       "conditionSource": null,
@@ -348,22 +452,27 @@
       "hybridAdapted": false
     }
   ],
-  "farmCareUnlockStage": 1,
-  "farmCareFingerUnlockedDay": null,
+  "farmCareUnlockStage": 3,
+  "farmCareFingerUnlockedDay": 3,
   "ownedGirlSeeds": [
-    "ichigo"
+    "ichigo",
+    "melon",
+    "tomato"
   ],
-  "hasReceivedKurumiStarterSeeds": false,
-  "hasKurumiNotebook": false,
-  "hasSeenTrust20CompanionTutorial": false,
-  "kurumiTradeTotal": 0,
-  "shownKurumiTradeRewardThresholds": [],
+  "hasReceivedKurumiStarterSeeds": true,
+  "hasKurumiNotebook": true,
+  "hasSeenTrust20CompanionTutorial": true,
+  "kurumiTradeTotal": 278171,
+  "shownKurumiTradeRewardThresholds": [
+    200000,
+    50000
+  ],
   "kurumiPantsReturned": false,
   "kurumiTentFinalAvailableDay": null,
   "kurumiTentFinalCompleted": false,
   "mermaidScaleOfferingDay": null,
   "mioSleepCount": 0,
-  "seedAfterPlantTutorialCompleted": false,
+  "seedAfterPlantTutorialCompleted": true,
   "farmFieldSlots": [
     {
       "fieldId": "left",
@@ -375,16 +484,16 @@
     {
       "fieldId": "left",
       "slotIndex": 2,
-      "girlId": null,
-      "state": "none",
-      "plantedDay": null
+      "girlId": "ruby",
+      "state": "appeared",
+      "plantedDay": 1
     },
     {
       "fieldId": "left",
       "slotIndex": 3,
-      "girlId": null,
-      "state": "none",
-      "plantedDay": null
+      "girlId": "chibiichi",
+      "state": "appeared",
+      "plantedDay": 1
     },
     {
       "fieldId": "left",
@@ -403,15 +512,15 @@
     {
       "fieldId": "left",
       "slotIndex": 6,
-      "girlId": null,
-      "state": "none",
-      "plantedDay": null
+      "girlId": "mel",
+      "state": "appeared",
+      "plantedDay": 1
     }
   ],
-  "currentAP": 5,
+  "currentAP": 1,
   "maxAPPerTimeSlot": 5,
-  "difficulty": "hard",
-  "currentMap": "farm",
+  "difficulty": "easy",
+  "currentMap": "house",
   "zones": [
     {
       "id": "1781485855659",
@@ -45358,20 +45467,37 @@
   },
   "inventoryCounts": {
     "農神の指輪": 1,
-    "天の裁き（デバッグ用）": 1,
-    "神域の加護（デバッグ用）": 1,
-    "いやし草もち（デバッグ用）": 1,
-    "生命ミルク（デバッグ用）": 1,
-    "女神の蜜薬（デバッグ用）": 1,
-    "めざめの鈴（デバッグ用）": 1,
-    "生命の種火（デバッグ用）": 1,
-    "天命の雫（デバッグ用）": 1
+    "枝": 5,
+    "竹の釣竿": 1,
+    "【レシピ】のこぎり": 1,
+    "モグラの爪": 1,
+    "ウサギの靭帯": 0,
+    "軟らかい銅鉱石": 5,
+    "柔らかな若枝": 84,
+    "のこぎり": 1,
+    "【レシピ】つるはし": 1,
+    "泥混じりの鉄鉱石": 18,
+    "つるはし": 1,
+    "軽石炭": 11,
+    "脆い鉛鉱石": 14,
+    "【レシピ】丈夫なつるはし": 1,
+    "【レシピ】丈夫なのこぎり": 1,
+    "フナ": 2,
+    "使用済みコンドーム": 9,
+    "ちびいちのいちご": 0,
+    "ルビーのトマト": 0,
+    "どじょう": 5,
+    "オイカワ": 6,
+    "メルのメロン": 0,
+    "ウグイ": 7,
+    "【レシピ】木剣": 1,
+    "【レシピ】毛皮の服": 1
   },
   "equippedItems": {
-    "主人公-slot1": "天の裁き（デバッグ用）",
-    "主人公-slot2": "",
-    "主人公-slot3": "",
-    "主人公-slot4": "神域の加護（デバッグ用）",
+    "主人公-slot1": "竹の釣竿",
+    "主人公-slot2": "のこぎり",
+    "主人公-slot3": "つるはし",
+    "主人公-slot4": "農神の指輪",
     "ちびいち-slot1": "",
     "ちびいち-slot2": ""
   },
@@ -45380,25 +45506,34 @@
       {
         "girlId": "chibiichi",
         "slotIndex": 1,
-        "equippedItemId": null,
-        "bonusStats": {},
-        "equipQuality": "none"
+        "equippedItemId": "ちびいちのいちご",
+        "bonusStats": {
+          "attack": 2,
+          "hp": 4
+        },
+        "equipQuality": "good"
       },
       {
         "girlId": "chibiichi",
         "slotIndex": 2,
-        "equippedItemId": null,
-        "bonusStats": {},
-        "equipQuality": "none"
+        "equippedItemId": "ちびいちのいちご",
+        "bonusStats": {
+          "defense": 2,
+          "hp": 4
+        },
+        "equipQuality": "perfect"
       }
     ],
     "mel": [
       {
         "girlId": "mel",
         "slotIndex": 1,
-        "equippedItemId": null,
-        "bonusStats": {},
-        "equipQuality": "none"
+        "equippedItemId": "メルのメロン",
+        "bonusStats": {
+          "attack": 2,
+          "hp": 4
+        },
+        "equipQuality": "normal"
       },
       {
         "girlId": "mel",
@@ -45412,16 +45547,22 @@
       {
         "girlId": "ruby",
         "slotIndex": 1,
-        "equippedItemId": null,
-        "bonusStats": {},
-        "equipQuality": "none"
+        "equippedItemId": "ルビーのトマト",
+        "bonusStats": {
+          "attack": 2,
+          "hp": 4
+        },
+        "equipQuality": "good"
       },
       {
         "girlId": "ruby",
         "slotIndex": 2,
-        "equippedItemId": null,
-        "bonusStats": {},
-        "equipQuality": "none"
+        "equippedItemId": "ルビーのトマト",
+        "bonusStats": {
+          "defense": 2,
+          "hp": 4
+        },
+        "equipQuality": "perfect"
       }
     ],
     "viola": [
@@ -45617,29 +45758,115 @@
       }
     ]
   },
-  "caughtFishIds": [],
-  "nushiCaughtFishIds": [],
-  "fishBestSizes": {},
-  "fishInventorySizes": {},
-  "lumberInventorySizes": {},
-  "oreInventoryWeights": {},
-  "depletedMiningPointIds": {},
-  "fishingTutorialCompleted": false,
+  "caughtFishIds": [
+    "eda",
+    "funa",
+    "gomu",
+    "dojo",
+    "oikawa",
+    "ugui"
+  ],
+  "nushiCaughtFishIds": [
+    "gomu"
+  ],
+  "fishBestSizes": {
+    "eda": 13.5,
+    "funa": 22.5,
+    "gomu": 20,
+    "dojo": 13.6,
+    "oikawa": 14.4,
+    "ugui": 35.2
+  },
+  "fishInventorySizes": {
+    "枝": [],
+    "フナ": [],
+    "使用済みコンドーム": [],
+    "どじょう": [],
+    "オイカワ": [],
+    "ウグイ": [
+      26.5
+    ]
+  },
+  "lumberInventorySizes": {
+    "柔らかな若枝": [
+      19.3,
+      22,
+      25.1,
+      18.8,
+      28.5,
+      22,
+      35.9,
+      32.5,
+      27,
+      47.1,
+      29.5,
+      36.4,
+      23,
+      30.1,
+      31.5
+    ]
+  },
+  "oreInventoryWeights": {
+    "軽石炭": [
+      941,
+      903,
+      1019
+    ],
+    "脆い鉛鉱石": [
+      2344,
+      684,
+      1058,
+      1500,
+      2344,
+      826,
+      994,
+      2489,
+      974,
+      2350,
+      1849,
+      1893,
+      1220,
+      663
+    ],
+    "泥混じりの鉄鉱石": [
+      2468,
+      844,
+      2488,
+      774,
+      1103
+    ],
+    "軟らかい銅鉱石": [
+      1169,
+      1068
+    ]
+  },
+  "depletedMiningPointIds": {
+    "evening_waterfall_41,43": true,
+    "evening_waterfall_41,42": true,
+    "night_kawa_70,25": true
+  },
+  "fishingTutorialCompleted": true,
   "craftTutorialRecipeName": "【レシピ】つるはし",
   "sawCraftTutorialReady": false,
   "sawCraftTutorialWorkbenchReady": false,
-  "sawCraftTutorialCompleted": false,
-  "loggingTutorialCompleted": false,
-  "miningTutorialCompleted": false,
+  "sawCraftTutorialCompleted": true,
+  "loggingTutorialCompleted": true,
+  "miningTutorialCompleted": true,
   "craftedRecipeIds": [
     "【レシピ】つるはし",
     "【レシピ】のこぎり"
   ],
-  "gatheringTutorialCompleted": false,
-  "gatheringTutorialChoice": null,
-  "kurumiIntroAskedTopics": [],
-  "kurumiIntroCompletedDay": null,
-  "openingMapTransitionCount": 0,
+  "gatheringTutorialCompleted": true,
+  "gatheringTutorialChoice": "mining",
+  "kurumiIntroAskedTopics": [
+    "village",
+    "debt",
+    "naedoko",
+    "pantsu",
+    "grandpa"
+  ],
+  "kurumiIntroCompletedDay": 1,
+  "openingMapTransitionCount": 2,
   "bathTubMaskZone": {
     "x": 1260,
     "y": 380,

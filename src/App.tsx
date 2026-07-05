@@ -155,6 +155,17 @@ const TITLE_START_SOUND_SRC = '/se/start.mp3';
 const PAYMENT_SOUND_SRC = '/se/pay.mp3';
 const CURRENT_SAVE_SCHEMA_VERSION = 2;
 const MIN_DIRECT_LOAD_SAVE_SCHEMA_VERSION = 2;
+const reportDiagnosticEvent = (
+  event: string,
+  message = '',
+  context: Record<string, unknown> = {},
+) => {
+  fetch('/api/diagnostics/log', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ event, message, context }),
+  }).catch(() => undefined);
+};
 const DEBUG_SAVE_SLOT = 5;
 const ENABLE_DEBUG_TOOLS = import.meta.env.VITE_ENABLE_DEBUG_TOOLS !== 'false';
 const MAP_ZOOM_STORAGE_KEY = 'farm_map_zoom';
@@ -673,6 +684,42 @@ type KurumiTradeReward = {
   voiceSrc: string;
 };
 
+type GoldTransactionLogEntry = {
+  id: string;
+  timestamp: string;
+  day: number;
+  timeOfDay: TimeOfDay;
+  reason: string;
+  amount: number;
+  before: number;
+  after: number;
+};
+
+const GOLD_TRANSACTION_HISTORY_LIMIT = 200;
+const GOLD_LOG_TIME_OF_DAY: readonly TimeOfDay[] = ['morning', 'day', 'evening', 'night'];
+const normalizeGoldTransactionHistory = (value: unknown): GoldTransactionLogEntry[] => (
+  Array.isArray(value)
+    ? value.filter((entry): entry is GoldTransactionLogEntry => (
+      entry !== null &&
+      typeof entry === 'object' &&
+      typeof entry.id === 'string' &&
+      typeof entry.timestamp === 'string' &&
+      typeof entry.day === 'number' &&
+      Number.isInteger(entry.day) &&
+      entry.day >= 1 &&
+      typeof entry.timeOfDay === 'string' &&
+      GOLD_LOG_TIME_OF_DAY.includes(entry.timeOfDay as TimeOfDay) &&
+      typeof entry.reason === 'string' &&
+      typeof entry.amount === 'number' &&
+      Number.isFinite(entry.amount) &&
+      typeof entry.before === 'number' &&
+      Number.isFinite(entry.before) &&
+      typeof entry.after === 'number' &&
+      Number.isFinite(entry.after)
+    )).slice(-GOLD_TRANSACTION_HISTORY_LIMIT)
+    : []
+);
+
 
 type ShopItem = {
   name: string;
@@ -798,6 +845,7 @@ type CollectionProgress = {
 };
 
 type AchievementStats = {
+  totalFishCaught: number;
   totalCraftSuccesses: number;
   totalNushiCaught: number;
   totalRareOresMined: number;
@@ -826,6 +874,7 @@ const createInitialCollectionProgress = (): CollectionProgress => ({
 });
 
 const createInitialAchievementStats = (): AchievementStats => ({
+  totalFishCaught: 0,
   totalCraftSuccesses: 0,
   totalNushiCaught: 0,
   totalRareOresMined: 0,
@@ -1954,6 +2003,17 @@ const MINING_BGM_OPTIONS = [
   { id: 'rare2', label: 'レア mining_rare_2.mp3', src: MINING_RARE_BGM_SOURCES[1] },
   { id: 'rare3', label: 'レア mining_rare_3.mp3', src: MINING_RARE_BGM_SOURCES[2] },
 ] as const;
+const DEFAULT_MINING_RHYTHM_TIMINGS: MiningRhythmTimingsByBgm = {
+  [MINING_EASY_BGM_SOURCES[0]]: [1478, 2129, 2695, 3900, 4536, 5182, 6329, 6929, 7569, 8762, 9090, 9382],
+  [MINING_EASY_BGM_SOURCES[1]]: [1175, 2015, 2450, 2870, 3696, 5392, 5825, 6245, 7116, 8832, 9260, 9675, 10602, 12238, 12675, 13100],
+  [MINING_EASY_BGM_SOURCES[2]]: [1179, 2025, 2456, 2890, 3758, 5429, 5890, 6322, 6779, 7214, 8864, 9299, 9764, 10256, 10643, 12263, 13156],
+  [MINING_HARD_BGM_SOURCES[0]]: [3143, 3698, 4675, 5393, 6006, 6351, 7319, 8010, 8684, 9051, 9998, 10673, 11706, 13015, 13741, 14451, 15201],
+  [MINING_HARD_BGM_SOURCES[1]]: [1049, 2479, 4227, 5044, 5929, 6619, 6815, 7295, 8937, 10184, 10677, 11390, 12335, 12770, 13184, 13724, 14112],
+  [MINING_HARD_BGM_SOURCES[2]]: [2304, 2948, 3881, 4591, 4800, 5095, 5296, 5769, 6630, 7522, 7991, 8692, 8941, 9141, 9824, 10515, 10772, 11010, 11647, 12308, 12797, 13247, 13715, 14183, 14407, 14680, 15106, 15539, 16020, 16696, 17131, 17573, 18053, 18464],
+  [MINING_RARE_BGM_SOURCES[0]]: [1240, 2129, 2445, 2798, 3031, 3462, 3893, 4575, 4825, 5712, 6015, 6381, 6608, 7089, 7502, 8198, 8479, 9312, 9782, 10208, 10620, 11109, 11837, 12045, 12946, 13353, 13815],
+  [MINING_RARE_BGM_SOURCES[1]]: [2420, 2906, 3968, 4970, 5482, 5955, 6712, 6956, 7445, 8001, 8698, 8967, 9448, 9942, 10723, 10955, 11217, 11457, 11968, 12672, 12898, 13419, 13895, 14415, 14674, 14937, 15139, 15442, 15898, 16416, 16937, 17436, 17693, 17953, 18217, 18476, 18975, 19433],
+  [MINING_RARE_BGM_SOURCES[2]]: [2614, 3748, 4036, 4350, 5244, 5777, 6055, 6338, 6924, 7441, 8033, 8328, 8602, 8903, 9766, 10312, 10597, 10876, 11170, 11821, 12249, 13455, 13816, 14199, 14835, 15144, 15736, 16135, 16861, 17219],
+};
 const MINING_RHYTHM_STORAGE_KEY = 'farmMiningRhythmTimings';
 const MINING_COUNTDOWN_SECONDS = 3;
 const MINING_NOTE_FALL_MS = 1600;
@@ -2077,20 +2137,23 @@ const getMiningRhythmTimingsForSource = (
 const loadMiningRhythmTimings = (): MiningRhythmTimingsByBgm => {
   try {
     const stored = window.localStorage.getItem(MINING_RHYTHM_STORAGE_KEY);
-    if (!stored) return {};
+    if (!stored) return { ...DEFAULT_MINING_RHYTHM_TIMINGS };
     const parsed = JSON.parse(stored);
     if (Array.isArray(parsed)) {
       const legacyTimings = normalizeMiningRhythmTimings(parsed);
-      return legacyTimings.length > 0 ? { [DEFAULT_MINING_BGM_SOURCE]: legacyTimings } : {};
+      return legacyTimings.length > 0
+        ? { ...DEFAULT_MINING_RHYTHM_TIMINGS, [DEFAULT_MINING_BGM_SOURCE]: legacyTimings }
+        : { ...DEFAULT_MINING_RHYTHM_TIMINGS };
     }
-    if (!parsed || typeof parsed !== 'object') return {};
-    return Object.fromEntries(
+    if (!parsed || typeof parsed !== 'object') return { ...DEFAULT_MINING_RHYTHM_TIMINGS };
+    const storedTimings = Object.fromEntries(
       Object.entries(parsed)
         .map(([src, value]) => [src, normalizeMiningRhythmTimings(value)] as const)
         .filter(([, timings]) => timings.length > 0),
     );
+    return { ...DEFAULT_MINING_RHYTHM_TIMINGS, ...storedTimings };
   } catch {
-    return {};
+    return { ...DEFAULT_MINING_RHYTHM_TIMINGS };
   }
 };
 const saveMiningRhythmTimings = (timingsByBgm: MiningRhythmTimingsByBgm) => {
@@ -2337,91 +2400,91 @@ const RECIPE_DETAILS: Record<string, { title: string; materials: string[]; steps
   },
   '【レシピ】木剣': {
     title: 'レシピ：木剣',
-    materials: ['木材（5）', 'モグラの爪（3）', 'ウサギの靭帯（2）', '柔らかな若枝（2）'],
+    materials: ['木材（5）', 'モグラの爪（2）', 'ウサギの靭帯（1）', '柔らかな若枝（2）'],
     steps: ['木材を削って扱いやすい刀身を作る。', '爪と靭帯で握りを補強し、獣に通る形へ整える。'],
     note: '獣襲撃に備える最初の護身用武器。',
   },
   '【レシピ】毛皮の服': {
     title: 'レシピ：毛皮の服',
-    materials: ['ウサギの靭帯（5）', 'しなやかな軟木（2）', '木材（3）', '柔らかな若枝（3）'],
+    materials: ['ウサギの靭帯（2）', 'しなやかな軟木（2）', '木材（3）', '柔らかな若枝（3）'],
     steps: ['軟木を薄く割って胸当ての芯を作る。', '靭帯で縫い合わせ、動きやすい防具に仕立てる。'],
     note: '序盤の獣から受ける痛手を和らげる軽い防具。',
   },
   '【レシピ】丈夫なつるはし': {
     title: 'レシピ：丈夫なつるはし',
-    materials: ['モグラの爪（10）', 'ウサギの靭帯（5）', '泥混じりの鉄鉱石（3）', '柔らかな若枝（5）'],
+    materials: ['モグラの爪（4）', 'ウサギの靭帯（2）', '泥混じりの鉄鉱石（3）', '柔らかな若枝（5）'],
     steps: ['鉄鉱石を束ねて先端を厚くする。', '若枝の柄を靭帯で締め、モグラの爪で掘削力を補強する。'],
     note: '錫鉱石や鋼鉄石を低確率で狙える中級つるはし。',
   },
   '【レシピ】丈夫なのこぎり': {
     title: 'レシピ：丈夫なのこぎり',
-    materials: ['モグラの爪（10）', 'ウサギの靭帯（5）', '軟らかい銅鉱石（3）', '柔らかな若枝（5）'],
+    materials: ['モグラの爪（4）', 'ウサギの靭帯（2）', '軟らかい銅鉱石（3）', '柔らかな若枝（5）'],
     steps: ['銅鉱石を薄く伸ばし、爪を刃として並べる。', '若枝の柄へ靭帯できつく固定する。'],
     note: 'しなやかな軟木と堅実な中木を狙える中級のこぎり。',
   },
   '【レシピ】獣殺し': {
     title: 'レシピ：獣殺し',
-    materials: ['木剣（1）', '猪の牙（5）', '猪の硬皮（2）', '良質な鉄鉱石（3）', '堅実な中木（3）'],
+    materials: ['木剣（1）', '猪の牙（3）', '猪の硬皮（1）', '良質な鉄鉱石（3）', '堅実な中木（3）'],
     steps: ['木剣を芯にして鉄鉱石で刃を重くする。', '猪の牙を刃先へ組み込み、硬皮で握りを補強する。'],
     note: 'Normal帯の熊や大牙の獣に挑むための中級武器。',
   },
   '【レシピ】剛牙の鎧': {
     title: 'レシピ：剛牙の鎧',
-    materials: ['毛皮の服（1）', '猪の硬皮（5）', '猪の牙（3）', '熊の剛糸（3）', '良質な鉄鉱石（3）'],
+    materials: ['毛皮の服（1）', '猪の硬皮（2）', '猪の牙（2）', '熊の剛糸（2）', '良質な鉄鉱石（3）'],
     steps: ['毛皮の服へ硬皮を重ね、急所を守る板を作る。', '牙と熊の剛糸で獣の衝撃に耐えるよう縫い固める。'],
     note: 'Normal後半からHard入口までの被害を抑える頼れる防具。',
   },
   '【レシピ】高級つるはし': {
     title: 'レシピ：高級つるはし',
-    materials: ['猪の牙（5）', '猪の硬皮（2）', '錫鉱石（3）', '堅実な中木（5）', 'モグラの爪（20）', 'ウサギの靭帯（10）'],
+    materials: ['猪の牙（3）', '猪の硬皮（1）', '錫鉱石（3）', '堅実な中木（5）', 'モグラの爪（5）', 'ウサギの靭帯（3）'],
     steps: ['堅実な中木を芯にして錫鉱石で先端を固める。', '猪の牙と硬皮で衝撃に強い掘削具へ仕上げる。'],
     note: '中盤以降の鉱石を安定して掘り出せる上位つるはし。',
   },
   '【レシピ】高級のこぎり': {
     title: 'レシピ：高級のこぎり',
-    materials: ['猪の牙（5）', '猪の硬皮（2）', '錫鉱石（3）', '堅実な中木（5）', 'モグラの爪（20）', 'ウサギの靭帯（10）'],
+    materials: ['猪の牙（3）', '猪の硬皮（1）', '錫鉱石（3）', '堅実な中木（5）', 'モグラの爪（5）', 'ウサギの靭帯（3）'],
     steps: ['堅実な中木でしならない柄を作る。', '錫鉱石と猪の牙を刃に組み込み、硬皮で握りを補強する。'],
     note: '不朽の鉄木と古代の神木を低確率で狙える上位のこぎり。',
   },
   '【レシピ】天の裁き': {
     title: 'レシピ：天の裁き',
-    materials: ['獣殺し（1）', '巨獣の鋼角（3）', '神獣の角（2）', '金鉱石（5）', '聖域の輝石（2）'],
-    steps: ['獣殺しの刃に鋼角を重ね、金鉱石で刃筋を通す。', '神獣の角と聖域の輝石を埋め込み、強敵へ届く一撃を宿す。'],
+    materials: ['獣殺し（1）', '巨獣の鋼角（3）', '巨獣の強剛糸（1）', '金鉱石（3）', '聖域の輝石（1）'],
+    steps: ['獣殺しの刃に鋼角を重ね、金鉱石で刃筋を通す。', '巨獣の強剛糸と聖域の輝石を組み込み、強敵へ届く一撃を宿す。'],
     note: '巨熊や山の主へ挑むための終盤向け武器。',
   },
   '【レシピ】神域の加護': {
     title: 'レシピ：神域の加護',
-    materials: ['剛牙の鎧（1）', '神獣の絹糸（5）', '聖域の結晶（2）', '伝説の雫（1）', '巨獣の強剛糸（3）'],
-    steps: ['剛牙の鎧を神獣の絹糸で縫い直す。', '聖域の結晶と伝説の雫を胸元に留め、山の主に耐える守りへ仕上げる。'],
+    materials: ['剛牙の鎧（1）', '巨獣の鋼角（2）', '巨獣の強剛糸（3）', '聖域の結晶（1）', '古代の神木（2）', '鋼鉄石（3）'],
+    steps: ['剛牙の鎧を巨獣の強剛糸で縫い直し、鋼角と鋼鉄石で補強する。', '聖域の結晶と古代の神木を組み込み、山の主に耐える守りへ仕上げる。'],
     note: '山の主へ挑む前に用意したい最終防具。',
   },
   '【レシピ】伝説のつるはし': {
     title: 'レシピ：伝説のつるはし',
-    materials: ['巨獣の鋼角（5）', '巨獣の強剛糸（2）', '鋼鉄石（5）', '古代の神木（3）', '猪の牙（10）', '猪の硬皮（5）'],
+    materials: ['巨獣の鋼角（3）', '巨獣の強剛糸（1）', '神獣の角（1）', '鋼鉄石（5）', '古代の神木（3）', '猪の牙（3）', '猪の硬皮（2）'],
     steps: ['古代の神木に鋼鉄石を打ち込み、折れない芯を作る。', '巨獣の鋼角と強剛糸で、岩盤を砕く先端へ仕上げる。'],
     note: '最上位鉱石を狙える伝説級のつるはし。',
   },
   '【レシピ】伝説ののこぎり': {
     title: 'レシピ：伝説ののこぎり',
-    materials: ['巨獣の鋼角（5）', '巨獣の強剛糸（2）', '鋼鉄石（5）', '古代の神木（3）', '猪の牙（10）', '猪の硬皮（5）'],
+    materials: ['巨獣の鋼角（3）', '巨獣の強剛糸（1）', '神獣の絹糸（1）', '鋼鉄石（5）', '古代の神木（3）', '猪の牙（3）', '猪の硬皮（2）'],
     steps: ['古代の神木を柄にして鋼鉄石で刃の土台を作る。', '巨獣の鋼角を刃先に並べ、強剛糸で締め上げる。'],
     note: '古代の神木まで安定して狙える伝説級ののこぎり。',
   },
   '【レシピ】丈夫な釣竿': {
     title: 'レシピ：丈夫な釣竿',
-    materials: ['竹の釣竿（1）', 'モグラの爪（5）', 'ウサギの靭帯（10）', '軽石炭（2）', 'しなやかな軟木（3）'],
+    materials: ['竹の釣竿（1）', 'モグラの爪（3）', 'ウサギの靭帯（3）', '軽石炭（2）', 'しなやかな軟木（3）'],
     steps: ['竹の釣竿を芯にして軟木でしなりを補強する。', '靭帯を撚って糸を作り、軽石炭で接合部を固める。'],
     note: '伐採と採掘で集めた素材を使い、竹の釣竿を中級釣竿へ強化する。',
   },
   '【レシピ】高級釣竿': {
     title: 'レシピ：高級釣竿',
-    materials: ['猪の牙（5）', '熊の剛糸（10）', '良質な鉄鉱石（5）', '堅実な中木（5）', '丈夫な釣竿（1）'],
+    materials: ['猪の牙（3）', '熊の剛糸（3）', '良質な鉄鉱石（5）', '堅実な中木（5）', '丈夫な釣竿（1）'],
     steps: ['丈夫な釣竿を芯にして中木と鉄鉱石で補強する。', '猪の牙を留め具に加工し、熊の剛糸を張る。'],
     note: '丈夫な釣竿を素材として消費する上位装備。',
   },
   '【レシピ】伝説の釣り竿': {
     title: 'レシピ：伝説の釣り竿',
-    materials: ['巨獣の鋼角（5）', '神獣の絹糸（5）', '金鉱石（5）', '不朽の鉄木（3）', '高級釣竿（1）', '熊の剛糸（20）'],
+    materials: ['巨獣の鋼角（3）', '神獣の絹糸（2）', '金鉱石（5）', '不朽の鉄木（3）', '高級釣竿（1）', '熊の剛糸（4）'],
     steps: ['高級釣竿へ鉄木と鋼角を組み込み、金鉱石で接合する。', '神獣の絹糸と熊の剛糸を重ね、折れない釣り糸に仕上げる。'],
     note: 'すべての魚を狙える最高ランクの釣竿。',
   },
@@ -2443,111 +2506,128 @@ const CRAFT_RECIPE_CONFIGS: Record<CraftRecipeId, CraftRecipeConfig> = {
   },
   '【レシピ】木剣': {
     output: '木剣',
-    materials: { '木材': 5, 'モグラの爪': 3, 'ウサギの靭帯': 2, '柔らかな若枝': 2 },
+    materials: { '木材': 5, 'モグラの爪': 2, 'ウサギの靭帯': 1, '柔らかな若枝': 2 },
     circleCountRange: [5, 7],
     circleDurationRangeMs: [1800, 2600],
     scorePerCircle: 16,
   },
   '【レシピ】毛皮の服': {
     output: '毛皮の服',
-    materials: { 'ウサギの靭帯': 5, 'しなやかな軟木': 2, '木材': 3, '柔らかな若枝': 3 },
+    materials: { 'ウサギの靭帯': 2, 'しなやかな軟木': 2, '木材': 3, '柔らかな若枝': 3 },
     circleCountRange: [5, 7],
     circleDurationRangeMs: [1800, 2600],
     scorePerCircle: 16,
   },
   '【レシピ】丈夫なつるはし': {
     output: '丈夫なつるはし',
-    materials: { 'モグラの爪': 10, 'ウサギの靭帯': 5, '泥混じりの鉄鉱石': 3, '柔らかな若枝': 5 },
+    materials: { 'モグラの爪': 4, 'ウサギの靭帯': 2, '泥混じりの鉄鉱石': 3, '柔らかな若枝': 5 },
     circleCountRange: [8, 10],
     circleDurationRangeMs: [1500, 2200],
     scorePerCircle: 12,
   },
   '【レシピ】丈夫なのこぎり': {
     output: '丈夫なのこぎり',
-    materials: { 'モグラの爪': 10, 'ウサギの靭帯': 5, '軟らかい銅鉱石': 3, '柔らかな若枝': 5 },
+    materials: { 'モグラの爪': 4, 'ウサギの靭帯': 2, '軟らかい銅鉱石': 3, '柔らかな若枝': 5 },
     circleCountRange: [8, 10],
     circleDurationRangeMs: [1500, 2200],
     scorePerCircle: 12,
   },
   '【レシピ】獣殺し': {
     output: '獣殺し',
-    materials: { '木剣': 1, '猪の牙': 5, '猪の硬皮': 2, '良質な鉄鉱石': 3, '堅実な中木': 3 },
+    materials: { '木剣': 1, '猪の牙': 3, '猪の硬皮': 1, '良質な鉄鉱石': 3, '堅実な中木': 3 },
     circleCountRange: [9, 12],
     circleDurationRangeMs: [1400, 2100],
     scorePerCircle: 11,
   },
   '【レシピ】剛牙の鎧': {
     output: '剛牙の鎧',
-    materials: { '毛皮の服': 1, '猪の硬皮': 5, '猪の牙': 3, '熊の剛糸': 3, '良質な鉄鉱石': 3 },
+    materials: { '毛皮の服': 1, '猪の硬皮': 2, '猪の牙': 2, '熊の剛糸': 2, '良質な鉄鉱石': 3 },
     circleCountRange: [9, 12],
     circleDurationRangeMs: [1400, 2100],
     scorePerCircle: 11,
   },
   '【レシピ】高級つるはし': {
     output: '高級つるはし',
-    materials: { '猪の牙': 5, '猪の硬皮': 2, '錫鉱石': 3, '堅実な中木': 5, 'モグラの爪': 20, 'ウサギの靭帯': 10 },
+    materials: { '猪の牙': 3, '猪の硬皮': 1, '錫鉱石': 3, '堅実な中木': 5, 'モグラの爪': 5, 'ウサギの靭帯': 3 },
     circleCountRange: [10, 13],
     circleDurationRangeMs: [1300, 2000],
     scorePerCircle: 10,
   },
   '【レシピ】高級のこぎり': {
     output: '高級のこぎり',
-    materials: { '猪の牙': 5, '猪の硬皮': 2, '錫鉱石': 3, '堅実な中木': 5, 'モグラの爪': 20, 'ウサギの靭帯': 10 },
+    materials: { '猪の牙': 3, '猪の硬皮': 1, '錫鉱石': 3, '堅実な中木': 5, 'モグラの爪': 5, 'ウサギの靭帯': 3 },
     circleCountRange: [10, 13],
     circleDurationRangeMs: [1300, 2000],
     scorePerCircle: 10,
   },
   '【レシピ】天の裁き': {
     output: '天の裁き',
-    materials: { '獣殺し': 1, '巨獣の鋼角': 3, '神獣の角': 2, '金鉱石': 5, '聖域の輝石': 2 },
+    materials: { '獣殺し': 1, '巨獣の鋼角': 3, '巨獣の強剛糸': 1, '金鉱石': 3, '聖域の輝石': 1 },
     circleCountRange: [12, 15],
     circleDurationRangeMs: [1100, 1800],
     scorePerCircle: 8,
   },
   '【レシピ】神域の加護': {
     output: '神域の加護',
-    materials: { '剛牙の鎧': 1, '神獣の絹糸': 5, '聖域の結晶': 2, '伝説の雫': 1, '巨獣の強剛糸': 3 },
+    materials: { '剛牙の鎧': 1, '巨獣の鋼角': 2, '巨獣の強剛糸': 3, '聖域の結晶': 1, '古代の神木': 2, '鋼鉄石': 3 },
     circleCountRange: [12, 15],
     circleDurationRangeMs: [1100, 1800],
     scorePerCircle: 8,
   },
   '【レシピ】伝説のつるはし': {
     output: '伝説のつるはし',
-    materials: { '巨獣の鋼角': 5, '巨獣の強剛糸': 2, '鋼鉄石': 5, '古代の神木': 3, '猪の牙': 10, '猪の硬皮': 5 },
+    materials: { '巨獣の鋼角': 3, '巨獣の強剛糸': 1, '神獣の角': 1, '鋼鉄石': 5, '古代の神木': 3, '猪の牙': 3, '猪の硬皮': 2 },
     circleCountRange: [12, 15],
     circleDurationRangeMs: [1100, 1800],
     scorePerCircle: 8,
   },
   '【レシピ】伝説ののこぎり': {
     output: '伝説ののこぎり',
-    materials: { '巨獣の鋼角': 5, '巨獣の強剛糸': 2, '鋼鉄石': 5, '古代の神木': 3, '猪の牙': 10, '猪の硬皮': 5 },
+    materials: { '巨獣の鋼角': 3, '巨獣の強剛糸': 1, '神獣の絹糸': 1, '鋼鉄石': 5, '古代の神木': 3, '猪の牙': 3, '猪の硬皮': 2 },
     circleCountRange: [12, 15],
     circleDurationRangeMs: [1100, 1800],
     scorePerCircle: 8,
   },
   '【レシピ】丈夫な釣竿': {
     output: '丈夫な釣竿',
-    materials: { '竹の釣竿': 1, 'モグラの爪': 5, 'ウサギの靭帯': 10, '軽石炭': 2, 'しなやかな軟木': 3 },
+    materials: { '竹の釣竿': 1, 'モグラの爪': 3, 'ウサギの靭帯': 3, '軽石炭': 2, 'しなやかな軟木': 3 },
     circleCountRange: [7, 9],
     circleDurationRangeMs: [1700, 2400],
     scorePerCircle: 13,
   },
   '【レシピ】高級釣竿': {
     output: '高級釣竿',
-    materials: { '猪の牙': 5, '熊の剛糸': 10, '良質な鉄鉱石': 5, '堅実な中木': 5, '丈夫な釣竿': 1 },
+    materials: { '猪の牙': 3, '熊の剛糸': 3, '良質な鉄鉱石': 5, '堅実な中木': 5, '丈夫な釣竿': 1 },
     circleCountRange: [9, 12],
     circleDurationRangeMs: [1400, 2100],
     scorePerCircle: 11,
   },
   '【レシピ】伝説の釣り竿': {
     output: '伝説の釣り竿',
-    materials: { '巨獣の鋼角': 5, '神獣の絹糸': 5, '金鉱石': 5, '不朽の鉄木': 3, '高級釣竿': 1, '熊の剛糸': 20 },
+    materials: { '巨獣の鋼角': 3, '神獣の絹糸': 2, '金鉱石': 5, '不朽の鉄木': 3, '高級釣竿': 1, '熊の剛糸': 4 },
     circleCountRange: [12, 15],
     circleDurationRangeMs: [1100, 1800],
     scorePerCircle: 8,
   },
 };
 const CRAFT_RECIPE_IDS = Object.keys(CRAFT_RECIPE_CONFIGS) as CraftRecipeId[];
+const CRAFT_RECIPE_MIN_DIFFICULTY: Readonly<Partial<Record<CraftRecipeId, GameDifficulty>>> = {
+  '【レシピ】木剣': 'easy',
+  '【レシピ】毛皮の服': 'easy',
+  '【レシピ】丈夫なつるはし': 'easy',
+  '【レシピ】丈夫なのこぎり': 'easy',
+  '【レシピ】丈夫な釣竿': 'easy',
+  '【レシピ】獣殺し': 'easy',
+  '【レシピ】剛牙の鎧': 'easy',
+  '【レシピ】高級つるはし': 'easy',
+  '【レシピ】高級のこぎり': 'easy',
+  '【レシピ】高級釣竿': 'easy',
+  '【レシピ】天の裁き': 'normal',
+  '【レシピ】神域の加護': 'normal',
+  '【レシピ】伝説のつるはし': 'hard',
+  '【レシピ】伝説ののこぎり': 'hard',
+  '【レシピ】伝説の釣り竿': 'hard',
+};
 const PROGRESSION_RECIPE_SHOP_ITEMS: ShopItem[] = [
   { name: '【レシピ】木剣', price: 800, stock: 1, type: '買う', category: 'レシピ', desc: '獣襲撃に備える最初の武器レシピです。' },
   { name: '【レシピ】毛皮の服', price: 900, stock: 1, type: '買う', category: 'レシピ', desc: '序盤の獣から身を守る防具レシピです。' },
@@ -2565,6 +2645,16 @@ const PROGRESSION_RECIPE_SHOP_ITEMS: ShopItem[] = [
   { name: '【レシピ】高級釣竿', price: 6000, stock: 1, type: '買う', category: 'レシピ', desc: 'ヌシや人魚の導線へ進むための上級釣竿のレシピです。' },
   { name: '【レシピ】伝説の釣り竿', price: 25000, stock: 1, type: '買う', category: 'レシピ', desc: '人魚の手がかりを追うために必要な伝説級釣竿のレシピです。' },
 ];
+const BASIC_BEAST_MATERIAL_SHOP_ITEMS: readonly ShopItem[] = [
+  { name: 'モグラの爪', price: 400, stock: 2, type: '買う', category: '基本獣素材', desc: '初級装備や採取道具に使う基本獣素材です。返済周期ごとに少量入荷します。' },
+  { name: 'ウサギの靭帯', price: 700, stock: 2, type: '買う', category: '基本獣素材', desc: '初級装備や採取道具に使う基本獣素材です。返済周期ごとに少量入荷します。' },
+  { name: '猪の牙', price: 2_500, stock: 1, type: '買う', category: '基本獣素材', desc: '中級装備に使う獣素材です。主人公の成長に合わせて少量入荷します。' },
+  { name: '猪の硬皮', price: 4_000, stock: 1, type: '買う', category: '基本獣素材', desc: '中級装備に使う獣素材です。主人公の成長に合わせて少量入荷します。' },
+  { name: '熊の剛糸', price: 6_000, stock: 1, type: '買う', category: '基本獣素材', desc: '上級装備に使う獣素材です。主人公の成長に合わせて少量入荷します。' },
+] as const;
+const BASIC_BEAST_MATERIAL_SHOP_STOCK = Object.fromEntries(
+  BASIC_BEAST_MATERIAL_SHOP_ITEMS.map(item => [item.name, item.stock]),
+) as Readonly<Record<string, number>>;
 const ITEM_MENU_CUSTOM_EFFECT_TEXT: Record<string, string> = {
   '使用済みコンドーム': 'くるみになぜか売却できる何かに使われたゴムです。一体誰が使ったんだろう？サイズが大きいほど高く買い取ってもらえます。',
   '川魚の鱗': '川魚から取れるきらめく鱗。細工や道具の補強に使え、くるみも喜んで買い取ってくれます。',
@@ -2954,12 +3044,23 @@ const getFishSizeRatio = (fish: FishZukanEntry, size: number) => {
   if (fish.sizeMax <= fish.sizeMin) return 1;
   return clampNumber((size - fish.sizeMin) / (fish.sizeMax - fish.sizeMin), 0, 1);
 };
-const isNushiSize = (fish: FishZukanEntry, size: number) => isFishBossSize(fish, size);
+const FISHING_NUSHI_EXCLUDED_FISH_IDS = new Set([
+  'pantsu',
+  'akibin',
+  'aoningyo',
+  'kiironingyo',
+  'pinkningyo',
+]);
+const canBeFishingNushi = (fish: FishZukanEntry) => !FISHING_NUSHI_EXCLUDED_FISH_IDS.has(fish.id);
+const isNushiSize = (fish: FishZukanEntry, size: number) => (
+  canBeFishingNushi(fish) && isFishBossSize(fish, size)
+);
 const getFishingBiteMultiplier = (biteCombo: number) => 1 + Math.min(1, biteCombo / FISHING_BITE_ROUNDS);
 const getFishingNushiBaseRate = () => 0.01 + Math.random() * 0.03;
 const FISHING_NUSHI_RING_RATE_MULTIPLIER = 3;
 const FISHING_NUSHI_RING_DEBUG_RATE = 0.5;
 const rollFishingNushi = (fish: FishZukanEntry, biteCombo: number, rateMultiplier = 1, debugRate: number | null = null) => {
+  if (!canBeFishingNushi(fish)) return false;
   const baseRate = debugRate ?? getFishingNushiBaseRate() * rateMultiplier;
   const finalRate = clampNumber(baseRate * getFishingBiteMultiplier(biteCombo), 0, 1);
   return Math.random() < finalRate;
@@ -2973,9 +3074,9 @@ const createFishingTargetSize = (fish: FishZukanEntry, biteScore: number, biteCo
   return Number((fish.sizeMin + (fish.sizeMax - fish.sizeMin) * sizeRatio).toFixed(1));
 };
 const INITIAL_DEBT_BY_DIFFICULTY: Readonly<Record<GameDifficulty, number>> = {
-  easy: 1_500_000,
-  normal: 10_000_000,
-  hard: 30_000_000,
+  easy: 400_000,
+  normal: 3_000_000,
+  hard: 10_000_000,
 };
 const DEFAULT_REPAYMENT_CYCLE_DAYS = 8;
 const FIRST_REPAYMENT_DUE_DAY_BY_DIFFICULTY: Readonly<Record<GameDifficulty, number>> = {
@@ -3080,10 +3181,11 @@ const SKILL_TREE_TUTORIAL_STEPS: (DebugDialogueStep & { id: SkillTreeTutorialSte
   },
 ];
 const BEAST_PREMONITION_RATE_BY_DIFFICULTY: Readonly<Record<GameDifficulty, number>> = {
-  easy: 0.12,
-  normal: 0.18,
+  easy: 0.18,
+  normal: 0.20,
   hard: 0.25,
 };
+const MOUNTAIN_LORD_ATTACK_RATE = 0.20;
 const getScheduledBeastAttackDay = (difficulty: GameDifficulty, currentDay: number) => (
   difficulty === 'easy'
     ? currentDay + 1 + Math.floor(Math.random() * 2)
@@ -3141,6 +3243,13 @@ const createRandomBeastUnits = (difficulty: GameDifficulty, allowMountainLord = 
     return [mountainLord, null, null];
   }
   return [...beasts, ...Array.from({ length: Math.max(0, 3 - beasts.length) }, () => null)];
+};
+const createStoryBeastUnits = (difficulty: GameDifficulty, heroLevel: number): (BattleUnitState | null)[] => {
+  if (difficulty === 'normal' && heroLevel >= 4 && Math.random() < 0.25) {
+    const giantBear = BEAST_BATTLE_DATA.find(beast => beast.id === 'giant_bear');
+    if (giantBear) return [createBattleUnitFromBeast(giantBear), null, null];
+  }
+  return createRandomBeastUnits(difficulty, false);
 };
 const createMountainLordUnit = (): (BattleUnitState | null)[] => {
   const mountainLord = BEAST_BATTLE_DATA.find(beast => beast.id === 'mountain_lord');
@@ -4031,6 +4140,52 @@ export default function App() {
   const [selectedAchievementIndex, setSelectedAchievementIndex] = useState(0);
   const selectedAchievementIndexRef = useRef(0);
   const [gold, setGold] = useState(5000);
+  const goldRef = useRef(5000);
+  const [goldTransactionHistory, setGoldTransactionHistory] = useState<GoldTransactionLogEntry[]>([]);
+  const changeGold = (amount: number, reason: string) => {
+    if (!Number.isFinite(amount) || amount === 0) return;
+    const before = goldRef.current;
+    const after = Math.max(0, before + Math.round(amount));
+    const actualAmount = after - before;
+    const timestamp = new Date().toISOString();
+    const entry: GoldTransactionLogEntry = {
+      id: `${timestamp}-${Math.random().toString(36).slice(2, 8)}`,
+      timestamp,
+      day: Math.floor(turn / 4) + 1,
+      timeOfDay: GOLD_LOG_TIME_OF_DAY[turn % 4] ?? 'morning',
+      reason,
+      amount: actualAmount,
+      before,
+      after,
+    };
+    goldRef.current = after;
+    setGold(after);
+    setGoldTransactionHistory(previous => [...previous, entry].slice(-GOLD_TRANSACTION_HISTORY_LIMIT));
+    reportDiagnosticEvent('gold_changed', reason, { amount: actualAmount, before, after, turn });
+  };
+  useEffect(() => {
+    goldRef.current = gold;
+  }, [gold]);
+  useEffect(() => {
+    const handleWindowError = (event: ErrorEvent) => {
+      reportDiagnosticEvent('renderer_error', event.message, {
+        filename: event.filename,
+        line: event.lineno,
+        column: event.colno,
+        stack: event.error instanceof Error ? event.error.stack : undefined,
+      });
+    };
+    const handleUnhandledRejection = (event: PromiseRejectionEvent) => {
+      const reason = event.reason instanceof Error ? event.reason : new Error(String(event.reason));
+      reportDiagnosticEvent('unhandled_rejection', reason.message, { stack: reason.stack });
+    };
+    window.addEventListener('error', handleWindowError);
+    window.addEventListener('unhandledrejection', handleUnhandledRejection);
+    return () => {
+      window.removeEventListener('error', handleWindowError);
+      window.removeEventListener('unhandledrejection', handleUnhandledRejection);
+    };
+  }, []);
   const [difficulty, setDifficulty] = useState<GameDifficulty>('hard');
   const [gameMode, setGameMode] = useState<GameMode>('story');
   const [hasUnlockedEndlessNurseryMode, setHasUnlockedEndlessNurseryMode] = useState(() => (
@@ -4038,6 +4193,8 @@ export default function App() {
   ));
   const [collectionProgress, setCollectionProgress] = useState<CollectionProgress>(createInitialCollectionProgress);
   const [achievementStats, setAchievementStats] = useState<AchievementStats>(createInitialAchievementStats);
+  const [fishingMasterRewardClaimed, setFishingMasterRewardClaimed] = useState(false);
+  const [fishingMasterRewardPopupOpen, setFishingMasterRewardPopupOpen] = useState(false);
   const [endlessStats, setEndlessStats] = useState<EndlessStats>(createInitialEndlessStats);
   const [debtAmount, setDebtAmount] = useState(() => getInitialDebtAmount('hard'));
   const [shownDebtMilestoneIds, setShownDebtMilestoneIds] = useState<DebtMilestoneId[]>([]);
@@ -4050,6 +4207,8 @@ export default function App() {
   const [repaymentEventPending, setRepaymentEventPending] = useState(false);
   const [selectedAdditionalRepayment, setSelectedAdditionalRepayment] = useState<(typeof ADDITIONAL_REPAYMENT_OPTIONS)[number]>(50_000);
   const [pendingSpecialRepayment, setPendingSpecialRepayment] = useState<{ kind: 'maximum' | 'full'; principal: number } | null>(null);
+  const repaymentDialogRef = useRef<HTMLDivElement | null>(null);
+  const specialRepaymentDialogRef = useRef<HTMLDivElement | null>(null);
   const [storyCleared, setStoryCleared] = useState(false);
   const [storyEndingVideoOpen, setStoryEndingVideoOpen] = useState(false);
   const [easyClearTitleNotice, setEasyClearTitleNotice] = useState(false);
@@ -4694,6 +4853,7 @@ export default function App() {
     })),
     { name: '【レシピ】のこぎり', price: 500, stock: 1, type: '買う', desc: 'のこぎりの作り方が書かれたレシピです。' },
     { name: '【レシピ】つるはし', price: 500, stock: 1, type: '買う', desc: 'つるはしの作り方が書かれたレシピです。' },
+    ...BASIC_BEAST_MATERIAL_SHOP_ITEMS,
     { name: '木材', price: 40, stock: 20, type: '売る', desc: '農場設備の修理にも使える素材です。' },
     { name: '川魚の鱗', price: 180, stock: 3, type: '売る', desc: '光沢のある素材。くるみが買い取ってくれます。' },
   ]);
@@ -7318,6 +7478,7 @@ export default function App() {
         collectionProgress.craftedItemIds.length,
       );
       const nushiCount = Math.max(achievementStats.totalNushiCaught, nushiCaughtFishIds.length);
+      const fishingCatchCount = achievementStats.totalFishCaught;
       const rareOreNames = ORE_DATA.filter(ore => getOreRarityTier(ore.id) !== 'normal').map(ore => ore.name);
       const rareLumberNames = LUMBER_DATA.filter(lumber => lumber.id === 'ironwood' || lumber.id === 'ancient_tree').map(lumber => lumber.name);
       const rareOreCount = Math.max(
@@ -7338,6 +7499,9 @@ export default function App() {
         { title: '娘たちの支え', description: '信頼MAXの娘を10人まで増やし、農場の絆を広げる。', done: maxTrustGirlCount >= 10, progress: `${maxTrustGirlCount} / 10` },
         { title: '全員の信頼', description: '全員の信頼度を最大まで育てきる。', done: maxTrustGirlCount >= 15, progress: `${maxTrustGirlCount} / 15` },
         { title: '釣り入門', description: '釣りで魚を1種類以上釣り上げる。', done: collectionProgress.caughtFishIds.length >= 1, progress: `${collectionProgress.caughtFishIds.length} / 1` },
+        { title: '水辺の常連', description: '魚を10匹釣り上げる。', done: fishingCatchCount >= 10, progress: `${fishingCatchCount} / 10` },
+        { title: '清流の狩人', description: '魚を30匹釣り上げる。', done: fishingCatchCount >= 30, progress: `${fishingCatchCount} / 30` },
+        { title: '川神に選ばれし者', description: '魚を60匹釣り上げ、釣神の指輪を授かる。', done: fishingCatchCount >= 60, progress: `${fishingCatchCount} / 60` },
         { title: '魚図鑑マスター', description: '釣れる魚をすべて集めて、魚図鑑を完成させる。', done: collectionProgress.caughtFishIds.length >= FISH_ZUKAN_ENTRIES.length, progress: `${collectionProgress.caughtFishIds.length} / ${FISH_ZUKAN_ENTRIES.length}` },
         { title: 'はじめてのヌシ', description: '釣り場のヌシを1匹釣り上げる。', done: nushiCount >= 1, progress: `${nushiCount} / 1` },
         { title: 'ヌシ追い人', description: 'ヌシを3匹釣り上げて、大物狙いに慣れる。', done: nushiCount >= 3, progress: `${nushiCount} / 3` },
@@ -7408,10 +7572,11 @@ export default function App() {
       { label: 'セーブ', bgImage: '/img/save.jpg', action: () => setSystemSlotMode('save') },
       { label: 'ロード', bgImage: '/img/load.jpg', action: () => setSystemSlotMode('load') },
       { label: 'タイトルへ戻る', bgImage: '/img/title.jpg', action: returnToTitle },
+      { label: '診断データ保存', bgImage: '/img/save.jpg', action: exportDiagnosticData },
     ];
 
     return (
-      <div className="grid grid-cols-3 gap-3 h-full rounded-2xl" style={menuKeyboardFocusStyle(menuFocusArea === 'content' && menuContentFocus === 'primary')}>
+	      <div className="grid grid-cols-4 gap-3 h-full rounded-2xl" style={menuKeyboardFocusStyle(menuFocusArea === 'content' && menuContentFocus === 'primary')}>
         {systemActions.map((action, index) => (
 		          <button
 		            key={action.label}
@@ -7445,14 +7610,14 @@ export default function App() {
             )}
           </button>
         ))}
-        <div style={menuPanelBaseStyle} className="col-span-3 grid grid-cols-4 gap-4">
+        <div style={menuPanelBaseStyle} className="col-span-4 grid grid-cols-4 gap-4">
           {[
             { label: 'BGM', value: bgmVolume, setValue: (value: number) => setBgmVolume(value), color: '#facc15', percentClass: 'text-yellow-200' },
             { label: 'SE', value: seVolume, setValue: (value: number) => setSeVolume(value), color: '#22c55e', percentClass: 'text-green-200' },
             { label: 'VOICE', value: voiceVolume, setValue: (value: number) => setVoiceVolume(value), color: '#3b82f6', percentClass: 'text-blue-200' },
 	          ].map(({ label, value, setValue, color, percentClass }, index) => {
 	            const percent = Math.round(value * 100);
-              const controlIndex = index + 3;
+              const controlIndex = index + 4;
 	            return (
 	              <div
                   key={label}
@@ -7478,8 +7643,8 @@ export default function App() {
             );
           })}
 	          <div
-              onMouseEnter={() => { if (selectedSystemActionIndex !== 6) playCursorSound(); setMenuFocusArea('content'); setMenuContentFocus('primary'); setSelectedSystemActionIndex(6); }}
-              className={`rounded border px-3 py-3 transition ${selectedSystemActionIndex === 6 ? 'border-white bg-[#4a310b]/70 ring-4 ring-[#ffd166]/70' : 'border-[#5a3010]/70 bg-black/25'}`}
+              onMouseEnter={() => { if (selectedSystemActionIndex !== 7) playCursorSound(); setMenuFocusArea('content'); setMenuContentFocus('primary'); setSelectedSystemActionIndex(7); }}
+              className={`rounded border px-3 py-3 transition ${selectedSystemActionIndex === 7 ? 'border-white bg-[#4a310b]/70 ring-4 ring-[#ffd166]/70' : 'border-[#5a3010]/70 bg-black/25'}`}
             >
             <div className="flex items-center justify-between gap-2">
               <div style={menuTinyLabelStyle}>テキスト表示スピード</div>
@@ -7500,8 +7665,8 @@ export default function App() {
         </div>
 	        <div
             style={menuPanelBaseStyle}
-            onMouseEnter={() => { if (selectedSystemActionIndex !== 7) playCursorSound(); setMenuFocusArea('content'); setMenuContentFocus('primary'); setSelectedSystemActionIndex(7); }}
-            className={`col-span-3 flex items-center justify-between gap-4 ${selectedSystemActionIndex === 7 ? 'ring-4 ring-[#ffd166]/70' : ''}`}
+            onMouseEnter={() => { if (selectedSystemActionIndex !== 8) playCursorSound(); setMenuFocusArea('content'); setMenuContentFocus('primary'); setSelectedSystemActionIndex(8); }}
+            className={`col-span-4 flex items-center justify-between gap-4 ${selectedSystemActionIndex === 8 ? 'ring-4 ring-[#ffd166]/70' : ''}`}
           >
           <div className="text-lg font-black text-[#fff3c4]">マップ表示</div>
           <div className="grid w-[420px] grid-cols-3 gap-2" role="group" aria-label="マップ表示倍率">
@@ -7526,7 +7691,7 @@ export default function App() {
             ))}
           </div>
         </div>
-        <div style={menuPanelBaseStyle} className="col-span-3 text-[#fdf6e3] font-bold">{systemNotice}</div>
+        <div style={menuPanelBaseStyle} className="col-span-4 text-[#fdf6e3] font-bold">{systemNotice}</div>
       </div>
     );
   };
@@ -7823,6 +7988,8 @@ export default function App() {
     (inventoryCounts['軽石炭'] ?? 0) > 0
   );
   const isProgressionRecipeUnlocked = (recipeName: string) => {
+    const minimumDifficulty = CRAFT_RECIPE_MIN_DIFFICULTY[recipeName as CraftRecipeId] ?? 'easy';
+    if (DIFFICULTY_ORDER[difficulty] < DIFFICULTY_ORDER[minimumDifficulty]) return false;
     switch (recipeName) {
       case '【レシピ】木剣':
       case '【レシピ】毛皮の服':
@@ -7995,6 +8162,16 @@ export default function App() {
   const girlSeedShopItems = [...easyGirlSeedShopItems, ...normalGirlSeedShopItems];
   const shopMarketDay = Math.floor(turn / 4) + 1;
   const shopMarketCycleIndex = getRepaymentCycleIndexForDay(shopMarketDay, difficulty, repaymentCycleDays);
+  const lastRestockedBeastMaterialCycleRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (lastRestockedBeastMaterialCycleRef.current === shopMarketCycleIndex) return;
+    lastRestockedBeastMaterialCycleRef.current = shopMarketCycleIndex;
+    setShopItems(previous => previous.map(item => (
+      item.category === '基本獣素材'
+        ? { ...item, stock: BASIC_BEAST_MATERIAL_SHOP_STOCK[item.name] ?? item.stock }
+        : item
+    )));
+  }, [shopMarketCycleIndex]);
   const currentMarketTrend = getMarketTrendForCycle(difficulty, shopMarketCycleIndex);
   const farmHarvestShopItems = baseFarmHarvestShopItems.map(item => {
     const adjustmentPercent = currentMarketTrend.boomCategory === '農作物'
@@ -8014,6 +8191,12 @@ export default function App() {
       item.type === '買う' &&
       item.stock > 0 &&
       (getBattleConsumableItem(item.name)?.unlockRepaymentCount ?? 0) <= successfulRepaymentCount &&
+      (item.category !== '基本獣素材' || (
+        item.name === 'モグラの爪' ||
+        item.name === 'ウサギの靭帯' ||
+        ((item.name === '猪の牙' || item.name === '猪の硬皮') && (heroLevel >= 2 || hasBoarProgress)) ||
+        (item.name === '熊の剛糸' && (heroLevel >= 3 || hasBearProgress))
+      )) &&
       (!isRecipeItemName(item.name) || (inventoryCounts[item.name] ?? 0) === 0)
     )),
     ...progressionRecipeShopItems,
@@ -8109,7 +8292,7 @@ export default function App() {
       });
       return next;
     });
-    setGold(previous => previous + total);
+    changeGold(total, `農場・一括出荷：${selectedItems.length}種類`);
     setKurumiTradeTotal(nextTradeTotal);
     incrementEndlessStat('totalMoneyEarned', total);
     setBulkShippingOpen(false);
@@ -8357,6 +8540,17 @@ export default function App() {
   const mapTransitionUnlockTimerRef = useRef<number | null>(null);
   
   const [isLoading, setIsLoading] = useState(false);
+  useEffect(() => {
+    if (bootMode !== 'playing' || isLoading || fishingMasterRewardClaimed || achievementStats.totalFishCaught < 60) return;
+    setFishingMasterRewardClaimed(true);
+    setInventoryCounts(previous => ({
+      ...previous,
+      [FISHING_NUSHI_RING_NAME]: (previous[FISHING_NUSHI_RING_NAME] ?? 0) + 1,
+    }));
+    setFishingMasterRewardPopupOpen(true);
+    setSystemNotice(`称号「川神に選ばれし者」を達成し、${FISHING_NUSHI_RING_NAME}を獲得しました。`);
+    setDialogMessage(`称号「川神に選ばれし者」達成！\n${FISHING_NUSHI_RING_NAME}を獲得しました。`);
+  }, [achievementStats.totalFishCaught, bootMode, fishingMasterRewardClaimed, isLoading]);
   const [zones, setZones] = useState<AnimZone[]>(defaultZones.map(ensureAnimZoneSpriteSize));
   const [selectedZoneId, setSelectedZoneId] = useState<string | null>(null);
   const times: TimeOfDay[] = ['morning', 'day', 'evening', 'night'];
@@ -8990,6 +9184,7 @@ export default function App() {
           setFishSizeUpdatedIds(prev => prev.includes(caughtFish.id) ? prev : [...prev, caughtFish.id]);
         }
         setInventoryCounts(prev => ({ ...prev, [caughtFish.name]: (prev[caughtFish.name] ?? 0) + 1 }));
+        incrementAchievementStat('totalFishCaught');
         incrementEndlessStat('totalFishCaught');
         setCollectionProgress(previous => ({
           ...previous,
@@ -9379,6 +9574,24 @@ export default function App() {
 	          ) {
 	            setTurn(data.turn);
 	          }
+	          const loadedGold = typeof data.gold === 'number' && Number.isFinite(data.gold) && data.gold >= 0
+	            ? Math.floor(data.gold)
+	            : 5000;
+	          goldRef.current = loadedGold;
+	          setGold(loadedGold);
+	          const loadedGoldTransactionHistory = normalizeGoldTransactionHistory(data.goldTransactionHistory);
+	          setGoldTransactionHistory(loadedGoldTransactionHistory.length > 0
+	            ? loadedGoldTransactionHistory
+	            : [{
+	              id: `legacy-${Date.now()}`,
+	              timestamp: new Date().toISOString(),
+	              day: Math.floor((typeof data.turn === 'number' ? data.turn : 0) / 4) + 1,
+	              timeOfDay: GOLD_LOG_TIME_OF_DAY[(typeof data.turn === 'number' ? data.turn : 0) % 4] ?? 'morning',
+	              reason: '既存セーブ読込時の基準値',
+	              amount: 0,
+	              before: loadedGold,
+	              after: loadedGold,
+	            }]);
 	          if (typeof data.currentMap === 'string' && data.currentMap in mapBackgrounds) {
 	            setCurrentMap(data.currentMap as GameMap);
 	            currentMapRef.current = data.currentMap as GameMap;
@@ -9420,11 +9633,13 @@ export default function App() {
 	          });
 	          const loadedAchievementStats = data.achievementStats as Partial<AchievementStats> | undefined;
 	          setAchievementStats({
+	            totalFishCaught: typeof loadedAchievementStats?.totalFishCaught === 'number' && loadedAchievementStats.totalFishCaught >= 0 ? Math.floor(loadedAchievementStats.totalFishCaught) : 0,
 	            totalCraftSuccesses: typeof loadedAchievementStats?.totalCraftSuccesses === 'number' && loadedAchievementStats.totalCraftSuccesses >= 0 ? Math.floor(loadedAchievementStats.totalCraftSuccesses) : 0,
 	            totalNushiCaught: typeof loadedAchievementStats?.totalNushiCaught === 'number' && loadedAchievementStats.totalNushiCaught >= 0 ? Math.floor(loadedAchievementStats.totalNushiCaught) : 0,
 	            totalRareOresMined: typeof loadedAchievementStats?.totalRareOresMined === 'number' && loadedAchievementStats.totalRareOresMined >= 0 ? Math.floor(loadedAchievementStats.totalRareOresMined) : 0,
 	            totalRareLumbersCut: typeof loadedAchievementStats?.totalRareLumbersCut === 'number' && loadedAchievementStats.totalRareLumbersCut >= 0 ? Math.floor(loadedAchievementStats.totalRareLumbersCut) : 0,
 	          });
+	          setFishingMasterRewardClaimed(data.fishingMasterRewardClaimed === true);
 	          const loadedEndlessStats = data.endlessStats as Partial<EndlessStats> | undefined;
 	          setEndlessStats({
 	            daysPlayed: typeof loadedEndlessStats?.daysPlayed === 'number' && loadedEndlessStats.daysPlayed >= 0 ? Math.floor(loadedEndlessStats.daysPlayed) : 0,
@@ -9860,7 +10075,18 @@ export default function App() {
             applyMapSettingsSnapshot(mapSettingsForNewGame);
           }
           setTurn(0);
+          goldRef.current = 5000;
           setGold(5000);
+          setGoldTransactionHistory([{
+            id: `new-game-${Date.now()}`,
+            timestamp: new Date().toISOString(),
+            day: 1,
+            timeOfDay: 'morning',
+            reason: 'ゲーム開始時の所持金',
+            amount: 5000,
+            before: 0,
+            after: 5000,
+          }]);
           setBgmVolume(DEFAULT_MASTER_VOLUME);
           setSeVolume(DEFAULT_MASTER_VOLUME);
           setVoiceVolume(DEFAULT_MASTER_VOLUME);
@@ -9883,6 +10109,7 @@ export default function App() {
           setMioSpeech(null);
           setMioSpecialEventPhase(null);
           setAchievementStats(createInitialAchievementStats());
+          setFishingMasterRewardClaimed(false);
           setEndlessStats(createInitialEndlessStats());
           setSuccessfulRepaymentCount(0);
           setMissedRepaymentCount(0);
@@ -10020,10 +10247,12 @@ export default function App() {
     saveSchemaVersion: CURRENT_SAVE_SCHEMA_VERSION,
     turn,
     gold,
+    goldTransactionHistory,
     gameMode,
     hasUnlockedEndlessNurseryMode,
     collectionProgress,
     achievementStats,
+    fishingMasterRewardClaimed,
     endlessStats,
     debt: debtAmount,
     debtAmount,
@@ -10135,6 +10364,34 @@ export default function App() {
       });
   };
 
+  const exportDiagnosticData = () => {
+    playFixSound();
+    setSystemNotice('診断データを作成しています。');
+    fetch('/api/diagnostics/export')
+      .then(response => {
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const disposition = response.headers.get('Content-Disposition') ?? '';
+        const fileName = disposition.match(/filename="([^"]+)"/)?.[1] ?? `farm-diagnostics-${Date.now()}.json`;
+        return response.blob().then(blob => ({ blob, fileName }));
+      })
+      .then(({ blob, fileName }) => {
+        const url = URL.createObjectURL(blob);
+        const anchor = document.createElement('a');
+        anchor.href = url;
+        anchor.download = fileName;
+        document.body.appendChild(anchor);
+        anchor.click();
+        anchor.remove();
+        window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+        setSystemNotice('診断データを保存しました。');
+        setDialogMessage('診断データを保存しました。\n不具合報告時にこのファイルを添付してください。');
+      })
+      .catch(error => {
+        console.error('診断データの保存に失敗しました:', error);
+        setSystemNotice('診断データの保存に失敗しました。');
+      });
+  };
+
   const saveGameToSlot = (slot: number) => {
     playFixSound();
     autoSaveBlockedSlotsRef.current.delete(slot);
@@ -10145,6 +10402,7 @@ export default function App() {
     })
       .then(res => {
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        reportDiagnosticEvent('manual_save_completed', `スロット${slot}`, { slot, turn, gold });
         setCurrentSaveSlot(slot);
         setSystemNotice(`スロット${slot}にセーブしました。`);
         setDialogMessage(`スロット${slot}にセーブしました。`);
@@ -10153,6 +10411,7 @@ export default function App() {
       })
       .catch(err => {
         console.error('手動セーブに失敗しました:', err);
+        reportDiagnosticEvent('manual_save_failed', err instanceof Error ? err.message : String(err), { slot });
         setSystemNotice('セーブに失敗しました。');
       });
   };
@@ -10188,6 +10447,7 @@ export default function App() {
     setStartingNewGame(false);
     setSystemSlotMode('none');
     setMenuOpen(false);
+    reportDiagnosticEvent('manual_load_requested', `スロット${slot}`, { slot });
     setBootMode('loadingSave');
   };
 
@@ -10308,6 +10568,8 @@ export default function App() {
     pendingDeleteSaveSlot,
     currentSaveSlot,
     turn,
+    gold,
+    goldTransactionHistory,
     currentAP,
     maxAPPerTimeSlot,
     currentMap,
@@ -10315,6 +10577,7 @@ export default function App() {
     hasUnlockedEndlessNurseryMode,
     collectionProgress,
     achievementStats,
+    fishingMasterRewardClaimed,
     endlessStats,
     debtAmount,
     repaymentCycleDays,
@@ -10764,9 +11027,11 @@ export default function App() {
 	      });
 	    }
 
-	    const affectedCandidates = difficulty === 'easy'
+	    const eligibleAffectedGirls = farmGirls.filter(girl => girl.state === 'appeared' || girl.state === 'companion' || girl.state === 'lover');
+	    const easyAffectedRate = severity === 'defeat' ? 0.5 : severity === 'escape' ? 0.3 : 0;
+	    const affectedCandidates = difficulty === 'easy' && Math.random() >= easyAffectedRate
 	      ? []
-	      : farmGirls.filter(girl => girl.state === 'appeared' || girl.state === 'companion' || girl.state === 'lover');
+	      : eligibleAffectedGirls;
 	    const affectedGirl = affectedCandidates.length > 0
 	      ? affectedCandidates[Math.floor(Math.random() * affectedCandidates.length)]
 	      : null;
@@ -10775,9 +11040,11 @@ export default function App() {
 	      ? sourceBeasts[Math.floor(Math.random() * sourceBeasts.length)]
 	      : null;
 	    const battleConditionDay = Math.floor(turn / 4) + 1;
-	    const trustLoss = severity === 'watch'
-	      ? difficulty === 'hard' ? 6 : 3
-	      : difficulty === 'hard' ? 10 : 5;
+	    const trustLoss = difficulty === 'easy'
+	      ? 3
+	      : severity === 'watch'
+	        ? difficulty === 'hard' ? 6 : 3
+	        : difficulty === 'hard' ? 10 : 5;
 
 	    if (affectedGirl) {
 	      setFarmGirls(previous => previous.map(girl => (
@@ -10811,7 +11078,7 @@ export default function App() {
 	  };
 
 	  const handleBeastAttackFight = () => {
-	    const beasts = mountainLordAttackPending ? createMountainLordUnit() : createRandomBeastUnits(difficulty, false);
+	    const beasts = mountainLordAttackPending ? createMountainLordUnit() : createStoryBeastUnits(difficulty, heroLevel);
 	    setBeastAttackPending(false);
 	    setHasBeastPremonition(false);
 	    setScheduledBeastAttackDay(null);
@@ -10821,7 +11088,7 @@ export default function App() {
 	  };
 
 	  const handleBeastAttackWatch = () => {
-	    const beasts = mountainLordAttackPending ? createMountainLordUnit() : createRandomBeastUnits(difficulty, false);
+	    const beasts = mountainLordAttackPending ? createMountainLordUnit() : createStoryBeastUnits(difficulty, heroLevel);
 	    const farmDamageLogs = applyBeastAttackDamage(beasts, 'watch');
 	    setBeastAttackPending(false);
 	    setHasBeastPremonition(false);
@@ -12359,6 +12626,7 @@ export default function App() {
       ...prev,
       [crop.harvestItemName]: (prev[crop.harvestItemName] ?? 0) + harvestAmount,
     }));
+    reportDiagnosticEvent('farm_harvested', crop.harvestItemName, { girlId, harvestAmount, turn });
     setFarmGirls(prev => prev.map(entry => (
       entry.girlId === girlId
         ? {
@@ -12886,7 +13154,7 @@ export default function App() {
       scheduledBeastAttackDay === null &&
       Math.random() < BEAST_PREMONITION_RATE_BY_DIFFICULTY[difficulty]
     ) {
-      const isMountainLordAttack = difficulty === 'hard' && Math.random() < 0.8;
+      const isMountainLordAttack = difficulty === 'hard' && Math.random() < MOUNTAIN_LORD_ATTACK_RATE;
       setHasBeastPremonition(true);
       setPremonitionDay(currentDay);
       setScheduledBeastAttackDay(getScheduledBeastAttackDay(difficulty, currentDay));
@@ -12932,7 +13200,7 @@ export default function App() {
     const nextDebt = Math.max(0, debtAmount - currentMinimumRepayment);
     playUiSound(PAYMENT_SOUND_SRC);
     const milestoneQueued = queueCrossedDebtMilestones(debtAmount, nextDebt);
-    setGold(value => value - payment);
+    changeGold(-payment, '借金・最低返済');
     setDebtAmount(nextDebt);
     setSuccessfulRepaymentCount(value => value + 1);
     if (nextDebt <= 0) {
@@ -12950,7 +13218,7 @@ export default function App() {
     const nextDebt = Math.max(0, debtAmount - principalPayment);
     playUiSound(PAYMENT_SOUND_SRC);
     const milestoneQueued = queueCrossedDebtMilestones(debtAmount, nextDebt);
-    setGold(value => value - payment);
+    changeGold(-payment, '借金・追加返済');
     setDebtAmount(nextDebt);
     setSuccessfulRepaymentCount(value => value + 1);
     if (nextDebt <= 0) {
@@ -12980,7 +13248,7 @@ export default function App() {
     playUiSound(PAYMENT_SOUND_SRC);
     const milestoneQueued = queueCrossedDebtMilestones(debtAmount, nextDebt);
     setPendingSpecialRepayment(null);
-    setGold(value => value - payment);
+    changeGold(-payment, kind === 'maximum' ? '借金・最大額返済' : '借金・全額返済');
     setDebtAmount(nextDebt);
     setSuccessfulRepaymentCount(value => value + 1);
     if (nextDebt <= 0) completeStoryByDebtRepayment(milestoneQueued);
@@ -12992,6 +13260,30 @@ export default function App() {
   };
   const handleSkipRepayment = () => {
     finishRepaymentEvent(farmCredit - 5, missedRepaymentCount + 1, '今回は返済を見送った。');
+  };
+  const handleRepaymentDialogKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    const key = event.key.toLowerCase();
+    const isPrevious = event.key === 'ArrowUp' || event.key === 'ArrowLeft' || key === 'w' || key === 'a';
+    const isNext = event.key === 'ArrowDown' || event.key === 'ArrowRight' || key === 's' || key === 'd';
+    const isDecision = event.key === 'Enter' || event.key === ' ';
+    if (!isPrevious && !isNext && !isDecision && event.key !== 'Escape') return;
+
+    event.stopPropagation();
+    if (isDecision) return;
+    event.preventDefault();
+    if (event.key === 'Escape') return;
+
+    const dialog = pendingSpecialRepayment ? specialRepaymentDialogRef.current : repaymentDialogRef.current;
+    const buttons: HTMLButtonElement[] = dialog
+      ? Array.from(dialog.querySelectorAll<HTMLButtonElement>('button:not(:disabled)'))
+      : [];
+    if (buttons.length === 0) return;
+    const currentIndex = buttons.indexOf(document.activeElement as HTMLButtonElement);
+    const nextIndex = currentIndex < 0
+      ? 0
+      : (currentIndex + (isNext ? 1 : -1) + buttons.length) % buttons.length;
+    playCursorSound();
+    buttons[nextIndex]?.focus();
   };
   const advanceToNextTimeSlot = () => {
     if (timeOfDay === 'night') {
@@ -14857,6 +15149,7 @@ export default function App() {
         return;
      }
      const config = CRAFT_RECIPE_CONFIGS[recipeName];
+     reportDiagnosticEvent('craft_started', recipeName, { turn });
      const targetCount = randomInt(config.circleCountRange[0], config.circleCountRange[1]);
      setCraftConfirmRecipeName(null);
      setRecipeDetailOpen(false);
@@ -14995,6 +15288,7 @@ export default function App() {
       rewards.forEach(({ lumber }) => {
         next[lumber.name] = (next[lumber.name] ?? 0) + 1;
       });
+      next['木材'] = (next['木材'] ?? 0) + 1;
       return next;
     });
     setLumberInventorySizes(prev => {
@@ -15011,7 +15305,8 @@ export default function App() {
     const rewardSummary = Array.from(new Set(rewards.map(({ lumber }) => lumber.name)))
       .map(name => `${name}×${rewards.filter(({ lumber }) => lumber.name === name).length}`)
       .join('、');
-    setDialogMessage(`${rewardSummary}を切り出しました！`);
+    reportDiagnosticEvent('logging_completed', `${rewardSummary}、木材×1`, { rewardCount: rewards.length + 1, turn });
+    setDialogMessage(`${rewardSummary}、木材×1を切り出しました！`);
     incrementEndlessStat('totalTreesCut');
     consumeAPForAction();
   };
@@ -15272,6 +15567,7 @@ export default function App() {
       note.judgement === null ? { ...note, judgement: 'MISS' } : note
     )));
     if (!successful || !miningMiniGamePointId || !miningPreviewOre) {
+      reportDiagnosticEvent('mining_completed', '採掘失敗', { gauge, fullCombo, turn });
       setMiningResultText('採掘失敗……岩を砕ききれなかった。');
       setDialogMessage('採掘に失敗しました。');
       return;
@@ -15282,6 +15578,7 @@ export default function App() {
 
     const rewardOre = miningPlannedReward?.ore ?? miningPreviewOre;
     const quantity = miningPlannedReward?.quantity ?? getMiningRewardQuantity(rewardOre.id, gauge);
+    reportDiagnosticEvent('mining_completed', rewardOre.name, { quantity, gauge, fullCombo, turn });
     const weightMultiplier = getMiningWeightMultiplier(gauge, fullCombo);
     const minWeightFloor = rewardOre.minWeight + (rewardOre.maxWeight - rewardOre.minWeight) * getGatheringMinFloorBonus();
     const rewardWeights = Array.from({ length: quantity }, () => (
@@ -15336,6 +15633,7 @@ export default function App() {
     }
     const pickaxe = getEquippedPickaxe(equippedItemsRef.current);
     const plannedReward = createMiningPlannedReward(pickaxe, getGatheringRareRateMultiplier());
+    reportDiagnosticEvent('mining_started', pointId, { pickaxe, turn });
     const ore = plannedReward.ore;
     const rhythmBgmSource = options.rhythmBgmSource ?? plannedReward.bgmSource;
     const useRecordedRhythm = options.useRecordedRhythm ?? (getMiningRhythmTimingsForSource(miningRhythmTimings, rhythmBgmSource).length > 0);
@@ -15448,7 +15746,7 @@ export default function App() {
         : distance <= 220
           ? 'GOOD'
           : 'BAD';
-    if (judgement === 'BAD') miningFullComboRef.current = false;
+    if (judgement !== 'PERFECT') miningFullComboRef.current = false;
     triggerMiningImpact(judgement);
     if (judgement === 'PERFECT' || judgement === 'GOOD') {
       const nextCombo = miningComboRef.current + 1;
@@ -15713,6 +16011,7 @@ export default function App() {
      }
 
      setLoggingPromptVisible(false);
+     reportDiagnosticEvent('logging_started', activeLoggingPointId, { saw: getHighestOwnedSaw(equippedItemsRef.current, inventoryCounts), turn });
      loggingPromptBlockedRef.current = true;
      setMenuOpen(false);
      menuOpenRef.current = false;
@@ -15888,6 +16187,7 @@ export default function App() {
   }, [loggingMiniGameOpen, loggingMiniGameStage, isLoggingTutorialRun, isLoggingResultInputLocked, loggingSelectedResultAction, loggingGauge, loggingProgress, loggingCombo]);
 
   const finishCraftMiniGame = (result: 'success' | 'fail') => {
+     reportDiagnosticEvent('craft_completed', craftMiniGameRecipeName ?? 'logging', { result, score: craftMiniGameScore, turn });
      setCraftMiniGameCircles([]);
      setCraftMiniGameResult(result);
      if (!craftMiniGameRecipeName) {
@@ -16076,7 +16376,7 @@ export default function App() {
      if (!window.confirm(`${sellItems.length}種類・${totalAmount}個を\n${totalPrice.toLocaleString()} Gで一括売却しますか？`)) return;
 
      playUiSound('/se/coin.mp3');
-     setGold(prev => prev + totalPrice);
+     changeGold(totalPrice, `くるみ商店・一括売却：${sellItems.length}種類`);
      setKurumiTradeTotal(prev => prev + totalPrice);
      incrementEndlessStat('totalMoneyEarned', totalPrice);
      setInventoryCounts(prev => {
@@ -16162,7 +16462,7 @@ export default function App() {
      if (isReturningKurumiPants) {
         setKurumiPantsReturned(true);
      }
-     setGold(prev => item.type === '買う' ? prev - tradePrice : prev + tradePrice);
+     changeGold(item.type === '買う' ? -tradePrice : tradePrice, `くるみ商店・${item.type}：${item.name}`);
      if (item.type === '売る') incrementEndlessStat('totalMoneyEarned', tradePrice);
      if (item.type === '買う') {
         setShopItems(prev => prev.map((shopItem, index) => (
@@ -17011,6 +17311,7 @@ export default function App() {
       mermaidUnlocked: mermaidFishingUnlocked && timeOfDay === 'night',
     });
     const sweetRange = createFishingFanSweetRange(targetFish);
+    reportDiagnosticEvent('fishing_started', targetFish.name, { rod: equippedFishingRod, timeOfDay, turn });
 
     setFishingPromptVisible(false);
     fishingPromptBlockedRef.current = true;
@@ -17059,6 +17360,7 @@ export default function App() {
   };
 
   const finishFishingMiniGame = () => {
+    reportDiagnosticEvent('fishing_closed', fishingTargetFish?.name ?? 'unknown', { result: fishingResultText, turn });
     const pendingMermaidEvent = Object.values(MERMAID_CATCH_EVENTS).find(entry => (
       entry.eventId === pendingMermaidCatchEventId
     ));
@@ -18374,6 +18676,14 @@ export default function App() {
       if (gameKeys.includes(e.key.toLowerCase()) && !isFormControlKey) {
         e.preventDefault();
       }
+      if (fishingMasterRewardPopupOpen) {
+        if (e.key === 'Enter' || e.key === ' ' || e.key === 'Escape') {
+          e.preventDefault();
+          playFixSound();
+          setFishingMasterRewardPopupOpen(false);
+        }
+        return;
+      }
       if (miningMiniGameOpen) return;
 
       if (activeZukanImage) {
@@ -19359,7 +19669,8 @@ export default function App() {
           forbiddenLandZone?.map === currentMapRef.current &&
           (canUseDebugTools
             ? debugForbiddenLandEnabled
-            : debtAmount <= getInitialDebtAmount(difficulty) * 0.25 &&
+            : difficulty === 'hard' &&
+              debtAmount <= getInitialDebtAmount(difficulty) * 0.25 &&
               collectionProgress.defeatedBeastIds.includes('mountain_lord') &&
               !collectionProgress.unlockedEventIds.includes(DARK_KING_DEFEATED_EVENT_ID))
         );
@@ -19803,32 +20114,28 @@ export default function App() {
 
 	          if (currentMenuItem.id === 'system') {
             const currentIndex = selectedSystemActionIndexRef.current;
-            const clampSystemIndex = (index: number) => Math.max(0, Math.min(7, index));
+            const clampSystemIndex = (index: number) => Math.max(0, Math.min(8, index));
             if (currentIndex === 0 && e.key === 'ArrowLeft') {
               setMenuFocusArea('nav');
               return;
             }
-            if (currentIndex === 5 && e.key === 'ArrowDown') {
-              setSelectedSystemActionIndex(6);
+            if (currentIndex === 7 && e.key === 'ArrowDown') {
+              setSelectedSystemActionIndex(8);
               return;
             }
-            if (currentIndex === 6 && e.key === 'ArrowUp') {
-              setSelectedSystemActionIndex(5);
-              return;
-            }
-            if (currentIndex === 6 && e.key === 'ArrowDown') {
+            if (currentIndex === 8 && e.key === 'ArrowUp') {
               setSelectedSystemActionIndex(7);
               return;
             }
-            if (currentIndex >= 3 && currentIndex <= 6 && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
+            if (currentIndex >= 4 && currentIndex <= 7 && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
               const delta = e.key === 'ArrowRight' ? 0.05 : -0.05;
-              if (currentIndex === 3) setBgmVolume(value => clampNumber(value + delta, 0, 1));
-              if (currentIndex === 4) setSeVolume(value => clampNumber(value + delta, 0, 1));
-              if (currentIndex === 5) setVoiceVolume(value => clampNumber(value + delta, 0, 1));
-              if (currentIndex === 6) setTextDisplaySpeedLevel(value => Math.max(1, Math.min(5, value + (e.key === 'ArrowRight' ? 1 : -1))));
+              if (currentIndex === 4) setBgmVolume(value => clampNumber(value + delta, 0, 1));
+              if (currentIndex === 5) setSeVolume(value => clampNumber(value + delta, 0, 1));
+              if (currentIndex === 6) setVoiceVolume(value => clampNumber(value + delta, 0, 1));
+              if (currentIndex === 7) setTextDisplaySpeedLevel(value => Math.max(1, Math.min(5, value + (e.key === 'ArrowRight' ? 1 : -1))));
               return;
             }
-            if (currentIndex === 7 && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
+            if (currentIndex === 8 && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
               const currentZoomIndex = Math.max(0, MAP_ZOOM_OPTIONS.findIndex(option => option.value === mapZoom));
               const nextZoomIndex = Math.max(0, Math.min(MAP_ZOOM_OPTIONS.length - 1, currentZoomIndex + (e.key === 'ArrowRight' ? 1 : -1)));
               setMapZoom(MAP_ZOOM_OPTIONS[nextZoomIndex].value);
@@ -19883,7 +20190,7 @@ export default function App() {
 	          } else if (currentMenuItem.id === 'achievement') {
 	            setSelectedAchievementIndex(prev => Math.max(0, Math.min(26, prev + moveBy)));
 	          } else if (currentMenuItem.id === 'system') {
-            setSelectedSystemActionIndex(prev => Math.max(0, Math.min(7, prev + moveBy)));
+            setSelectedSystemActionIndex(prev => Math.max(0, Math.min(8, prev + moveBy)));
           }
         } else if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault();
@@ -20083,15 +20390,15 @@ export default function App() {
               }
             }
 	          } else if (currentMenuItem.id === 'system') {
-		            const actions = ['セーブ', 'ロード', 'タイトルへ戻る'];
+		            const actions = ['セーブ', 'ロード', 'タイトルへ戻る', '診断データ保存'];
 		            const action = actions[selectedSystemActionIndexRef.current];
                 if (!action) {
-                  if (selectedSystemActionIndexRef.current >= 3 && selectedSystemActionIndexRef.current <= 5) {
+                  if (selectedSystemActionIndexRef.current >= 4 && selectedSystemActionIndexRef.current <= 6) {
                     const setters = [setBgmVolume, setSeVolume, setVoiceVolume];
-                    setters[selectedSystemActionIndexRef.current - 3](value => clampNumber(value + 0.05, 0, 1));
-                  } else if (selectedSystemActionIndexRef.current === 6) {
-                    setTextDisplaySpeedLevel(value => Math.min(5, value + 1));
+                    setters[selectedSystemActionIndexRef.current - 4](value => clampNumber(value + 0.05, 0, 1));
                   } else if (selectedSystemActionIndexRef.current === 7) {
+                    setTextDisplaySpeedLevel(value => Math.min(5, value + 1));
+                  } else if (selectedSystemActionIndexRef.current === 8) {
                     const currentZoomIndex = Math.max(0, MAP_ZOOM_OPTIONS.findIndex(option => option.value === mapZoom));
                     setMapZoom(MAP_ZOOM_OPTIONS[(currentZoomIndex + 1) % MAP_ZOOM_OPTIONS.length].value);
                   }
@@ -20103,6 +20410,8 @@ export default function App() {
 	              setSystemSlotMode('save');
 	            } else if (action === 'ロード') {
 	              setSystemSlotMode('load');
+	            } else if (action === '診断データ保存') {
+	              exportDiagnosticData();
 	            } else {
 	              returnToTitle();
 	            }
@@ -20510,32 +20819,44 @@ export default function App() {
       setIsWalking(nextIsWalking);
     };
 
-    const gameLoop = () => {
+    let previousMovementFrameTime: number | null = null;
+    const gameLoop = (frameTime: number) => {
       if (setupMode !== 'none') return; // Pause movement in setup menu
 
       if (mapTransitioningRef.current) {
+        previousMovementFrameTime = frameTime;
         updateRenderedWalking(false);
         animationFrameId = requestAnimationFrame(gameLoop);
         return;
       }
 
       if (menuOpenRef.current) {
+        previousMovementFrameTime = frameTime;
         updateRenderedWalking(false);
         animationFrameId = requestAnimationFrame(gameLoop);
         return;
       }
 
       if (movementLockedRef.current) {
+        previousMovementFrameTime = frameTime;
         updateRenderedWalking(false);
         animationFrameId = requestAnimationFrame(gameLoop);
         return;
       }
 
       if (skillTreeTutorialStep !== null) {
+        previousMovementFrameTime = frameTime;
         updateRenderedWalking(false);
         animationFrameId = requestAnimationFrame(gameLoop);
         return;
       }
+
+      const movementFrameScale = previousMovementFrameTime === null
+        ? 1
+        // 同行キャラ描画でFPSが落ちても、実時間あたりの移動速度を維持する。
+        : clampNumber((frameTime - previousMovementFrameTime) / (1000 / 60), 0, 6);
+      previousMovementFrameTime = frameTime;
+      const movementStep = SPEED * movementFrameScale;
 
       let moved = false;
       let warped = false;
@@ -20564,10 +20885,10 @@ export default function App() {
         warpReentryLockedRef.current = false;
       }
 
-      if (keys.current['ArrowUp'] || keys.current['w']) { ny -= SPEED; newDir = 'up'; moved = true; }
-      if (keys.current['ArrowDown'] || keys.current['s']) { ny += SPEED; newDir = 'down'; moved = true; }
-      if (keys.current['ArrowLeft'] || keys.current['a'] || keys.current['q']) { nx -= SPEED; newDir = 'left'; moved = true; }
-      if (keys.current['ArrowRight'] || keys.current['d'] || keys.current['e']) { nx += SPEED; newDir = 'right'; moved = true; }
+      if (keys.current['ArrowUp'] || keys.current['w']) { ny -= movementStep; newDir = 'up'; moved = true; }
+      if (keys.current['ArrowDown'] || keys.current['s']) { ny += movementStep; newDir = 'down'; moved = true; }
+      if (keys.current['ArrowLeft'] || keys.current['a'] || keys.current['q']) { nx -= movementStep; newDir = 'left'; moved = true; }
+      if (keys.current['ArrowRight'] || keys.current['d'] || keys.current['e']) { nx += movementStep; newDir = 'right'; moved = true; }
 
       // クリック移動（キー入力がないときのみ）
       if (!moved && clickTargetRef.current) {
@@ -20576,7 +20897,7 @@ export default function App() {
         const dy = target.y - currentY;
         const dist = Math.sqrt(dx * dx + dy * dy);
 
-        if (dist <= SPEED) {
+        if (dist <= movementStep) {
           // 目標に到達
           nx = target.x;
           ny = target.y;
@@ -20584,9 +20905,9 @@ export default function App() {
           setClickTargetMarker(null);
           moved = dist > 1;
         } else {
-          // 目標に向かって SPEED 分だけ移動
-          nx = currentX + (dx / dist) * SPEED;
-          ny = currentY + (dy / dist) * SPEED;
+          // 目標に向かってフレーム経過時間に応じた距離だけ移動
+          nx = currentX + (dx / dist) * movementStep;
+          ny = currentY + (dy / dist) * movementStep;
           moved = true;
         }
 
@@ -20816,7 +21137,7 @@ export default function App() {
       window.removeEventListener('keydown', handleKeyDown); window.removeEventListener('keyup', handleKeyUp);
       cancelAnimationFrame(animationFrameId);
     };
-  }, [setupMode, bedTiles, workbenchTiles, fishingTiles, activeFishingTileKeys, miningTiles, activeMiningTileKeys, depletedMiningPointIds, activeMiningPointId, loggingTiles, activeLoggingPoints, activeLoggingPointId, sleepPromptVisible, bathPromptVisible, mermaidOfferingPromptVisible, bathSequenceActive, craftPromptVisible, fishingPromptVisible, miningPromptVisible, loggingPromptVisible, confirmPromptChoice, pendingDeleteSaveSlot, pendingOverwriteSaveSlot, pendingManualOverwriteSaveSlot, activeAutoEventSpot, activeAutoEventMessage, activeAutoEventMessageIndex, activeAutoEventMessages, displayedAutoEventMessage, turn, currentAP, kurumiShopOpen, kurumiIntroOpen, kurumiIntroSelectedIndex, kurumiIntroAskedTopics, kurumiIntroCompletedDay, seedPlantTutorialOpen, seedPlantTutorialStepIndex, seedAfterPlantTutorialOpen, seedAfterPlantTutorialStepIndex, selectedShopControl, selectedShopItemIndex, checkedSellItemIndices, shopItems, gold, equipmentActionOpen, equippedItems, inventoryCounts, caughtFishIds, fishingMiniGameOpen, fishingMiniGameStage, miningMiniGameOpen, isFishingResultInputLocked, mermaidLetterNotice, fishingTutorialOpen, fishingTutorialEndingOpen, fishingTutorialEndingStepIndex, sawCraftTutorialIntroOpen, sawCraftTutorialIntroStepIndex, sawCraftTutorialReady, sawCraftTutorialShedDialogueOpen, sawCraftTutorialWorkbenchReady, gatheringTutorialCompleted, gatheringTutorialChoice, miningTutorialCompleted, selectedFishingTutorialAction, selectedFishingResultAction, recipeDetailOpen, farmGirlDetailOpen, showDialog, pendingFarmCareConfirm, farmCareConfirmChoice, farmCareUnlockNoticeAction, farmHarvestResultNotice, farmGirlRevealSpotlightId, girlEquipmentNoticeGirlId, skillTreeTutorialStep, bulkHarvestOpen, bulkHarvestConfirmOpen, bulkHarvestResults, bulkHarvestUnlockNotice, bulkShippingOpen, bulkShippingConfirmOpen, bulkShippingResults, bulkShippingUnlockNotice, bulkFarmCareOpen, bulkFarmCareConfirmOpen, bulkFarmCareUnlockNotice, bulkFarmCareResults, bootMode, timeOfDay, isOpeningWalkObjectiveActive, currentDay, nextObjective, battlePreviewOpen, battlePreviewState, battleIntroPhase, battleItemPanelOpen, battleItemSelectionStep, selectedBattleCommandIndex, selectedBattleItemIndex, selectedBattleItemTargetIndex, companionRegenCinematicOpen]);
+  }, [setupMode, bedTiles, workbenchTiles, fishingTiles, activeFishingTileKeys, miningTiles, activeMiningTileKeys, depletedMiningPointIds, activeMiningPointId, loggingTiles, activeLoggingPoints, activeLoggingPointId, sleepPromptVisible, bathPromptVisible, mermaidOfferingPromptVisible, bathSequenceActive, craftPromptVisible, fishingPromptVisible, miningPromptVisible, loggingPromptVisible, confirmPromptChoice, pendingDeleteSaveSlot, pendingOverwriteSaveSlot, pendingManualOverwriteSaveSlot, activeAutoEventSpot, activeAutoEventMessage, activeAutoEventMessageIndex, activeAutoEventMessages, displayedAutoEventMessage, turn, currentAP, kurumiShopOpen, kurumiIntroOpen, kurumiIntroSelectedIndex, kurumiIntroAskedTopics, kurumiIntroCompletedDay, seedPlantTutorialOpen, seedPlantTutorialStepIndex, seedAfterPlantTutorialOpen, seedAfterPlantTutorialStepIndex, selectedShopControl, selectedShopItemIndex, checkedSellItemIndices, shopItems, gold, equipmentActionOpen, equippedItems, inventoryCounts, caughtFishIds, fishingMiniGameOpen, fishingMiniGameStage, miningMiniGameOpen, isFishingResultInputLocked, mermaidLetterNotice, fishingTutorialOpen, fishingTutorialEndingOpen, fishingTutorialEndingStepIndex, sawCraftTutorialIntroOpen, sawCraftTutorialIntroStepIndex, sawCraftTutorialReady, sawCraftTutorialShedDialogueOpen, sawCraftTutorialWorkbenchReady, gatheringTutorialCompleted, gatheringTutorialChoice, miningTutorialCompleted, selectedFishingTutorialAction, selectedFishingResultAction, recipeDetailOpen, farmGirlDetailOpen, showDialog, pendingFarmCareConfirm, farmCareConfirmChoice, farmCareUnlockNoticeAction, farmHarvestResultNotice, farmGirlRevealSpotlightId, girlEquipmentNoticeGirlId, skillTreeTutorialStep, bulkHarvestOpen, bulkHarvestConfirmOpen, bulkHarvestResults, bulkHarvestUnlockNotice, bulkShippingOpen, bulkShippingConfirmOpen, bulkShippingResults, bulkShippingUnlockNotice, bulkFarmCareOpen, bulkFarmCareConfirmOpen, bulkFarmCareUnlockNotice, bulkFarmCareResults, fishingMasterRewardPopupOpen, bootMode, timeOfDay, isOpeningWalkObjectiveActive, currentDay, nextObjective, battlePreviewOpen, battlePreviewState, battleIntroPhase, battleItemPanelOpen, battleItemSelectionStep, selectedBattleCommandIndex, selectedBattleItemIndex, selectedBattleItemTargetIndex, companionRegenCinematicOpen]);
 
   // Zone creation states
   const [dragStart, setDragStart] = useState<{ x: number, y: number } | null>(null);
@@ -22686,7 +23007,7 @@ export default function App() {
 
            {setupMode === 'none' && forbiddenLandZone?.map === currentMap && (canUseDebugTools
              ? debugForbiddenLandEnabled
-             : debtAmount <= getInitialDebtAmount(difficulty) * 0.25 && collectionProgress.defeatedBeastIds.includes('mountain_lord') && !collectionProgress.unlockedEventIds.includes(DARK_KING_DEFEATED_EVENT_ID)) && (
+             : difficulty === 'hard' && debtAmount <= getInitialDebtAmount(difficulty) * 0.25 && collectionProgress.defeatedBeastIds.includes('mountain_lord') && !collectionProgress.unlockedEventIds.includes(DARK_KING_DEFEATED_EVENT_ID)) && (
               <button
                 type="button"
                 className="absolute z-20 flex items-end justify-center bg-transparent p-0"
@@ -25435,8 +25756,10 @@ export default function App() {
                                     <div className="text-right text-[#ffd166]">{loggingProgress}%</div>
                                     <div className="text-left text-[#cbd5e1]">獲得木材</div>
                                     <div className="text-right text-[#fdf6e3]">
-                                       {loggingRewardRows.length > 0 ? `${loggingRewardRows.reduce((sum, row) => sum + row.count, 0)}個` : 'なし'}
+                                       {loggingRewardRows.length > 0 ? `${loggingRewardRows.reduce((sum, row) => sum + row.count, 0) + 1}個` : 'なし'}
                                     </div>
+                                    <div className="text-left text-[#cbd5e1]">クラフト用</div>
+                                    <div className="text-right text-[#bbf7d0]">木材 ×1</div>
                                     <div className="text-left text-[#cbd5e1]">売却目安</div>
                                     <div className="text-right text-[#ffd166]">{loggingRewardRows.length > 0 ? `${loggingTotalSellPrice.toLocaleString()}G` : '-'}</div>
                                  </div>
@@ -25477,7 +25800,7 @@ export default function App() {
 
         {repaymentEventPending && gameMode === 'story' && (
           <div className="absolute inset-0 z-[260] flex items-center justify-center bg-black/75 px-8">
-            <div className="max-h-[94vh] w-[680px] overflow-y-auto rounded-xl border-4 border-[#ffd166] bg-[#1a100d]/96 p-7 text-[#fdf6e3] shadow-[0_24px_80px_rgba(0,0,0,0.78)]">
+            <div ref={repaymentDialogRef} role="dialog" aria-modal="true" aria-label="返済期日" onKeyDownCapture={handleRepaymentDialogKeyDown} className="max-h-[94vh] w-[680px] overflow-y-auto rounded-xl border-4 border-[#ffd166] bg-[#1a100d]/96 p-7 text-[#fdf6e3] shadow-[0_24px_80px_rgba(0,0,0,0.78)]">
               <div className="text-center text-3xl font-black text-[#ffd166]">返済期日</div>
               <div className="mt-2 text-center text-sm font-bold text-[#d7b98a]">翌朝へ進む前に、今回の返済方針を選んでください。</div>
               <div className="mt-5 grid grid-cols-2 gap-3 rounded-lg border border-[#76502c] bg-black/30 p-4 text-sm font-bold">
@@ -25490,7 +25813,7 @@ export default function App() {
                 <div className="col-span-2">返済遅延回数 <span className="float-right">{missedRepaymentCount}</span></div>
               </div>
               <div className="mt-5 grid gap-3">
-                <button type="button" onClick={handleMinimumRepayment} className="rounded-lg border-2 border-[#86efac] bg-[#14532d] px-5 py-3 text-left font-black hover:bg-[#166534]">
+                <button type="button" autoFocus onClick={handleMinimumRepayment} className="rounded-lg border-2 border-[#86efac] bg-[#14532d] px-5 py-3 text-left font-black hover:bg-[#166534] focus:outline-none focus:ring-4 focus:ring-white/70">
                   最低返済する <span className="float-right">¥{(currentMinimumRepayment + currentRepaymentInterest).toLocaleString()}</span>
                 </button>
                 <div className="rounded-lg border border-[#a78bfa]/70 bg-[#28184a]/65 p-3">
@@ -25537,7 +25860,7 @@ export default function App() {
 
         {pendingSpecialRepayment && createPortal(
           <div className="fixed inset-0 z-[10031] flex items-center justify-center bg-black/80 px-8 pointer-events-auto" role="dialog" aria-modal="true" aria-label="高額返済の確認">
-            <div className="w-[540px] max-w-full rounded-2xl border-4 border-[#ffd166] bg-[#24140f] p-7 text-center text-[#fff7dc] shadow-2xl">
+            <div ref={specialRepaymentDialogRef} onKeyDownCapture={handleRepaymentDialogKeyDown} className="w-[540px] max-w-full rounded-2xl border-4 border-[#ffd166] bg-[#24140f] p-7 text-center text-[#fff7dc] shadow-2xl">
               <div className="text-3xl font-black text-[#fff1a8]">
                 {pendingSpecialRepayment.kind === 'full' ? '借金を全額返済しますか？' : '所持金から最大額を返済しますか？'}
               </div>
@@ -29038,6 +29361,34 @@ export default function App() {
                 <button type="button" onClick={finishPrologue} className="mt-10 rounded border-2 border-[#fff1a8] bg-[#6b3b18] px-10 py-4 text-xl font-black text-[#fff7dc] transition hover:bg-[#8b4d22]">Enter</button>
               </div>
             )}
+          </div>, document.body)}
+        {fishingMasterRewardPopupOpen && createPortal(
+          <div
+            className="fixed inset-0 z-[10120] flex items-center justify-center bg-black/82 px-6 pointer-events-auto"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="fishing-master-reward-title"
+          >
+            <div className="w-full max-w-xl rounded-2xl border-4 border-[#ffd166] bg-[linear-gradient(180deg,#3f2813,#180e09)] p-8 text-center text-[#fff7dc] shadow-[0_24px_90px_rgba(0,0,0,.9),0_0_36px_rgba(255,209,102,.35)]">
+              <div className="text-lg font-black tracking-[0.24em] text-[#ffdf85]">称号獲得</div>
+              <h2 id="fishing-master-reward-title" className="mt-3 text-3xl font-black text-white">川神に選ばれし者</h2>
+              <div className="mx-auto mt-6 rounded-xl border-2 border-[#ffe7a3] bg-black/35 px-6 py-5">
+                <div className="text-sm font-black text-[#d7b98a]">達成報酬</div>
+                <div className="mt-2 text-2xl font-black text-[#ffd166]">釣神の指輪</div>
+                <div className="mt-3 text-base font-bold leading-relaxed text-[#fff7dc]">装備すると、ヌシとの遭遇率が3倍になります。</div>
+              </div>
+              <button
+                type="button"
+                autoFocus
+                onClick={() => {
+                  playFixSound();
+                  setFishingMasterRewardPopupOpen(false);
+                }}
+                className="mt-7 min-h-[56px] min-w-[180px] rounded-lg border-2 border-white bg-[#6b4b16] px-8 py-3 text-lg font-black text-white ring-4 ring-[#ffd166]/70 transition hover:bg-[#85621e] focus:outline-none focus:ring-[#fff1a8]"
+              >
+                確認　Enter
+              </button>
+            </div>
           </div>, document.body)}
         {(pendingSkillUnlockId || skillUnlockNotice || skillUnlockSparkles) && createPortal(
           <div className="fixed inset-0 z-[10020] flex items-center justify-center bg-black/65 px-6">

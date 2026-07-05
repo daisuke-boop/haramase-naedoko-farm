@@ -8,6 +8,9 @@ var __dirname = path.dirname(__filename);
 var app = express();
 var PORT = process.env.PORT || 4173;
 var SAVE_DIR = process.env.FARM_SAVE_DIR ? path.resolve(process.env.FARM_SAVE_DIR) : path.resolve(__dirname, "saves");
+var LOG_DIR = process.env.FARM_LOG_DIR ? path.resolve(process.env.FARM_LOG_DIR) : path.resolve(SAVE_DIR, "logs");
+var DIAGNOSTIC_LOG_FILE = path.resolve(LOG_DIR, "diagnostics.jsonl");
+var BUILD_VERSION = process.env.FARM_BUILD_VERSION || "0.0.0";
 var SAVE_FILE = path.resolve(SAVE_DIR, "save_data.json");
 var PREVIOUS_SAVE_FILE = path.resolve(SAVE_DIR, "save_data.previous.json");
 var AUTO_SAVE_FILE = path.resolve(SAVE_DIR, "save_data.autosave.json");
@@ -127,6 +130,46 @@ var getSaveSlot = (rawSlot) => {
 };
 var getSaveFileForSlot = (slot) => slot === AUTO_SAVE_SLOT ? AUTO_SAVE_FILE : slot === 1 ? SAVE_FILE : path.resolve(SAVE_DIR, `save_data.slot${slot}.json`);
 var getPreviousSaveFileForSlot = (slot) => slot === AUTO_SAVE_SLOT ? PREVIOUS_AUTO_SAVE_FILE : slot === 1 ? PREVIOUS_SAVE_FILE : path.resolve(SAVE_DIR, `save_data.slot${slot}.previous.json`);
+var getSecondPreviousSaveFileForSlot = (slot) => `${getSaveFileForSlot(slot)}.backup2`;
+var writeJsonAtomic = (filePath, value) => {
+  const temporaryPath = `${filePath}.${process.pid}.${Date.now()}.tmp`;
+  fs.writeFileSync(temporaryPath, JSON.stringify(value, null, 2), "utf8");
+  fs.renameSync(temporaryPath, filePath);
+};
+var appendDiagnosticLog = (event, details = {}) => {
+  if (!fs.existsSync(LOG_DIR)) fs.mkdirSync(LOG_DIR, { recursive: true });
+  const entry = {
+    timestamp: (/* @__PURE__ */ new Date()).toISOString(),
+    event,
+    buildVersion: BUILD_VERSION,
+    ...details
+  };
+  fs.appendFileSync(DIAGNOSTIC_LOG_FILE, `${JSON.stringify(entry)}
+`, "utf8");
+};
+var validateCoreSaveData = (data) => {
+  const errors = [];
+  if (typeof data.turn !== "number" || !Number.isInteger(data.turn) || data.turn < 0) errors.push("turn");
+  if (typeof data.gold !== "number" || !Number.isFinite(data.gold) || data.gold < 0) errors.push("gold");
+  if (typeof data.debtAmount !== "number" || !Number.isFinite(data.debtAmount) || data.debtAmount < 0) errors.push("debtAmount");
+  if (typeof data.currentAP !== "number" || !Number.isFinite(data.currentAP) || data.currentAP < 0) errors.push("currentAP");
+  if (!data.inventoryCounts || typeof data.inventoryCounts !== "object" || Array.isArray(data.inventoryCounts)) errors.push("inventoryCounts");
+  if (Array.isArray(data.goldTransactionHistory) && data.goldTransactionHistory.length > 0) {
+    const latest = data.goldTransactionHistory[data.goldTransactionHistory.length - 1];
+    if (!latest || typeof latest !== "object" || latest.after !== data.gold) {
+      errors.push("goldTransactionHistory");
+    }
+  }
+  return errors;
+};
+var readJsonIfExists = (filePath) => {
+  if (!fs.existsSync(filePath)) return null;
+  try {
+    return JSON.parse(fs.readFileSync(filePath, "utf8"));
+  } catch {
+    return { error: "JSON\u306E\u8AAD\u307F\u8FBC\u307F\u306B\u5931\u6557\u3057\u307E\u3057\u305F\u3002", file: path.basename(filePath) };
+  }
+};
 var createSaveSlotSummary = (slot) => {
   const saveFile = getSaveFileForSlot(slot);
   if (!fs.existsSync(saveFile)) {
@@ -169,6 +212,7 @@ app.get("/api/save", (req, res) => {
     const saveFile = getSaveFileForSlot(slot);
     if (fs.existsSync(saveFile)) {
       const data = fs.readFileSync(saveFile, "utf8");
+      appendDiagnosticLog("save_loaded", { slot, file: path.basename(saveFile) });
       res.setHeader("Content-Type", "application/json");
       return res.send(data);
     } else {
@@ -207,6 +251,9 @@ app.delete("/api/save", (req, res) => {
     if (fs.existsSync(previousSaveFile)) {
       fs.unlinkSync(previousSaveFile);
     }
+    const secondPreviousSaveFile = getSecondPreviousSaveFileForSlot(slot);
+    if (fs.existsSync(secondPreviousSaveFile)) fs.unlinkSync(secondPreviousSaveFile);
+    appendDiagnosticLog("save_deleted", { slot });
     return res.json({ success: true, slot });
   } catch (error) {
     console.error("\u30BB\u30FC\u30D6\u30C7\u30FC\u30BF\u306E\u524A\u9664\u306B\u5931\u6557\u3057\u307E\u3057\u305F:", error);
@@ -218,9 +265,15 @@ app.post("/api/save", (req, res) => {
     const slot = getSaveSlot(req.query.slot);
     const saveFile = getSaveFileForSlot(slot);
     const previousSaveFile = getPreviousSaveFileForSlot(slot);
+    const secondPreviousSaveFile = getSecondPreviousSaveFileForSlot(slot);
     const sanitizedBody = sanitizeSaveData(req.body);
     if (!fs.existsSync(SAVE_DIR)) {
       fs.mkdirSync(SAVE_DIR, { recursive: true });
+    }
+    const validationErrors = validateCoreSaveData(sanitizedBody);
+    if (validationErrors.length > 0) {
+      appendDiagnosticLog("save_rejected_invalid", { slot, fields: validationErrors });
+      return res.status(400).json({ error: `\u30BB\u30FC\u30D6\u30C7\u30FC\u30BF\u306E\u91CD\u8981\u9805\u76EE\u304C\u4E0D\u6B63\u3067\u3059: ${validationErrors.join(", ")}` });
     }
     const baselineSaveFile = fs.existsSync(MAP_SETTINGS_FILE) ? MAP_SETTINGS_FILE : fs.existsSync(saveFile) ? saveFile : fs.existsSync(previousSaveFile) ? previousSaveFile : null;
     if (baselineSaveFile) {
@@ -236,20 +289,74 @@ app.post("/api/save", (req, res) => {
       const looksLikeMapSettingsLoss = hasSuspiciousMapSettingsLoss(currentData, sanitizedBody);
       if (looksLikeInitialReset || looksLikeMapObstacleLoss || looksLikeMapSettingsLoss) {
         console.warn("\u30DE\u30C3\u30D7\u8A2D\u5B9A\u304C\u5927\u304D\u304F\u6B20\u3051\u308B\u30BB\u30FC\u30D6\u4E0A\u66F8\u304D\u3092\u62D2\u5426\u3057\u307E\u3057\u305F\u3002");
+        appendDiagnosticLog("save_rejected_map_loss", { slot });
         return res.status(409).json({ error: "\u30DE\u30C3\u30D7\u8A2D\u5B9A\u304C\u5927\u304D\u304F\u6B20\u3051\u308B\u30BB\u30FC\u30D6\u4E0A\u66F8\u304D\u3092\u62D2\u5426\u3057\u307E\u3057\u305F\u3002" });
       }
       if (fs.existsSync(saveFile)) {
+        if (fs.existsSync(previousSaveFile)) fs.copyFileSync(previousSaveFile, secondPreviousSaveFile);
         fs.copyFileSync(saveFile, previousSaveFile);
       }
     }
-    fs.writeFileSync(saveFile, JSON.stringify(sanitizedBody, null, 2), "utf8");
+    writeJsonAtomic(saveFile, sanitizedBody);
     if (hasRichMapSettings(sanitizedBody)) {
-      fs.writeFileSync(MAP_SETTINGS_FILE, JSON.stringify(extractMapSettings(sanitizedBody), null, 2), "utf8");
+      writeJsonAtomic(MAP_SETTINGS_FILE, extractMapSettings(sanitizedBody));
     }
+    appendDiagnosticLog("save_written", {
+      slot,
+      turn: sanitizedBody.turn,
+      gold: sanitizedBody.gold,
+      debtAmount: sanitizedBody.debtAmount
+    });
     return res.json({ success: true });
   } catch (error) {
     console.error("\u30BB\u30FC\u30D6\u30C7\u30FC\u30BF\u306E\u66F8\u304D\u8FBC\u307F\u306B\u5931\u6557\u3057\u307E\u3057\u305F:", error);
+    appendDiagnosticLog("save_write_error", { message: error instanceof Error ? error.message : String(error) });
     return res.status(500).json({ error: "\u30BB\u30FC\u30D6\u30C7\u30FC\u30BF\u306E\u66F8\u304D\u8FBC\u307F\u306B\u5931\u6557\u3057\u307E\u3057\u305F\u3002" });
+  }
+});
+app.post("/api/diagnostics/log", (req, res) => {
+  try {
+    const body = req.body && typeof req.body === "object" && !Array.isArray(req.body) ? req.body : {};
+    appendDiagnosticLog(typeof body.event === "string" ? body.event.slice(0, 80) : "renderer_event", {
+      level: typeof body.level === "string" ? body.level.slice(0, 20) : "info",
+      message: typeof body.message === "string" ? body.message.slice(0, 2e3) : "",
+      context: body.context && typeof body.context === "object" ? body.context : void 0
+    });
+    return res.json({ success: true });
+  } catch (error) {
+    return res.status(500).json({ error: error instanceof Error ? error.message : String(error) });
+  }
+});
+app.get("/api/diagnostics/export", (_req, res) => {
+  try {
+    const recentLogs = fs.existsSync(DIAGNOSTIC_LOG_FILE) ? fs.readFileSync(DIAGNOSTIC_LOG_FILE, "utf8").trim().split(/\r?\n/).slice(-500).map((line) => {
+      try {
+        return JSON.parse(line);
+      } catch {
+        return { raw: line };
+      }
+    }) : [];
+    const diagnostic = {
+      generatedAt: (/* @__PURE__ */ new Date()).toISOString(),
+      buildVersion: BUILD_VERSION,
+      platform: process.platform,
+      nodeVersion: process.version,
+      saves: {
+        slot1: readJsonIfExists(SAVE_FILE),
+        slot1Previous: readJsonIfExists(PREVIOUS_SAVE_FILE),
+        slot1Backup2: readJsonIfExists(getSecondPreviousSaveFileForSlot(1)),
+        autosave: readJsonIfExists(AUTO_SAVE_FILE),
+        autosavePrevious: readJsonIfExists(PREVIOUS_AUTO_SAVE_FILE)
+      },
+      recentLogs
+    };
+    appendDiagnosticLog("diagnostics_exported");
+    res.setHeader("Content-Type", "application/json; charset=utf-8");
+    res.setHeader("Content-Disposition", `attachment; filename="farm-diagnostics-${Date.now()}.json"`);
+    return res.send(JSON.stringify(diagnostic, null, 2));
+  } catch (error) {
+    console.error("\u8A3A\u65AD\u30C7\u30FC\u30BF\u306E\u51FA\u529B\u306B\u5931\u6557\u3057\u307E\u3057\u305F:", error);
+    return res.status(500).json({ error: "\u8A3A\u65AD\u30C7\u30FC\u30BF\u306E\u51FA\u529B\u306B\u5931\u6557\u3057\u307E\u3057\u305F\u3002" });
   }
 });
 var distPath = path.resolve(__dirname, "dist");

@@ -14,7 +14,8 @@
     "start": "node server.js",
     "lint": "tsc --noEmit",
     "codex:summary": "node scripts/codex-summary.mjs",
-    "codex:error": "node scripts/codex-error-summary.mjs"
+    "codex:error": "node scripts/codex-error-summary.mjs",
+    "balance:sim": "tsx scripts/balance-simulator.ts"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",

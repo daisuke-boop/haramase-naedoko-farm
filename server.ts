@@ -12,6 +12,11 @@ const PORT = process.env.PORT || 4173;
 const SAVE_DIR = process.env.FARM_SAVE_DIR
   ? path.resolve(process.env.FARM_SAVE_DIR)
   : path.resolve(__dirname, 'saves');
+const LOG_DIR = process.env.FARM_LOG_DIR
+  ? path.resolve(process.env.FARM_LOG_DIR)
+  : path.resolve(SAVE_DIR, 'logs');
+const DIAGNOSTIC_LOG_FILE = path.resolve(LOG_DIR, 'diagnostics.jsonl');
+const BUILD_VERSION = process.env.FARM_BUILD_VERSION || '0.0.0';
 const SAVE_FILE = path.resolve(SAVE_DIR, 'save_data.json');
 const PREVIOUS_SAVE_FILE = path.resolve(SAVE_DIR, 'save_data.previous.json');
 const AUTO_SAVE_FILE = path.resolve(SAVE_DIR, 'save_data.autosave.json');
@@ -182,6 +187,50 @@ const getPreviousSaveFileForSlot = (slot: number) => (
   slot === AUTO_SAVE_SLOT ? PREVIOUS_AUTO_SAVE_FILE : slot === 1 ? PREVIOUS_SAVE_FILE : path.resolve(SAVE_DIR, `save_data.slot${slot}.previous.json`)
 );
 
+const getSecondPreviousSaveFileForSlot = (slot: number) => `${getSaveFileForSlot(slot)}.backup2`;
+
+const writeJsonAtomic = (filePath: string, value: unknown) => {
+  const temporaryPath = `${filePath}.${process.pid}.${Date.now()}.tmp`;
+  fs.writeFileSync(temporaryPath, JSON.stringify(value, null, 2), 'utf8');
+  fs.renameSync(temporaryPath, filePath);
+};
+
+const appendDiagnosticLog = (event: string, details: Record<string, unknown> = {}) => {
+  if (!fs.existsSync(LOG_DIR)) fs.mkdirSync(LOG_DIR, { recursive: true });
+  const entry = {
+    timestamp: new Date().toISOString(),
+    event,
+    buildVersion: BUILD_VERSION,
+    ...details,
+  };
+  fs.appendFileSync(DIAGNOSTIC_LOG_FILE, `${JSON.stringify(entry)}\n`, 'utf8');
+};
+
+const validateCoreSaveData = (data: Record<string, unknown>) => {
+  const errors: string[] = [];
+  if (typeof data.turn !== 'number' || !Number.isInteger(data.turn) || data.turn < 0) errors.push('turn');
+  if (typeof data.gold !== 'number' || !Number.isFinite(data.gold) || data.gold < 0) errors.push('gold');
+  if (typeof data.debtAmount !== 'number' || !Number.isFinite(data.debtAmount) || data.debtAmount < 0) errors.push('debtAmount');
+  if (typeof data.currentAP !== 'number' || !Number.isFinite(data.currentAP) || data.currentAP < 0) errors.push('currentAP');
+  if (!data.inventoryCounts || typeof data.inventoryCounts !== 'object' || Array.isArray(data.inventoryCounts)) errors.push('inventoryCounts');
+  if (Array.isArray(data.goldTransactionHistory) && data.goldTransactionHistory.length > 0) {
+    const latest = data.goldTransactionHistory[data.goldTransactionHistory.length - 1];
+    if (!latest || typeof latest !== 'object' || (latest as Record<string, unknown>).after !== data.gold) {
+      errors.push('goldTransactionHistory');
+    }
+  }
+  return errors;
+};
+
+const readJsonIfExists = (filePath: string) => {
+  if (!fs.existsSync(filePath)) return null;
+  try {
+    return JSON.parse(fs.readFileSync(filePath, 'utf8'));
+  } catch {
+    return { error: 'JSONの読み込みに失敗しました。', file: path.basename(filePath) };
+  }
+};
+
 const createSaveSlotSummary = (slot: number) => {
   const saveFile = getSaveFileForSlot(slot);
   if (!fs.existsSync(saveFile)) {
@@ -235,6 +284,7 @@ app.get('/api/save', (req, res) => {
     const saveFile = getSaveFileForSlot(slot);
     if (fs.existsSync(saveFile)) {
       const data = fs.readFileSync(saveFile, 'utf8');
+      appendDiagnosticLog('save_loaded', { slot, file: path.basename(saveFile) });
       res.setHeader('Content-Type', 'application/json');
       return res.send(data);
     } else {
@@ -277,6 +327,10 @@ app.delete('/api/save', (req, res) => {
     if (fs.existsSync(previousSaveFile)) {
       fs.unlinkSync(previousSaveFile);
     }
+    const secondPreviousSaveFile = getSecondPreviousSaveFileForSlot(slot);
+    if (fs.existsSync(secondPreviousSaveFile)) fs.unlinkSync(secondPreviousSaveFile);
+
+    appendDiagnosticLog('save_deleted', { slot });
 
     return res.json({ success: true, slot });
   } catch (error) {
@@ -291,10 +345,17 @@ app.post('/api/save', (req, res) => {
     const slot = getSaveSlot(req.query.slot);
     const saveFile = getSaveFileForSlot(slot);
     const previousSaveFile = getPreviousSaveFileForSlot(slot);
+    const secondPreviousSaveFile = getSecondPreviousSaveFileForSlot(slot);
     const sanitizedBody = sanitizeSaveData(req.body);
 
     if (!fs.existsSync(SAVE_DIR)) {
       fs.mkdirSync(SAVE_DIR, { recursive: true });
+    }
+
+    const validationErrors = validateCoreSaveData(sanitizedBody);
+    if (validationErrors.length > 0) {
+      appendDiagnosticLog('save_rejected_invalid', { slot, fields: validationErrors });
+      return res.status(400).json({ error: `セーブデータの重要項目が不正です: ${validationErrors.join(', ')}` });
     }
 
     const baselineSaveFile = fs.existsSync(MAP_SETTINGS_FILE)
@@ -325,22 +386,78 @@ app.post('/api/save', (req, res) => {
 
       if (looksLikeInitialReset || looksLikeMapObstacleLoss || looksLikeMapSettingsLoss) {
         console.warn('マップ設定が大きく欠けるセーブ上書きを拒否しました。');
+        appendDiagnosticLog('save_rejected_map_loss', { slot });
         return res.status(409).json({ error: 'マップ設定が大きく欠けるセーブ上書きを拒否しました。' });
       }
 
       if (fs.existsSync(saveFile)) {
+        if (fs.existsSync(previousSaveFile)) fs.copyFileSync(previousSaveFile, secondPreviousSaveFile);
         fs.copyFileSync(saveFile, previousSaveFile);
       }
     }
 
-    fs.writeFileSync(saveFile, JSON.stringify(sanitizedBody, null, 2), 'utf8');
+    writeJsonAtomic(saveFile, sanitizedBody);
     if (hasRichMapSettings(sanitizedBody)) {
-      fs.writeFileSync(MAP_SETTINGS_FILE, JSON.stringify(extractMapSettings(sanitizedBody), null, 2), 'utf8');
+      writeJsonAtomic(MAP_SETTINGS_FILE, extractMapSettings(sanitizedBody));
     }
+    appendDiagnosticLog('save_written', {
+      slot,
+      turn: sanitizedBody.turn,
+      gold: sanitizedBody.gold,
+      debtAmount: sanitizedBody.debtAmount,
+    });
     return res.json({ success: true });
   } catch (error) {
     console.error('セーブデータの書き込みに失敗しました:', error);
+    appendDiagnosticLog('save_write_error', { message: error instanceof Error ? error.message : String(error) });
     return res.status(500).json({ error: 'セーブデータの書き込みに失敗しました。' });
+  }
+});
+
+app.post('/api/diagnostics/log', (req, res) => {
+  try {
+    const body = req.body && typeof req.body === 'object' && !Array.isArray(req.body)
+      ? req.body as Record<string, unknown>
+      : {};
+    appendDiagnosticLog(typeof body.event === 'string' ? body.event.slice(0, 80) : 'renderer_event', {
+      level: typeof body.level === 'string' ? body.level.slice(0, 20) : 'info',
+      message: typeof body.message === 'string' ? body.message.slice(0, 2000) : '',
+      context: body.context && typeof body.context === 'object' ? body.context : undefined,
+    });
+    return res.json({ success: true });
+  } catch (error) {
+    return res.status(500).json({ error: error instanceof Error ? error.message : String(error) });
+  }
+});
+
+app.get('/api/diagnostics/export', (_req, res) => {
+  try {
+    const recentLogs = fs.existsSync(DIAGNOSTIC_LOG_FILE)
+      ? fs.readFileSync(DIAGNOSTIC_LOG_FILE, 'utf8').trim().split(/\r?\n/).slice(-500).map(line => {
+        try { return JSON.parse(line); } catch { return { raw: line }; }
+      })
+      : [];
+    const diagnostic = {
+      generatedAt: new Date().toISOString(),
+      buildVersion: BUILD_VERSION,
+      platform: process.platform,
+      nodeVersion: process.version,
+      saves: {
+        slot1: readJsonIfExists(SAVE_FILE),
+        slot1Previous: readJsonIfExists(PREVIOUS_SAVE_FILE),
+        slot1Backup2: readJsonIfExists(getSecondPreviousSaveFileForSlot(1)),
+        autosave: readJsonIfExists(AUTO_SAVE_FILE),
+        autosavePrevious: readJsonIfExists(PREVIOUS_AUTO_SAVE_FILE),
+      },
+      recentLogs,
+    };
+    appendDiagnosticLog('diagnostics_exported');
+    res.setHeader('Content-Type', 'application/json; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="farm-diagnostics-${Date.now()}.json"`);
+    return res.send(JSON.stringify(diagnostic, null, 2));
+  } catch (error) {
+    console.error('診断データの出力に失敗しました:', error);
+    return res.status(500).json({ error: '診断データの出力に失敗しました。' });
   }
 });
 

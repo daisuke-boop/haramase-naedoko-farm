@@ -92,12 +92,12 @@ export const HERO_BATTLE_STATS_BY_LEVEL: Readonly<Record<HeroBattleLevel, HeroBa
 };
 
 export const BEAST_BATTLE_DATA: readonly BeastBattleData[] = [
-  { id: 'mole', name: 'モグラ', hp: 42, attack: 7, defense: 1, speed: 4, difficulty: 'easy' },
-  { id: 'rabbit', name: 'ウサギ', hp: 55, attack: 9, defense: 2, speed: 8, difficulty: 'easy' },
-  { id: 'monkey', name: '猿', hp: 78, attack: 12, defense: 4, speed: 10, difficulty: 'easy' },
-  { id: 'boar', name: '猪', hp: 90, attack: 14, defense: 5, speed: 8, difficulty: 'normal' },
-  { id: 'bear', name: '熊', hp: 140, attack: 19, defense: 8, speed: 6, difficulty: 'normal' },
-  { id: 'great_fang_beast', name: '大牙の獣', hp: 190, attack: 24, defense: 11, speed: 9, difficulty: 'normal' },
+  { id: 'mole', name: 'モグラ', hp: 65, attack: 11, defense: 2, speed: 4, difficulty: 'easy' },
+  { id: 'rabbit', name: 'ウサギ', hp: 80, attack: 13, defense: 3, speed: 8, difficulty: 'easy' },
+  { id: 'monkey', name: '猿', hp: 110, attack: 16, defense: 5, speed: 10, difficulty: 'easy' },
+  { id: 'boar', name: '猪', hp: 135, attack: 20, defense: 7, speed: 8, difficulty: 'normal' },
+  { id: 'bear', name: '熊', hp: 190, attack: 27, defense: 10, speed: 6, difficulty: 'normal' },
+  { id: 'great_fang_beast', name: '大牙の獣', hp: 270, attack: 33, defense: 14, speed: 9, difficulty: 'normal' },
   { id: 'giant_bear', name: '巨熊', hp: 340, attack: 38, defense: 17, speed: 7, difficulty: 'hard' },
   { id: 'mountain_lord', name: '山の主', hp: 680, attack: 58, defense: 34, speed: 12, difficulty: 'hard' },
 ] as const;
