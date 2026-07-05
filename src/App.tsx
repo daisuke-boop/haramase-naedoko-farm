@@ -1536,7 +1536,7 @@ const CHIBIICHI_TRUST_50_EVENT_SCENES = [
 const CHIBIICHI_TRUST_100_EVENT_SCENES = [
   { mediaType: 'image', mediaSrc: '/img/100/chibiichi006.jpg', voiceSrc: '/voice/chibiichi100a.wav', message: 'ユウ…とっても恥ずかしいんだけど....私のぜんぶ....見てほしい…' },
   { mediaType: 'image', mediaSrc: '/img/100/chibiichi007.jpg', voiceSrc: '/voice/chibiichi100b.wav', message: '入ってきた…はぁんっ！ 熱くて、あたしの中、いっぱいになってる…あんっ…はぁっ、はぁっ......' },
-  { mediaType: 'video', mediaSrc: '/img/100/chibiichi008.mp4', voiceSrc: '/voice/chibiichi100c.wav', message: 'あっ、あっ、あんっ！ そこっ、そこぉ！ゆっくり...こするだけにして...あたし初めてだから... んんんっ！ はぁはぁ、気持ちいい…あっ、あっ、あんっ！ そこ、いいっ！' },
+  { mediaType: 'video', mediaSrc: '/img/100/chibiichi008.mp4', voiceSrc: '/voice/chibiichi100c.wav', message: 'あっ、あっ、あんっ！ そこっ、そこぉ！ゆっくり...こするだけにして...あたし初めてだから... んんんっ！\nはぁ、はぁ、気持ちいい…あっ、あっ、あんっ！ そこ、いいっ！' },
   { mediaType: 'image', mediaSrc: '/img/100/chibiichi009.jpg', voiceSrc: '/voice/chibiichi100d.wav', message: 'あぁぁぁっ！ 出てる、ユウ君のが...出てるよぉ…♡ んんんっ、あぁぁぁっ！はぁはぁはぁ♡ お腹、熱い…♡' },
   { mediaType: 'image', mediaSrc: '/img/100/chibiichi010.jpg', voiceSrc: '/voice/chibiichi100e.wav', message: 'はぁ…はぁ……ユウ、大好き…次は…ね♪' },
 ] as const;
@@ -1595,7 +1595,7 @@ const CARO_TRUST_50_EVENT_SCENES = [
   { mediaType: 'image', mediaSrc: '/img/50/kyaro005.jpg', voiceSrc: '/voice/kyaro50e.wav', message: 'よぉーしっ！今日は、ここまでっ！つ・づ・き・はっ。また今度ねー♪' },
 ] as const;
 const CARO_TRUST_100_EVENT_SCENES = [
-  { mediaType: 'image', mediaSrc: '/img/100/kyaro006.jpg', voiceSrc: '/voice/kyaro100a.wav', message: 'ユウ君！おねがいっ！一本無駄にしちゃうけど、にんじんを私のおまんこに挿れて欲しい......なんだかにんじん見てたらムラムラしちゃって...' },
+  { mediaType: 'image', mediaSrc: '/img/100/kyaro006.jpg', voiceSrc: '/voice/kyaro100a.wav', message: 'ユウ君！おねがいっ！一本無駄にしちゃうけど、\nにんじんを私のおまんこに挿れて欲しい......なんだかにんじん見てたらムラムラしちゃって...' },
   { mediaType: 'image', mediaSrc: '/img/100/kyaro007.jpg', voiceSrc: '/voice/kyaro100b.wav', message: 'あっ、ああぁっ！ああーーっ！ユウ君、すごい、すごいっっ！ニンジンが全部入っちゃぅー！' },
   { mediaType: 'video', mediaSrc: '/img/100/kyaro008.mp4', message: 'ああぁーー！なんか、なんか......おしっこじゃないの......ユウ君ー！止まらないぃいいーー！ああーっ！' },
   { mediaType: 'video', mediaSrc: '/img/100/kyaro009.mp4', message: 'はぁ、はぁっ....ふぅ...さっきは取り乱しちゃってごめんね...今度はユウ君と一緒に気持ちよくなりたい...後ろから挿れて♡' },
@@ -1607,13 +1607,13 @@ const SAFFY_TRUST_50_EVENT_SCENES = [
   { mediaType: 'image', mediaSrc: '/img/50/safi001.jpg', voiceSrc: '/voice/safi50a.wav', message: 'ユウ様っ！見てください、綺麗なサフランがたくさん咲きましたっ！本当にありがとうございます♪サフィ嬉しい......' },
   { mediaType: 'image', mediaSrc: '/img/50/safi002.jpg', voiceSrc: '/voice/safi50b.wav', message: 'ユウ様っ、お礼にサフィからキスのプレゼントですっ。ユウ様とずっとこうしていたい......' },
   { mediaType: 'image', mediaSrc: '/img/50/safi003.jpg', voiceSrc: '/voice/safi50c.wav', message: 'んっ、はんっ......ユウ様...大好きですっ...サフィ...とろけてしまいそう......' },
-  { mediaType: 'image', mediaSrc: '/img/50/safi004.jpg', voiceSrc: '/voice/safi50d.wav', message: 'ほらっ！見てくださいっ！サフランがこんなにいっぱいっ♪あ、ユウ様、私...下を履いていないのであまり足をあげないでほしいです。恥ずかしい......' },
+  { mediaType: 'image', mediaSrc: '/img/50/safi004.jpg', voiceSrc: '/voice/safi50d.wav', message: 'ほらっ！見てくださいっ！サフランがこんなにいっぱいっ♪\nあ、ユウ様、私...下を履いていないのであまり足をあげないでほしいです。恥ずかしい......' },
   { mediaType: 'image', mediaSrc: '/img/50/safi005.jpg', voiceSrc: '/voice/safi50e.wav', message: 'もっともっとユウ様のお役に立てるように...サフィ頑張りますので！一緒にサフラン育てていきましょうねっ♡' },
 ] as const;
 const SAFFY_TRUST_100_EVENT_SCENES = [
   { mediaType: 'video', mediaSrc: '/img/100/safi006.mp4', message: 'ユウ様、今日はもっともっと気持ちいいことしましょう！ユウ様もそっちの方は得意なんでしょ？もうおっぱい触ってるし...うふふっ♪' },
   { mediaType: 'image', mediaSrc: '/img/100/safi007.jpg', voiceSrc: '/voice/safi100a.wav', message: 'やんっ！だからぁ.....パンティ履いてないんですから...私のおまんこが見えちゃうじゃないですかー、ユウ様のえっちぃー！' },
-  { mediaType: 'image', mediaSrc: '/img/100/safi008.jpg', voiceSrc: '/voice/safi100b.wav', message: 'あんっ、もうっ！ユウ様せっかちなんですからぁ....でも、サフィのおまんこの準備はいつでも出来てますよ...あん、くちゅくちゅ言ってる...' },
+  { mediaType: 'image', mediaSrc: '/img/100/safi008.jpg', voiceSrc: '/voice/safi100b.wav', message: 'あんっ、もうっ！ユウ様せっかちなんですからぁ....\nでも、サフィのおまんこの準備はいつでも出来てますよ...あん、くちゅくちゅ言ってる...' },
   { mediaType: 'video', mediaSrc: '/img/100/safi009.mp4', message: 'あんっ、ユウ様...すごい太い...奥まで届いちゃう♡あんっ、あっ、あっ、あん...サフィ、エッチな声が出ちゃう...' },
   { mediaType: 'image', mediaSrc: '/img/100/safi010.jpg', voiceSrc: '/voice/safi100c.wav', message: 'はぁっ、はぁっ、ふぅ......ユウ様と繋がれてサフィとっても幸せです。このままずっとこうしていたい......' },
 ] as const;
@@ -1624,12 +1624,12 @@ const THETA_TRUST_50_EVENT_SCENES = [
   { mediaType: 'image', mediaSrc: '/img/50/shita002.jpg', voiceSrc: '/voice/shita50b.wav', message: 'ユウ...ウチのことどうおもてる？好き？...好きやとうれしいなぁ...ウチはユウのこと大好きやねん...' },
   { mediaType: 'image', mediaSrc: '/img/50/shita003.jpg', voiceSrc: '/voice/shita50c.wav', message: 'ウチのこと全部見てもらいたいねん....産まれたままの姿でこうやってくっつくと...ウチとっても安心するねん...' },
   { mediaType: 'image', mediaSrc: '/img/50/shita004.jpg', voiceSrc: '/voice/shita50d.wav', message: 'ん...うんっ....あっ...はぁ、はぁっ...ユウ...キス上手やねぇ...ウチどんどんユウのこと好きになってまうわ......' },
-  { mediaType: 'video', mediaSrc: '/img/50/shita50.mp4', message: 'しいたけをこうやって...ウチのおまんこに挿れて......あんっ、あっ、ユウ...それ、上下逆やねん...まぁ...ええか...ん、気持ちいい...あんっ...♡' },
+  { mediaType: 'video', mediaSrc: '/img/50/shita50.mp4', message: 'しいたけをこうやって...ウチのおまんこに挿れて......あんっ、あっ、ユウ...それ、上下逆やねん...\nまぁ...ええか...ん、気持ちいい...あんっ...♡' },
 ] as const;
 const THETA_TRUST_100_EVENT_SCENES = [
   { mediaType: 'image', mediaSrc: '/img/100/shita006.jpg', voiceSrc: '/voice/shita100a.wav', message: 'ウチ...逝きやすいからユウの手で気持ちよくさせてほしいねん...ああっ、あんっ、はぁっ、はぁっ、ん、上手やねん...ユウ...あんっ♡' },
   { mediaType: 'image', mediaSrc: '/img/100/shita007.jpg', voiceSrc: '/voice/shita100b.wav', message: '今度はユウも一緒に...ねっ♡後ろからウチのことガンガン突いてほしいねん！ああんっ、あっ、やん...はぁっはぁっ...やんっ♡' },
-  { mediaType: 'image', mediaSrc: '/img/100/shita008.jpg', voiceSrc: '/voice/shita100c.wav', message: 'ユウ...ここならこっそりエッチできんねん...いっぱい突いて欲しいねん...ああんっあんっあ...そこ...奥に当たってる...気もちぃい....あんっ' },
+  { mediaType: 'image', mediaSrc: '/img/100/shita008.jpg', voiceSrc: '/voice/shita100c.wav', message: 'ユウ...ここならこっそりエッチできんねん...いっぱい突いて欲しいねん...\nああんっあんっあ...そこ...奥に当たってる...気もちぃい....あんっ' },
   { mediaType: 'video', mediaSrc: '/img/100/shita009.mp4', message: 'こっそりするのもええけど...みんなの前でエッチするとめっちゃ興奮するねん...あんっ、気持ちいい...ウチ変かなぁ...ああーんっ♡' },
   { mediaType: 'image', mediaSrc: '/img/100/shita010.jpg', voiceSrc: '/voice/shita100e.wav', message: 'はぁ、はぁっ...ユウ......大好きっ！また、いっぱいしよっ♡' },
 ] as const;
@@ -1643,7 +1643,7 @@ const SHIRO_TRUST_50_EVENT_SCENES = [
   { mediaType: 'image', mediaSrc: '/img/50/shiro005.jpg', voiceSrc: '/voice/shiro50e.wav', message: '今度は、もっともっとユウの事教えてくださいねっ！楽しみにしてますわね♪' },
 ] as const;
 const SHIRO_TRUST_100_EVENT_SCENES = [
-  { mediaType: 'image', mediaSrc: '/img/100/shiro006.jpg', voiceSrc: '/voice/shiro100a.wav', message: 'ユウ...私ちょっとあそこが疼いてしまって...指でおまんこ掻き回してくださる？ああーん、あっ、あっ、上手ですわ！はぁん...あっ...♡' },
+  { mediaType: 'image', mediaSrc: '/img/100/shiro006.jpg', voiceSrc: '/voice/shiro100a.wav', message: 'ユウ...私ちょっとあそこが疼いてしまって...指でおまんこ掻き回してくださる？\nああーん、あっ、あっ、上手ですわ！はぁん...あっ...♡' },
   { mediaType: 'image', mediaSrc: '/img/100/shiro007.jpg', voiceSrc: '/voice/shiro100b.wav', message: 'あっ、ああああーーーっっ！！おしっこみたいなのも出てきちゃって...とっても恥ずかしいですぅ...ああっん、とまらないぃー...' },
   { mediaType: 'image', mediaSrc: '/img/100/shiro008.jpg', voiceSrc: '/voice/shiro100c.wav', message: '今度は後ろから...こんなエッチな格好...恥ずかしい...でも、んっあんっんっ...ユウとっても上手ですわ...あんっ♡' },
   { mediaType: 'video', mediaSrc: '/img/100/shiro009.mp4', message: '今度は私が上になる番っ！こんな開放感のある畑でユウとエッチできるなんて私幸せですっ、あんっあんっあっ...♡' },
@@ -1659,7 +1659,7 @@ const NAZUNA_TRUST_50_EVENT_SCENES = [
 ] as const;
 const NAZUNA_TRUST_100_EVENT_SCENES = [
   { mediaType: 'image', mediaSrc: '/img/100/nazuna006.jpg', voiceSrc: '/voice/nazuna100a.wav', message: 'わーっ！すごいユウ君！私を軽々持ち上げるなんてっ！うふふっ。今日はナスを使ってちょっとユウ君にして欲しいことがあるんです♡ ' },
-  { mediaType: 'image', mediaSrc: '/img/100/nazuna007.jpg', voiceSrc: '/voice/nazuna100b.wav', message: 'ああんっ...ナスが入ってきちゃう...ナズナのおまんこにナスが入っちゃう〜！ああーんっ...でもナスの棘のない方を入れて欲しかったなぁ〜ああーん！' },
+  { mediaType: 'image', mediaSrc: '/img/100/nazuna007.jpg', voiceSrc: '/voice/nazuna100b.wav', message: 'ああんっ...ナスが入ってきちゃう...ナズナのおまんこにナスが入っちゃう〜！\nああーんっ...でもナスの棘のない方を入れて欲しかったなぁ〜ああーん！' },
   { mediaType: 'image', mediaSrc: '/img/100/nazuna008.jpg', voiceSrc: '/voice/nazuna100c.wav', message: '棘がおまんこにちょっと刺さっちゃったみたいだからユウ君ぬいてぇ〜！ああんっ...何か出ちゃう！あんっ潮吹いちゃうぅ〜！ああーんっ！' },
   { mediaType: 'video', mediaSrc: '/img/100/nazuna009.mp4', message: '私、もう我慢できないっ！ユウ君...おちんちんをナズナのおまんこに突っ込んでぇ〜！ああーんっあんっあんっ、あっ......' },
   { mediaType: 'image', mediaSrc: '/img/100/nazuna010.jpg', voiceSrc: '/voice/nazuna100e.wav', message: '今度は後ろからぁあっ...ユウ君...すっごい上手ぅ〜！なずなの感じるところ全部わかってるみたい！ああーーんっあんっ、あっ......' },
@@ -1677,7 +1677,7 @@ const PAN_TRUST_100_EVENT_SCENES = [
   { mediaType: 'image', mediaSrc: '/img/100/pan006.jpg', voiceSrc: '/voice/pan100a.wav', message: 'ほら〜、ユウ君...私のおまんこ見て...どう？私綺麗...かな？ユウ君にもっともっと見て欲しい...' },
   { mediaType: 'image', mediaSrc: '/img/100/pan007.jpg', voiceSrc: '/voice/pan100b.wav', message: 'んっ、んっ、ユウ君の舌...ちょうだい♡ユウ君ともっともーっといっぱいキスしたい...な...' },
   { mediaType: 'image', mediaSrc: '/img/100/pan008.jpg', voiceSrc: '/voice/pan100c.wav', message: 'ふわぁあーーっ！！なんか、いっぱい出てきちゃうぅー！ユウ君、とっても上手なのね...ああぁーーんっ！また逝っちゃぅうーっ！' },
-  { mediaType: 'video', mediaSrc: '/img/100/pan009.mp4', message: 'あんっあん、ああーん、やんっ♡はっ、はっ♡ん、ん、あんっ、やっ♡くちゅくちゅ言ってる...私のおまんこがくちゅくちゅ言ってるぅうー...ああぁーん♡' },
+  { mediaType: 'video', mediaSrc: '/img/100/pan009.mp4', message: 'あんっあん、ああーん、やんっ♡はっ、はっ♡ん、ん、あんっ、やっ♡\nくちゅくちゅ言ってる...私のおまんこがくちゅくちゅ言ってるぅうー...ああぁーん♡' },
   { mediaType: 'image', mediaSrc: '/img/100/pan010.jpg', voiceSrc: '/voice/pan100e.wav', message: 'はぁっ、はぁっ、はぁ...ふぅ...ユウ君...今日はいっぱい繋がったね♡今後はもっともっと私を犯してね...' },
 ] as const;
 const PUTI_TRUST_50_EVENT_ID = 'puti_trust_50';
@@ -1702,12 +1702,12 @@ const MEL_TRUST_50_EVENT_SCENES = [
   { mediaType: 'image', mediaSrc: '/img/50/mel002.jpg', voiceSrc: '/voice/mel50b.wav', message: 'ほらっ！ひとつどうぞっ♪このメロンはこの辺りで一番糖度が高そうですよぉ〜！味わってみてくださいねっ♡' },
   { mediaType: 'image', mediaSrc: '/img/50/mel003.jpg', voiceSrc: '/voice/mel50c.wav', message: 'きゃっ！ユウ君...いつの間にエプロン脱がせちゃったんですか？...もう...ユウ君はエッチなんだからぁ....' },
   { mediaType: 'video', mediaSrc: '/img/50/mel004.mp4', message: 'なんか、変わった模様のメロンもできちゃってますよぉ〜。ユウ君、毎日いろんなお世話してるから新しい品種もできたのかなぁ...' },
-  { mediaType: 'image', mediaSrc: '/img/50/mel005.jpg', voiceSrc: '/voice/mel50e.wav', message: 'やんっ！またぁっ...そんなにメルのおっぱいみたいんですか〜？もうっ、ユウ君だけですよぉ。ちょっとだけなら...触ってみてもいいですからね♡' },
+  { mediaType: 'image', mediaSrc: '/img/50/mel005.jpg', voiceSrc: '/voice/mel50e.wav', message: 'やんっ！またぁっ...そんなにメルのおっぱいみたいんですか〜？\nもうっ、ユウ君だけですよぉ。ちょっとだけなら...触ってみてもいいですからね♡' },
 ] as const;
 const MEL_TRUST_100_EVENT_SCENES = [
   { mediaType: 'image', mediaSrc: '/img/100/mel006.jpg', voiceSrc: '/voice/mel100a.wav', message: '全部......脱いじゃいましたね...ユウ君...メルのあそこにも興味があるんですか？' },
   { mediaType: 'image', mediaSrc: '/img/100/mel007.jpg', voiceSrc: '/voice/mel100b.wav', message: '二人でこうやって裸で抱き合うと...あったかくて...心が落ち着きます...メルと...エッチなことしたい...ですか？♡' },
-  { mediaType: 'video', mediaSrc: '/img/100/mel008.mp4', message: 'あっ、ユウ君、おちんちんが...メルのあそこに入ってますぅ...ユウ君...優しく動いてください...あん...はぁん...はぅう...あん♡' },
+  { mediaType: 'video', mediaSrc: '/img/100/mel008.mp4', message: 'あっ、ユウ君、おちんちんが...メルのあそこに入ってますぅ...\nユウ君...優しく動いてください...あん...はぁん...はぅう...あん♡' },
   { mediaType: 'image', mediaSrc: '/img/100/mel009.jpg', voiceSrc: '/voice/mel100d.wav', message: 'ユウ...君...とっても気持ちよかったです...今度はもっと...激しく...して...ください♡' },
 ] as const;
 const MOMONA_TRUST_50_EVENT_ID = 'momona_trust_50';
@@ -1753,7 +1753,7 @@ const ROMA_TRUST_50_EVENT_SCENES = [
 ] as const;
 const ROMA_TRUST_100_EVENT_SCENES = [
   { mediaType: 'image', mediaSrc: '/img/100/roma006.jpg', voiceSrc: '/voice/roma100a.wav', message: 'ユウ君、ほら...恥ずかしいけど...みて...ください...もうこんなにエッチなお汁が出てしまってます♡' },
-  { mediaType: 'image', mediaSrc: '/img/100/roma007.jpg', voiceSrc: '/voice/roma100b.wav', message: '私のおまんこに...ロマネスコ入れて欲しいです...ああーん、それ...ユウ君、違う...ブロッコリーですぅ...でも気持ちいぃ♡あんっ♡ああーん♡' },
+  { mediaType: 'image', mediaSrc: '/img/100/roma007.jpg', voiceSrc: '/voice/roma100b.wav', message: '私のおまんこに...ロマネスコ入れて欲しいです...ああーん、\nそれ...ユウ君、違う...ブロッコリーですぅ...でも気持ちいぃ♡あんっ♡ああーん♡' },
   { mediaType: 'image', mediaSrc: '/img/100/roma008.jpg', voiceSrc: '/voice/roma100c.wav', message: '今度はユウ君と一緒に気持ちよくなりたいです...ユウ君のおちんちんを私のおまんこの中いっぱいにしてくださいっ♡' },
   { mediaType: 'video', mediaSrc: '/img/100/roma009.mp4', message: 'あんっ、あんっ、あっ、あんっ、あっ、ふぅっ、あ、ああーん、あっ♡そこっ、そこが気持ちいいです...ああーん♪だめぇ〜！' },
   { mediaType: 'image', mediaSrc: '/img/100/roma010.jpg', voiceSrc: '/voice/roma100e.wav', message: 'はぁ、はぁ、はぁ、ん...ユウ君。なんだかわたくし、ユウ君の虜になったみたいですわ...今夜はもっとめちゃくちゃにしてください...♡' },
@@ -1781,7 +1781,7 @@ const YELLOW_MERMAID_EVENT_SCENES = [
 const PINK_MERMAID_EVENT_SCENES = [
   { mediaType: 'image', mediaSrc: '/img/100/momo01.jpg', voiceSrc: '/voice/momo01.wav', message: '人間に釣られちゃった！じゃ、さっそく♪んっ、んっ、あんっ、人間とキス...しちゃった！' },
   { mediaType: 'image', mediaSrc: '/img/100/momo03.jpg', voiceSrc: '/voice/momo03.wav', message: 'もっといっぱいっ！んっ、ん、んっ、あん、なんだかおっぱいがむずむずしてきちゃった♡' },
-  { mediaType: 'image', mediaSrc: '/img/100/momo04.jpg', voiceSrc: '/voice/momo04.wav', message: 'おちんちんも、こーんなにおっきいんだぁ！おっぱいも触ってほしいなぁ〜！あんっ、んっ、こんなに気持ちいいんだぁ。人間いいなぁー！じゃあ、そろそろ帰らなきゃ。またね♡' },
+  { mediaType: 'image', mediaSrc: '/img/100/momo04.jpg', voiceSrc: '/voice/momo04.wav', message: 'おちんちんも、こーんなにおっきいんだぁ！\nおっぱいも触ってほしいなぁ〜！あんっ、んっ、こんなに気持ちいいんだぁ。\n人間いいなぁー！じゃあ、そろそろ帰らなきゃ。またね♡' },
 ] as const;
 const MERMAID_CATCH_EVENTS: Readonly<Record<string, { eventId: string; name: string }>> = {
   aoningyo: { eventId: BLUE_MERMAID_EVENT_ID, name: '青い人魚' },

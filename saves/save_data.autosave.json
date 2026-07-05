@@ -1,6 +1,6 @@
 {
   "saveSchemaVersion": 2,
-  "turn": 39,
+  "turn": 37,
   "gold": 5000,
   "gameMode": "story",
   "hasUnlockedEndlessNurseryMode": false,
@@ -48,11 +48,7 @@
       "roma_trust_100",
       "saffy_trust_50",
       "saffy_trust_100",
-      "farm_god_all_girls_trust_100",
-      "dark_king_defeated",
-      "mio_cat_follow_unlocked",
-      "mermaid_letter_hint",
-      "mermaid_scale_offering"
+      "farm_god_all_girls_trust_100"
     ],
     "viewedEventIds": [],
     "defeatedBeastIds": []
@@ -473,7 +469,7 @@
   "kurumiPantsReturned": true,
   "kurumiTentFinalAvailableDay": null,
   "kurumiTentFinalCompleted": false,
-  "mermaidScaleOfferingDay": 10,
+  "mermaidScaleOfferingDay": null,
   "mioSleepCount": 0,
   "seedAfterPlantTutorialCompleted": false,
   "farmFieldSlots": [
@@ -523,7 +519,7 @@
   "currentAP": 4,
   "maxAPPerTimeSlot": 5,
   "difficulty": "hard",
-  "currentMap": "doukutsu",
+  "currentMap": "farm",
   "zones": [
     {
       "id": "1781485855659",
@@ -45599,8 +45595,8 @@
     "プティのドラゴンフルーツ（デバッグ用）": 1,
     "ロマのロマネスコ（デバッグ用）": 1,
     "サフィのサフラン（デバッグ用）": 1,
-    "人魚の鱗": 0,
-    "サケ": 0
+    "人魚の鱗": 5,
+    "サケ": 3
   },
   "equippedItems": {
     "主人公-slot1": "天の裁き（デバッグ用）",
