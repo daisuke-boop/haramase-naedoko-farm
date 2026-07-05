@@ -1206,6 +1206,15 @@ const BATTLE_BEAST_SPRITE_SOURCES: Readonly<Record<string, string>> = {
   giant_bear: '/img/battle/teki-kyoguma.png',
   mountain_lord: '/img/battle/teki-yamanonushi.png',
 };
+const BEAST_ZUKAN_ENTRIES = [
+  ...BEAST_BATTLE_DATA.map(beast => ({
+    id: beast.id,
+    name: beast.name,
+    imageSrc: BATTLE_BEAST_SPRITE_SOURCES[beast.id],
+    isSpriteSheet: true,
+  })),
+  { id: 'dark_king', name: '闇王', imageSrc: '/img/yamiou3.png', isSpriteSheet: false },
+] as const;
 const BATTLE_GIRL_SPRITE_SOURCES: Readonly<Record<string, string>> = {
   chibiichi: '/img/battle/battle2d-ibiichi.png',
   mel: '/img/battle/battle2d-mel.png',
@@ -1453,9 +1462,11 @@ const KURUMI_TENT_MESSAGES: Readonly<Record<number, string>> = {
   5: '何か声が聞こえる...',
 };
 const getKurumiTentMessage = (stars: number) => KURUMI_TENT_MESSAGES[Math.min(5, Math.max(0, stars))] ?? 'zzz...';
-const getKurumiTentMapMessage = (stars: number) => stars === 3
-  ? '少し明かりが動いている...'
-  : getKurumiTentMessage(stars);
+const getKurumiTentMapMessage = (stars: number, finalEventAvailable = false) => finalEventAvailable
+  ? '♡'
+  : stars === 3
+    ? '少し明かりが動いている...'
+    : getKurumiTentMessage(stars);
 const KURUMI_TENT_FINAL_EVENT_VIDEO_ID = 'video_kurumi_sleep_4';
 const KURUMI_TENT_FINAL_EVENT_MESSAGE = 'いつものようにテントの中をこっそり覗いていると、くるみに見つかってしまった！';
 const KURUMI_TENT_FINAL_EVENT_LINE = 'ユウくん、今日はテントで一緒に寝よ？';
@@ -1606,6 +1617,177 @@ const SAFFY_TRUST_100_EVENT_SCENES = [
   { mediaType: 'video', mediaSrc: '/img/100/safi009.mp4', message: 'あんっ、ユウ様...すごい太い...奥まで届いちゃう♡あんっ、あっ、あっ、あん...サフィ、エッチな声が出ちゃう...' },
   { mediaType: 'image', mediaSrc: '/img/100/safi010.jpg', voiceSrc: '/voice/safi100c.wav', message: 'はぁっ、はぁっ、ふぅ......ユウ様と繋がれてサフィとっても幸せです。このままずっとこうしていたい......' },
 ] as const;
+const THETA_TRUST_50_EVENT_ID = 'theta_trust_50';
+const THETA_TRUST_100_EVENT_ID = 'theta_trust_100';
+const THETA_TRUST_50_EVENT_SCENES = [
+  { mediaType: 'image', mediaSrc: '/img/50/shita001.jpg', voiceSrc: '/voice/shita50a.wav', message: '今日もいっぱいしいたけが獲れたねん...ユウがこんなに立派に農園を育ててくれてウチうれしいねん...' },
+  { mediaType: 'image', mediaSrc: '/img/50/shita002.jpg', voiceSrc: '/voice/shita50b.wav', message: 'ユウ...ウチのことどうおもてる？好き？...好きやとうれしいなぁ...ウチはユウのこと大好きやねん...' },
+  { mediaType: 'image', mediaSrc: '/img/50/shita003.jpg', voiceSrc: '/voice/shita50c.wav', message: 'ウチのこと全部見てもらいたいねん....産まれたままの姿でこうやってくっつくと...ウチとっても安心するねん...' },
+  { mediaType: 'image', mediaSrc: '/img/50/shita004.jpg', voiceSrc: '/voice/shita50d.wav', message: 'ん...うんっ....あっ...はぁ、はぁっ...ユウ...キス上手やねぇ...ウチどんどんユウのこと好きになってまうわ......' },
+  { mediaType: 'video', mediaSrc: '/img/50/shita50.mp4', message: 'しいたけをこうやって...ウチのおまんこに挿れて......あんっ、あっ、ユウ...それ、上下逆やねん...まぁ...ええか...ん、気持ちいい...あんっ...♡' },
+] as const;
+const THETA_TRUST_100_EVENT_SCENES = [
+  { mediaType: 'image', mediaSrc: '/img/100/shita006.jpg', voiceSrc: '/voice/shita100a.wav', message: 'ウチ...逝きやすいからユウの手で気持ちよくさせてほしいねん...ああっ、あんっ、はぁっ、はぁっ、ん、上手やねん...ユウ...あんっ♡' },
+  { mediaType: 'image', mediaSrc: '/img/100/shita007.jpg', voiceSrc: '/voice/shita100b.wav', message: '今度はユウも一緒に...ねっ♡後ろからウチのことガンガン突いてほしいねん！ああんっ、あっ、やん...はぁっはぁっ...やんっ♡' },
+  { mediaType: 'image', mediaSrc: '/img/100/shita008.jpg', voiceSrc: '/voice/shita100c.wav', message: 'ユウ...ここならこっそりエッチできんねん...いっぱい突いて欲しいねん...ああんっあんっあ...そこ...奥に当たってる...気もちぃい....あんっ' },
+  { mediaType: 'video', mediaSrc: '/img/100/shita009.mp4', message: 'こっそりするのもええけど...みんなの前でエッチするとめっちゃ興奮するねん...あんっ、気持ちいい...ウチ変かなぁ...ああーんっ♡' },
+  { mediaType: 'image', mediaSrc: '/img/100/shita010.jpg', voiceSrc: '/voice/shita100e.wav', message: 'はぁ、はぁっ...ユウ......大好きっ！また、いっぱいしよっ♡' },
+] as const;
+const SHIRO_TRUST_50_EVENT_ID = 'shiro_trust_50';
+const SHIRO_TRUST_100_EVENT_ID = 'shiro_trust_100';
+const SHIRO_TRUST_50_EVENT_SCENES = [
+  { mediaType: 'image', mediaSrc: '/img/50/shiro001.jpg', voiceSrc: '/voice/shiro50a.wav', message: 'こうやって頑張って育てた大根が大きくなるのを見てると嬉しいですわねっ！' },
+  { mediaType: 'video', mediaSrc: '/img/50/shiro002.mp4', message: '今日もいっぱい手伝ってくれたユウにご褒美ですわ！私のおっぱい触っていいですわよっ！' },
+  { mediaType: 'image', mediaSrc: '/img/50/shiro003.jpg', voiceSrc: '/voice/shiro50c.wav', message: 'ユウと、もっともっと親密になれたら畑で育つ大根ももっと大きく美味しくなると思いますわ♪' },
+  { mediaType: 'image', mediaSrc: '/img/50/shiro004.jpg', voiceSrc: '/voice/shiro50d.wav', message: 'んっ...ちゅっ...ユウの味...とっても美味しいですわ...これが大根を美味しくしてる秘訣なんですね...' },
+  { mediaType: 'image', mediaSrc: '/img/50/shiro005.jpg', voiceSrc: '/voice/shiro50e.wav', message: '今度は、もっともっとユウの事教えてくださいねっ！楽しみにしてますわね♪' },
+] as const;
+const SHIRO_TRUST_100_EVENT_SCENES = [
+  { mediaType: 'image', mediaSrc: '/img/100/shiro006.jpg', voiceSrc: '/voice/shiro100a.wav', message: 'ユウ...私ちょっとあそこが疼いてしまって...指でおまんこ掻き回してくださる？ああーん、あっ、あっ、上手ですわ！はぁん...あっ...♡' },
+  { mediaType: 'image', mediaSrc: '/img/100/shiro007.jpg', voiceSrc: '/voice/shiro100b.wav', message: 'あっ、ああああーーーっっ！！おしっこみたいなのも出てきちゃって...とっても恥ずかしいですぅ...ああっん、とまらないぃー...' },
+  { mediaType: 'image', mediaSrc: '/img/100/shiro008.jpg', voiceSrc: '/voice/shiro100c.wav', message: '今度は後ろから...こんなエッチな格好...恥ずかしい...でも、んっあんっんっ...ユウとっても上手ですわ...あんっ♡' },
+  { mediaType: 'video', mediaSrc: '/img/100/shiro009.mp4', message: '今度は私が上になる番っ！こんな開放感のある畑でユウとエッチできるなんて私幸せですっ、あんっあんっあっ...♡' },
+] as const;
+const NAZUNA_TRUST_50_EVENT_ID = 'nazuna_trust_50';
+const NAZUNA_TRUST_100_EVENT_ID = 'nazuna_trust_100';
+const NAZUNA_TRUST_50_EVENT_SCENES = [
+  { mediaType: 'image', mediaSrc: '/img/50/nazuna001.jpg', voiceSrc: '/voice/nazuna50a.wav', message: 'ユウ君！なすは新鮮なほど棘が鋭いんですよ♪ナスを触る時は気をつけてくださいねっ♪' },
+  { mediaType: 'image', mediaSrc: '/img/50/nazuna002.jpg', voiceSrc: '/voice/nazuna50b.wav', message: 'ほらっ、ユウ君...なずなのみずみずしいキスはいかがですか〜？' },
+  { mediaType: 'image', mediaSrc: '/img/50/nazuna003.jpg', voiceSrc: '/voice/nazuna50c.wav', message: '私のおっぱい大きいでしょう？すっごく柔らかいんですよ〜♪いっぱい触っていいですよ〜♡やさしくねっ♪' },
+  { mediaType: 'video', mediaSrc: '/img/50/nazuna004.mp4', message: 'あんっ、エプロンのサイズがちょっと小さいみたい...乳首が見えちゃいます〜！ユウ君はエッチですねぇ〜♡' },
+  { mediaType: 'image', mediaSrc: '/img/50/nazuna005.jpg', voiceSrc: '/voice/nazuna50e.wav', message: 'ちゅっ...あ...ユウ君をこうやって抱っこしてるとなんだか私...幸せな気分になっちゃいます♪あんっ....' },
+] as const;
+const NAZUNA_TRUST_100_EVENT_SCENES = [
+  { mediaType: 'image', mediaSrc: '/img/100/nazuna006.jpg', voiceSrc: '/voice/nazuna100a.wav', message: 'わーっ！すごいユウ君！私を軽々持ち上げるなんてっ！うふふっ。今日はナスを使ってちょっとユウ君にして欲しいことがあるんです♡ ' },
+  { mediaType: 'image', mediaSrc: '/img/100/nazuna007.jpg', voiceSrc: '/voice/nazuna100b.wav', message: 'ああんっ...ナスが入ってきちゃう...ナズナのおまんこにナスが入っちゃう〜！ああーんっ...でもナスの棘のない方を入れて欲しかったなぁ〜ああーん！' },
+  { mediaType: 'image', mediaSrc: '/img/100/nazuna008.jpg', voiceSrc: '/voice/nazuna100c.wav', message: '棘がおまんこにちょっと刺さっちゃったみたいだからユウ君ぬいてぇ〜！ああんっ...何か出ちゃう！あんっ潮吹いちゃうぅ〜！ああーんっ！' },
+  { mediaType: 'video', mediaSrc: '/img/100/nazuna009.mp4', message: '私、もう我慢できないっ！ユウ君...おちんちんをナズナのおまんこに突っ込んでぇ〜！ああーんっあんっあんっ、あっ......' },
+  { mediaType: 'image', mediaSrc: '/img/100/nazuna010.jpg', voiceSrc: '/voice/nazuna100e.wav', message: '今度は後ろからぁあっ...ユウ君...すっごい上手ぅ〜！なずなの感じるところ全部わかってるみたい！ああーーんっあんっ、あっ......' },
+] as const;
+const PAN_TRUST_50_EVENT_ID = 'pan_trust_50';
+const PAN_TRUST_100_EVENT_ID = 'pan_trust_100';
+const PAN_TRUST_50_EVENT_SCENES = [
+  { mediaType: 'image', mediaSrc: '/img/50/pan001.jpg', voiceSrc: '/voice/pan50a.wav', message: 'あら、ユウ君...どうしたの？かぼちゃ畑見にきたの？それとも...私に会いにきたの？' },
+  { mediaType: 'image', mediaSrc: '/img/50/pan002.jpg', voiceSrc: '/voice/pan50b.wav', message: '私に会いにきてくれたんなら...キス...してあげてもいいですよ...んっ、んっ、これでも私初めてのキスなんですよ...うふっ♪' },
+  { mediaType: 'image', mediaSrc: '/img/50/pan003.jpg', voiceSrc: '/voice/pan50c.wav', message: 'ほらっ、私も結構おっぱい大きいでしょ？ユウ君には、いっぱい触って欲しいな...' },
+  { mediaType: 'video', mediaSrc: '/img/50/pan004.mp4', message: 'んっ...ちゅっ...ん、んっ......ユウ君...大好き...だよっ♡' },
+  { mediaType: 'image', mediaSrc: '/img/50/pan005.jpg', voiceSrc: '/voice/pan50e.wav', message: 'ユウ君といっぱいキスしたら...熱くなってきちゃった...また...しようね♡' },
+] as const;
+const PAN_TRUST_100_EVENT_SCENES = [
+  { mediaType: 'image', mediaSrc: '/img/100/pan006.jpg', voiceSrc: '/voice/pan100a.wav', message: 'ほら〜、ユウ君...私のおまんこ見て...どう？私綺麗...かな？ユウ君にもっともっと見て欲しい...' },
+  { mediaType: 'image', mediaSrc: '/img/100/pan007.jpg', voiceSrc: '/voice/pan100b.wav', message: 'んっ、んっ、ユウ君の舌...ちょうだい♡ユウ君ともっともーっといっぱいキスしたい...な...' },
+  { mediaType: 'image', mediaSrc: '/img/100/pan008.jpg', voiceSrc: '/voice/pan100c.wav', message: 'ふわぁあーーっ！！なんか、いっぱい出てきちゃうぅー！ユウ君、とっても上手なのね...ああぁーーんっ！また逝っちゃぅうーっ！' },
+  { mediaType: 'video', mediaSrc: '/img/100/pan009.mp4', message: 'あんっあん、ああーん、やんっ♡はっ、はっ♡ん、ん、あんっ、やっ♡くちゅくちゅ言ってる...私のおまんこがくちゅくちゅ言ってるぅうー...ああぁーん♡' },
+  { mediaType: 'image', mediaSrc: '/img/100/pan010.jpg', voiceSrc: '/voice/pan100e.wav', message: 'はぁっ、はぁっ、はぁ...ふぅ...ユウ君...今日はいっぱい繋がったね♡今後はもっともっと私を犯してね...' },
+] as const;
+const PUTI_TRUST_50_EVENT_ID = 'puti_trust_50';
+const PUTI_TRUST_100_EVENT_ID = 'puti_trust_100';
+const PUTI_TRUST_50_EVENT_SCENES = [
+  { mediaType: 'image', mediaSrc: '/img/50/puthi001.jpg', voiceSrc: '/voice/puthi50a.wav', message: 'プティのドラゴンフルーツ、いっぱいできましたっ！ユウ君、一つ食べてみてください...' },
+  { mediaType: 'image', mediaSrc: '/img/50/puthi002.jpg', voiceSrc: '/voice/puthi50b.wav', message: '美味しいフルーツを食べた後は...ふふっ、私も食べてみますか？' },
+  { mediaType: 'image', mediaSrc: '/img/50/puthi003.jpg', voiceSrc: '/voice/puthi50c.wav', message: 'やんっ、ユウ君ったら！おっぱいを直に触ってますよーっ！どうですか？柔らかいですかっ？' },
+  { mediaType: 'image', mediaSrc: '/img/50/puthi004.jpg', voiceSrc: '/voice/puthi50d.wav', message: 'んっ、んっ...ユウ君ったら...キスも上手ですね...ユウ君もてるでしょー？私、ちょっと妬いちゃいます...' },
+  { mediaType: 'video', mediaSrc: '/img/50/puthi005.mp4', message: 'ユウ君とキスいっぱいしたら...なんだか汗ばんできちゃいました！次は...もっと気持ちいいことしましょう♪' },
+] as const;
+const PUTI_TRUST_100_EVENT_SCENES = [
+  { mediaType: 'image', mediaSrc: '/img/100/puthi006.jpg', voiceSrc: '/voice/puthi100a.wav', message: 'あっ、あん...ユウ君、いきなり大胆です...あんっ、ああんっ...私のおまんこからどんどんエッチなぬるぬるが出ちゃいますぅ〜♡' },
+  { mediaType: 'image', mediaSrc: '/img/100/puthi007.jpg', voiceSrc: '/voice/puthi100b.wav', message: 'あっ、このままユウ君のおちんちんを奥までちょうだいっ！私、とってもエッチです...もっと、もっと虐めて欲しい...♡' },
+  { mediaType: 'video', mediaSrc: '/img/100/puthi008.mp4', message: 'ああーんっ、子宮の奥まで届いてますっ！ユウ君...おちんちんが太くて気持ちよくてっ...ああーんっ、あっ、あっ、あっ♡' },
+  { mediaType: 'image', mediaSrc: '/img/100/puthi009.jpg', voiceSrc: '/voice/puthi100d.wav', message: 'ユウ君、前からもして...ください...とっても気持ちいい♡このままユウ君中に出して欲しいです...ああーんっ、はぁ、はぁ、はぁ♡' },
+] as const;
+const MEL_TRUST_50_EVENT_ID = 'mel_trust_50';
+const MEL_TRUST_100_EVENT_ID = 'mel_trust_100';
+const MEL_TRUST_50_EVENT_SCENES = [
+  { mediaType: 'image', mediaSrc: '/img/50/mel001.jpg', voiceSrc: '/voice/mel50a.wav', message: 'ふふふっ♡こーんなにいっぱいのメロン、メル嬉しい♪とってもあまーい香りがしますよ♪ユウ君、こっちにおいで！' },
+  { mediaType: 'image', mediaSrc: '/img/50/mel002.jpg', voiceSrc: '/voice/mel50b.wav', message: 'ほらっ！ひとつどうぞっ♪このメロンはこの辺りで一番糖度が高そうですよぉ〜！味わってみてくださいねっ♡' },
+  { mediaType: 'image', mediaSrc: '/img/50/mel003.jpg', voiceSrc: '/voice/mel50c.wav', message: 'きゃっ！ユウ君...いつの間にエプロン脱がせちゃったんですか？...もう...ユウ君はエッチなんだからぁ....' },
+  { mediaType: 'video', mediaSrc: '/img/50/mel004.mp4', message: 'なんか、変わった模様のメロンもできちゃってますよぉ〜。ユウ君、毎日いろんなお世話してるから新しい品種もできたのかなぁ...' },
+  { mediaType: 'image', mediaSrc: '/img/50/mel005.jpg', voiceSrc: '/voice/mel50e.wav', message: 'やんっ！またぁっ...そんなにメルのおっぱいみたいんですか〜？もうっ、ユウ君だけですよぉ。ちょっとだけなら...触ってみてもいいですからね♡' },
+] as const;
+const MEL_TRUST_100_EVENT_SCENES = [
+  { mediaType: 'image', mediaSrc: '/img/100/mel006.jpg', voiceSrc: '/voice/mel100a.wav', message: '全部......脱いじゃいましたね...ユウ君...メルのあそこにも興味があるんですか？' },
+  { mediaType: 'image', mediaSrc: '/img/100/mel007.jpg', voiceSrc: '/voice/mel100b.wav', message: '二人でこうやって裸で抱き合うと...あったかくて...心が落ち着きます...メルと...エッチなことしたい...ですか？♡' },
+  { mediaType: 'video', mediaSrc: '/img/100/mel008.mp4', message: 'あっ、ユウ君、おちんちんが...メルのあそこに入ってますぅ...ユウ君...優しく動いてください...あん...はぁん...はぅう...あん♡' },
+  { mediaType: 'image', mediaSrc: '/img/100/mel009.jpg', voiceSrc: '/voice/mel100d.wav', message: 'ユウ...君...とっても気持ちよかったです...今度はもっと...激しく...して...ください♡' },
+] as const;
+const MOMONA_TRUST_50_EVENT_ID = 'momona_trust_50';
+const MOMONA_TRUST_100_EVENT_ID = 'momona_trust_100';
+const MOMONA_TRUST_50_EVENT_SCENES = [
+  { mediaType: 'image', mediaSrc: '/img/50/momona001.jpg', voiceSrc: '/voice/momona50a.wav', message: 'ユウ君！みてみてー！ももな、アイドルみたいでしょー？ももな、いつかステージでこんなふうに歌ってみたいな〜！' },
+  { mediaType: 'image', mediaSrc: '/img/50/momona002.jpg', voiceSrc: '/voice/momona50b.wav', message: 'ユウ君は、ももなのファン第1号ねっ！ももなの握手会に来てくれたら、ちゅーしてあ・げ・るっ♡' },
+  { mediaType: 'image', mediaSrc: '/img/50/momona003.jpg', voiceSrc: '/voice/momona50c.wav', message: 'そんでねー！ももなはユウ君に一目惚れしちゃうの♡アイドルなのにいけない恋...したいの♡' },
+  { mediaType: 'image', mediaSrc: '/img/50/momona004.jpg', voiceSrc: '/voice/momona50d.wav', message: 'あん、いきなりユウ君だいたんっ！ももなのおっぱい...いっぱい触っていいよ♪ももな、こうされたかったんだ〜！' },
+  { mediaType: 'video', mediaSrc: '/img/50/momona005.mp4', message: 'んっ、んっ、んん...ユウ君...大好きっ♡ももなの全部...ユウ君に全部あげちゃう♡' },
+] as const;
+const MOMONA_TRUST_100_EVENT_SCENES = [
+  { mediaType: 'image', mediaSrc: '/img/100/momona006.jpg', voiceSrc: '/voice/momona100a.wav', message: 'やんっ、ユウ君...会いたかったぁ〜！ももなね！今日はユウ君のために準備してきたよっ、パンツ履いてないんだぁ〜えへへへ〜♡' },
+  { mediaType: 'image', mediaSrc: '/img/100/momona007.jpg', voiceSrc: '/voice/momona100b.wav', message: 'ほらほらっ〜！ユウ君も早く脱いで脱いでっ♡早くももなと気持ちよくなろっ♡' },
+  { mediaType: 'image', mediaSrc: '/img/100/momona008.jpg', voiceSrc: '/voice/momona100c.wav', message: '早く早くぅ〜！ももなのおまんこはこんなに準備万端なんだから、早くユウ君のおちんちん挿れて欲しいの...' },
+  { mediaType: 'video', mediaSrc: '/img/100/momona009.mp4', message: '後ろからが...いいの？ユウ君、エッチなこと色々知ってるんだね！おっとなー♡あん、あん、あんっ♡' },
+  { mediaType: 'image', mediaSrc: '/img/100/momona010.jpg', voiceSrc: '/voice/momona100e.wav', message: 'これからは、ずーっと一緒だよ♡ももな、もっともっとユウ君とエッチしたい...いいでしょ？' },
+] as const;
+const RUBY_TRUST_50_EVENT_ID = 'ruby_trust_50';
+const RUBY_TRUST_100_EVENT_ID = 'ruby_trust_100';
+const RUBY_TRUST_50_EVENT_SCENES = [
+  { mediaType: 'image', mediaSrc: '/img/50/ruby001.jpg', voiceSrc: '/voice/ruby50a.wav', message: 'ユウくーん！トマトがいっぱいできたよー！すっごい甘いのっ！ルビー嬉しい♪' },
+  { mediaType: 'image', mediaSrc: '/img/50/ruby002.jpg', voiceSrc: '/voice/ruby50b.wav', message: 'とくに！これっ、いっちばん甘くて美味しいトマトだと思うよ〜！なんでわかるかって？だってこれユウ君が特に入念にお世話してたやつだもん♡' },
+  { mediaType: 'image', mediaSrc: '/img/50/ruby003.jpg', voiceSrc: '/voice/ruby50c.wav', message: '香りが違うのよね〜！甘ーい香り！...ちゅっ...あ！ユウ君、私じゃなくてトマトを味見してみてってばぁ♡でも、嬉しい！' },
+  { mediaType: 'image', mediaSrc: '/img/50/ruby004.jpg', voiceSrc: '/voice/ruby50d.wav', message: 'ユウ君は...トマトよりルビーのおっぱいのほうが...興味あるのかな〜？エッチだねぇ〜♡' },
+  { mediaType: 'video', mediaSrc: '/img/50/ruby005.mp4', message: 'ちゅっ、ちゅぱっ、ん、んっ、あんっ。もうっ！ユウ君ったら...キス...嬉しいっ♡' },
+] as const;
+const RUBY_TRUST_100_EVENT_SCENES = [
+  { mediaType: 'image', mediaSrc: '/img/100/ruby006.jpg', voiceSrc: '/voice/ruby100a.wav', message: '今日は、ユウ君を気持ちよくさせてあげる♪ほらほら、今日はルビーに任せてねっ♡' },
+  { mediaType: 'image', mediaSrc: '/img/100/ruby007.jpg', voiceSrc: '/voice/ruby100b.wav', message: 'もうっ、ユウ君せっかちなんだからぁ！もうルビーのおまんこにユウ君のおちんぽの先っぽが入っちゃってるよ♡' },
+  { mediaType: 'video', mediaSrc: '/img/100/ruby008.mp4', message: 'あんっ、あっ、ふぅんっ、あ...立ったまま...ユウ君のおちんぽ太くて硬いんだね...あんっ、あ、あんっ♪' },
+  { mediaType: 'image', mediaSrc: '/img/100/ruby009.jpg', voiceSrc: '/voice/ruby100d.wav', message: 'いけないユウ君のおちんぽは、ルビーがお仕置きしてあげますっ！ほらほら、ユウ君は先っぽが弱点かなぁ〜？' },
+  { mediaType: 'image', mediaSrc: '/img/100/ruby010.jpg', voiceSrc: '/voice/ruby100e.wav', message: '気持ちよかったね〜っ！ユウ君となら毎日エッチしたい♪だ・か・らぁ...今日の夜も...してっ♡' },
+] as const;
+const ROMA_TRUST_50_EVENT_ID = 'roma_trust_50';
+const ROMA_TRUST_100_EVENT_ID = 'roma_trust_100';
+const ROMA_TRUST_50_EVENT_SCENES = [
+  { mediaType: 'image', mediaSrc: '/img/50/roma001.jpg', voiceSrc: '/voice/roma50a.wav', message: 'ユウ君、この辺りでは珍しいロマネスコがこんなにいっぱい！本当に育ててくれて嬉しいですっ！' },
+  { mediaType: 'image', mediaSrc: '/img/50/roma002.jpg', voiceSrc: '/voice/roma50b.wav', message: 'んっ...んっ...ユウ君、いつもありがとうございます...思わずキスしてしまいましたわ...' },
+  { mediaType: 'image', mediaSrc: '/img/50/roma003.jpg', voiceSrc: '/voice/roma50c.wav', message: '他の娘たちと同じように、わたくしのおっぱい触っていいですわよ。ちょっとさっきのキスで乳首が立っちゃいました...お恥ずかしい...' },
+  { mediaType: 'image', mediaSrc: '/img/50/roma004.jpg', voiceSrc: '/voice/roma50d.wav', message: 'んっ、ん...ユウ君...情熱的なキス...ですね。嬉しい♪' },
+  { mediaType: 'video', mediaSrc: '/img/50/roma005.mp4', message: '今度は、この本に載ってたエッチなことユウ君と色々試して...みたいです♡' },
+] as const;
+const ROMA_TRUST_100_EVENT_SCENES = [
+  { mediaType: 'image', mediaSrc: '/img/100/roma006.jpg', voiceSrc: '/voice/roma100a.wav', message: 'ユウ君、ほら...恥ずかしいけど...みて...ください...もうこんなにエッチなお汁が出てしまってます♡' },
+  { mediaType: 'image', mediaSrc: '/img/100/roma007.jpg', voiceSrc: '/voice/roma100b.wav', message: '私のおまんこに...ロマネスコ入れて欲しいです...ああーん、それ...ユウ君、違う...ブロッコリーですぅ...でも気持ちいぃ♡あんっ♡ああーん♡' },
+  { mediaType: 'image', mediaSrc: '/img/100/roma008.jpg', voiceSrc: '/voice/roma100c.wav', message: '今度はユウ君と一緒に気持ちよくなりたいです...ユウ君のおちんちんを私のおまんこの中いっぱいにしてくださいっ♡' },
+  { mediaType: 'video', mediaSrc: '/img/100/roma009.mp4', message: 'あんっ、あんっ、あっ、あんっ、あっ、ふぅっ、あ、ああーん、あっ♡そこっ、そこが気持ちいいです...ああーん♪だめぇ〜！' },
+  { mediaType: 'image', mediaSrc: '/img/100/roma010.jpg', voiceSrc: '/voice/roma100e.wav', message: 'はぁ、はぁ、はぁ、ん...ユウ君。なんだかわたくし、ユウ君の虜になったみたいですわ...今夜はもっとめちゃくちゃにしてください...♡' },
+] as const;
+const KURUMI_FINAL_EVENT_ID = 'kurumi_trust_100';
+const KURUMI_FINAL_EVENT_SCENES = [
+  { mediaType: 'image', mediaSrc: '/img/100/kurumi100a.jpg', voiceSrc: '/voice/kurumi100a.wav', message: 'ユウ...やっと一緒になれるねっ♡ユウがこの村に来た時から、ずーっとこの日を待ってたんだっ♪ ' },
+  { mediaType: 'image', mediaSrc: '/img/100/kurumi100b.jpg', voiceSrc: '/voice/kurumi100b.wav', message: 'あんっ、いきなり激しいぃ！お爺さんより太くて硬ーいっ。凄いよユウ...もうくるみイキそう...！あん、あん、あんっ♡' },
+  { mediaType: 'image', mediaSrc: '/img/100/kurumi100c.jpg', voiceSrc: '/voice/kurumi100c.wav', message: 'はぁはぁ...はぁっ♡ユウ...くるみの奥までユウのおちんちんが入ってきてるぅ〜♡くるみのおまんこ気持ちいい？今日は寝かせないよっ？♡' },
+  { mediaType: 'image', mediaSrc: '/img/100/kurumi100d.jpg', voiceSrc: '/voice/kurumi100d.wav', message: '今度は、くるみが攻める番っ！ユウのおっきいおちんちん、くるみの口に入るかなぁ...うんっ、んっ、はむっ...美味しいっ♡' },
+  { mediaType: 'image', mediaSrc: '/img/100/kurumi100e.jpg', voiceSrc: '/voice/kurumi100e.wav', message: 'お願い♡ユウの精子をくるみのおまんこの奥にいっぱいちょうだい♡ユウの赤ちゃん妊娠したいのぉ〜。いっぱい出してぇ〜！あああーんっ、あん♡' },
+] as const;
+const BLUE_MERMAID_EVENT_ID = 'blue_mermaid_first_catch';
+const YELLOW_MERMAID_EVENT_ID = 'yellow_mermaid_first_catch';
+const PINK_MERMAID_EVENT_ID = 'pink_mermaid_first_catch';
+const BLUE_MERMAID_EVENT_SCENES = [
+  { mediaType: 'image', mediaSrc: '/img/100/ao04.jpg', voiceSrc: '/voice/ao04.wav', message: '釣り上げられちゃったー！人間だぁー！人間のおちんちんをしごくと幸せになれるって母様から教えられてるんだぁ♡だからちんちん触らせてっ！' },
+  { mediaType: 'image', mediaSrc: '/img/100/ao02.jpg', voiceSrc: '/voice/ao02.wav', message: 'ほらほら、早く脱いでっ！人間のおちんちんは大きいんだねーっ！どう気持ちいい？アタイもなんだか気持ちよくなってきたよ♡' },
+  { mediaType: 'image', mediaSrc: '/img/100/ao01.jpg', voiceSrc: '/voice/ao01.wav', message: 'なんだか、幸せ〜！おちんちん触らせてくれてありがとうねっ！まったねー♡' },
+] as const;
+const YELLOW_MERMAID_EVENT_SCENES = [
+  { mediaType: 'image', mediaSrc: '/img/100/ki03.jpg', voiceSrc: '/voice/ki03.wav', message: '釣り上げられちゃったー！人間だぁー！人間のおちんちんをしごくと幸せになれるって母様から教えられてるんだぁ♡だからちんちん触らせてっ！' },
+  { mediaType: 'image', mediaSrc: '/img/100/ki01.jpg', voiceSrc: '/voice/ki01.wav', message: 'あ、人間のちんちん...おっきぃいー！おとうちゃんのちんちんよりおっきいぃ！すっごーい♡見せてくれてありがとっ！じゃ、またねー！' },
+] as const;
+const PINK_MERMAID_EVENT_SCENES = [
+  { mediaType: 'image', mediaSrc: '/img/100/momo01.jpg', voiceSrc: '/voice/momo01.wav', message: '人間に釣られちゃった！じゃ、さっそく♪んっ、んっ、あんっ、人間とキス...しちゃった！' },
+  { mediaType: 'image', mediaSrc: '/img/100/momo03.jpg', voiceSrc: '/voice/momo03.wav', message: 'もっといっぱいっ！んっ、ん、んっ、あん、なんだかおっぱいがむずむずしてきちゃった♡' },
+  { mediaType: 'image', mediaSrc: '/img/100/momo04.jpg', voiceSrc: '/voice/momo04.wav', message: 'おちんちんも、こーんなにおっきいんだぁ！おっぱいも触ってほしいなぁ〜！あんっ、んっ、こんなに気持ちいいんだぁ。人間いいなぁー！じゃあ、そろそろ帰らなきゃ。またね♡' },
+] as const;
+const MERMAID_CATCH_EVENTS: Readonly<Record<string, { eventId: string; name: string }>> = {
+  aoningyo: { eventId: BLUE_MERMAID_EVENT_ID, name: '青い人魚' },
+  kiironingyo: { eventId: YELLOW_MERMAID_EVENT_ID, name: '黄色い人魚' },
+  pinkningyo: { eventId: PINK_MERMAID_EVENT_ID, name: '桃色人魚' },
+};
 const getSpecialTrustEventScenes = (eventId?: string) => {
   if (eventId === CHIBIICHI_TRUST_50_EVENT_ID) return CHIBIICHI_TRUST_50_EVENT_SCENES;
   if (eventId === CHIBIICHI_TRUST_100_EVENT_ID) return CHIBIICHI_TRUST_100_EVENT_SCENES;
@@ -1619,6 +1801,28 @@ const getSpecialTrustEventScenes = (eventId?: string) => {
   if (eventId === CARO_TRUST_100_EVENT_ID) return CARO_TRUST_100_EVENT_SCENES;
   if (eventId === SAFFY_TRUST_50_EVENT_ID) return SAFFY_TRUST_50_EVENT_SCENES;
   if (eventId === SAFFY_TRUST_100_EVENT_ID) return SAFFY_TRUST_100_EVENT_SCENES;
+  if (eventId === THETA_TRUST_50_EVENT_ID) return THETA_TRUST_50_EVENT_SCENES;
+  if (eventId === THETA_TRUST_100_EVENT_ID) return THETA_TRUST_100_EVENT_SCENES;
+  if (eventId === SHIRO_TRUST_50_EVENT_ID) return SHIRO_TRUST_50_EVENT_SCENES;
+  if (eventId === SHIRO_TRUST_100_EVENT_ID) return SHIRO_TRUST_100_EVENT_SCENES;
+  if (eventId === NAZUNA_TRUST_50_EVENT_ID) return NAZUNA_TRUST_50_EVENT_SCENES;
+  if (eventId === NAZUNA_TRUST_100_EVENT_ID) return NAZUNA_TRUST_100_EVENT_SCENES;
+  if (eventId === PAN_TRUST_50_EVENT_ID) return PAN_TRUST_50_EVENT_SCENES;
+  if (eventId === PAN_TRUST_100_EVENT_ID) return PAN_TRUST_100_EVENT_SCENES;
+  if (eventId === PUTI_TRUST_50_EVENT_ID) return PUTI_TRUST_50_EVENT_SCENES;
+  if (eventId === PUTI_TRUST_100_EVENT_ID) return PUTI_TRUST_100_EVENT_SCENES;
+  if (eventId === MEL_TRUST_50_EVENT_ID) return MEL_TRUST_50_EVENT_SCENES;
+  if (eventId === MEL_TRUST_100_EVENT_ID) return MEL_TRUST_100_EVENT_SCENES;
+  if (eventId === MOMONA_TRUST_50_EVENT_ID) return MOMONA_TRUST_50_EVENT_SCENES;
+  if (eventId === MOMONA_TRUST_100_EVENT_ID) return MOMONA_TRUST_100_EVENT_SCENES;
+  if (eventId === RUBY_TRUST_50_EVENT_ID) return RUBY_TRUST_50_EVENT_SCENES;
+  if (eventId === RUBY_TRUST_100_EVENT_ID) return RUBY_TRUST_100_EVENT_SCENES;
+  if (eventId === ROMA_TRUST_50_EVENT_ID) return ROMA_TRUST_50_EVENT_SCENES;
+  if (eventId === ROMA_TRUST_100_EVENT_ID) return ROMA_TRUST_100_EVENT_SCENES;
+  if (eventId === KURUMI_FINAL_EVENT_ID) return KURUMI_FINAL_EVENT_SCENES;
+  if (eventId === BLUE_MERMAID_EVENT_ID) return BLUE_MERMAID_EVENT_SCENES;
+  if (eventId === YELLOW_MERMAID_EVENT_ID) return YELLOW_MERMAID_EVENT_SCENES;
+  if (eventId === PINK_MERMAID_EVENT_ID) return PINK_MERMAID_EVENT_SCENES;
   return null;
 };
 const MIO_ZUKAN_CARD_ENTRIES = [
@@ -3970,12 +4174,6 @@ export default function App() {
     }
     return null;
   };
-  const getTrustEventIdForZukanCard = (cardId: string) => {
-    const match = cardId.match(/^(.+)_trust(50|100)$/);
-    if (!match) return null;
-    const eventId = `${match[1]}_trust_${match[2]}`;
-    return getTrustEventById(eventId) ? eventId : null;
-  };
   const isTrustEventUnlocked = (eventId: string, girlId: string) => {
     const match = getTrustEventById(eventId);
     const farmGirl = farmGirls.find(girl => girl.girlId === girlId);
@@ -6248,8 +6446,13 @@ export default function App() {
     if (id === 'zukan') {
       const isFishZukan = zukanFilter === '魚';
       const isVideoZukan = zukanFilter === '動画';
-      const zukanFilters = ['娘', '魚', '動画'];
+      const isTrustEventZukan = zukanFilter === '信頼イベント';
+      const isBeastZukan = zukanFilter === '獣';
+      const zukanFilters = ['娘', '信頼イベント', '魚', '獣', '動画'];
       const unlockedZukanVideos = getUnlockedZukanVideoEntries();
+      const allGirlZukanEntries = getZukanGirlAndKurumiCards();
+      const girlZukanEntries = allGirlZukanEntries.filter(entry => entry.kind !== 'event');
+      const trustEventZukanEntries = allGirlZukanEntries.filter(entry => entry.kind === 'event');
 
       return (
         <div className="flex flex-col gap-3 h-full">
@@ -6271,7 +6474,7 @@ export default function App() {
             style={{ ...menuPanelBaseStyle, ...menuKeyboardFocusStyle(menuFocusArea === 'content' && menuContentFocus === 'secondary') }}
             className={isVideoZukan
               ? 'grid min-h-0 flex-1 grid-cols-3 auto-rows-[210px] gap-3 overflow-y-auto pr-2'
-              : isFishZukan
+              : isFishZukan || isBeastZukan
               ? 'grid min-h-0 flex-1 grid-cols-5 auto-rows-[190px] gap-2 overflow-y-auto pr-2'
               : 'grid min-h-0 flex-1 grid-cols-5 auto-rows-[260px] gap-3 overflow-y-auto pr-2'
             }
@@ -6384,7 +6587,51 @@ export default function App() {
                   </div>
                 </button>
               );
-            }) : zukanGirlAndKurumiCards.map((card, index) => (
+            }) : isBeastZukan ? BEAST_ZUKAN_ENTRIES.map((beast, index) => {
+              const unlocked = beast.id === 'dark_king'
+                ? collectionProgress.unlockedEventIds.includes(DARK_KING_DEFEATED_EVENT_ID)
+                : collectionProgress.defeatedBeastIds.includes(beast.id);
+              return (
+                <button
+                  key={beast.id}
+                  type="button"
+                  data-zukan-index={index}
+                  onPointerDown={() => { setMenuFocusArea('content'); setMenuContentFocus('secondary'); setSelectedZukanIndex(index); }}
+                  onMouseEnter={() => { if (selectedZukanIndex !== index) playCursorSound(); }}
+                  onClick={() => {
+                    setMenuFocusArea('content');
+                    setMenuContentFocus('secondary');
+                    setSelectedZukanIndex(index);
+                    if (!unlocked) setDialogMessage('まだ倒していない獣です。');
+                  }}
+                  className={`relative overflow-hidden rounded-lg border p-2 text-left transition-colors ${selectedZukanIndex === index ? 'border-white bg-[#bc6c25]/45 ring-4 ring-[#ffd166]/70' : 'border-[#5a3010] bg-black/35 hover:bg-[#3a2418]'}`}
+                >
+                  <div className="flex h-full flex-col gap-2">
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-[#fdf6e3]">No.{index + 1}</span>
+                      <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${unlocked ? 'bg-[#4a5823] text-[#d9f99d]' : 'bg-[#2d1b15] text-[#dda15e]'}`}>
+                        {unlocked ? '討伐済' : '未討伐'}
+                      </span>
+                    </div>
+                    <div className="relative min-h-0 flex-1 overflow-hidden rounded border border-[#5a3010]/80 bg-[#140c09]">
+                      {unlocked ? beast.isSpriteSheet ? (
+                        <img
+                          src={beast.imageSrc}
+                          alt={`${beast.name} 待機状態`}
+                          className="absolute left-0 top-0 h-full max-w-none object-fill"
+                          style={{ width: `${BATTLE_BEAST_FRAME_COUNT * 100}%` }}
+                        />
+                      ) : (
+                        <img src={beast.imageSrc} alt={`${beast.name} 最終形態`} className="h-full w-full object-contain p-2" />
+                      ) : (
+                        <div className="flex h-full items-center justify-center text-3xl font-black text-[#6f5b4a]">？？？</div>
+                      )}
+                    </div>
+                    <div className="text-center text-sm font-black text-[#fdf6e3]">{unlocked ? beast.name : '？？？？'}</div>
+                  </div>
+                </button>
+              );
+            }) : (isTrustEventZukan ? trustEventZukanEntries : girlZukanEntries).map((card, index) => (
                 <button
                   key={card.id}
                   type="button"
@@ -6402,7 +6649,7 @@ export default function App() {
                     setMenuContentFocus('secondary');
                     setSelectedZukanIndex(index);
                     if (card.unlocked) {
-                      const trustEventId = card.kind === 'event' ? card.id : getTrustEventIdForZukanCard(card.id);
+                      const trustEventId = card.kind === 'event' ? card.id : null;
                       if (trustEventId) {
                         openTrustEvent(trustEventId);
                       } else {
@@ -7485,6 +7732,7 @@ export default function App() {
   const [fishingResultSizeCm, setFishingResultSizeCm] = useState('');
   const [fishingResultImageSrc, setFishingResultImageSrc] = useState(FISHING_SCENE_RESULT_SRC);
   const [fishingResultIsNewRecord, setFishingResultIsNewRecord] = useState(false);
+  const [pendingMermaidCatchEventId, setPendingMermaidCatchEventId] = useState<string | null>(null);
   const [mermaidLetterNotice, setMermaidLetterNotice] = useState<string | null>(null);
   const [mermaidScaleOfferingDay, setMermaidScaleOfferingDay] = useState<number | null>(null);
   const [isFishingHitSplashActive, setIsFishingHitSplashActive] = useState(false);
@@ -8728,6 +8976,8 @@ export default function App() {
         const caughtFish = fishingTargetFish;
         if (caughtFish && !caughtFishIds.includes(caughtFish.id)) {
           setCaughtFishIds(prev => [...prev, caughtFish.id]);
+          const mermaidEvent = MERMAID_CATCH_EVENTS[caughtFish.id];
+          if (mermaidEvent) setPendingMermaidCatchEventId(mermaidEvent.eventId);
         }
         const sizeValue = getSkillAdjustedFishSize(
           caughtFish,
@@ -11517,6 +11767,7 @@ export default function App() {
     if (!scenes) return;
     playFixSound();
     if (specialTrustSceneIndex >= scenes.length - 1) {
+      if (activeTrustEvent?.eventId === KURUMI_FINAL_EVENT_ID) setKurumiTentFinalCompleted(true);
       setActiveTrustEvent(null);
       setSpecialTrustSceneIndex(0);
       return;
@@ -11539,6 +11790,21 @@ export default function App() {
   useEffect(() => {
     if (!getSpecialTrustEventScenes(activeTrustEvent?.eventId)) return;
     const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Tab') {
+        const dialog = document.querySelector<HTMLElement>('[data-special-trust-event-dialog]');
+        const focusableElements = dialog?.querySelectorAll<HTMLElement>('button:not([disabled])');
+        if (!focusableElements?.length) return;
+        const firstElement = focusableElements[0];
+        const lastElement = focusableElements[focusableElements.length - 1];
+        if (event.shiftKey && document.activeElement === firstElement) {
+          event.preventDefault();
+          lastElement.focus();
+        } else if (!event.shiftKey && document.activeElement === lastElement) {
+          event.preventDefault();
+          firstElement.focus();
+        }
+        return;
+      }
       if (event.key === 'Escape') {
         event.preventDefault();
         event.stopPropagation();
@@ -14362,10 +14628,16 @@ export default function App() {
         if (
           kurumiTrustStars >= 5 &&
           kurumiTentFinalAvailableDay !== null &&
-          currentDay >= kurumiTentFinalAvailableDay &&
-          !kurumiTentFinalCompleted
+          currentDay >= kurumiTentFinalAvailableDay
         ) {
-          setKurumiTentFinalEventOpen(true);
+          setSpecialTrustSceneIndex(0);
+          setActiveTrustEvent({
+            eventId: KURUMI_FINAL_EVENT_ID,
+            girlId: 'kurumi',
+            girlName: 'くるみ',
+            trust: 100,
+            label: '最終イベント',
+          });
           return;
         }
         const message = getKurumiTentMessage(kurumiTrustStars);
@@ -16787,6 +17059,9 @@ export default function App() {
   };
 
   const finishFishingMiniGame = () => {
+    const pendingMermaidEvent = Object.values(MERMAID_CATCH_EVENTS).find(entry => (
+      entry.eventId === pendingMermaidCatchEventId
+    ));
     if (fishingBiteTimerRef.current !== null) {
       window.clearInterval(fishingBiteTimerRef.current);
       fishingBiteTimerRef.current = null;
@@ -16841,10 +17116,21 @@ export default function App() {
     setFishingResultIsNewRecord(false);
     setFishingResultImageSrc(FISHING_SCENE_RESULT_SRC);
     setMermaidLetterNotice(null);
+    setPendingMermaidCatchEventId(null);
     setSelectedFishingResultAction('retry');
     setIsFishingTutorialRun(false);
     setFishingTutorialResult(null);
     fishingPromptBlockedRef.current = true;
+    if (pendingMermaidEvent) {
+      setSpecialTrustSceneIndex(0);
+      setActiveTrustEvent({
+        eventId: pendingMermaidEvent.eventId,
+        girlId: pendingMermaidEvent.eventId,
+        girlName: pendingMermaidEvent.name,
+        trust: 100,
+        label: '初遭遇イベント',
+      });
+    }
   };
 
   const handleFishingMiniGameAction = () => {
@@ -19260,7 +19546,7 @@ export default function App() {
           }
 
           if (currentMenuItem.id === 'zukan') {
-            const filters = ['娘', '魚', '動画'];
+            const filters = ['娘', '信頼イベント', '魚', '獣', '動画'];
             const filterIndex = Math.max(0, filters.indexOf(zukanFilterRef.current));
             if (menuContentFocusRef.current === 'primary') {
               if (e.key === 'ArrowLeft' && filterIndex === 0) {
@@ -19278,9 +19564,13 @@ export default function App() {
             const currentIndex = selectedZukanIndexRef.current;
             const zukanLength = zukanFilterRef.current === '魚'
               ? FISH_ZUKAN_ENTRIES.length
+              : zukanFilterRef.current === '獣'
+                ? BEAST_ZUKAN_ENTRIES.length
+                : zukanFilterRef.current === '信頼イベント'
+                  ? getZukanGirlAndKurumiCards().filter(entry => entry.kind === 'event').length
               : zukanFilterRef.current === '動画'
                 ? Math.max(1, getUnlockedZukanVideoEntries().length)
-                : getZukanGirlAndKurumiCards().length;
+                : getZukanGirlAndKurumiCards().filter(entry => entry.kind !== 'event').length;
             const zukanColumnCount = zukanFilterRef.current === '動画' ? 3 : 5;
             if (e.key === 'ArrowUp' && currentIndex < zukanColumnCount) {
               setMenuContentFocus('primary');
@@ -19455,9 +19745,13 @@ export default function App() {
 	            const currentIndex = selectedZukanIndexRef.current;
 	            const zukanLength = zukanFilterRef.current === '魚'
 	              ? FISH_ZUKAN_ENTRIES.length
+	              : zukanFilterRef.current === '獣'
+	                ? BEAST_ZUKAN_ENTRIES.length
+	                : zukanFilterRef.current === '信頼イベント'
+	                  ? getZukanGirlAndKurumiCards().filter(entry => entry.kind === 'event').length
 	              : zukanFilterRef.current === '動画'
 	                ? Math.max(1, getUnlockedZukanVideoEntries().length)
-	                : getZukanGirlAndKurumiCards().length;
+	                : getZukanGirlAndKurumiCards().filter(entry => entry.kind !== 'event').length;
             const zukanColumnCount = zukanFilterRef.current === '動画' ? 3 : 5;
             if (e.key === 'ArrowLeft' && currentIndex % zukanColumnCount === 0) {
               setMenuFocusArea('nav');
@@ -19575,9 +19869,13 @@ export default function App() {
 	          } else if (currentMenuItem.id === 'zukan') {
 	            const zukanLength = zukanFilterRef.current === '魚'
                 ? FISH_ZUKAN_ENTRIES.length
+                : zukanFilterRef.current === '獣'
+                  ? BEAST_ZUKAN_ENTRIES.length
+                  : zukanFilterRef.current === '信頼イベント'
+                    ? getZukanGirlAndKurumiCards().filter(entry => entry.kind === 'event').length
                 : zukanFilterRef.current === '動画'
                   ? Math.max(1, getUnlockedZukanVideoEntries().length)
-                  : getZukanGirlAndKurumiCards().length;
+                  : getZukanGirlAndKurumiCards().filter(entry => entry.kind !== 'event').length;
 	            setSelectedZukanIndex(prev => (prev + moveBy + zukanLength) % zukanLength);
 	          } else if (currentMenuItem.id === 'kurumiNotebook') {
 		            const notebookLength = KURUMI_NOTEBOOK_SECTION_COUNT;
@@ -19762,10 +20060,19 @@ export default function App() {
               } else {
                 setDialogMessage('まだ釣っていない魚です。');
               }
+            } else if (zukanFilterRef.current === '獣') {
+              const beast = BEAST_ZUKAN_ENTRIES[selectedZukanIndexRef.current];
+              const unlocked = beast?.id === 'dark_king'
+                ? collectionProgress.unlockedEventIds.includes(DARK_KING_DEFEATED_EVENT_ID)
+                : Boolean(beast && collectionProgress.defeatedBeastIds.includes(beast.id));
+              if (!unlocked) setDialogMessage('まだ倒していない獣です。');
             } else {
-              const card = getZukanGirlAndKurumiCards()[selectedZukanIndexRef.current];
+              const cards = getZukanGirlAndKurumiCards().filter(entry => (
+                zukanFilterRef.current === '信頼イベント' ? entry.kind === 'event' : entry.kind !== 'event'
+              ));
+              const card = cards[selectedZukanIndexRef.current];
               if (card?.unlocked) {
-                const trustEventId = card.kind === 'event' ? card.id : getTrustEventIdForZukanCard(card.id);
+                const trustEventId = card.kind === 'event' ? card.id : null;
                 if (trustEventId) {
                   openTrustEvent(trustEventId);
                 } else {
@@ -22359,7 +22666,10 @@ export default function App() {
                  iwanaSplashSoundSrc={IWANA_SPLASH_SOUND_SRC}
                  kurumiDefaultSpriteW={KURUMI_DEFAULT_SPRITE_W}
                  kurumiDefaultSpriteH={KURUMI_DEFAULT_SPRITE_H}
-                 kurumiTentMessage={getKurumiTentMapMessage(kurumiTrustStars)}
+                 kurumiTentMessage={getKurumiTentMapMessage(
+                   kurumiTrustStars,
+                   kurumiTentFinalAvailableDay !== null && currentDay >= kurumiTentFinalAvailableDay,
+                 )}
 	           />
 
            {setupMode === 'forbiddenLand' && forbiddenLandZone?.map === currentMap && (
@@ -27722,6 +28032,7 @@ export default function App() {
               role="dialog"
               aria-modal="true"
               aria-label={`${activeTrustEvent?.girlName ?? '苗娘'} 信頼度${activeTrustEvent?.trust ?? 50}イベント`}
+              data-special-trust-event-dialog
               onClick={advanceSpecialTrustEvent}
             >
               <div className="relative h-full max-h-[880px] w-full max-w-[1280px] overflow-hidden rounded-2xl border-[4px] border-[#f9a8d4] bg-[#090504] text-[#fdf6e3] shadow-2xl">
@@ -27747,7 +28058,15 @@ export default function App() {
                 <div className="absolute bottom-0 left-0 right-0 z-10 border-t-4 border-[#bc6c25] bg-[#1a100d]/97 p-4 shadow-[0_-16px_44px_rgba(0,0,0,0.65)]">
                   <div className="rounded-lg border-[3px] border-[#dda15e] bg-[#2d1b15]/96 px-6 py-5 shadow-inner">
                     <p className="min-h-[70px] whitespace-pre-line text-[22px] font-black leading-relaxed">{activeTrustEvent?.girlName ?? '苗娘'}{`\n`}「{scene.message}」</p>
-                    <button type="button" className="mt-3 w-full rounded border-2 border-[#f9a8d4] bg-[#831843] px-5 py-3 text-lg font-black text-white hover:bg-[#9d174d] focus:outline-none focus:ring-4 focus:ring-white/80">
+                    <button
+                      type="button"
+                      autoFocus
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        advanceSpecialTrustEvent();
+                      }}
+                      className="mt-3 w-full rounded border-2 border-[#f9a8d4] bg-[#831843] px-5 py-3 text-lg font-black text-white hover:bg-[#9d174d] focus:outline-none focus:ring-4 focus:ring-white/80"
+                    >
                       {specialTrustSceneIndex >= scenes.length - 1 ? 'イベントを終える' : '次へ'}
                     </button>
                   </div>
