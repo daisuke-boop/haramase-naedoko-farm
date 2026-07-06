@@ -854,7 +854,7 @@ const AnimationLayer = ({ zones, isSetupMode, onZoneDelete, onZoneClick, selecte
            50% { transform: translate(-50%, 8px); }
         }
       `}</style>
-      {zones.map(z => (
+      {zones.filter(z => isSetupMode || z.type !== 'smoke').map(z => (
          <SpriteItem key={z.id} z={z} isSetupMode={isSetupMode} onZoneDelete={onZoneDelete} onZoneClick={onZoneClick} isSelected={selectedZoneId === z.id} onSelect={onSelect} onDragStart={onZoneDragStart} onResizeStart={onZoneResizeStart} timeOfDay={timeOfDay} seVolume={seVolume} audioGains={audioGains} getEffectiveVolume={getEffectiveVolume} iwanaSplashSoundSrc={iwanaSplashSoundSrc} kurumiDefaultSpriteW={kurumiDefaultSpriteW} kurumiDefaultSpriteH={kurumiDefaultSpriteH} kurumiTentMessage={kurumiTentMessage} />
       ))}
     </div>

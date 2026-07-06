@@ -18,7 +18,7 @@ interface FieldGridProps {
   onCellClick?: (fieldId: string, col: number, row: number) => void;
 }
 
-export const FieldGrid: React.FC<FieldGridProps> = ({
+const FieldGridComponent: React.FC<FieldGridProps> = ({
   fieldId = 'field',
   topLeft,
   topRight,
@@ -112,3 +112,5 @@ export const FieldGrid: React.FC<FieldGridProps> = ({
     </svg>
   );
 };
+
+export const FieldGrid = React.memo(FieldGridComponent);

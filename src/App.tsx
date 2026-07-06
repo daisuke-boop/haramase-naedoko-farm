@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { motion } from 'motion/react';
 import { FieldGrid, type Point } from './components/FieldGrid';
@@ -1594,7 +1594,7 @@ const CHIBIICHI_TRUST_100_EVENT_SCENES = [
 const KABUNE_TRUST_50_EVENT_ID = 'kabune_trust_50';
 const KABUNE_TRUST_100_EVENT_ID = 'kabune_trust_100';
 const KABUNE_TRUST_50_EVENT_SCENES = [
-  { mediaType: 'image', mediaSrc: '/img/50/kabune001.jpg', voiceSrc: '/voice/kabune50a.wav', message: 'きょうもアタイの株がいーっぱい出来たよ！ユウも収穫手伝ってよっ！' },
+  { mediaType: 'image', mediaSrc: '/img/50/kabune001.jpg', voiceSrc: '/voice/kabune50a.wav', message: 'きょうもアタイのかぶがいーっぱい出来たよ！ユウも収穫手伝ってよっ！' },
   { mediaType: 'image', mediaSrc: '/img/50/kabune002.jpg', voiceSrc: '/voice/kabune50b.wav', message: 'はむっ！ほら見てみて、生でかじってもこんなに甘くて美味しいっ♪' },
   { mediaType: 'image', mediaSrc: '/img/50/kabune003.jpg', voiceSrc: '/voice/kabune50c.wav', message: 'はぁっ、はぁっ....たくさん収穫したら、なんだか疲れちゃった...ユウも無理しないでね...はぁっはぁっ' },
   { mediaType: 'image', mediaSrc: '/img/50/kabune004.jpg', voiceSrc: '/voice/kabune50d.wav', message: 'ユウっ！こっちでちょっとだけ休憩しよっ！かぶねがユウに良いもの見せちゃうぞっ！うふふっ♡' },
@@ -1749,10 +1749,10 @@ const PUTI_TRUST_100_EVENT_SCENES = [
 const MEL_TRUST_50_EVENT_ID = 'mel_trust_50';
 const MEL_TRUST_100_EVENT_ID = 'mel_trust_100';
 const MEL_TRUST_50_EVENT_SCENES = [
-  { mediaType: 'image', mediaSrc: '/img/50/mel001.jpg', voiceSrc: '/voice/mel50a.wav', message: 'ふふふっ♡こーんなにいっぱいのメロン、メル嬉しい♪とってもあまーい香りがしますよ♪ユウ君、こっちにおいで！' },
+  { mediaType: 'image', mediaSrc: '/img/50/mel001.jpg', voiceSrc: '/voice/mel50a.wav', message: 'ふふふっ♡こーんなにいっぱいのメロン、メル嬉しい♪とってもあまーい香りがしますよ♪ユウ君、\nこっちにおいで！' },
   { mediaType: 'image', mediaSrc: '/img/50/mel002.jpg', voiceSrc: '/voice/mel50b.wav', message: 'ほらっ！ひとつどうぞっ♪このメロンはこの辺りで一番糖度が高そうですよぉ〜！味わってみてくださいねっ♡' },
   { mediaType: 'image', mediaSrc: '/img/50/mel003.jpg', voiceSrc: '/voice/mel50c.wav', message: 'きゃっ！ユウ君...いつの間にエプロン脱がせちゃったんですか？...もう...ユウ君はエッチなんだからぁ....' },
-  { mediaType: 'video', mediaSrc: '/img/50/mel004.mp4', message: 'なんか、変わった模様のメロンもできちゃってますよぉ〜。ユウ君、毎日いろんなお世話してるから新しい品種もできたのかなぁ...' },
+  { mediaType: 'video', mediaSrc: '/img/50/mel004.mp4', message: 'なんか、変わった模様のメロンもできちゃってますよぉ〜。\nユウ君、毎日いろんなお世話してるから新しい品種もできたのかなぁ...' },
   { mediaType: 'image', mediaSrc: '/img/50/mel005.jpg', voiceSrc: '/voice/mel50e.wav', message: 'やんっ！またぁっ...そんなにメルのおっぱいみたいんですか〜？\nもうっ、ユウ君だけですよぉ。ちょっとだけなら...触ってみてもいいですからね♡' },
 ] as const;
 const MEL_TRUST_100_EVENT_SCENES = [
@@ -1913,6 +1913,13 @@ const KURUMI_INTRO_TOPICS: { id: KurumiIntroTopicId; label: string; answer: stri
   { id: 'naedoko', label: '苗床って？', answer: '孕ませ村の特産品の事だよっ！\n野菜や果物の苗床っていう女の子たちを育てたら、\nたっくさん美味しい野菜や果物ができるんだよー！\n幸い、むふふぅーっ！\nおにぃさんはあっちの方も強そうだし...\nきっといい野菜や果物が育つと思うよっ！', voiceSrc: KURUMI_START4_SOUND_SRC },
   { id: 'pantsu', label: 'パンツ見せて！', answer: 'えー、どうしょっかなぁー！...考えとくねっ♡', voiceSrc: KURUMI_START5_SOUND_SRC },
   { id: 'grandpa', label: 'お爺さんとの関係は？', answer: 'えっ！そ、それは...内緒っ♡\nでも、ユウのこともお爺さん、毎日のように話してたんだよっ！\nユウの事もどうか頼む！って。\nだから、色々お世話するね♪', voiceSrc: '/voice/kurumi-start1.wav' },
+];
+const KURUMI_INTRO_DEBUG_STEPS: DebugDialogueStep[] = [
+  { debugKey: 'kurumi_intro_first', message: KURUMI_INTRO_FIRST_MESSAGE },
+  ...KURUMI_INTRO_TOPICS.map(topic => ({
+    debugKey: `kurumi_intro_${topic.id}`,
+    message: topic.answer,
+  })),
 ];
 const KURUMI_INTRO_TOPIC_IDS = KURUMI_INTRO_TOPICS.map(topic => topic.id);
 const KURUMI_INTRO_CLOSE_FADE_MS = 650;
@@ -4125,6 +4132,8 @@ export default function App() {
   const [oreInventoryWeights, setOreInventoryWeights] = useState<Record<string, number[]>>({});
   const [depletedMiningPointIds, setDepletedMiningPointIds] = useState<Record<string, boolean>>({});
   const [activeMiningPointId, setActiveMiningPointId] = useState<string | null>(null);
+  const activeMiningPointIdRef = useRef<string | null>(activeMiningPointId);
+  useEffect(() => { activeMiningPointIdRef.current = activeMiningPointId; }, [activeMiningPointId]);
   const [miningMiniGameOpen, setMiningMiniGameOpen] = useState(false);
   const [miningMiniGamePhase, setMiningMiniGamePhase] = useState<'countdown' | 'playing' | 'result'>('countdown');
   const [miningCountdown, setMiningCountdown] = useState(MINING_COUNTDOWN_SECONDS);
@@ -7600,7 +7609,7 @@ export default function App() {
       { label: 'セーブ', bgImage: '/img/save.jpg', action: () => setSystemSlotMode('save') },
       { label: 'ロード', bgImage: '/img/load.jpg', action: () => setSystemSlotMode('load') },
       { label: 'タイトルへ戻る', bgImage: '/img/title.jpg', action: returnToTitle },
-      { label: '診断データ保存', bgImage: '/img/save.jpg', action: exportDiagnosticData },
+      { label: '診断データ保存', bgImage: '/img/farm.jpg', action: exportDiagnosticData },
     ];
 
     return (
@@ -7857,6 +7866,8 @@ export default function App() {
   const [miningPromptVisible, setMiningPromptVisible] = useState(false);
   const [loggingPromptVisible, setLoggingPromptVisible] = useState(false);
   const [activeLoggingPointId, setActiveLoggingPointId] = useState<string | null>(null);
+  const activeLoggingPointIdRef = useRef<string | null>(activeLoggingPointId);
+  useEffect(() => { activeLoggingPointIdRef.current = activeLoggingPointId; }, [activeLoggingPointId]);
   const [depletedLoggingPointIds, setDepletedLoggingPointIds] = useState<Record<string, boolean>>({});
   const [fishingMiniGameOpen, setFishingMiniGameOpen] = useState(false);
   const [fishingMiniGameStage, setFishingMiniGameStage] = useState<'direction' | 'power' | 'bite' | 'hit' | 'keep' | 'result'>('direction');
@@ -8071,7 +8082,7 @@ export default function App() {
       stock: 1,
       type: '買う',
       category: '特別交換',
-      desc: '交換素材：しなやかな軟木×8、軟らかい銅鉱石×8。伐採・採掘を経験すると入荷します。',
+      desc: '交換素材：しなやかな軟木×8、軟らかい銅鉱石×8。',
       girlSeedId: 'eggplant',
       requiredItems: [
         { itemName: 'しなやかな軟木', amount: 8 },
@@ -8125,7 +8136,7 @@ export default function App() {
       stock: 1,
       type: '買う',
       category: '特別交換',
-      desc: '交換素材：堅実な中木×10、良質な鉄鉱石×8。伐採・採掘を学ぶと入荷します。',
+      desc: '交換素材：堅実な中木×10、良質な鉄鉱石×8。',
       girlSeedId: 'shiitake',
       requiredItems: [
         { itemName: '堅実な中木', amount: 10 },
@@ -8149,7 +8160,7 @@ export default function App() {
       stock: 1,
       type: '買う',
       category: '特別交換',
-      desc: '交換素材：堅実な中木×12、錫鉱石×10。伐採・採掘を学ぶと特別交換に入荷します。',
+      desc: '交換素材：堅実な中木×12、錫鉱石×10。',
       girlSeedId: 'pumpkin',
       requiredItems: [
         { itemName: '堅実な中木', amount: 12 },
@@ -8167,6 +8178,44 @@ export default function App() {
     }
     if (item.girlSeedId === 'daikon') return successfulRepaymentCount >= 3 && farmCredit >= 15;
     return loggingTutorialCompleted && miningTutorialCompleted;
+  });
+  const hardGirlSeedShopCandidates: ShopItem[] = [
+    {
+      name: 'ドラフルの苗娘',
+      price: 0,
+      stock: 1,
+      type: '買う',
+      category: '返済報酬',
+      desc: '返済を3回成功させた農場主へ贈られる、珍しいドラゴンフルーツの苗娘です。',
+      girlSeedId: 'dragon_fruit',
+      seedOfferMessage: '返済を3回も成功させたご褒美だよ！\n珍しいドラフルの苗娘を受け取ってねっ♪',
+    },
+    {
+      name: 'ロマネの苗娘',
+      price: 0,
+      stock: 1,
+      type: '買う',
+      category: '信用報酬',
+      desc: '農場信用度60以上を達成した農場主へ贈られる、希少なロマネスコの苗娘です。',
+      girlSeedId: 'romanesco',
+      seedOfferMessage: '農場の信用もすっかり一人前だね！\n特別にロマネの苗娘を任せるよっ♪',
+    },
+    {
+      name: 'サフランの苗娘',
+      price: 0,
+      stock: 1,
+      type: '買う',
+      category: '討伐報酬',
+      desc: '山の主を退けた農場主へ贈られる、特別なサフランの苗娘です。',
+      girlSeedId: 'saffron',
+      seedOfferMessage: '山の主を退けるなんて、本当にすごいよ！\n討伐の証に、サフランの苗娘を受け取ってねっ♪',
+    },
+  ];
+  const hardGirlSeedShopItems = hardGirlSeedShopCandidates.filter(item => {
+    if (difficulty !== 'hard' || ownedGirlSeeds.includes(item.girlSeedId!)) return false;
+    if (item.girlSeedId === 'dragon_fruit') return successfulRepaymentCount >= 3;
+    if (item.girlSeedId === 'romanesco') return farmCredit >= 60;
+    return collectionProgress.defeatedBeastIds.includes('mountain_lord');
   });
   const rightFarmFieldConfig = getFarmFieldConfig(difficulty, 'right');
   const isRightFarmFieldUnlocked = farmFieldSlots.some(slot => slot.fieldId === 'right');
@@ -8188,7 +8237,7 @@ export default function App() {
       farmFieldId: 'right',
     }]
     : [];
-  const girlSeedShopItems = [...easyGirlSeedShopItems, ...normalGirlSeedShopItems];
+  const girlSeedShopItems = [...easyGirlSeedShopItems, ...normalGirlSeedShopItems, ...hardGirlSeedShopItems];
   const shopMarketDay = Math.floor(turn / 4) + 1;
   const shopMarketCycleIndex = getRepaymentCycleIndexForDay(shopMarketDay, difficulty, repaymentCycleDays);
   const lastRestockedBeastMaterialCycleRef = useRef<number | null>(null);
@@ -8488,6 +8537,7 @@ export default function App() {
   };
   const [kurumiIntroOpen, setKurumiIntroOpen] = useState(false);
   const [kurumiIntroMessage, setKurumiIntroMessage] = useState(KURUMI_INTRO_FIRST_MESSAGE);
+  const [kurumiIntroDebugKey, setKurumiIntroDebugKey] = useState<string | null>(null);
   const [kurumiIntroSelectedIndex, setKurumiIntroSelectedIndex] = useState(0);
   const [kurumiIntroAskedTopics, setKurumiIntroAskedTopics] = useState<KurumiIntroTopicId[]>([]);
   const [kurumiIntroCompletedDay, setKurumiIntroCompletedDay] = useState<number | null>(null);
@@ -10813,7 +10863,7 @@ export default function App() {
     setPlantedCrops({});
   };
 
-  const handleCropCellClick = (fieldId: string, col: number, row: number) => {
+  const handleCropCellClick = useCallback((fieldId: string, col: number, row: number) => {
     const key = `${fieldId}_${col},${row}`;
     setPlantedCrops(prev => {
       const next = { ...prev };
@@ -10824,7 +10874,7 @@ export default function App() {
       }
       return next;
     });
-  };
+  }, []);
 
   const getFarmFieldSlotPoint = (slot: FarmFieldSlotState): Point => {
     const corners = fieldCorners[slot.fieldId];
@@ -13791,6 +13841,9 @@ export default function App() {
 	  );
   const saveDebugDialogueOverride = (debugKey: string, message: string) => {
     setDebugDialogueOverrides(prev => ({ ...prev, [debugKey]: message }));
+    if (kurumiIntroOpen && kurumiIntroDebugKey === debugKey) {
+      setKurumiIntroMessage(message);
+    }
   };
   const resetDebugDialogueOverride = (debugKey: string) => {
     setDebugDialogueOverrides(prev => {
@@ -13808,6 +13861,7 @@ export default function App() {
     }));
     return [
       ...createOptions('釣り説明', FISHING_TUTORIAL_STEPS),
+      ...createOptions('くるみ最初の会話', KURUMI_INTRO_DEBUG_STEPS),
       ...createOptions('釣り後会話', FISHING_TUTORIAL_END_STEPS),
       ...createOptions('苗娘植え後会話', SEED_AFTER_PLANT_TUTORIAL_STEPS),
       ...createOptions('のこぎり会話', SAW_CRAFT_TUTORIAL_STEPS),
@@ -14968,7 +15022,8 @@ export default function App() {
         kurumiIntroCloseTimerRef.current = null;
      }
      playKurumiIntroVoice(KURUMI_START_SOUND_SRC);
-     setKurumiIntroMessage(KURUMI_INTRO_FIRST_MESSAGE);
+     setKurumiIntroMessage(getDebugDialogueMessage('kurumi_intro_first', KURUMI_INTRO_FIRST_MESSAGE));
+     setKurumiIntroDebugKey('kurumi_intro_first');
      setKurumiIntroSelectedIndex(0);
      setKurumiIntroClosing(false);
      setKurumiIntroOpen(true);
@@ -15042,6 +15097,7 @@ export default function App() {
      if (kurumiIntroClosing) return;
      if (shouldPlaySound) playFixSound();
      if (!hasAskedAllKurumiIntroTopics) {
+        setKurumiIntroDebugKey(null);
         setKurumiIntroMessage('えへへ、まだ聞けることがあるよっ！気になることを一通り聞いてみてね。');
         return;
      }
@@ -15049,6 +15105,7 @@ export default function App() {
         setKurumiIntroCompletedDay(currentDay);
      }
      setKurumiIntroClosing(true);
+     setKurumiIntroDebugKey(null);
      fadeOutAudio(kurumiIntroVoiceRef.current, KURUMI_INTRO_CLOSE_FADE_MS);
      kurumiIntroCloseTimerRef.current = window.setTimeout(() => {
         setKurumiIntroOpen(false);
@@ -15067,7 +15124,9 @@ export default function App() {
         closeKurumiIntro(false);
         return;
      }
-     setKurumiIntroMessage(topic.answer);
+     const debugKey = `kurumi_intro_${topic.id}`;
+     setKurumiIntroDebugKey(debugKey);
+     setKurumiIntroMessage(getDebugDialogueMessage(debugKey, topic.answer));
      if (topic.voiceSrc) {
         playKurumiIntroVoice(topic.voiceSrc);
      }
@@ -18126,19 +18185,19 @@ export default function App() {
 
 
 
-  const customSprites = {
+  const customSprites = useMemo(() => ({
     down: playerSpriteUrls.down,
     up: playerSpriteUrls.up,
     left: playerSpriteUrls.left,
     right: playerSpriteUrls.right
-  };
-  const chibiichiCompanionSprites = {
+  }), []);
+  const chibiichiCompanionSprites = useMemo(() => ({
     down: '/img/companions/chibiichi_idle.png',
     up: '/img/companions/chibiichi_back.png',
     left: '/img/companions/chibiichi_idle.png',
     right: '/img/companions/chibiichi_idle.png',
-  };
-  const chibiichiCompanionWalkSprites = {
+  }), []);
+  const chibiichiCompanionWalkSprites = useMemo(() => ({
     down: [
       chibiichiCompanionSprites.down,
       '/img/companions/chibiichi_walk1.png',
@@ -18163,7 +18222,7 @@ export default function App() {
       chibiichiCompanionSprites.right,
       '/img/companions/chibiichi_walk2.png',
     ],
-  } as const;
+  } as const), [chibiichiCompanionSprites]);
   const companionSpriteSheets = useMemo(() => {
   const chibiichiCompanionSpriteSheet = {
     url: '/img/chibiichi-walk.png',
@@ -21123,7 +21182,11 @@ export default function App() {
         hasMiningToolEquipped &&
         !isAPActionExhausted
       );
-      setActiveMiningPointId(canInspectMiningPoint ? miningPointId : null);
+      const nextActiveMiningPointId = canInspectMiningPoint ? miningPointId : null;
+      if (activeMiningPointIdRef.current !== nextActiveMiningPointId) {
+        activeMiningPointIdRef.current = nextActiveMiningPointId;
+        setActiveMiningPointId(nextActiveMiningPointId);
+      }
       if (!canInspectMiningPoint) {
         miningPromptBlockedRef.current = false;
       } else if (miningPointId && !miningPromptBlockedRef.current && !miningPromptVisible) {
@@ -21145,13 +21208,19 @@ export default function App() {
         equippedItemsRef.current[slotId]?.includes('のこぎり')
       ));
       if (!touchedLoggingPoint || !hasEquippedSaw) {
-        setActiveLoggingPointId(null);
+        if (activeLoggingPointIdRef.current !== null) {
+          activeLoggingPointIdRef.current = null;
+          setActiveLoggingPointId(null);
+        }
         loggingPromptBlockedRef.current = false;
       } else if (!loggingPromptBlockedRef.current && !loggingPromptVisible && !isInBed && !isInWorkbench && !isInFishingPoint && hasEquippedSaw && !isAPActionExhausted) {
         moved = false;
         clickTargetRef.current = null;
         setClickTargetMarker(null);
-        setActiveLoggingPointId(touchedLoggingPoint.id);
+        if (activeLoggingPointIdRef.current !== touchedLoggingPoint.id) {
+          activeLoggingPointIdRef.current = touchedLoggingPoint.id;
+          setActiveLoggingPointId(touchedLoggingPoint.id);
+        }
         setLoggingPromptVisible(true);
         movementLockedRef.current = true;
       }
@@ -21176,29 +21245,41 @@ export default function App() {
       const companionStep = { x: currentX, y: currentY, direction: currentDir, isWalking: moved };
       if (warped) {
         // マップ移動時は前マップの足跡を破棄して、娘が置き去りになるのを防ぐ。
-        const companionRestPosition = getCompanionRestPosition(companionStep, currentDir);
-        companionTrailRef.current = Array.from({ length: COMPANION_TRAIL_DELAY_FRAMES }, () => companionRestPosition);
-        setCompanionFollow(companionRestPosition);
-        const mioRestPosition = getMioRestPosition(companionStep, currentDir, Boolean(companionGirlId));
-        const mioDelayFrames = companionGirlId ? MIO_TRAIL_DELAY_FRAMES_WITH_COMPANION : COMPANION_TRAIL_DELAY_FRAMES;
-        mioTrailRef.current = Array.from({ length: mioDelayFrames }, () => mioRestPosition);
-        setMioFollow(mioRestPosition);
+        if (companionGirlId) {
+          const companionRestPosition = getCompanionRestPosition(companionStep, currentDir);
+          companionTrailRef.current = Array.from({ length: COMPANION_TRAIL_DELAY_FRAMES }, () => companionRestPosition);
+          setCompanionFollow(companionRestPosition);
+        }
+        if (isMioFollowing) {
+          const mioRestPosition = getMioRestPosition(companionStep, currentDir, Boolean(companionGirlId));
+          const mioDelayFrames = companionGirlId ? MIO_TRAIL_DELAY_FRAMES_WITH_COMPANION : COMPANION_TRAIL_DELAY_FRAMES;
+          mioTrailRef.current = Array.from({ length: mioDelayFrames }, () => mioRestPosition);
+          setMioFollow(mioRestPosition);
+        }
       } else if (moved) {
-        companionTrailRef.current.push(companionStep);
-        if (companionTrailRef.current.length > COMPANION_TRAIL_DELAY_FRAMES) {
-          companionTrailRef.current.shift();
+        if (companionGirlId) {
+          companionTrailRef.current.push(companionStep);
+          if (companionTrailRef.current.length > COMPANION_TRAIL_DELAY_FRAMES) {
+            companionTrailRef.current.shift();
+          }
+          setCompanionFollow(companionTrailRef.current[0] ?? companionStep);
         }
-        setCompanionFollow(companionTrailRef.current[0] ?? companionStep);
-        const mioDelayFrames = companionGirlId ? MIO_TRAIL_DELAY_FRAMES_WITH_COMPANION : COMPANION_TRAIL_DELAY_FRAMES;
-        mioTrailRef.current.push(companionStep);
-        if (mioTrailRef.current.length > mioDelayFrames) {
-          mioTrailRef.current.shift();
+        if (isMioFollowing) {
+          const mioDelayFrames = companionGirlId ? MIO_TRAIL_DELAY_FRAMES_WITH_COMPANION : COMPANION_TRAIL_DELAY_FRAMES;
+          mioTrailRef.current.push(companionStep);
+          if (mioTrailRef.current.length > mioDelayFrames) {
+            mioTrailRef.current.shift();
+          }
+          setMioFollow(mioTrailRef.current[0] ?? companionStep);
         }
-        setMioFollow(mioTrailRef.current[0] ?? companionStep);
       } else {
         // 主人公が止まったら、娘も現在位置のまま待機ポーズへ戻す。
-        setCompanionFollow(previous => previous.isWalking ? { ...previous, isWalking: false } : previous);
-        setMioFollow(previous => previous.isWalking ? { ...previous, isWalking: false } : previous);
+        if (companionGirlId) {
+          setCompanionFollow(previous => previous.isWalking ? { ...previous, isWalking: false } : previous);
+        }
+        if (isMioFollowing) {
+          setMioFollow(previous => previous.isWalking ? { ...previous, isWalking: false } : previous);
+        }
       }
 
       if (posRef.current.x !== currentX || posRef.current.y !== currentY) {
@@ -21220,7 +21301,7 @@ export default function App() {
       window.removeEventListener('keydown', handleKeyDown); window.removeEventListener('keyup', handleKeyUp);
       cancelAnimationFrame(animationFrameId);
     };
-  }, [setupMode, bedTiles, workbenchTiles, fishingTiles, activeFishingTileKeys, miningTiles, activeMiningTileKeys, depletedMiningPointIds, activeMiningPointId, loggingTiles, activeLoggingPoints, activeLoggingPointId, sleepPromptVisible, bathPromptVisible, mermaidOfferingPromptVisible, bathSequenceActive, craftPromptVisible, fishingPromptVisible, miningPromptVisible, loggingPromptVisible, confirmPromptChoice, pendingDeleteSaveSlot, pendingOverwriteSaveSlot, pendingManualOverwriteSaveSlot, activeAutoEventSpot, activeAutoEventMessage, activeAutoEventMessageIndex, activeAutoEventMessages, displayedAutoEventMessage, turn, currentAP, kurumiShopOpen, kurumiIntroOpen, kurumiIntroSelectedIndex, kurumiIntroAskedTopics, kurumiIntroCompletedDay, seedPlantTutorialOpen, seedPlantTutorialStepIndex, seedAfterPlantTutorialOpen, seedAfterPlantTutorialStepIndex, selectedShopControl, selectedShopItemIndex, checkedSellItemIndices, shopItems, gold, equipmentActionOpen, equippedItems, inventoryCounts, caughtFishIds, fishingMiniGameOpen, fishingMiniGameStage, miningMiniGameOpen, isFishingResultInputLocked, mermaidLetterNotice, fishingTutorialOpen, fishingTutorialEndingOpen, fishingTutorialEndingStepIndex, sawCraftTutorialIntroOpen, sawCraftTutorialIntroStepIndex, sawCraftTutorialReady, sawCraftTutorialShedDialogueOpen, sawCraftTutorialWorkbenchReady, gatheringTutorialCompleted, gatheringTutorialChoice, miningTutorialCompleted, selectedFishingTutorialAction, selectedFishingResultAction, recipeDetailOpen, farmGirlDetailOpen, showDialog, pendingFarmCareConfirm, farmCareConfirmChoice, farmCareUnlockNoticeAction, farmHarvestResultNotice, farmGirlRevealSpotlightId, girlEquipmentNoticeGirlId, skillTreeTutorialStep, bulkHarvestOpen, bulkHarvestConfirmOpen, bulkHarvestResults, bulkHarvestUnlockNotice, bulkShippingOpen, bulkShippingConfirmOpen, bulkShippingResults, bulkShippingUnlockNotice, bulkFarmCareOpen, bulkFarmCareConfirmOpen, bulkFarmCareUnlockNotice, bulkFarmCareResults, fishingMasterRewardPopupOpen, bootMode, timeOfDay, isOpeningWalkObjectiveActive, currentDay, nextObjective, battlePreviewOpen, battlePreviewState, battleIntroPhase, battleItemPanelOpen, battleItemSelectionStep, selectedBattleCommandIndex, selectedBattleItemIndex, selectedBattleItemTargetIndex, companionRegenCinematicOpen]);
+  }, [setupMode, bedTiles, workbenchTiles, fishingTiles, activeFishingTileKeys, miningTiles, activeMiningTileKeys, depletedMiningPointIds, activeMiningPointId, loggingTiles, activeLoggingPoints, activeLoggingPointId, sleepPromptVisible, bathPromptVisible, mermaidOfferingPromptVisible, bathSequenceActive, craftPromptVisible, fishingPromptVisible, miningPromptVisible, loggingPromptVisible, confirmPromptChoice, pendingDeleteSaveSlot, pendingOverwriteSaveSlot, pendingManualOverwriteSaveSlot, activeAutoEventSpot, activeAutoEventMessage, activeAutoEventMessageIndex, activeAutoEventMessages, displayedAutoEventMessage, turn, currentAP, kurumiShopOpen, kurumiIntroOpen, kurumiIntroSelectedIndex, kurumiIntroAskedTopics, kurumiIntroCompletedDay, seedPlantTutorialOpen, seedPlantTutorialStepIndex, seedAfterPlantTutorialOpen, seedAfterPlantTutorialStepIndex, selectedShopControl, selectedShopItemIndex, checkedSellItemIndices, shopItems, gold, equipmentActionOpen, equippedItems, inventoryCounts, caughtFishIds, fishingMiniGameOpen, fishingMiniGameStage, miningMiniGameOpen, isFishingResultInputLocked, mermaidLetterNotice, fishingTutorialOpen, fishingTutorialEndingOpen, fishingTutorialEndingStepIndex, sawCraftTutorialIntroOpen, sawCraftTutorialIntroStepIndex, sawCraftTutorialReady, sawCraftTutorialShedDialogueOpen, sawCraftTutorialWorkbenchReady, gatheringTutorialCompleted, gatheringTutorialChoice, miningTutorialCompleted, selectedFishingTutorialAction, selectedFishingResultAction, recipeDetailOpen, farmGirlDetailOpen, showDialog, pendingFarmCareConfirm, farmCareConfirmChoice, farmCareUnlockNoticeAction, farmHarvestResultNotice, farmGirlRevealSpotlightId, girlEquipmentNoticeGirlId, skillTreeTutorialStep, bulkHarvestOpen, bulkHarvestConfirmOpen, bulkHarvestResults, bulkHarvestUnlockNotice, bulkShippingOpen, bulkShippingConfirmOpen, bulkShippingResults, bulkShippingUnlockNotice, bulkFarmCareOpen, bulkFarmCareConfirmOpen, bulkFarmCareUnlockNotice, bulkFarmCareResults, fishingMasterRewardPopupOpen, bootMode, timeOfDay, isOpeningWalkObjectiveActive, currentDay, nextObjective, battlePreviewOpen, battlePreviewState, battleIntroPhase, battleItemPanelOpen, battleItemSelectionStep, selectedBattleCommandIndex, selectedBattleItemIndex, selectedBattleItemTargetIndex, companionRegenCinematicOpen, isMioFollowing]);
 
   // Zone creation states
   const [dragStart, setDragStart] = useState<{ x: number, y: number } | null>(null);
@@ -27769,6 +27850,30 @@ export default function App() {
                ])),
              }));
              setDialogMessage(`${targetGirl.girlName}の娘信頼度を${nextTrust}にしました。`);
+           }}
+           setAllDebugGirlsMax={() => {
+             if (!canUseDebugTools) return;
+             setDebugGirlAffinities(Object.fromEntries(GIRL_DATA.map(girl => [girl.id, 5])));
+             setFarmGirls(previous => previous.map(girl => {
+               const targetGirl = GIRL_DATA.find(entry => entry.id === girl.girlId);
+               if (!targetGirl) return girl;
+               return {
+                 ...girl,
+                 trust: 100,
+                 unlockedTrustEventIds: Array.from(new Set([
+                   ...girl.unlockedTrustEventIds,
+                   ...targetGirl.trustEvents.map(event => event.eventId),
+                 ])),
+               };
+             }));
+             setCollectionProgress(previous => ({
+               ...previous,
+               unlockedEventIds: Array.from(new Set([
+                 ...previous.unlockedEventIds,
+                 ...GIRL_DATA.flatMap(girl => girl.trustEvents.map(event => event.eventId)),
+               ])),
+             }));
+             setDialogMessage('全娘を★5・信頼100にしました。');
            }}
            setDebugGirlCardState={(girlId, cardState) => {
              if (!canUseDebugTools) return;

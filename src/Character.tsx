@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import type { PlayerDirection } from './types';
 
 const transparentSpriteCache = new Map<string, HTMLImageElement>();
 const transparentSpritePromiseCache = new Map<string, Promise<HTMLImageElement>>();
+const PLAYER_DIRECTIONS: readonly PlayerDirection[] = ['up', 'down', 'left', 'right'];
 
 const loadTransparentSprite = (imageUrl: string) => {
   const cached = transparentSpriteCache.get(imageUrl);
@@ -118,6 +119,25 @@ type CharacterProps = {
   },
 };
 
+const collectCharacterSpriteUrls = (
+  customSprites: Record<PlayerDirection, string | null>,
+  playerWalkSprites: Readonly<Record<PlayerDirection, readonly [string, string, string, string]>>,
+  overrideWalkSprites?: Readonly<Record<PlayerDirection, readonly [string, string, string, string]>>,
+  spriteSheet?: CharacterProps['spriteSheet'],
+) => {
+  const urls = new Set<string>();
+  if (spriteSheet?.url) urls.add(spriteSheet.url);
+
+  for (const direction of PLAYER_DIRECTIONS) {
+    const idleSprite = customSprites[direction];
+    if (idleSprite) urls.add(idleSprite);
+    playerWalkSprites[direction].forEach(url => urls.add(url));
+    overrideWalkSprites?.[direction].forEach(url => urls.add(url));
+  }
+
+  return Array.from(urls);
+};
+
 const Character = ({ x, y, direction, isWalking, customSprites, isHidden, isBathMasked, playerWalkSprites, overrideWalkSprites, walkFrameMs = 150, mirrorRightSprite = false, scale = 1, showGroundShadow = true, spriteSheet }: CharacterProps) => {
   const [frame, setFrame] = useState(0);
   
@@ -134,6 +154,25 @@ const Character = ({ x, y, direction, isWalking, customSprites, isHidden, isBath
 
   const currentSpriteUrl = spriteSheet?.url ?? getSpriteUrl();
   const spriteImg = useTransparentSprite(currentSpriteUrl);
+  const spriteUrlsToWarm = useMemo(
+    () => collectCharacterSpriteUrls(customSprites, playerWalkSprites, overrideWalkSprites, spriteSheet),
+    [customSprites, playerWalkSprites, overrideWalkSprites, spriteSheet],
+  );
+
+  useEffect(() => {
+    let cancelled = false;
+    const timerIds = spriteUrlsToWarm.map((url, index) => (
+      window.setTimeout(() => {
+        if (cancelled) return;
+        void loadTransparentSprite(url).catch(error => console.error('Failed to preload sprite image:', url, error));
+      }, 80 + index * 24)
+    ));
+
+    return () => {
+      cancelled = true;
+      timerIds.forEach(timerId => window.clearTimeout(timerId));
+    };
+  }, [spriteUrlsToWarm]);
 
   useEffect(() => {
     if (!isWalking) {
@@ -175,11 +214,23 @@ const Character = ({ x, y, direction, isWalking, customSprites, isHidden, isBath
   };
 
   const isHorizontal = direction === 'left' || direction === 'right';
+  const renderX = Math.round(x - 30);
+  const renderY = Math.round(y - 50);
 
   return (
     <div
-      className="absolute flex flex-col items-center justify-end z-30 pointer-events-none"
-      style={{ left: x - 30, top: y - 50, width: 60, height: 60, opacity: isHidden ? 0.42 : 1, filter: isHidden ? 'brightness(0.75)' : undefined, transform: `scale(${scale})`, transformOrigin: 'center bottom' }}
+      className="absolute left-0 top-0 flex flex-col items-center justify-end z-30 pointer-events-none"
+      style={{
+        width: 60,
+        height: 60,
+        opacity: isHidden ? 0.42 : 1,
+        filter: isHidden ? 'brightness(0.75)' : undefined,
+        transform: `translate3d(${renderX}px, ${renderY}px, 0) scale(${scale})`,
+        transformOrigin: 'center bottom',
+        backfaceVisibility: 'hidden',
+        willChange: 'transform',
+        contain: 'layout paint style',
+      }}
     >
       {showGroundShadow && !isBathMasked && <div className="absolute bottom-[-1px] w-[26px] h-2 bg-black/40 rounded-full blur-[2px]" />}
       
@@ -206,7 +257,7 @@ const Character = ({ x, y, direction, isWalking, customSprites, isHidden, isBath
               return (
                 <img
                   src={spriteImg.src}
-                  className="absolute max-w-none max-h-none filter drop-shadow-[0_2px_3px_rgba(0,0,0,0.5)]"
+                  className="absolute max-w-none max-h-none"
                   style={{
                     width: `${(sourceWidth / cellWidth) * 100}%`,
                     height: `${(sourceHeight / cellHeight) * 100}%`,
@@ -221,7 +272,7 @@ const Character = ({ x, y, direction, isWalking, customSprites, isHidden, isBath
         ) : (
          <img 
             src={spriteImg.src} 
-            className="relative z-10 filter drop-shadow-[0_2px_3px_rgba(0,0,0,0.5)] object-contain transition-transform duration-75"
+            className="relative z-10 object-contain"
             style={{ 
                transform: `translateY(${bounce}px) ${spriteRotation} ${shouldMirrorSprite ? 'scaleX(-1)' : ''}`, 
                maxHeight: '100%', 
@@ -318,4 +369,4 @@ const Character = ({ x, y, direction, isWalking, customSprites, isHidden, isBath
   );
 };
 
-export default Character;
+export default React.memo(Character);

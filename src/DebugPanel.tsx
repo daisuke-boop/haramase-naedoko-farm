@@ -72,6 +72,7 @@ type DebugPanelProps = {
   debugGirlTrusts: readonly DebugGirlTrustEntry[];
   adjustDebugGirlTrust: (girlId: string, delta: number) => void;
   setDebugGirlTrust: (girlId: string, trust: number) => void;
+  setAllDebugGirlsMax: () => void;
   setDebugGirlCardState: (girlId: string, state: DebugGirlCardState) => void;
   currentHeroSkillCategoryLabel: string;
   unlockedHeroSkillCount: number;
@@ -170,6 +171,7 @@ const DebugPanel = ({
   debugGirlTrusts,
   adjustDebugGirlTrust,
   setDebugGirlTrust,
+  setAllDebugGirlsMax,
   setDebugGirlCardState,
   currentHeroSkillCategoryLabel,
   unlockedHeroSkillCount,
@@ -420,6 +422,13 @@ const DebugPanel = ({
                   <option key={girl.id} value={girl.id}>{girl.name} ★{girl.affinity}/5 信頼{debugGirlTrusts.find(entry => entry.id === girl.id)?.trust ?? 0}</option>
                 ))}
               </select>
+              <button
+                type="button"
+                onClick={setAllDebugGirlsMax}
+                className="mb-2 w-full rounded border border-yellow-200 bg-yellow-700 py-1 font-black text-white hover:bg-yellow-600"
+              >
+                全娘★5・信頼100
+              </button>
               <div className="mb-1 flex items-center justify-between text-[10px] font-black text-amber-100">
                 <span className="min-w-0 truncate">{selectedAffinityGirl?.name ?? '娘'}</span>
                 <span>★{selectedAffinityGirl?.affinity ?? 1}/5</span>
