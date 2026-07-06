@@ -1,77 +1,407 @@
 {
   "saveSchemaVersion": 2,
-  "turn": 35,
-  "gold": 108357,
+  "turn": 79,
+  "gold": 851896,
   "goldTransactionHistory": [
     {
-      "id": "legacy-1783251681132",
-      "timestamp": "2026-07-05T11:41:21.132Z",
+      "id": "new-game-1783261377101",
+      "timestamp": "2026-07-05T14:22:57.101Z",
+      "day": 1,
+      "timeOfDay": "morning",
+      "reason": "ゲーム開始時の所持金",
+      "amount": 5000,
+      "before": 0,
+      "after": 5000
+    },
+    {
+      "id": "2026-07-05T14:25:17.371Z-or8dzu",
+      "timestamp": "2026-07-05T14:25:17.371Z",
+      "day": 2,
+      "timeOfDay": "morning",
+      "reason": "くるみ商店・買う：【レシピ】のこぎり",
+      "amount": -500,
+      "before": 5000,
+      "after": 4500
+    },
+    {
+      "id": "2026-07-05T14:25:39.289Z-06zrza",
+      "timestamp": "2026-07-05T14:25:39.289Z",
+      "day": 2,
+      "timeOfDay": "morning",
+      "reason": "くるみ商店・買う：【レシピ】つるはし",
+      "amount": -500,
+      "before": 4500,
+      "after": 4000
+    },
+    {
+      "id": "2026-07-05T14:31:16.239Z-872t54",
+      "timestamp": "2026-07-05T14:31:16.239Z",
+      "day": 4,
+      "timeOfDay": "morning",
+      "reason": "農場・一括出荷：3種類",
+      "amount": 38720,
+      "before": 4000,
+      "after": 42720
+    },
+    {
+      "id": "2026-07-05T14:32:03.686Z-kbkkco",
+      "timestamp": "2026-07-05T14:32:03.686Z",
+      "day": 5,
+      "timeOfDay": "morning",
+      "reason": "農場・一括出荷：2種類",
+      "amount": 20570,
+      "before": 42720,
+      "after": 63290
+    },
+    {
+      "id": "2026-07-05T14:32:22.697Z-nxkijr",
+      "timestamp": "2026-07-05T14:32:22.697Z",
+      "day": 5,
+      "timeOfDay": "day",
+      "reason": "農場・一括出荷：1種類",
+      "amount": 10560,
+      "before": 63290,
+      "after": 73850
+    },
+    {
+      "id": "2026-07-05T14:32:39.169Z-floqrb",
+      "timestamp": "2026-07-05T14:32:39.169Z",
+      "day": 5,
+      "timeOfDay": "day",
+      "reason": "農場・一括出荷：2種類",
+      "amount": 31680,
+      "before": 73850,
+      "after": 105530
+    },
+    {
+      "id": "2026-07-05T14:33:53.958Z-2ezx9a",
+      "timestamp": "2026-07-05T14:33:53.958Z",
+      "day": 6,
+      "timeOfDay": "day",
+      "reason": "農場・一括出荷：2種類",
+      "amount": 22440,
+      "before": 105530,
+      "after": 127970
+    },
+    {
+      "id": "2026-07-05T14:34:33.425Z-y5loif",
+      "timestamp": "2026-07-05T14:34:33.425Z",
+      "day": 7,
+      "timeOfDay": "day",
+      "reason": "農場・一括出荷：2種類",
+      "amount": 32175,
+      "before": 127970,
+      "after": 160145
+    },
+    {
+      "id": "2026-07-05T14:34:41.862Z-bdcdfn",
+      "timestamp": "2026-07-05T14:34:41.862Z",
+      "day": 7,
+      "timeOfDay": "day",
+      "reason": "農場・一括出荷：1種類",
+      "amount": 12996,
+      "before": 160145,
+      "after": 173141
+    },
+    {
+      "id": "2026-07-05T14:35:27.506Z-75w4m2",
+      "timestamp": "2026-07-05T14:35:27.506Z",
       "day": 8,
+      "timeOfDay": "day",
+      "reason": "農場・一括出荷：3種類",
+      "amount": 45002,
+      "before": 173141,
+      "after": 218143
+    },
+    {
+      "id": "2026-07-05T14:35:36.411Z-ygco5w",
+      "timestamp": "2026-07-05T14:35:36.411Z",
+      "day": 8,
+      "timeOfDay": "day",
+      "reason": "借金・追加返済",
+      "amount": -60000,
+      "before": 218143,
+      "after": 158143
+    },
+    {
+      "id": "2026-07-05T14:36:20.016Z-iou54x",
+      "timestamp": "2026-07-05T14:36:20.016Z",
+      "day": 9,
+      "timeOfDay": "day",
+      "reason": "農場・一括出荷：2種類",
+      "amount": 26252,
+      "before": 158143,
+      "after": 184395
+    },
+    {
+      "id": "2026-07-05T14:36:46.456Z-8zeagd",
+      "timestamp": "2026-07-05T14:36:46.456Z",
+      "day": 9,
+      "timeOfDay": "day",
+      "reason": "くるみ商店・買う：ブドウの苗娘",
+      "amount": -120000,
+      "before": 184395,
+      "after": 64395
+    },
+    {
+      "id": "2026-07-05T14:38:57.306Z-rftxlx",
+      "timestamp": "2026-07-05T14:38:57.306Z",
+      "day": 10,
       "timeOfDay": "evening",
-      "reason": "既存セーブ読込時の基準値",
-      "amount": 0,
-      "before": 118736,
-      "after": 118736
+      "reason": "農場・一括出荷：3種類",
+      "amount": 47188,
+      "before": 64395,
+      "after": 111583
     },
     {
-      "id": "2026-07-05T11:49:16.699Z-q8j24w",
-      "timestamp": "2026-07-05T11:49:16.699Z",
-      "day": 8,
+      "id": "2026-07-05T14:42:20.186Z-53i59q",
+      "timestamp": "2026-07-05T14:42:20.186Z",
+      "day": 11,
       "timeOfDay": "night",
-      "reason": "借金・最低返済",
-      "amount": -50000,
-      "before": 118736,
-      "after": 68736
+      "reason": "農場・一括出荷：5種類",
+      "amount": 130288,
+      "before": 111583,
+      "after": 241871
     },
     {
-      "id": "2026-07-05T11:50:45.030Z-b3s969",
-      "timestamp": "2026-07-05T11:50:45.030Z",
-      "day": 9,
-      "timeOfDay": "day",
-      "reason": "農場・一括出荷：1種類",
-      "amount": 10500,
-      "before": 68736,
-      "after": 79236
+      "id": "2026-07-05T14:43:36.848Z-0p9jl0",
+      "timestamp": "2026-07-05T14:43:36.848Z",
+      "day": 12,
+      "timeOfDay": "morning",
+      "reason": "くるみ商店・買う：右畑の開墾",
+      "amount": -100000,
+      "before": 241871,
+      "after": 141871
     },
     {
-      "id": "2026-07-05T11:51:57.954Z-agvpen",
-      "timestamp": "2026-07-05T11:51:57.954Z",
-      "day": 9,
-      "timeOfDay": "day",
-      "reason": "農場・一括出荷：1種類",
-      "amount": 15752,
-      "before": 79236,
-      "after": 94988
+      "id": "2026-07-05T14:44:02.036Z-pw6huu",
+      "timestamp": "2026-07-05T14:44:02.036Z",
+      "day": 12,
+      "timeOfDay": "morning",
+      "reason": "くるみ商店・買う：【レシピ】丈夫なつるはし",
+      "amount": -1500,
+      "before": 141871,
+      "after": 140371
     },
     {
-      "id": "2026-07-05T11:52:56.837Z-x8ciff",
-      "timestamp": "2026-07-05T11:52:56.837Z",
-      "day": 9,
-      "timeOfDay": "day",
+      "id": "2026-07-05T14:44:14.258Z-rqbq3k",
+      "timestamp": "2026-07-05T14:44:14.258Z",
+      "day": 12,
+      "timeOfDay": "morning",
       "reason": "くるみ商店・買う：【レシピ】木剣",
       "amount": -800,
-      "before": 94988,
-      "after": 94188
+      "before": 140371,
+      "after": 139571
     },
     {
-      "id": "2026-07-05T11:53:10.144Z-kr5oxa",
-      "timestamp": "2026-07-05T11:53:10.144Z",
-      "day": 9,
-      "timeOfDay": "day",
+      "id": "2026-07-05T14:44:18.623Z-7z7gpn",
+      "timestamp": "2026-07-05T14:44:18.623Z",
+      "day": 12,
+      "timeOfDay": "morning",
       "reason": "くるみ商店・買う：【レシピ】毛皮の服",
       "amount": -900,
-      "before": 94188,
-      "after": 93288
+      "before": 139571,
+      "after": 138671
     },
     {
-      "id": "2026-07-05T11:54:12.153Z-krm8b9",
-      "timestamp": "2026-07-05T11:54:12.153Z",
-      "day": 9,
-      "timeOfDay": "day",
-      "reason": "くるみ商店・一括売却：25種類",
-      "amount": 15069,
-      "before": 93288,
-      "after": 108357
+      "id": "2026-07-05T14:44:44.980Z-dypswn",
+      "timestamp": "2026-07-05T14:44:44.980Z",
+      "day": 12,
+      "timeOfDay": "morning",
+      "reason": "くるみ商店・買う：【レシピ】丈夫なのこぎり",
+      "amount": -1500,
+      "before": 138671,
+      "after": 137171
+    },
+    {
+      "id": "2026-07-05T14:45:05.656Z-bfnc9h",
+      "timestamp": "2026-07-05T14:45:05.656Z",
+      "day": 12,
+      "timeOfDay": "morning",
+      "reason": "農場・一括出荷：1種類",
+      "amount": 17600,
+      "before": 137171,
+      "after": 154771
+    },
+    {
+      "id": "2026-07-05T14:45:25.571Z-glhzz8",
+      "timestamp": "2026-07-05T14:45:25.571Z",
+      "day": 12,
+      "timeOfDay": "night",
+      "reason": "農場・一括出荷：3種類",
+      "amount": 94498,
+      "before": 154771,
+      "after": 249269
+    },
+    {
+      "id": "2026-07-05T14:47:11.284Z-ki82th",
+      "timestamp": "2026-07-05T14:47:11.284Z",
+      "day": 13,
+      "timeOfDay": "morning",
+      "reason": "農場・一括出荷：2種類",
+      "amount": 38888,
+      "before": 249269,
+      "after": 288157
+    },
+    {
+      "id": "2026-07-05T14:47:28.511Z-73onvm",
+      "timestamp": "2026-07-05T14:47:28.511Z",
+      "day": 13,
+      "timeOfDay": "night",
+      "reason": "農場・一括出荷：2種類",
+      "amount": 34498,
+      "before": 288157,
+      "after": 322655
+    },
+    {
+      "id": "2026-07-05T14:47:56.666Z-0o3ivq",
+      "timestamp": "2026-07-05T14:47:56.666Z",
+      "day": 14,
+      "timeOfDay": "morning",
+      "reason": "くるみ商店・買う：猪の硬皮",
+      "amount": -4000,
+      "before": 322655,
+      "after": 318655
+    },
+    {
+      "id": "2026-07-05T14:48:09.508Z-x1r2t8",
+      "timestamp": "2026-07-05T14:48:09.508Z",
+      "day": 14,
+      "timeOfDay": "morning",
+      "reason": "くるみ商店・買う：モグラの爪",
+      "amount": -400,
+      "before": 318655,
+      "after": 318255
+    },
+    {
+      "id": "2026-07-05T14:48:14.829Z-i70zqh",
+      "timestamp": "2026-07-05T14:48:14.829Z",
+      "day": 14,
+      "timeOfDay": "morning",
+      "reason": "くるみ商店・買う：モグラの爪",
+      "amount": -400,
+      "before": 318255,
+      "after": 317855
+    },
+    {
+      "id": "2026-07-05T14:48:16.158Z-hd7qjc",
+      "timestamp": "2026-07-05T14:48:16.158Z",
+      "day": 14,
+      "timeOfDay": "morning",
+      "reason": "くるみ商店・買う：ウサギの靭帯",
+      "amount": -700,
+      "before": 317855,
+      "after": 317155
+    },
+    {
+      "id": "2026-07-05T14:48:17.334Z-eai1nq",
+      "timestamp": "2026-07-05T14:48:17.334Z",
+      "day": 14,
+      "timeOfDay": "morning",
+      "reason": "くるみ商店・買う：ウサギの靭帯",
+      "amount": -700,
+      "before": 317155,
+      "after": 316455
+    },
+    {
+      "id": "2026-07-05T14:48:19.126Z-1hi3o3",
+      "timestamp": "2026-07-05T14:48:19.126Z",
+      "day": 14,
+      "timeOfDay": "morning",
+      "reason": "くるみ商店・買う：猪の牙",
+      "amount": -2500,
+      "before": 316455,
+      "after": 313955
+    },
+    {
+      "id": "2026-07-05T14:48:20.832Z-utuujw",
+      "timestamp": "2026-07-05T14:48:20.832Z",
+      "day": 14,
+      "timeOfDay": "morning",
+      "reason": "くるみ商店・買う：【レシピ】獣殺し",
+      "amount": -4500,
+      "before": 313955,
+      "after": 309455
+    },
+    {
+      "id": "2026-07-05T14:48:21.864Z-7dgtdq",
+      "timestamp": "2026-07-05T14:48:21.864Z",
+      "day": 14,
+      "timeOfDay": "morning",
+      "reason": "くるみ商店・買う：【レシピ】高級つるはし",
+      "amount": -5000,
+      "before": 309455,
+      "after": 304455
+    },
+    {
+      "id": "2026-07-05T14:48:22.893Z-vkmaz0",
+      "timestamp": "2026-07-05T14:48:22.893Z",
+      "day": 14,
+      "timeOfDay": "morning",
+      "reason": "くるみ商店・買う：【レシピ】高級のこぎり",
+      "amount": -5000,
+      "before": 304455,
+      "after": 299455
+    },
+    {
+      "id": "2026-07-05T14:48:24.009Z-dloyly",
+      "timestamp": "2026-07-05T14:48:24.009Z",
+      "day": 14,
+      "timeOfDay": "morning",
+      "reason": "くるみ商店・買う：【レシピ】高級釣竿",
+      "amount": -6000,
+      "before": 299455,
+      "after": 293455
+    },
+    {
+      "id": "2026-07-05T14:48:58.886Z-dcf9uu",
+      "timestamp": "2026-07-05T14:48:58.886Z",
+      "day": 14,
+      "timeOfDay": "night",
+      "reason": "農場・一括出荷：5種類",
+      "amount": 137623,
+      "before": 293455,
+      "after": 431078
+    },
+    {
+      "id": "2026-07-05T14:56:43.685Z-t4l3cb",
+      "timestamp": "2026-07-05T14:56:43.685Z",
+      "day": 15,
+      "timeOfDay": "night",
+      "reason": "農場・一括出荷：4種類",
+      "amount": 120002,
+      "before": 431078,
+      "after": 551080
+    },
+    {
+      "id": "2026-07-05T14:58:48.466Z-kh4o78",
+      "timestamp": "2026-07-05T14:58:48.466Z",
+      "day": 16,
+      "timeOfDay": "night",
+      "reason": "借金・追加返済",
+      "amount": -72380,
+      "before": 551080,
+      "after": 478700
+    },
+    {
+      "id": "2026-07-05T15:00:44.129Z-v4tmnq",
+      "timestamp": "2026-07-05T15:00:44.129Z",
+      "day": 18,
+      "timeOfDay": "morning",
+      "reason": "くるみ商店・買う：【レシピ】剛牙の鎧",
+      "amount": -5500,
+      "before": 478700,
+      "after": 473200
+    },
+    {
+      "id": "2026-07-05T15:02:03.583Z-oflrp0",
+      "timestamp": "2026-07-05T15:02:03.583Z",
+      "day": 19,
+      "timeOfDay": "night",
+      "reason": "農場・一括出荷：5種類",
+      "amount": 378696,
+      "before": 473200,
+      "after": 851896
     }
   ],
   "gameMode": "story",
@@ -79,12 +409,7 @@
   "collectionProgress": {
     "collectedGirlIds": [],
     "caughtFishIds": [
-      "eda",
-      "funa",
-      "gomu",
-      "dojo",
-      "oikawa",
-      "ugui"
+      "eda"
     ],
     "craftedItemIds": [],
     "unlockedEventIds": [
@@ -95,27 +420,39 @@
       "bulk_farm_care_unlocked",
       "bulk_shipping_unlocked",
       "bulk_harvest_unlocked",
-      "video_kurumi_sleep_1",
       "girl_equipment_unlocked_chibiichi",
       "girl_equipment_unlocked_ruby",
       "seed_offer_grape",
-      "girl_equipment_tutorial_completed",
       "girl_equipment_unlocked_mel",
-      "video_kurumi_sleep_2",
       "skill_tree_tutorial_seen",
       "chibiichi_trust_50",
       "ruby_trust_50",
-      "seed_offer_turnip"
+      "seed_offer_turnip",
+      "video_kurumi_sleep_2",
+      "mel_trust_50",
+      "girl_equipment_unlocked_kabune",
+      "trust100_sp_reward_chibiichi",
+      "chibiichi_trust_100",
+      "trust100_sp_reward_ruby",
+      "ruby_trust_100",
+      "girl_equipment_unlocked_viola",
+      "kurumi_pantsu_gate_notice_seen",
+      "kabune_trust_50"
     ],
     "viewedEventIds": [
-      "ruby_trust_50"
+      "chibiichi_trust_50",
+      "ruby_trust_50",
+      "mel_trust_50",
+      "chibiichi_trust_100",
+      "ruby_trust_100",
+      "kabune_trust_50"
     ],
     "defeatedBeastIds": []
   },
   "achievementStats": {
-    "totalFishCaught": 20,
+    "totalFishCaught": 2,
     "totalCraftSuccesses": 2,
-    "totalNushiCaught": 2,
+    "totalNushiCaught": 0,
     "totalRareOresMined": 0,
     "totalRareLumbersCut": 0
   },
@@ -131,22 +468,25 @@
     "totalTrustEventsUnlocked": 0,
     "totalMoneyEarned": 0
   },
-  "debt": 1450000,
-  "debtAmount": 1450000,
-  "shownDebtMilestoneIds": [],
-  "shownMarketForecastCycleIndexes": [
-    1
+  "debt": 270000,
+  "debtAmount": 270000,
+  "shownDebtMilestoneIds": [
+    "debt_remaining_75"
   ],
-  "marketCycleIndex": 1,
-  "marketBoomCategory": "魚",
-  "marketSlumpCategory": "鉱石",
+  "shownMarketForecastCycleIndexes": [
+    1,
+    2
+  ],
+  "marketCycleIndex": 2,
+  "marketBoomCategory": "木材",
+  "marketSlumpCategory": "獣素材",
   "repaymentCycleDays": 8,
   "storyCleared": false,
-  "farmCredit": 5,
-  "successfulRepaymentCount": 1,
+  "farmCredit": 16,
+  "successfulRepaymentCount": 2,
   "missedRepaymentCount": 0,
   "heroLevel": 2,
-  "heroSP": 0,
+  "heroSP": 2,
   "debugGirlAffinities": {},
   "unlockedHeroSkills": [
     "farm_seedling_care",
@@ -158,9 +498,9 @@
   "scheduledBeastAttackDay": null,
   "mountainLordAttackPending": false,
   "beastAttackPending": false,
-  "companionGirlId": "mel",
-  "currentWeeklyInterestRate": 0.9,
-  "interestRateCycleIndex": 1,
+  "companionGirlId": null,
+  "currentWeeklyInterestRate": 1,
+  "interestRateCycleIndex": 2,
   "farmGirls": [
     {
       "girlId": "chibiichi",
@@ -169,14 +509,15 @@
       "plantedDay": 1,
       "growthProgress": 2,
       "quality": 100,
-      "careDay": 9,
+      "careDay": 20,
       "caressCount": 1,
       "fingerCount": 1,
       "fertilizeCount": 1,
-      "lastHarvestDay": 9,
-      "trust": 56,
+      "lastHarvestDay": 19,
+      "trust": 100,
       "unlockedTrustEventIds": [
-        "chibiichi_trust_50"
+        "chibiichi_trust_50",
+        "chibiichi_trust_100"
       ],
       "condition": "normal",
       "conditionDay": null,
@@ -190,13 +531,15 @@
       "plantedDay": 1,
       "growthProgress": 3,
       "quality": 100,
-      "careDay": 9,
+      "careDay": 20,
       "caressCount": 1,
       "fingerCount": 1,
       "fertilizeCount": 1,
-      "lastHarvestDay": 7,
-      "trust": 32,
-      "unlockedTrustEventIds": [],
+      "lastHarvestDay": 19,
+      "trust": 88,
+      "unlockedTrustEventIds": [
+        "mel_trust_50"
+      ],
       "condition": "normal",
       "conditionDay": null,
       "conditionSource": null,
@@ -209,14 +552,15 @@
       "plantedDay": 1,
       "growthProgress": 2,
       "quality": 100,
-      "careDay": 9,
+      "careDay": 20,
       "caressCount": 1,
       "fingerCount": 1,
       "fertilizeCount": 1,
-      "lastHarvestDay": 9,
-      "trust": 56,
+      "lastHarvestDay": 19,
+      "trust": 100,
       "unlockedTrustEventIds": [
-        "ruby_trust_50"
+        "ruby_trust_50",
+        "ruby_trust_100"
       ],
       "condition": "normal",
       "conditionDay": null,
@@ -225,17 +569,17 @@
     },
     {
       "girlId": "viola",
-      "state": "none",
-      "cardRevealed": false,
-      "plantedDay": null,
-      "growthProgress": 0,
-      "quality": 0,
-      "careDay": null,
-      "caressCount": 0,
-      "fingerCount": 0,
-      "fertilizeCount": 0,
-      "lastHarvestDay": null,
-      "trust": 0,
+      "state": "appeared",
+      "cardRevealed": true,
+      "plantedDay": 9,
+      "growthProgress": 4,
+      "quality": 100,
+      "careDay": 20,
+      "caressCount": 1,
+      "fingerCount": 1,
+      "fertilizeCount": 1,
+      "lastHarvestDay": 20,
+      "trust": 42,
       "unlockedTrustEventIds": [],
       "condition": "normal",
       "conditionDay": null,
@@ -263,18 +607,20 @@
     },
     {
       "girlId": "kabune",
-      "state": "none",
-      "cardRevealed": false,
-      "plantedDay": null,
-      "growthProgress": 0,
-      "quality": 0,
-      "careDay": null,
-      "caressCount": 0,
-      "fingerCount": 0,
-      "fertilizeCount": 0,
-      "lastHarvestDay": null,
-      "trust": 0,
-      "unlockedTrustEventIds": [],
+      "state": "appeared",
+      "cardRevealed": true,
+      "plantedDay": 9,
+      "growthProgress": 2,
+      "quality": 100,
+      "careDay": 20,
+      "caressCount": 1,
+      "fingerCount": 1,
+      "fertilizeCount": 1,
+      "lastHarvestDay": 19,
+      "trust": 50,
+      "unlockedTrustEventIds": [
+        "kabune_trust_50"
+      ],
       "condition": "normal",
       "conditionDay": null,
       "conditionSource": null,
@@ -457,15 +803,18 @@
   "ownedGirlSeeds": [
     "ichigo",
     "melon",
-    "tomato"
+    "tomato",
+    "turnip",
+    "grape"
   ],
   "hasReceivedKurumiStarterSeeds": true,
   "hasKurumiNotebook": true,
   "hasSeenTrust20CompanionTutorial": true,
-  "kurumiTradeTotal": 278171,
+  "kurumiTradeTotal": 1500076,
   "shownKurumiTradeRewardThresholds": [
     200000,
-    50000
+    50000,
+    5000
   ],
   "kurumiPantsReturned": false,
   "kurumiTentFinalAvailableDay": null,
@@ -477,14 +826,14 @@
     {
       "fieldId": "left",
       "slotIndex": 1,
-      "girlId": null,
-      "state": "none",
-      "plantedDay": null
+      "girlId": "kabune",
+      "state": "appeared",
+      "plantedDay": 9
     },
     {
       "fieldId": "left",
       "slotIndex": 2,
-      "girlId": "ruby",
+      "girlId": "mel",
       "state": "appeared",
       "plantedDay": 1
     },
@@ -498,29 +847,57 @@
     {
       "fieldId": "left",
       "slotIndex": 4,
-      "girlId": null,
-      "state": "none",
-      "plantedDay": null
+      "girlId": "viola",
+      "state": "appeared",
+      "plantedDay": 9
     },
     {
       "fieldId": "left",
       "slotIndex": 5,
+      "girlId": "ruby",
+      "state": "appeared",
+      "plantedDay": 1
+    },
+    {
+      "fieldId": "left",
+      "slotIndex": 6,
       "girlId": null,
       "state": "none",
       "plantedDay": null
     },
     {
-      "fieldId": "left",
-      "slotIndex": 6,
-      "girlId": "mel",
-      "state": "appeared",
-      "plantedDay": 1
+      "fieldId": "right",
+      "slotIndex": 1,
+      "girlId": null,
+      "state": "none",
+      "plantedDay": null
+    },
+    {
+      "fieldId": "right",
+      "slotIndex": 2,
+      "girlId": null,
+      "state": "none",
+      "plantedDay": null
+    },
+    {
+      "fieldId": "right",
+      "slotIndex": 3,
+      "girlId": null,
+      "state": "none",
+      "plantedDay": null
+    },
+    {
+      "fieldId": "right",
+      "slotIndex": 4,
+      "girlId": null,
+      "state": "none",
+      "plantedDay": null
     }
   ],
-  "currentAP": 1,
+  "currentAP": 5,
   "maxAPPerTimeSlot": 5,
   "difficulty": "easy",
-  "currentMap": "farm",
+  "currentMap": "house",
   "zones": [
     {
       "id": "1781485855659",
@@ -45467,31 +45844,35 @@
   },
   "inventoryCounts": {
     "農神の指輪": 1,
-    "枝": 5,
+    "枝": 2,
     "竹の釣竿": 1,
     "【レシピ】のこぎり": 1,
-    "モグラの爪": 1,
-    "ウサギの靭帯": 0,
-    "軟らかい銅鉱石": 5,
-    "柔らかな若枝": 84,
+    "モグラの爪": 2,
+    "ウサギの靭帯": 2,
+    "軟らかい銅鉱石": 1,
+    "柔らかな若枝": 0,
     "のこぎり": 1,
     "【レシピ】つるはし": 1,
-    "泥混じりの鉄鉱石": 18,
+    "泥混じりの鉄鉱石": 0,
     "つるはし": 1,
-    "軽石炭": 11,
-    "脆い鉛鉱石": 14,
+    "ちびいちのいちご": 3,
+    "ルビーのトマト": 5,
+    "メルのメロン": 1,
+    "ヴィオラのブドウ": 2,
+    "かぶねのかぶ": 2,
     "【レシピ】丈夫なつるはし": 1,
-    "【レシピ】丈夫なのこぎり": 1,
-    "フナ": 2,
-    "使用済みコンドーム": 9,
-    "ちびいちのいちご": 0,
-    "ルビーのトマト": 0,
-    "どじょう": 5,
-    "オイカワ": 6,
-    "メルのメロン": 0,
-    "ウグイ": 7,
     "【レシピ】木剣": 1,
-    "【レシピ】毛皮の服": 1
+    "【レシピ】毛皮の服": 1,
+    "【レシピ】丈夫なのこぎり": 1,
+    "モグラの肉": 1,
+    "猪の硬皮": 1,
+    "猪の牙": 1,
+    "【レシピ】獣殺し": 1,
+    "【レシピ】高級つるはし": 1,
+    "【レシピ】高級のこぎり": 1,
+    "【レシピ】高級釣竿": 1,
+    "鋭い前歯": 1,
+    "【レシピ】剛牙の鎧": 1
   },
   "equippedItems": {
     "主人公-slot1": "竹の釣竿",
@@ -45506,34 +45887,25 @@
       {
         "girlId": "chibiichi",
         "slotIndex": 1,
-        "equippedItemId": "ちびいちのいちご",
-        "bonusStats": {
-          "attack": 2,
-          "hp": 4
-        },
-        "equipQuality": "good"
+        "equippedItemId": null,
+        "bonusStats": {},
+        "equipQuality": "none"
       },
       {
         "girlId": "chibiichi",
         "slotIndex": 2,
-        "equippedItemId": "ちびいちのいちご",
-        "bonusStats": {
-          "defense": 2,
-          "hp": 4
-        },
-        "equipQuality": "perfect"
+        "equippedItemId": null,
+        "bonusStats": {},
+        "equipQuality": "none"
       }
     ],
     "mel": [
       {
         "girlId": "mel",
         "slotIndex": 1,
-        "equippedItemId": "メルのメロン",
-        "bonusStats": {
-          "attack": 2,
-          "hp": 4
-        },
-        "equipQuality": "normal"
+        "equippedItemId": null,
+        "bonusStats": {},
+        "equipQuality": "none"
       },
       {
         "girlId": "mel",
@@ -45547,22 +45919,16 @@
       {
         "girlId": "ruby",
         "slotIndex": 1,
-        "equippedItemId": "ルビーのトマト",
-        "bonusStats": {
-          "attack": 2,
-          "hp": 4
-        },
-        "equipQuality": "good"
+        "equippedItemId": null,
+        "bonusStats": {},
+        "equipQuality": "none"
       },
       {
         "girlId": "ruby",
         "slotIndex": 2,
-        "equippedItemId": "ルビーのトマト",
-        "bonusStats": {
-          "defense": 2,
-          "hp": 4
-        },
-        "equipQuality": "perfect"
+        "equippedItemId": null,
+        "bonusStats": {},
+        "equipQuality": "none"
       }
     ],
     "viola": [
@@ -45759,92 +46125,25 @@
     ]
   },
   "caughtFishIds": [
-    "eda",
-    "funa",
-    "gomu",
-    "dojo",
-    "oikawa",
-    "ugui"
+    "eda"
   ],
-  "nushiCaughtFishIds": [
-    "gomu"
-  ],
+  "nushiCaughtFishIds": [],
   "fishBestSizes": {
-    "eda": 13.5,
-    "funa": 22.5,
-    "gomu": 20,
-    "dojo": 13.6,
-    "oikawa": 14.4,
-    "ugui": 35.2
+    "eda": 13
   },
   "fishInventorySizes": {
-    "枝": [],
-    "フナ": [],
-    "使用済みコンドーム": [],
-    "どじょう": [],
-    "オイカワ": [],
-    "ウグイ": [
-      26.5
+    "枝": [
+      8.3,
+      13
     ]
   },
-  "lumberInventorySizes": {
-    "柔らかな若枝": [
-      19.3,
-      22,
-      25.1,
-      18.8,
-      28.5,
-      22,
-      35.9,
-      32.5,
-      27,
-      47.1,
-      29.5,
-      36.4,
-      23,
-      30.1,
-      31.5
-    ]
-  },
+  "lumberInventorySizes": {},
   "oreInventoryWeights": {
-    "軽石炭": [
-      941,
-      903,
-      1019
-    ],
-    "脆い鉛鉱石": [
-      2344,
-      684,
-      1058,
-      1500,
-      2344,
-      826,
-      994,
-      2489,
-      974,
-      2350,
-      1849,
-      1893,
-      1220,
-      663
-    ],
-    "泥混じりの鉄鉱石": [
-      2468,
-      844,
-      2488,
-      774,
-      1103
-    ],
     "軟らかい銅鉱石": [
-      1169,
-      1068
+      1909
     ]
   },
-  "depletedMiningPointIds": {
-    "evening_waterfall_41,43": true,
-    "evening_waterfall_41,42": true,
-    "night_kawa_70,25": true
-  },
+  "depletedMiningPointIds": {},
   "fishingTutorialCompleted": true,
   "craftTutorialRecipeName": "【レシピ】つるはし",
   "sawCraftTutorialReady": false,

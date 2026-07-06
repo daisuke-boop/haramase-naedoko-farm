@@ -140,7 +140,7 @@ export const BEAST_DROP_DATA: readonly BeastDropData[] = [
   ] },
   { beastId: 'mountain_lord', drops: [
     { dropItemId: 'divine_beast_horn', dropItemName: '神獣の角', dropRate: 0.80, dropCountMin: 1, dropCountMax: 1, sellPrice: 30_000 },
-    { dropItemId: 'divine_beast_silk_thread', dropItemName: '神獣の絹糸', dropRate: 0.40, dropCountMin: 1, dropCountMax: 1, sellPrice: 50_000 },
+    { dropItemId: 'divine_beast_silk_thread', dropItemName: '神獣の絹糸', dropRate: 0.25, dropCountMin: 1, dropCountMax: 1, sellPrice: 50_000 },
     { dropItemId: 'legendary_drop', dropItemName: '伝説の雫', dropRate: 0.10, dropCountMin: 1, dropCountMax: 1, sellPrice: 80_000 },
   ] },
 ] as const;

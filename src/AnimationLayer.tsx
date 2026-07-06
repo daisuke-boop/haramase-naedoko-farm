@@ -528,11 +528,11 @@ const SpriteItem = ({ z, isSetupMode, onZoneDelete, onZoneClick, isSelected, onS
   const waterfallMaskImage = `${waterfallVerticalMask}, ${waterfallHorizontalMask}`;
 
   return (
-    <div className={`absolute ${isSetupMode ? `pointer-events-auto border-2 cursor-move ${isSelected ? 'border-yellow-400 bg-yellow-400/40 z-30' : 'border-red-500 bg-red-500/20'}` : z.type === 'kurumi' && !isKurumiTent ? 'pointer-events-auto cursor-pointer' : 'pointer-events-none'}`} 
+    <div className={`absolute ${isSetupMode ? `pointer-events-auto border-2 cursor-move ${isSelected ? 'border-yellow-400 bg-yellow-400/40 z-30' : 'border-red-500 bg-red-500/20'}` : z.type === 'kurumi' ? 'pointer-events-auto cursor-pointer' : 'pointer-events-none'}`}
          onPointerDown={(e) => {
             if (isSetupMode) {
                onDragStart(e, z.id);
-            } else if (z.type === 'kurumi' && !isKurumiTent) {
+            } else if (z.type === 'kurumi') {
                e.stopPropagation();
             }
          }}
@@ -540,7 +540,7 @@ const SpriteItem = ({ z, isSetupMode, onZoneDelete, onZoneClick, isSelected, onS
             if (isSetupMode) {
                e.stopPropagation();
                onSelect(z.id);
-            } else if (z.type === 'kurumi' && !isKurumiTent) {
+            } else if (z.type === 'kurumi') {
                e.stopPropagation();
                const rect = e.currentTarget.getBoundingClientRect();
                const localX = rect.width > 0 ? ((e.clientX - rect.left) / rect.width) * z.w : z.w / 2;

@@ -1,6 +1,69 @@
 import React, { useState, useEffect } from 'react';
 import type { PlayerDirection } from './types';
 
+const transparentSpriteCache = new Map<string, HTMLImageElement>();
+const transparentSpritePromiseCache = new Map<string, Promise<HTMLImageElement>>();
+
+const loadTransparentSprite = (imageUrl: string) => {
+  const cached = transparentSpriteCache.get(imageUrl);
+  if (cached) return Promise.resolve(cached);
+
+  const pending = transparentSpritePromiseCache.get(imageUrl);
+  if (pending) return pending;
+
+  const promise = new Promise<HTMLImageElement>((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      try {
+        const canvas = document.createElement('canvas');
+        canvas.width = img.width;
+        canvas.height = img.height;
+        const ctx = canvas.getContext('2d', { willReadFrequently: true });
+        if (!ctx) {
+          resolve(img);
+          return;
+        }
+        ctx.drawImage(img, 0, 0);
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const data = imageData.data;
+
+        const width = canvas.width;
+        const height = canvas.height;
+        const corners = [0, (width - 1) * 4, (height - 1) * width * 4, ((height - 1) * width + (width - 1)) * 4];
+        let sumR = 0, sumG = 0, sumB = 0;
+        for (const idx of corners) {
+          sumR += data[idx]; sumG += data[idx + 1]; sumB += data[idx + 2];
+        }
+        const bgR = sumR / 4, bgG = sumG / 4, bgB = sumB / 4;
+
+        for (let i = 0; i < data.length; i += 4) {
+          const r = data[i], g = data[i + 1], b = data[i + 2];
+          const diff = Math.abs(r - bgR) + Math.abs(g - bgG) + Math.abs(b - bgB);
+          if (diff < 90 || (r > 240 && g > 240 && b > 240)) data[i + 3] = 0;
+        }
+        ctx.putImageData(imageData, 0, 0);
+        const processedImg = new Image();
+        processedImg.onload = () => resolve(processedImg);
+        processedImg.onerror = () => resolve(img);
+        processedImg.src = canvas.toDataURL();
+      } catch (error) {
+        console.error('Failed transparent processing, falling back to raw image:', imageUrl, error);
+        resolve(img);
+      }
+    };
+    img.onerror = reject;
+    img.src = imageUrl;
+  })
+    .then(img => {
+      transparentSpriteCache.set(imageUrl, img);
+      return img;
+    })
+    .finally(() => transparentSpritePromiseCache.delete(imageUrl));
+
+  transparentSpritePromiseCache.set(imageUrl, promise);
+  return promise;
+};
+
 function useTransparentSprite(imageUrl: string | null) {
   const [spriteImg, setSpriteImg] = useState<HTMLImageElement | null>(null);
 
@@ -9,51 +72,15 @@ function useTransparentSprite(imageUrl: string | null) {
       setSpriteImg(null);
       return;
     }
-    const img = new Image();
-    img.src = imageUrl;
-    img.onload = () => {
-      try {
-        const canvas = document.createElement('canvas');
-        canvas.width = img.width;
-        canvas.height = img.height;
-        const ctx = canvas.getContext('2d', { willReadFrequently: true });
-        if (!ctx) {
-          setSpriteImg(img);
-          return;
-        }
-        ctx.drawImage(img, 0, 0);
-        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-        const data = imageData.data;
-        
-        const width = canvas.width;
-        const height = canvas.height;
-        const corners = [0, (width - 1) * 4, (height - 1) * width * 4, ((height - 1) * width + (width - 1)) * 4];
-        let sumR = 0, sumG = 0, sumB = 0;
-        for (const idx of corners) {
-           sumR += data[idx]; sumG += data[idx+1]; sumB += data[idx+2];
-        }
-        const bgR = sumR / 4, bgG = sumG / 4, bgB = sumB / 4;
+    let cancelled = false;
+    loadTransparentSprite(imageUrl)
+      .then(img => {
+        if (!cancelled) setSpriteImg(img);
+      })
+      .catch(error => console.error('Failed to load sprite image:', imageUrl, error));
 
-        for (let i = 0; i < data.length; i += 4) {
-          const r = data[i], g = data[i + 1], b = data[i + 2];
-          const diff = Math.abs(r - bgR) + Math.abs(g - bgG) + Math.abs(b - bgB);
-          if (diff < 90 || (r > 240 && g > 240 && b > 240)) {
-            data[i + 3] = 0; 
-          }
-        }
-        ctx.putImageData(imageData, 0, 0);
-        const processedImg = new Image();
-        processedImg.src = canvas.toDataURL();
-        processedImg.onload = () => setSpriteImg(processedImg);
-        processedImg.onerror = () => setSpriteImg(img); // processedImg の生成に失敗した場合もフォールバック
-      } catch (err) {
-        console.error("Failed transparent processing, falling back to raw image:", imageUrl, err);
-        setSpriteImg(img); // エラー時は元の画像をそのまま表示
-      }
-    };
-    img.onerror = (e) => {
-      console.error("Failed to load sprite image:", imageUrl, e);
-      // 画面にエラーを通知できるようにグローバルなイベント等を発行するか、コンソールに出力
+    return () => {
+      cancelled = true;
     };
   }, [imageUrl]);
 

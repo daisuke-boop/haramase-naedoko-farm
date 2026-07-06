@@ -9,14 +9,27 @@ import { getFishSellPrice, selectFishingTargetFish, type FishingRodName, type Ga
 
 type Recipe = { output: string; materials: Record<string, number> };
 type Inventory = Record<string, number>;
-type Options = { runs: number; days: number; difficulty: GameDifficulty | 'all'; seed: number; mining: number; logging: number; fishing: number };
+type RepaymentPolicy = 'minimum' | 'balanced' | 'maximum';
+type Options = { runs: number; days: number; difficulty: GameDifficulty | 'all'; repayment: RepaymentPolicy | 'all'; seed: number; mining: number; logging: number; fishing: number; minutesPerDay: number };
 
 const DIFFICULTIES: readonly GameDifficulty[] = ['easy', 'normal', 'hard'];
+const REPAYMENT_POLICIES: readonly RepaymentPolicy[] = ['minimum', 'balanced', 'maximum'];
 const ATTACK_RATE: Record<GameDifficulty, number> = { easy: 0.18, normal: 0.20, hard: 0.25 };
 const FIRST_REPAYMENT_DAY: Record<GameDifficulty, number> = { easy: 8, normal: 16, hard: 24 };
 const MINIMUM_REPAYMENT: Record<GameDifficulty, number> = { easy: 50_000, normal: 200_000, hard: 500_000 };
+const ADDITIONAL_REPAYMENT_OPTIONS: Record<GameDifficulty, readonly number[]> = {
+  easy: [10_000, 20_000],
+  normal: [25_000, 50_000, 100_000],
+  hard: [50_000, 100_000, 200_000],
+};
+const SPECIAL_REPAYMENT_UNLOCK_REMAINING_RATE = 0.25;
 const INITIAL_DEBT: Record<GameDifficulty, number> = { easy: 400_000, normal: 3_000_000, hard: 10_000_000 };
+const FIELD_EXPANSION: Record<GameDifficulty, { credit: number; cost: number }> = {
+  easy: { credit: 5, cost: 100_000 }, normal: { credit: 20, cost: 300_000 }, hard: { credit: 30, cost: 500_000 },
+};
 const MOUNTAIN_LORD_RATE = 0.20;
+const MOUNTAIN_LORD_SILK_DROP_RATE = 0.25;
+const HARD_HIGH_GRADE_SAW_ANCIENT_TREE_WEIGHT = 1.8;
 const BASIC_MATERIAL_SHOP = {
   'モグラの爪': { price: 400, stock: 2, requiredLevel: 1 },
   'ウサギの靭帯': { price: 700, stock: 2, requiredLevel: 1 },
@@ -29,6 +42,11 @@ const RECIPE_ORDER = [
   '【レシピ】丈夫な釣竿', '【レシピ】獣殺し', '【レシピ】剛牙の鎧', '【レシピ】高級つるはし',
   '【レシピ】高級のこぎり', '【レシピ】高級釣竿', '【レシピ】天の裁き', '【レシピ】神域の加護',
   '【レシピ】伝説のつるはし', '【レシピ】伝説ののこぎり', '【レシピ】伝説の釣り竿',
+] as const;
+const LEGENDARY_RECIPE_NAMES = [
+  '【レシピ】伝説のつるはし',
+  '【レシピ】伝説ののこぎり',
+  '【レシピ】伝説の釣り竿',
 ] as const;
 const RECIPE_MIN_DIFFICULTY: Readonly<Record<(typeof RECIPE_ORDER)[number], GameDifficulty>> = {
   '【レシピ】木剣': 'easy', '【レシピ】毛皮の服': 'easy', '【レシピ】丈夫なつるはし': 'easy',
@@ -71,14 +89,18 @@ const parseArgs = (): Options => {
   });
   const difficulty = values.get('difficulty') ?? 'all';
   if (![...DIFFICULTIES, 'all'].includes(difficulty as GameDifficulty | 'all')) throw new Error(`不明な難易度: ${difficulty}`);
+  const repayment = values.get('repayment') ?? 'all';
+  if (![...REPAYMENT_POLICIES, 'all'].includes(repayment as RepaymentPolicy | 'all')) throw new Error(`不明な返済方針: ${repayment}`);
   return {
     runs: Math.max(1, Number(values.get('runs') ?? 10_000)),
     days: Math.max(1, Number(values.get('days') ?? 120)),
     difficulty: difficulty as Options['difficulty'],
+    repayment: repayment as Options['repayment'],
     seed: Number(values.get('seed') ?? 20260705),
     mining: Math.max(0, Number(values.get('mining') ?? 2)),
     logging: Math.max(0, Number(values.get('logging') ?? 2)),
     fishing: Math.max(0, Number(values.get('fishing') ?? 2)),
+    minutesPerDay: Math.max(0.1, Number(values.get('minutes-per-day') ?? 7)),
   };
 };
 
@@ -133,21 +155,41 @@ const add = (inventory: Inventory, name: string, count = 1) => { inventory[name]
 const percentile = (values: number[], rate: number) => values.sort((a, b) => a - b)[Math.min(values.length - 1, Math.floor(values.length * rate))];
 const average = (values: number[]) => values.reduce((sum, value) => sum + value, 0) / Math.max(1, values.length);
 
-const simulate = (difficulty: GameDifficulty, options: Options, recipes: Record<string, Recipe>) => {
+const simulate = (difficulty: GameDifficulty, repaymentPolicy: RepaymentPolicy, options: Options, recipes: Record<string, Recipe>) => {
   const completionDays = Object.fromEntries(RECIPE_ORDER.map(name => [name, [] as number[]]));
   const repaymentSuccesses: number[] = [];
   const endingGold: number[] = [];
+  const clearDays: number[] = [];
+  const legendaryCompletionCounts = [0, 0, 0, 0];
+  const legendaryMaterialShortages = Object.fromEntries(LEGENDARY_RECIPE_NAMES.map(name => [
+    name,
+    {} as Record<string, { runs: number; totalMissing: number }>,
+  ])) as Record<(typeof LEGENDARY_RECIPE_NAMES)[number], Record<string, { runs: number; totalMissing: number }>>;
   const seedAcquisitionDays = Object.fromEntries(SEED_PLANS.map(plan => [plan.girlId, [] as number[]]));
   const unreachable = new Set<string>();
   const availableBeasts = BEAST_BATTLE_DATA.filter(beast => beast.difficulty === difficulty && beast.id !== 'mountain_lord');
 
   for (let run = 0; run < options.runs; run += 1) {
     const random = mulberry32(options.seed + run * 10_007 + DIFFICULTIES.indexOf(difficulty) * 1_000_003);
+    const shuffledLegendaryRecipeNames = [...LEGENDARY_RECIPE_NAMES];
+    for (let index = shuffledLegendaryRecipeNames.length - 1; index > 0; index -= 1) {
+      const swapIndex = Math.floor(random() * (index + 1));
+      [shuffledLegendaryRecipeNames[index], shuffledLegendaryRecipeNames[swapIndex]] = [
+        shuffledLegendaryRecipeNames[swapIndex],
+        shuffledLegendaryRecipeNames[index],
+      ];
+    }
+    const recipeOrder = [
+      ...RECIPE_ORDER.filter(name => !LEGENDARY_RECIPE_NAMES.includes(name as (typeof LEGENDARY_RECIPE_NAMES)[number])),
+      ...shuffledLegendaryRecipeNames,
+    ];
     const inventory: Inventory = { 'つるはし': 1, 'のこぎり': 1, '竹の釣竿': 1 };
     const completed = new Set<string>();
     const plantedGirls = new Map<string, { plantedDay: number; trust: number }>([
       ['chibiichi', { plantedDay: 0, trust: 0 }], ['mel', { plantedDay: 0, trust: 0 }], ['ruby', { plantedDay: 0, trust: 0 }],
     ]);
+    const ownedGirls = new Set(plantedGirls.keys());
+    let fieldSlots = 6;
     let pickaxe: PickaxeName = 'つるはし';
     let saw: SawName = 'のこぎり';
     let fishingRod: FishingRodName = '竹の釣竿';
@@ -157,6 +199,7 @@ const simulate = (difficulty: GameDifficulty, options: Options, recipes: Record<
     let debt = INITIAL_DEBT[difficulty];
     let repayments = 0;
     let shopStock: Record<string, number> = {};
+    let mountainLordDefeated = false;
 
     for (let day = 1; day <= options.days; day += 1) {
       const heroLevel = repayments >= 10 ? 5 : repayments >= 6 ? 4 : repayments >= 3 ? 3 : repayments >= 1 ? 2 : 1;
@@ -181,7 +224,12 @@ const simulate = (difficulty: GameDifficulty, options: Options, recipes: Record<
         add(inventory, ore.name, getMiningRewardQuantity(ore.id, gauge));
       }
       for (let attempt = 0; attempt < options.logging; attempt += 1) {
-        const weights = LUMBER_DATA.map(lumber => ({ value: lumber, weight: SAW_LUMBER_WEIGHTS[saw][lumber.id] ?? 0 })).filter(entry => entry.weight > 0);
+        const weights = LUMBER_DATA.map(lumber => ({
+          value: lumber,
+          weight: difficulty === 'hard' && saw === '高級のこぎり' && lumber.id === 'ancient_tree'
+            ? HARD_HIGH_GRADE_SAW_ANCIENT_TREE_WEIGHT
+            : SAW_LUMBER_WEIGHTS[saw][lumber.id] ?? 0,
+        })).filter(entry => entry.weight > 0);
         for (let reward = 0; reward < 3; reward += 1) add(inventory, weightedPick(weights, random).name);
         add(inventory, '木材');
       }
@@ -205,7 +253,12 @@ const simulate = (difficulty: GameDifficulty, options: Options, recipes: Record<
               ? BEAST_BATTLE_DATA.find(entry => entry.id === 'giant_bear')!
               : availableBeasts[Math.floor(random() * availableBeasts.length)];
           const drops = BEAST_DROP_DATA.find(entry => entry.beastId === beast.id)?.drops ?? [];
-          drops.filter(drop => random() < drop.dropRate).map(drop => ({ drop, order: random() })).sort((a, b) => a.order - b.order).slice(0, 2).forEach(({ drop }) => {
+          if (beast.id === 'mountain_lord' && !mountainLordDefeated) {
+            add(inventory, '神獣の角');
+            add(inventory, '神獣の絹糸');
+            mountainLordDefeated = true;
+          }
+          drops.filter(drop => random() < (drop.dropItemName === '神獣の絹糸' ? MOUNTAIN_LORD_SILK_DROP_RATE : drop.dropRate)).map(drop => ({ drop, order: random() })).sort((a, b) => a.order - b.order).slice(0, 2).forEach(({ drop }) => {
             add(inventory, drop.dropItemName, drop.dropCountMin + Math.floor(random() * (drop.dropCountMax - drop.dropCountMin + 1)));
           });
         }
@@ -214,24 +267,22 @@ const simulate = (difficulty: GameDifficulty, options: Options, recipes: Record<
         scheduledAttackDay = day + (difficulty === 'easy' ? 1 + Math.floor(random() * 2) : 1);
       }
 
-      for (const recipeName of RECIPE_ORDER) {
+      for (const recipeName of recipeOrder) {
         if (DIFFICULTIES.indexOf(difficulty) < DIFFICULTIES.indexOf(RECIPE_MIN_DIFFICULTY[recipeName])) continue;
         if (completed.has(recipeName)) continue;
         const recipe = recipes[recipeName];
         if (!recipe) continue;
         const missingMaterials = Object.entries(recipe.materials).filter(([name, count]) => (inventory[name] ?? 0) < count);
-        const canCompleteFromShop = missingMaterials.length > 0 && missingMaterials.every(([name]) => name in BASIC_MATERIAL_SHOP);
-        if (canCompleteFromShop) {
-          for (const [name, count] of missingMaterials) {
-            const offer = BASIC_MATERIAL_SHOP[name as keyof typeof BASIC_MATERIAL_SHOP];
-            if (heroLevel < offer.requiredLevel) continue;
-            const needed = count - (inventory[name] ?? 0);
-            const purchasable = Math.min(needed, shopStock[name] ?? 0, Math.floor(gold / offer.price));
-            if (purchasable <= 0) continue;
-            gold -= purchasable * offer.price;
-            shopStock[name] -= purchasable;
-            add(inventory, name, purchasable);
-          }
+        for (const [name, count] of missingMaterials) {
+          if (!(name in BASIC_MATERIAL_SHOP)) continue;
+          const offer = BASIC_MATERIAL_SHOP[name as keyof typeof BASIC_MATERIAL_SHOP];
+          if (heroLevel < offer.requiredLevel) continue;
+          const needed = count - (inventory[name] ?? 0);
+          const purchasable = Math.min(needed, shopStock[name] ?? 0, Math.floor(gold / offer.price));
+          if (purchasable <= 0) continue;
+          gold -= purchasable * offer.price;
+          shopStock[name] -= purchasable;
+          add(inventory, name, purchasable);
         }
         const canCraft = Object.entries(recipe.materials).every(([name, count]) => (inventory[name] ?? 0) >= count);
         if (!canCraft) continue;
@@ -245,8 +296,17 @@ const simulate = (difficulty: GameDifficulty, options: Options, recipes: Record<
       }
 
       const farmCredit = repayments * 5;
+      const expansion = FIELD_EXPANSION[difficulty];
+      if (fieldSlots === 6 && (repayments >= 1 || farmCredit >= expansion.credit) && gold - expansion.cost >= MINIMUM_REPAYMENT[difficulty]) {
+        gold -= expansion.cost;
+        fieldSlots = 10;
+      }
+      for (const girlId of ownedGirls) {
+        if (plantedGirls.size >= fieldSlots) break;
+        if (!plantedGirls.has(girlId)) plantedGirls.set(girlId, { plantedDay: day, trust: 0 });
+      }
       for (const plan of SEED_PLANS) {
-        if (plantedGirls.has(plan.girlId) || DIFFICULTIES.indexOf(difficulty) < DIFFICULTIES.indexOf(plan.minDifficulty)) continue;
+        if (ownedGirls.has(plan.girlId) || DIFFICULTIES.indexOf(difficulty) < DIFFICULTIES.indexOf(plan.minDifficulty)) continue;
         if ((plan.day ?? 1) > day || (plan.repayments ?? 0) > repayments || (plan.credit ?? 0) > farmCredit) continue;
         if (plan.girlId === 'momona' && plantedGirls.size < 3) continue;
         if (plan.items && !Object.entries(plan.items).every(([name, count]) => (inventory[name] ?? 0) >= count)) continue;
@@ -254,17 +314,18 @@ const simulate = (difficulty: GameDifficulty, options: Options, recipes: Record<
         if (gold - price < MINIMUM_REPAYMENT[difficulty]) continue;
         Object.entries(plan.items ?? {}).forEach(([name, count]) => { inventory[name] -= count; });
         gold -= price;
-        plantedGirls.set(plan.girlId, { plantedDay: day, trust: 0 });
+        ownedGirls.add(plan.girlId);
+        if (plantedGirls.size < fieldSlots) plantedGirls.set(plan.girlId, { plantedDay: day, trust: 0 });
         seedAcquisitionDays[plan.girlId].push(day);
       }
 
       const reserve: Inventory = {};
-      RECIPE_ORDER.forEach(recipeName => {
+      recipeOrder.forEach(recipeName => {
         if (completed.has(recipeName) || DIFFICULTIES.indexOf(difficulty) < DIFFICULTIES.indexOf(RECIPE_MIN_DIFFICULTY[recipeName])) return;
         Object.entries(recipes[recipeName]?.materials ?? {}).forEach(([name, count]) => { reserve[name] = (reserve[name] ?? 0) + count; });
       });
       SEED_PLANS.forEach(plan => {
-        if (plantedGirls.has(plan.girlId) || DIFFICULTIES.indexOf(difficulty) < DIFFICULTIES.indexOf(plan.minDifficulty)) return;
+        if (ownedGirls.has(plan.girlId) || DIFFICULTIES.indexOf(difficulty) < DIFFICULTIES.indexOf(plan.minDifficulty)) return;
         Object.entries(plan.items ?? {}).forEach(([name, count]) => { reserve[name] = (reserve[name] ?? 0) + count; });
       });
       Object.entries(inventory).forEach(([name, count]) => {
@@ -277,9 +338,44 @@ const simulate = (difficulty: GameDifficulty, options: Options, recipes: Record<
       });
 
       if (day >= FIRST_REPAYMENT_DAY[difficulty] && (day - FIRST_REPAYMENT_DAY[difficulty]) % 8 === 0 && debt > 0) {
-        const payment = Math.min(debt, MINIMUM_REPAYMENT[difficulty]);
-        if (gold >= payment) { gold -= payment; debt -= payment; repayments += 1; }
+        const minimumPrincipal = Math.min(debt, MINIMUM_REPAYMENT[difficulty]);
+        if (gold >= minimumPrincipal) {
+          let principal = minimumPrincipal;
+          if (repaymentPolicy === 'balanced') {
+            const extraBudget = Math.max(0, gold - minimumPrincipal - MINIMUM_REPAYMENT[difficulty]);
+            const additional = [...ADDITIONAL_REPAYMENT_OPTIONS[difficulty]].reverse().find(amount => amount <= extraBudget) ?? 0;
+            principal = Math.min(debt, minimumPrincipal + additional);
+          } else if (repaymentPolicy === 'maximum') {
+            const specialRepaymentUnlocked = debt <= INITIAL_DEBT[difficulty] * SPECIAL_REPAYMENT_UNLOCK_REMAINING_RATE;
+            principal = specialRepaymentUnlocked
+              ? Math.min(debt, gold)
+              : Math.min(debt, minimumPrincipal + ADDITIONAL_REPAYMENT_OPTIONS[difficulty].at(-1)!);
+          }
+          gold -= principal;
+          debt -= principal;
+          repayments += 1;
+        }
       }
+      if (debt <= 0) {
+        clearDays.push(day);
+        break;
+      }
+    }
+    if (debt <= 0 && difficulty === 'hard') {
+      const legendaryCompletedCount = LEGENDARY_RECIPE_NAMES.filter(recipeName => completed.has(recipeName)).length;
+      legendaryCompletionCounts[legendaryCompletedCount] += 1;
+      LEGENDARY_RECIPE_NAMES.forEach(recipeName => {
+        if (completed.has(recipeName)) return;
+        Object.entries(recipes[recipeName]?.materials ?? {}).forEach(([materialName, requiredCount]) => {
+          const missing = Math.max(0, requiredCount - (inventory[materialName] ?? 0));
+          if (missing <= 0) return;
+          const current = legendaryMaterialShortages[recipeName][materialName] ?? { runs: 0, totalMissing: 0 };
+          legendaryMaterialShortages[recipeName][materialName] = {
+            runs: current.runs + 1,
+            totalMissing: current.totalMissing + missing,
+          };
+        });
+      });
     }
     RECIPE_ORDER.forEach(name => {
       if (DIFFICULTIES.indexOf(difficulty) >= DIFFICULTIES.indexOf(RECIPE_MIN_DIFFICULTY[name]) && !completed.has(name)) unreachable.add(name);
@@ -288,19 +384,39 @@ const simulate = (difficulty: GameDifficulty, options: Options, recipes: Record<
     endingGold.push(gold);
   }
 
-  console.log(`\n=== ${difficulty.toUpperCase()} / ${options.runs.toLocaleString()}回 / ${options.days}日 ===`);
+  const repaymentLabel: Record<RepaymentPolicy, string> = { minimum: '最低返済', balanced: '余裕返済', maximum: '最大返済' };
+  console.log(`\n=== ${difficulty.toUpperCase()} / ${repaymentLabel[repaymentPolicy]} / ${options.runs.toLocaleString()}回 / 最大${options.days}日 ===`);
   console.log(`前提: 毎日 採掘${options.mining}回・伐採${options.logging}回・釣り${options.fishing}回、苗娘を最短収穫、襲撃は全勝、余剰素材は売却、素材が揃えば順番に自動クラフト`);
-  console.log('レシピ                      完成率   平均日   遅い10%');
+  const clearRate = clearDays.length / options.runs * 100;
+  const averageClearDay = clearDays.length > 0 ? average(clearDays) : null;
+  const averagePlayHours = averageClearDay === null ? null : averageClearDay * options.minutesPerDay / 60;
+  console.log(`完済率: ${clearRate.toFixed(1)}% / 平均完済日: ${averageClearDay?.toFixed(1) ?? '-'}日 / 想定プレイ時間: ${averagePlayHours?.toFixed(1) ?? '-'}時間（1日${options.minutesPerDay}分）`);
+  console.log('レシピ                    完済前完成率   平均完成日   遅い10%');
   RECIPE_ORDER.forEach(name => {
     if (DIFFICULTIES.indexOf(difficulty) < DIFFICULTIES.indexOf(RECIPE_MIN_DIFFICULTY[name])) {
-      console.log(`${name.padEnd(27)}   対象外      -         -`);
+      console.log(`${name.padEnd(27)}       対象外          -         -`);
       return;
     }
     const days = completionDays[name];
     const rate = days.length / options.runs * 100;
-    console.log(`${name.padEnd(27)} ${rate.toFixed(1).padStart(6)}% ${days.length ? average(days).toFixed(1).padStart(8) : '       -'} ${days.length ? String(percentile(days, 0.9)).padStart(9) : '        -'}`);
+    console.log(`${name.padEnd(27)} ${rate.toFixed(1).padStart(10)}% ${days.length ? average(days).toFixed(1).padStart(12) : '           -'} ${days.length ? String(percentile(days, 0.9)).padStart(9) : '        -'}`);
   });
-  console.log(`最低返済成功回数: 平均 ${average(repaymentSuccesses).toFixed(1)}回 / 終了時所持金: 平均 ¥${Math.round(average(endingGold)).toLocaleString()}`);
+  if (difficulty === 'hard' && clearDays.length > 0) {
+    const completionRateAtLeast = (count: number) => (
+      legendaryCompletionCounts.slice(count).reduce((sum, runs) => sum + runs, 0) / clearDays.length * 100
+    );
+    console.log(`伝説装備完成数: 1個以上 ${completionRateAtLeast(1).toFixed(1)}% / 2個以上 ${completionRateAtLeast(2).toFixed(1)}% / 全3個 ${completionRateAtLeast(3).toFixed(1)}%`);
+    console.log('伝説装備の不足素材（完済時）:');
+    LEGENDARY_RECIPE_NAMES.forEach(recipeName => {
+      const shortages = Object.entries(legendaryMaterialShortages[recipeName])
+        .sort(([, a], [, b]) => b.runs - a.runs)
+        .map(([materialName, shortage]) => (
+          `${materialName} ${shortage.runs / clearDays.length * 100 >= 0.05 ? (shortage.runs / clearDays.length * 100).toFixed(1) : '0.0'}% / 不足時平均${(shortage.totalMissing / shortage.runs).toFixed(1)}個`
+        ));
+      console.log(`  ${recipeName}: ${shortages.length > 0 ? shortages.join('｜') : '不足なし'}`);
+    });
+  }
+  console.log(`最低返済成功回数: 平均 ${average(repaymentSuccesses).toFixed(1)}回 / 完済・期間終了時所持金: 平均 ¥${Math.round(average(endingGold)).toLocaleString()}`);
   const acquiredSeedSummaries = SEED_PLANS.flatMap(plan => {
     if (DIFFICULTIES.indexOf(difficulty) < DIFFICULTIES.indexOf(plan.minDifficulty)) return [];
     const days = seedAcquisitionDays[plan.girlId];
@@ -309,10 +425,11 @@ const simulate = (difficulty: GameDifficulty, options: Options, recipes: Record<
   });
   if (acquiredSeedSummaries.length > 0) console.log(`追加苗娘: ${acquiredSeedSummaries.join('｜')}`);
   const neverCompleted = [...unreachable].filter(name => completionDays[name].length === 0);
-  if (neverCompleted.length > 0) console.log(`到達不能候補: ${neverCompleted.join('、')}`);
+  if (neverCompleted.length > 0) console.log(`完済前に完成しなかったレシピ: ${neverCompleted.join('、')}`);
 };
 
 const options = parseArgs();
 const recipes = loadRecipes();
 const targets = options.difficulty === 'all' ? DIFFICULTIES : [options.difficulty];
-targets.forEach(difficulty => simulate(difficulty, options, recipes));
+const repaymentTargets = options.repayment === 'all' ? REPAYMENT_POLICIES : [options.repayment];
+targets.forEach(difficulty => repaymentTargets.forEach(policy => simulate(difficulty, policy, options, recipes)));

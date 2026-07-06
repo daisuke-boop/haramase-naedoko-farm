@@ -1302,6 +1302,7 @@ const DARK_KING_MAX_HP = 1950;
 const DARK_KING_PHASE_2_HP = Math.round(DARK_KING_MAX_HP * 0.7);
 const DARK_KING_PHASE_3_HP = Math.round(DARK_KING_MAX_HP * 0.35);
 const DARK_KING_DEFEATED_EVENT_ID = 'dark_king_defeated';
+const MOUNTAIN_LORD_FIRST_REWARD_EVENT_ID = 'mountain_lord_first_reward';
 const DARK_KING_DEFEAT_CINEMATIC_MS = 5000;
 const DARK_KING_PARTY_IDS = ['saffy', 'puti', 'pan'] as const;
 const DEFAULT_FORBIDDEN_LAND_ZONE = { map: 'doukutsu' as GameMap, x: 885, y: 540, w: 45, h: 120 };
@@ -1477,6 +1478,7 @@ const KURUMI_TRADE_REWARDS: KurumiTradeReward[] = [
 const KURUMI_TRUST_STAR_THRESHOLDS = [5000, 50000, 200000, 500000, 1000000] as const;
 const KURUMI_PANTSU_ITEM_NAME = 'パンツ';
 const KURUMI_PANTSU_GATE_THRESHOLD = 500000;
+const KURUMI_PANTSU_GATE_NOTICE_EVENT_ID = 'kurumi_pantsu_gate_notice_seen';
 type KurumiPantsEventStep = {
   voiceSrc: string;
   message: string;
@@ -3410,7 +3412,7 @@ const calculateBattleDamage = (
   const damage = Math.max(1, Math.round(baseDamage * variance * (critical ? 2 : 1) * beastMultiplier * reductionMultiplier));
   return { damage, critical };
 };
-const rollBattleLoot = (beasts: readonly (BattleUnitState | null)[], dropRateBonus = 0): BattleLootEntry[] => {
+const rollBattleLoot = (beasts: readonly (BattleUnitState | null)[], dropRateBonus = 0, grantMountainLordFirstReward = false): BattleLootEntry[] => {
   const defeatedBeasts = beasts.filter((beast): beast is BattleUnitState => Boolean(beast && beast.hp <= 0));
   const highestDifficulty = defeatedBeasts.reduce<GameDifficulty>((highest, beast) => {
     const beastDifficulty = BEAST_BATTLE_DATA.find(data => data.id === getBattleBaseBeastId(beast.id))?.difficulty ?? 'easy';
@@ -3447,6 +3449,16 @@ const rollBattleLoot = (beasts: readonly (BattleUnitState | null)[], dropRateBon
       lootMap.set(drop.dropItemName, current);
     });
   });
+  if (grantMountainLordFirstReward && defeatedBeasts.some(beast => getBattleBaseBeastId(beast.id) === 'mountain_lord')) {
+    [
+      { itemId: 'divine_beast_horn', itemName: '神獣の角' },
+      { itemId: 'divine_beast_silk_thread', itemName: '神獣の絹糸' },
+    ].forEach(item => {
+      const current = lootMap.get(item.itemName) ?? { ...item, count: 0 };
+      current.count += 1;
+      lootMap.set(item.itemName, current);
+    });
+  }
   return Array.from(lootMap.values());
 };
 const FARM_GIRL_ACTIVE_STATES: readonly FarmGirlState[] = ['planted', 'growing', 'appeared', 'companion', 'lover'];
@@ -3615,7 +3627,12 @@ const MINIMUM_REPAYMENT_BY_DIFFICULTY: Readonly<Record<GameDifficulty, number>> 
   normal: 200_000,
   hard: 500_000,
 };
-const ADDITIONAL_REPAYMENT_OPTIONS = [50_000, 100_000, 300_000] as const;
+const ADDITIONAL_REPAYMENT_OPTIONS_BY_DIFFICULTY: Readonly<Record<GameDifficulty, readonly number[]>> = {
+  easy: [10_000, 20_000],
+  normal: [25_000, 50_000, 100_000],
+  hard: [50_000, 100_000, 200_000],
+};
+const SPECIAL_REPAYMENT_UNLOCK_REMAINING_RATE = 0.25;
 type HeroLevel = 1 | 2 | 3 | 4 | 5;
 type SpProgressionMode = GameDifficulty | 'endlessNursery';
 type HeroLevelRequirement = {
@@ -3695,9 +3712,9 @@ const createWeeklyInterestRate = (
   return Number(clampNumber(rate, MIN_INTEREST_RATE, MAX_INTEREST_RATE).toFixed(1));
 };
 const DIFFICULTY_OPTIONS: { id: GameDifficulty; label: string; debt: number; desc: string }[] = [
-  { id: 'easy', label: 'イージー', debt: INITIAL_DEBT_BY_DIFFICULTY.easy, desc: '借金額 150万円' },
-  { id: 'normal', label: 'ノーマル', debt: INITIAL_DEBT_BY_DIFFICULTY.normal, desc: '借金額 1000万円' },
-  { id: 'hard', label: 'ハード', debt: INITIAL_DEBT_BY_DIFFICULTY.hard, desc: '借金額 3000万円' },
+  { id: 'easy', label: 'イージー', debt: INITIAL_DEBT_BY_DIFFICULTY.easy, desc: '借金額 40万円' },
+  { id: 'normal', label: 'ノーマル', debt: INITIAL_DEBT_BY_DIFFICULTY.normal, desc: '借金額 300万円' },
+  { id: 'hard', label: 'ハード', debt: INITIAL_DEBT_BY_DIFFICULTY.hard, desc: '借金額 1000万円' },
 ];
 const DEFAULT_DEBT = getInitialDebtAmount('hard');
 
@@ -4205,13 +4222,13 @@ export default function App() {
   const debtMilestoneVoiceRef = useRef<HTMLAudioElement | null>(null);
   const [repaymentCycleDays, setRepaymentCycleDays] = useState(DEFAULT_REPAYMENT_CYCLE_DAYS);
   const [repaymentEventPending, setRepaymentEventPending] = useState(false);
-  const [selectedAdditionalRepayment, setSelectedAdditionalRepayment] = useState<(typeof ADDITIONAL_REPAYMENT_OPTIONS)[number]>(50_000);
+  const [selectedAdditionalRepayment, setSelectedAdditionalRepayment] = useState(10_000);
   const [pendingSpecialRepayment, setPendingSpecialRepayment] = useState<{ kind: 'maximum' | 'full'; principal: number } | null>(null);
   const repaymentDialogRef = useRef<HTMLDivElement | null>(null);
   const specialRepaymentDialogRef = useRef<HTMLDivElement | null>(null);
   const [storyCleared, setStoryCleared] = useState(false);
   const [storyEndingVideoOpen, setStoryEndingVideoOpen] = useState(false);
-  const [easyClearTitleNotice, setEasyClearTitleNotice] = useState(false);
+  const [clearTitleNoticeDifficulty, setClearTitleNoticeDifficulty] = useState<'easy' | 'normal' | null>(null);
   const [farmCredit, setFarmCredit] = useState(0);
   const [successfulRepaymentCount, setSuccessfulRepaymentCount] = useState(0);
   const [missedRepaymentCount, setMissedRepaymentCount] = useState(0);
@@ -5992,6 +6009,12 @@ export default function App() {
         setSelectedFarmCareActionIndex(getSelectedFarmPrimaryActionIndex(action));
         requestSeedlingCare(selectedGirlData.id, action);
       };
+      const handleTrustEventButtonPress = (eventId: string, action: FarmMenuPrimaryAction) => {
+        setMenuFocusArea('content');
+        setMenuContentFocus('primary');
+        setSelectedFarmCareActionIndex(getSelectedFarmPrimaryActionIndex(action));
+        openTrustEvent(eventId);
+      };
       const handleSeedlingCarePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
         if (event.pointerType !== 'mouse') return;
         const button = (event.target as HTMLElement).closest<HTMLButtonElement>('[data-farm-care-action]');
@@ -6393,12 +6416,17 @@ export default function App() {
                               setMenuContentFocus('primary');
                               setSelectedFarmCareActionIndex(getSelectedFarmPrimaryActionIndex(action));
                             }}
-                            onClick={() => {
+                            onPointerDown={(pointerEvent) => {
                               if (!unlocked) return;
-                              setMenuFocusArea('content');
-                              setMenuContentFocus('primary');
-                              setSelectedFarmCareActionIndex(getSelectedFarmPrimaryActionIndex(action));
-                              openTrustEvent(event.eventId);
+                              pointerEvent.preventDefault();
+                              pointerEvent.stopPropagation();
+                              handleTrustEventButtonPress(event.eventId, action);
+                            }}
+                            onClick={(clickEvent) => {
+                              clickEvent.preventDefault();
+                              clickEvent.stopPropagation();
+                              if (!unlocked || clickEvent.detail !== 0) return;
+                              handleTrustEventButtonPress(event.eventId, action);
                             }}
                             className={`flex items-center justify-between gap-3 rounded border px-3 py-2 text-left text-sm font-black transition ${
                               unlocked
@@ -7697,6 +7725,7 @@ export default function App() {
   };
   // クリック移動の目標座標（null = クリック移動なし）
   const clickTargetRef = useRef<{ x: number; y: number } | null>(null);
+  const pendingKurumiInteractionRef = useRef(false);
   const [clickTargetMarker, setClickTargetMarker] = useState<{ x: number; y: number } | null>(null);
   const suppressNextMapPointerRef = useRef(false);
   const stuckStartRef = useRef<number | null>(null);
@@ -8665,6 +8694,7 @@ export default function App() {
   const bgmFadeRafRef = useRef<number | null>(null);
   const bgmFadingRef = useRef(false);
   const trustEventBgmRef = useRef<HTMLAudioElement | null>(null);
+  const specialTrustVideoRef = useRef<HTMLVideoElement | null>(null);
   const autoEventBgmMutedRef = useRef(false);
   const wasFishingBgmActiveRef = useRef(false);
   const wasLoggingBgmActiveRef = useRef(false);
@@ -10691,7 +10721,7 @@ export default function App() {
 
   const startNewGameWithDifficulty = (difficultyId: GameDifficulty) => {
     if (titleStartTransitionPhaseRef.current !== 'idle') return;
-    setEasyClearTitleNotice(false);
+    setClearTitleNoticeDifficulty(null);
     const slot = pendingNewGameSlot ?? 1;
     const difficultyOption = DIFFICULTY_OPTIONS.find(option => option.id === difficultyId) ?? DIFFICULTY_OPTIONS[2];
     pendingNewGameDifficultyRef.current = difficultyOption.id;
@@ -10715,7 +10745,7 @@ export default function App() {
 
   const startEndlessNurseryMode = () => {
     if (!canStartEndlessNurseryMode()) return;
-    setEasyClearTitleNotice(false);
+    setClearTitleNoticeDifficulty(null);
     const slot = pendingNewGameSlot ?? 1;
     playFixSound();
     pendingNewGameDifficultyRef.current = 'hard';
@@ -10735,7 +10765,7 @@ export default function App() {
       setMissingSaveSlot(slot);
       return;
     }
-    setEasyClearTitleNotice(false);
+    setClearTitleNoticeDifficulty(null);
     autoSaveBlockedSlotsRef.current.delete(slot);
     setCurrentSaveSlot(slot);
     setStartingNewGame(false);
@@ -11514,14 +11544,14 @@ export default function App() {
       let result = getBattleResult(hero, allies, beasts);
       if (result !== 'ongoing') {
         turnLogs.push(result === 'victory' ? '勝利！' : '敗北...');
-        const loot = result === 'victory' ? rollBattleLoot(beasts, prev.partnerDropRateBonus) : [];
+        const loot = result === 'victory' ? rollBattleLoot(beasts, prev.partnerDropRateBonus, !collectionProgress.unlockedEventIds.includes(MOUNTAIN_LORD_FIRST_REWARD_EVENT_ID)) : [];
         loot.forEach(item => turnLogs.push(`${item.itemName} ×${item.count} を手に入れた！`));
         return { ...prev, hero, allies, beasts, logs: [...prev.logs, ...turnLogs].slice(-12), result, loot, lootGranted: false, battleSp, turn: 'party' };
       }
 
       applyCompanionRegenPerHeroTurn(hero, allies, turnLogs);
       result = getBattleResult(hero, allies, beasts);
-      const loot = result === 'victory' ? rollBattleLoot(beasts, prev.partnerDropRateBonus) : [];
+      const loot = result === 'victory' ? rollBattleLoot(beasts, prev.partnerDropRateBonus, !collectionProgress.unlockedEventIds.includes(MOUNTAIN_LORD_FIRST_REWARD_EVENT_ID)) : [];
       if (result === 'victory') {
         turnLogs.push('勝利！');
         loot.forEach(item => turnLogs.push(`${item.itemName} ×${item.count} を手に入れた！`));
@@ -11720,7 +11750,7 @@ export default function App() {
           beasts,
           logs: [...prev.logs, ...turnLogs].slice(-12),
           result,
-          loot: result === 'victory' ? rollBattleLoot(beasts, prev.partnerDropRateBonus) : prev.loot,
+          loot: result === 'victory' ? rollBattleLoot(beasts, prev.partnerDropRateBonus, !collectionProgress.unlockedEventIds.includes(MOUNTAIN_LORD_FIRST_REWARD_EVENT_ID)) : prev.loot,
           lootGranted: result === 'victory' ? false : prev.lootGranted,
           ...(result === 'ongoing' ? nextTurn : { turn: 'party' }),
         };
@@ -11865,7 +11895,7 @@ export default function App() {
         const result = getBattleResult(hero, allies, beasts);
         if (result !== 'ongoing') {
           turnLogs.push(result === 'victory' ? '勝利！' : '敗北...');
-          const loot = result === 'victory' ? rollBattleLoot(beasts, partnerDropRateBonus) : [];
+          const loot = result === 'victory' ? rollBattleLoot(beasts, partnerDropRateBonus, !collectionProgress.unlockedEventIds.includes(MOUNTAIN_LORD_FIRST_REWARD_EVENT_ID)) : [];
           loot.forEach(item => turnLogs.push(`${item.itemName} ×${item.count} を手に入れた！`));
           return { ...prev, hero, allies, beasts, logs: [...prev.logs, ...turnLogs].slice(-12), result, loot, lootGranted: false, battleSp, partnerSkillUses, partnerDropRateBonus, turn: 'party' };
         }
@@ -11892,8 +11922,15 @@ export default function App() {
   useEffect(() => {
     if (battlePreviewState.result !== 'victory') return;
     if (battlePreviewState.lootGranted) return;
+    const defeatedBeasts = battlePreviewState.beasts.filter((beast): beast is BattleUnitState => Boolean(beast && beast.hp <= 0));
+    const defeatedMountainLord = defeatedBeasts.some(beast => getBattleBaseBeastId(beast.id) === 'mountain_lord');
+    if (defeatedMountainLord && !collectionProgress.unlockedEventIds.includes(MOUNTAIN_LORD_FIRST_REWARD_EVENT_ID)) {
+      setCollectionProgress(previous => ({
+        ...previous,
+        unlockedEventIds: Array.from(new Set([...previous.unlockedEventIds, MOUNTAIN_LORD_FIRST_REWARD_EVENT_ID])),
+      }));
+    }
     if (gameMode === 'endlessNursery') {
-      const defeatedBeasts = battlePreviewState.beasts.filter((beast): beast is BattleUnitState => Boolean(beast && beast.hp <= 0));
       setEndlessStats(previous => ({
         ...previous,
         totalBeastsDefeated: previous.totalBeastsDefeated + defeatedBeasts.length,
@@ -11919,7 +11956,7 @@ export default function App() {
       return next;
     });
     setBattlePreviewState(prev => prev.result === 'victory' ? { ...prev, lootGranted: true } : prev);
-  }, [battlePreviewState.result, battlePreviewState.loot, battlePreviewState.lootGranted, gameMode]);
+  }, [battlePreviewState.result, battlePreviewState.loot, battlePreviewState.lootGranted, battlePreviewState.beasts, collectionProgress.unlockedEventIds, gameMode]);
 
   useEffect(() => {
     if (battlePreviewState.encounterType !== 'darkKing' || battlePreviewState.result !== 'victory') return;
@@ -12023,7 +12060,21 @@ export default function App() {
     if (src) trustEventBgmRef.current.volume = getBgmEffectiveVolume(src, bgmVolume, audioGainsRef.current);
   }, [activeTrustEvent, audioGains, bgmVolume]);
 
+  const stopSpecialTrustVideo = () => {
+    const video = specialTrustVideoRef.current;
+    if (!video) return;
+    video.muted = true;
+    video.pause();
+    try {
+      video.currentTime = 0;
+    } catch {
+      // メタデータ読込前でも停止と消音は完了している。
+    }
+    specialTrustVideoRef.current = null;
+  };
+
   const closeSpecialTrustEvent = () => {
+    stopSpecialTrustVideo();
     playFixSound();
     setActiveTrustEvent(null);
     setSpecialTrustSceneIndex(0);
@@ -12032,6 +12083,7 @@ export default function App() {
   const advanceSpecialTrustEvent = () => {
     const scenes = getSpecialTrustEventScenes(activeTrustEvent?.eventId);
     if (!scenes) return;
+    stopSpecialTrustVideo();
     playFixSound();
     if (specialTrustSceneIndex >= scenes.length - 1) {
       if (activeTrustEvent?.eventId === KURUMI_FINAL_EVENT_ID) setKurumiTentFinalCompleted(true);
@@ -13166,6 +13218,11 @@ export default function App() {
   const currentRepaymentInterest = isFirstRepaymentInterestFree ? 0 : Math.round(debtAmount * (skillAdjustedWeeklyInterestRate / 100));
   const currentMinimumRepayment = Math.min(MINIMUM_REPAYMENT_BY_DIFFICULTY[difficulty], debtAmount);
   const nextScheduledRepayment = currentMinimumRepayment + currentRepaymentInterest;
+  const additionalRepaymentOptions = ADDITIONAL_REPAYMENT_OPTIONS_BY_DIFFICULTY[difficulty];
+  const effectiveAdditionalRepayment = additionalRepaymentOptions.includes(selectedAdditionalRepayment)
+    ? selectedAdditionalRepayment
+    : additionalRepaymentOptions[0];
+  const isSpecialRepaymentUnlocked = debtAmount <= INITIAL_DEBT_BY_DIFFICULTY[difficulty] * SPECIAL_REPAYMENT_UNLOCK_REMAINING_RATE;
   const maximumAffordablePrincipal = Math.min(debtAmount, Math.max(0, gold - currentRepaymentInterest));
   const finishRepaymentEvent = (nextFarmCredit: number, nextMissedRepaymentCount: number, message: string) => {
     setFarmCredit(Math.max(0, Math.min(100, nextFarmCredit)));
@@ -13185,7 +13242,7 @@ export default function App() {
     if (!deferEndingVideo) setStoryEndingVideoOpen(true);
   };
   const finishStoryEndingVideo = () => {
-    if (difficulty === 'easy') setEasyClearTitleNotice(true);
+    if (difficulty === 'easy' || difficulty === 'normal') setClearTitleNoticeDifficulty(difficulty);
     setDialogMessage(difficulty === 'easy'
       ? '借金を完済した！\n次はノーマルモード以上で攻略してみよう！'
       : '借金を完済した！\n物語はひとまず完了です。');
@@ -13209,7 +13266,7 @@ export default function App() {
     finishRepaymentEvent(farmCredit + 5, Math.max(0, missedRepaymentCount - 1), nextDebt <= 0 ? '借金を完済した！' : '最低返済を完了した。');
   };
   const handleAdditionalRepayment = () => {
-    const principalPayment = Math.min(debtAmount, currentMinimumRepayment + selectedAdditionalRepayment);
+    const principalPayment = Math.min(debtAmount, currentMinimumRepayment + effectiveAdditionalRepayment);
     const payment = principalPayment + currentRepaymentInterest;
     if (gold < payment) {
       setDialogMessage('所持金が足りません');
@@ -13227,6 +13284,10 @@ export default function App() {
     finishRepaymentEvent(farmCredit + 8, Math.max(0, missedRepaymentCount - 1), nextDebt <= 0 ? '借金を完済した！' : '多めの返済を完了した。');
   };
   const requestSpecialRepayment = (kind: 'maximum' | 'full') => {
+    if (!isSpecialRepaymentUnlocked) {
+      setDialogMessage('最大・全額返済は、借金残額が25％以下になると選べます。');
+      return;
+    }
     const principal = kind === 'full' ? debtAmount : maximumAffordablePrincipal;
     const payment = principal + currentRepaymentInterest;
     if (principal <= 0 || gold < payment) {
@@ -14914,6 +14975,7 @@ export default function App() {
   };
 
   const startKurumiInteraction = () => {
+     pendingKurumiInteractionRef.current = false;
      clickTargetRef.current = null;
      setClickTargetMarker(null);
      if (currentMap === 'farm' && timeOfDay === 'night') {
@@ -15280,6 +15342,7 @@ export default function App() {
     const rewards = createLumberRewards(rewardSaw, LOGGING_REWARD_WOOD, Math.random, {
       rareRateMultiplier: getGatheringRareRateMultiplier(),
       minSizeFloorBonus: getGatheringMinFloorBonus(),
+      weightOverrides: difficulty === 'hard' && rewardSaw === '高級のこぎり' ? { ancient_tree: 1.8 } : undefined,
     });
     setLoggingResultRewards(rewards);
     setLoggingResultSawName(rewardSaw);
@@ -16570,7 +16633,13 @@ export default function App() {
         setSelectedShopItemIndex(firstSellItemIndex >= 0 ? firstSellItemIndex : 0);
         setSelectedShopControl('items');
      }
-     if (!isReturningKurumiPants && !kurumiPantsReturned && nextTradeTotal >= KURUMI_PANTSU_GATE_THRESHOLD) {
+     if (
+        !isReturningKurumiPants &&
+        !kurumiPantsReturned &&
+        nextTradeTotal >= KURUMI_PANTSU_GATE_THRESHOLD &&
+        !collectionProgress.unlockedEventIds.includes(KURUMI_PANTSU_GATE_NOTICE_EVENT_ID)
+     ) {
+        unlockCollectionEvent(KURUMI_PANTSU_GATE_NOTICE_EVENT_ID);
         showShopNotice('星4以降には、釣りで入手したパンツをくるみに返す必要があります。');
      }
      setIsShopTradePose(true);
@@ -20234,7 +20303,8 @@ export default function App() {
 			                  }
 			                } else if (selectedPrimaryAction === 'trust50' || selectedPrimaryAction === 'trust100') {
 			                  const trust = selectedPrimaryAction === 'trust50' ? 50 : 100;
-			                  openTrustEvent(`${selectedGirl.id}_trust_${trust}`);
+			                  const trustEvent = GIRL_DATA.find(girl => girl.id === selectedGirl.id)?.trustEvents.find(event => event.trust === trust);
+			                  if (trustEvent) openTrustEvent(trustEvent.eventId);
 			                } else if (selectedPrimaryAction === 'companion') {
 			                  const farmGirlState = farmGirls.find(entry => entry.girlId === selectedGirl.id);
 			                  const selectedGirlIsCompanion = companionGirlId === selectedGirl.id;
@@ -20873,6 +20943,7 @@ export default function App() {
 
       if (keyPressed) {
         // キー入力があればクリック移動をキャンセル
+        pendingKurumiInteractionRef.current = false;
         clickTargetRef.current = null;
         setClickTargetMarker(null);
       }
@@ -20963,6 +21034,18 @@ export default function App() {
         }
       }
       currentDir = newDir;
+
+      if (pendingKurumiInteractionRef.current && currentMapRef.current === 'farm') {
+        const kurumiZone = zones.find(zone => zone.type === 'kurumi' && (!zone.map || zone.map === 'farm'));
+        if (kurumiZone) {
+          const kurumiCenterX = kurumiZone.x + kurumiZone.w / 2;
+          const kurumiCenterY = kurumiZone.y + kurumiZone.h / 2;
+          if (Math.hypot(currentX - kurumiCenterX, currentY - kurumiCenterY) <= KURUMI_INTERACT_DISTANCE) {
+            pendingKurumiInteractionRef.current = false;
+            startKurumiInteraction();
+          }
+        }
+      }
 
       // クリック移動スタック判定（動けない状態が2秒続いたらキャンセル）
       const isPositionChanged = (currentX !== startX || currentY !== startY);
@@ -21315,6 +21398,7 @@ export default function App() {
           return;
         }
         // 通常プレイ中: クリック移動の目標を設定
+        pendingKurumiInteractionRef.current = false;
         clickTargetRef.current = { x: clickX, y: clickY };
         setClickTargetMarker({ x: clickX, y: clickY });
      }
@@ -22030,7 +22114,7 @@ export default function App() {
      }));
   }
 
-  const handleAnimationZoneClick = (id: string, clickPoint?: { x: number; y: number }) => {
+  const handleAnimationZoneClick = (id: string) => {
      if (setupMode === 'animation') {
         cycleZoneType(id);
         return;
@@ -22045,10 +22129,11 @@ export default function App() {
      const dx = pos.x - kurumiCenterX;
      const dy = pos.y - kurumiCenterY;
      if (Math.sqrt(dx * dx + dy * dy) > KURUMI_INTERACT_DISTANCE) {
-        const approachPoint = clickPoint ?? {
+        const approachPoint = {
            x: kurumiCenterX,
-           y: zone.y + zone.h + 36,
+           y: kurumiCenterY + KURUMI_INTERACT_DISTANCE - 12,
         };
+        pendingKurumiInteractionRef.current = true;
         clickTargetRef.current = approachPoint;
         setClickTargetMarker(approachPoint);
         setDialogMessage('くるみの近くまで移動します。');
@@ -22147,10 +22232,45 @@ export default function App() {
             <div className="absolute inset-0 z-[300] flex items-center justify-center bg-black">
               <div className="relative aspect-[1672/941] w-full max-h-full overflow-hidden bg-black">
                 <img src={titleImageSrc} alt="孕ませ苗床ファーム タイトル" className="absolute inset-0 h-full w-full object-contain" />
-                {easyClearTitleNotice && (
-                  <div className="pointer-events-none absolute left-1/2 top-[7%] z-20 w-[min(760px,82%)] -translate-x-1/2 rounded-xl border-2 border-[#ffd166] bg-[#1a100d]/92 px-6 py-4 text-center text-xl font-black text-[#fff7dc] shadow-[0_12px_36px_rgba(0,0,0,0.72)]">
-                    イージーモードクリア！<br />
-                    <span className="text-[#ffd166]">次はノーマルモード以上で攻略してみよう！</span>
+                {clearTitleNoticeDifficulty && (
+                  <div
+                    className="absolute inset-0 z-[80] flex items-center justify-center bg-black/75 px-8 pointer-events-auto"
+                    role="dialog"
+                    aria-modal="true"
+                    aria-label={`${clearTitleNoticeDifficulty === 'easy' ? 'イージー' : 'ノーマル'}モードクリア`}
+                    onKeyDown={(event) => {
+                      if (event.key !== 'Escape') return;
+                      event.preventDefault();
+                      event.stopPropagation();
+                      playFixSound();
+                      setClearTitleNoticeDifficulty(null);
+                    }}
+                  >
+                    <div className="w-[min(780px,92%)] rounded-2xl border-4 border-[#ffd166] bg-[#1a100d]/96 px-8 py-7 text-center text-[#fff7dc] shadow-[0_24px_80px_rgba(0,0,0,0.85)]">
+                      <div className="text-3xl font-black text-[#ffd166]">
+                        {clearTitleNoticeDifficulty === 'easy' ? 'イージーモード' : 'ノーマルモード'}クリアおめでとう！
+                      </div>
+                      <div className="mt-5 text-lg font-bold leading-relaxed">
+                        ただし、まだ出会っていない苗娘や、より強い獣、<br />
+                        未知の装備やイベントが多く残っている...
+                      </div>
+                      <div className="mt-5 text-xl font-black leading-relaxed text-[#ffe39a]">
+                        {clearTitleNoticeDifficulty === 'easy'
+                          ? 'ノーマルモードでは、孕ませ村の物語がさらに広がります！'
+                          : 'ハードモード以上では、孕ませ村の全ての物語を体験できます！'}
+                      </div>
+                      <button
+                        type="button"
+                        autoFocus
+                        onClick={() => {
+                          playFixSound();
+                          setClearTitleNoticeDifficulty(null);
+                        }}
+                        className="mt-7 rounded-xl border-2 border-[#fff1a8] bg-[#7a4d12] px-10 py-3 text-xl font-black text-white transition hover:bg-[#936018] focus:outline-none focus:ring-4 focus:ring-white/70"
+                      >
+                        タイトルへ
+                      </button>
+                    </div>
                   </div>
                 )}
                 {isEndlessTitleTheme() ? (
@@ -25819,18 +25939,18 @@ export default function App() {
                 <div className="rounded-lg border border-[#a78bfa]/70 bg-[#28184a]/65 p-3">
                   <div className="text-sm font-black text-[#e9d5ff]">多めに返済する</div>
                   <div className="mt-2 flex gap-2">
-                    {ADDITIONAL_REPAYMENT_OPTIONS.map(amount => (
-                      <button key={amount} type="button" onClick={() => setSelectedAdditionalRepayment(amount)} className={`flex-1 rounded border px-2 py-1 text-xs font-bold ${selectedAdditionalRepayment === amount ? 'border-white bg-[#7c3aed] text-white' : 'border-[#6b4b9b] bg-black/30 text-[#ddd6fe]'}`}>＋{amount.toLocaleString()}G</button>
+                    {additionalRepaymentOptions.map(amount => (
+                      <button key={amount} type="button" onClick={() => setSelectedAdditionalRepayment(amount)} className={`flex-1 rounded border px-2 py-1 text-xs font-bold ${effectiveAdditionalRepayment === amount ? 'border-white bg-[#7c3aed] text-white' : 'border-[#6b4b9b] bg-black/30 text-[#ddd6fe]'}`}>＋{amount.toLocaleString()}G</button>
                     ))}
                   </div>
                   <button type="button" onClick={handleAdditionalRepayment} className="mt-3 w-full rounded border-2 border-[#c4b5fd] bg-[#5b21b6] px-4 py-2 font-black hover:bg-[#6d28d9]">
-                    多めに返済する（¥{(Math.min(debtAmount, currentMinimumRepayment + selectedAdditionalRepayment) + currentRepaymentInterest).toLocaleString()}）
+                    多めに返済する（¥{(Math.min(debtAmount, currentMinimumRepayment + effectiveAdditionalRepayment) + currentRepaymentInterest).toLocaleString()}）
                   </button>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <button
                     type="button"
-                    disabled={maximumAffordablePrincipal <= currentMinimumRepayment}
+                    disabled={!isSpecialRepaymentUnlocked || maximumAffordablePrincipal <= currentMinimumRepayment}
                     onClick={() => requestSpecialRepayment('maximum')}
                     className="rounded-lg border-2 border-[#67e8f9] bg-[#164e63] px-4 py-3 text-left font-black text-[#cffafe] hover:bg-[#155e75] disabled:cursor-not-allowed disabled:opacity-45"
                   >
@@ -25839,7 +25959,7 @@ export default function App() {
                   </button>
                   <button
                     type="button"
-                    disabled={gold < debtAmount + currentRepaymentInterest}
+                    disabled={!isSpecialRepaymentUnlocked || gold < debtAmount + currentRepaymentInterest}
                     onClick={() => requestSpecialRepayment('full')}
                     className="rounded-lg border-2 border-[#fbbf24] bg-[#78350f] px-4 py-3 text-left font-black text-[#fef3c7] hover:bg-[#92400e] disabled:cursor-not-allowed disabled:opacity-45"
                   >
@@ -25848,7 +25968,9 @@ export default function App() {
                   </button>
                 </div>
                 <div className="rounded border border-[#76502c] bg-black/25 px-3 py-2 text-xs font-bold leading-relaxed text-[#d7b98a]">
-                  最大・全額返済も返済成功回数は1回です。未取得の進行報酬は自動では受け取りません。
+                  {isSpecialRepaymentUnlocked
+                    ? '最大・全額返済も返済成功回数は1回です。未取得の進行報酬は自動では受け取りません。'
+                    : '最大・全額返済は、借金残額が25％以下になると選べます。'}
                 </div>
                 <button type="button" onClick={handleSkipRepayment} className="rounded-lg border-2 border-[#b45309] bg-[#4a2a12] px-5 py-3 text-left font-black text-[#ffe2ad] hover:bg-[#63351d]">
                   今回は見送る <span className="float-right text-sm">農場信用度 -5 / 返済遅延回数 +1</span>
@@ -25930,8 +26052,9 @@ export default function App() {
               }}
             >
               <div className="grid w-[980px] max-w-full grid-cols-[420px_minmax(0,1fr)] overflow-hidden rounded-2xl border-4 border-[#b9914c] bg-[#1a100d] text-[#fff7dc] shadow-[0_30px_100px_rgba(0,0,0,0.9)]">
-                <div className="relative min-h-[500px] bg-black">
-                  <img src={DEBT_MILESTONE_IMAGE_SRC} alt="返済先の男" className="absolute inset-0 h-full w-full object-cover object-top" />
+                <div className="relative min-h-[500px] overflow-hidden bg-black">
+                  <img src={DEBT_MILESTONE_IMAGE_SRC} alt="" aria-hidden="true" className="absolute inset-0 h-full w-full scale-110 object-cover opacity-45 blur-lg" />
+                  <img src={DEBT_MILESTONE_IMAGE_SRC} alt="返済先の男" className="absolute inset-0 h-full w-full object-contain" />
                   <div className="absolute inset-0 bg-gradient-to-r from-transparent via-transparent to-[#1a100d]/75" />
                 </div>
                 <div className="flex min-w-0 flex-col justify-center p-9">
@@ -28374,7 +28497,7 @@ export default function App() {
                   閉じる
                 </button>
                 {scene.mediaType === 'video' ? (
-                  <video key={scene.mediaSrc} src={scene.mediaSrc} className="absolute inset-x-0 top-0 h-[calc(100%-190px)] w-full bg-black object-cover" autoPlay playsInline />
+                  <video ref={specialTrustVideoRef} key={scene.mediaSrc} src={scene.mediaSrc} className="absolute inset-x-0 top-0 h-[calc(100%-190px)] w-full bg-black object-cover" autoPlay playsInline />
                 ) : (
                   <img key={scene.mediaSrc} src={scene.mediaSrc} alt={activeTrustEvent?.girlName ?? '苗娘'} className="absolute inset-x-0 top-0 h-[calc(100%-190px)] w-full object-cover" />
                 )}
