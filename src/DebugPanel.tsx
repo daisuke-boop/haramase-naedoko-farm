@@ -72,6 +72,9 @@ type DebugPanelProps = {
   onSetSalmon: (enabled: boolean) => void;
   mermaidUnlocked: boolean;
   onSetMermaidUnlocked: (enabled: boolean) => void;
+  mermaidFishingUnlocked: boolean;
+  onSetMermaidFishingUnlocked: (enabled: boolean) => void;
+  onPlayMermaidFirstCatchEvent: (fishId: 'aoningyo' | 'kiironingyo' | 'pinkningyo') => void;
   debugForbiddenLandEnabled: boolean;
   onSetDebugForbiddenLandEnabled: (enabled: boolean) => void;
   darkKingDefeated: boolean;
@@ -180,6 +183,9 @@ const DebugPanel = ({
   onSetSalmon,
   mermaidUnlocked,
   onSetMermaidUnlocked,
+  mermaidFishingUnlocked,
+  onSetMermaidFishingUnlocked,
+  onPlayMermaidFirstCatchEvent,
   debugForbiddenLandEnabled,
   onSetDebugForbiddenLandEnabled,
   darkKingDefeated,
@@ -473,6 +479,15 @@ const DebugPanel = ({
               <span className="font-black text-cyan-100">人魚供え条件 {mermaidUnlocked ? 'ON' : 'OFF'}</span>
               <button type="button" onClick={() => onSetMermaidUnlocked(true)} className="rounded border border-cyan-200 bg-cyan-700 px-2 py-1 font-black text-white hover:bg-cyan-600">ON</button>
               <button type="button" onClick={() => onSetMermaidUnlocked(false)} className="rounded border border-cyan-300/60 bg-black/30 px-2 py-1 font-black text-cyan-100 hover:bg-cyan-900">OFF</button>
+              <span className="font-black text-cyan-100">人魚解放 {mermaidFishingUnlocked ? 'ON' : 'OFF'}</span>
+              <button type="button" onClick={() => onSetMermaidFishingUnlocked(true)} className="rounded border border-cyan-200 bg-cyan-700 px-2 py-1 font-black text-white hover:bg-cyan-600">ON</button>
+              <button type="button" onClick={() => onSetMermaidFishingUnlocked(false)} className="rounded border border-cyan-300/60 bg-black/30 px-2 py-1 font-black text-cyan-100 hover:bg-cyan-900">OFF</button>
+              <span className="font-black text-cyan-100">初遭遇イベント</span>
+              <button type="button" onClick={() => onPlayMermaidFirstCatchEvent('aoningyo')} className="rounded border border-cyan-200 bg-cyan-700 px-2 py-1 font-black text-white hover:bg-cyan-600">青</button>
+              <div className="grid grid-cols-2 gap-1">
+                <button type="button" onClick={() => onPlayMermaidFirstCatchEvent('kiironingyo')} className="rounded border border-yellow-200 bg-yellow-700 px-2 py-1 font-black text-white hover:bg-yellow-600">黄</button>
+                <button type="button" onClick={() => onPlayMermaidFirstCatchEvent('pinkningyo')} className="rounded border border-pink-200 bg-pink-700 px-2 py-1 font-black text-white hover:bg-pink-600">桃</button>
+              </div>
               <span className="font-black text-rose-100">闇王出現（炎） {debugForbiddenLandEnabled ? 'ON' : 'OFF'}</span>
               <button type="button" onClick={() => onSetDebugForbiddenLandEnabled(true)} className="rounded border border-rose-200 bg-rose-700 px-2 py-1 font-black text-white hover:bg-rose-600">ON</button>
               <button type="button" onClick={() => onSetDebugForbiddenLandEnabled(false)} className="rounded border border-rose-300/60 bg-black/30 px-2 py-1 font-black text-rose-100 hover:bg-rose-900">OFF</button>

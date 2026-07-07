@@ -1833,7 +1833,7 @@ const BLUE_MERMAID_EVENT_SCENES = [
   { mediaType: 'image', mediaSrc: '/img/100/ao01.jpg', voiceSrc: '/voice/ao01.wav', message: 'なんだか、幸せ〜！おちんちん触らせてくれてありがとうねっ！まったねー♡' },
 ] as const;
 const YELLOW_MERMAID_EVENT_SCENES = [
-  { mediaType: 'image', mediaSrc: '/img/100/ki03.jpg', voiceSrc: '/voice/ki03.wav', message: '釣り上げられちゃったー！人間だぁー！人間のおちんちんをしごくと幸せになれるって母様から教えられてるんだぁ♡だからちんちん触らせてっ！' },
+  { mediaType: 'image', mediaSrc: '/img/100/ki03.jpg', voiceSrc: '/voice/ki03.wav', message: '釣られてしまったぁーっ！人間の男の人...ちゅっ♡はぁはぁ...はぁ...' },
   { mediaType: 'image', mediaSrc: '/img/100/ki01.jpg', voiceSrc: '/voice/ki01.wav', message: 'あ、人間のちんちん...おっきぃいー！おとうちゃんのちんちんよりおっきいぃ！すっごーい♡見せてくれてありがとっ！じゃ、またねー！' },
 ] as const;
 const PINK_MERMAID_EVENT_SCENES = [
@@ -28501,6 +28501,31 @@ export default function App() {
 	             }));
 	             setMermaidScaleOfferingDay(null);
 	             setDialogMessage(`人魚の供え条件を${enabled ? 'ON' : 'OFF'}にしました。`);
+	           }}
+	           mermaidFishingUnlocked={mermaidFishingUnlocked}
+	           onSetMermaidFishingUnlocked={(enabled) => {
+	             if (!canUseDebugTools) return;
+	             setCollectionProgress(previous => ({
+	               ...previous,
+	               unlockedEventIds: enabled
+	                 ? Array.from(new Set([...previous.unlockedEventIds, MERMAID_LETTER_EVENT_ID, MERMAID_OFFERING_EVENT_ID, MERMAID_UNLOCK_EVENT_ID]))
+	                 : previous.unlockedEventIds.filter(eventId => eventId !== MERMAID_UNLOCK_EVENT_ID),
+	             }));
+	             setMermaidScaleOfferingDay(null);
+	             setDialogMessage(`人魚解放フラグを${enabled ? 'ON' : 'OFF'}にしました。`);
+	           }}
+	           onPlayMermaidFirstCatchEvent={(fishId) => {
+	             if (!canUseDebugTools) return;
+	             const mermaidEvent = MERMAID_CATCH_EVENTS[fishId];
+	             if (!mermaidEvent) return;
+	             setSpecialTrustSceneIndex(0);
+	             setActiveTrustEvent({
+	               eventId: mermaidEvent.eventId,
+	               girlId: mermaidEvent.eventId,
+	               girlName: mermaidEvent.name,
+	               trust: 100,
+	               label: '初遭遇イベント',
+	             });
 	           }}
 	           debugForbiddenLandEnabled={debugForbiddenLandEnabled}
 	           onSetDebugForbiddenLandEnabled={(enabled) => {
