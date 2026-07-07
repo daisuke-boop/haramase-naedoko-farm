@@ -14,7 +14,7 @@ type Options = { runs: number; days: number; difficulty: GameDifficulty | 'all';
 
 const DIFFICULTIES: readonly GameDifficulty[] = ['easy', 'normal', 'hard'];
 const REPAYMENT_POLICIES: readonly RepaymentPolicy[] = ['minimum', 'balanced', 'maximum'];
-const ATTACK_RATE: Record<GameDifficulty, number> = { easy: 0.18, normal: 0.20, hard: 0.25 };
+const ATTACK_RATE: Record<GameDifficulty, number> = { easy: 0.18, normal: 0.15, hard: 0.20 };
 const FIRST_REPAYMENT_DAY: Record<GameDifficulty, number> = { easy: 8, normal: 16, hard: 24 };
 const MINIMUM_REPAYMENT: Record<GameDifficulty, number> = { easy: 50_000, normal: 200_000, hard: 500_000 };
 const ADDITIONAL_REPAYMENT_OPTIONS: Record<GameDifficulty, readonly number[]> = {
@@ -55,17 +55,27 @@ const RECIPE_MIN_DIFFICULTY: Readonly<Record<(typeof RECIPE_ORDER)[number], Game
   '【レシピ】高級釣竿': 'easy', '【レシピ】天の裁き': 'normal', '【レシピ】神域の加護': 'normal',
   '【レシピ】伝説のつるはし': 'hard', '【レシピ】伝説ののこぎり': 'hard', '【レシピ】伝説の釣り竿': 'hard',
 };
-type SeedPlan = { girlId: string; minDifficulty: GameDifficulty; day?: number; repayments?: number; credit?: number; price?: number; items?: Record<string, number> };
+type SeedPlan = {
+  girlId: string;
+  minDifficulty: GameDifficulty;
+  day?: number;
+  repayments?: number;
+  credit?: number;
+  price?: number;
+  items?: Record<string, number>;
+  requiresSturdySaw?: boolean;
+  requiresSturdyGathering?: boolean;
+};
 const SEED_PLANS: readonly SeedPlan[] = [
   { girlId: 'viola', minDifficulty: 'easy', day: 5, price: 120_000 },
-  { girlId: 'nazuna', minDifficulty: 'easy', items: { 'しなやかな軟木': 8, '軟らかい銅鉱石': 8 } },
+  { girlId: 'nazuna', minDifficulty: 'easy', requiresSturdySaw: true, items: { 'しなやかな軟木': 8, '軟らかい銅鉱石': 8 } },
   { girlId: 'kabune', minDifficulty: 'easy', repayments: 1 },
   { girlId: 'caro', minDifficulty: 'normal', day: 9, repayments: 1, price: 180_000 },
-  { girlId: 'theta', minDifficulty: 'normal', items: { '堅実な中木': 10, '良質な鉄鉱石': 8 } },
+  { girlId: 'theta', minDifficulty: 'normal', requiresSturdyGathering: true, items: { '堅実な中木': 10, '良質な鉄鉱石': 8 } },
   { girlId: 'cure', minDifficulty: 'normal', repayments: 1 },
   { girlId: 'shiro', minDifficulty: 'normal', repayments: 3, credit: 15 },
   { girlId: 'momona', minDifficulty: 'normal', day: 10 },
-  { girlId: 'pan', minDifficulty: 'normal', items: { '堅実な中木': 12, '錫鉱石': 10 } },
+  { girlId: 'pan', minDifficulty: 'normal', requiresSturdyGathering: true, items: { '堅実な中木': 12, '錫鉱石': 10 } },
   { girlId: 'puti', minDifficulty: 'hard', repayments: 3 },
   { girlId: 'roma', minDifficulty: 'hard', credit: 60 },
 ] as const;
@@ -80,6 +90,94 @@ const MATERIAL_SELL_PRICE: Readonly<Record<string, number>> = {
 const getTrustHarvestMultiplier = (trust: number) => trust >= 100 ? 1.5 : trust >= 80 ? 1.4 : trust >= 60 ? 1.3 : trust >= 40 ? 1.2 : trust >= 20 ? 1.1 : 1;
 const getTrustSellMultiplier = (trust: number) => trust >= 100 ? 1.25 : trust >= 80 ? 1.15 : trust >= 60 ? 1.1 : trust >= 40 ? 1.05 : 1;
 
+const hasInventory = (inventory: Inventory, name: string) => (inventory[name] ?? 0) > 0;
+const hasRecipeProgress = (completed: ReadonlySet<string>, inventory: Inventory, recipeName: string, outputName: string) => (
+  completed.has(recipeName) || hasInventory(inventory, recipeName) || hasInventory(inventory, outputName)
+);
+const hasBoarProgress = (completedBeasts: ReadonlySet<string>, inventory: Inventory) => (
+  completedBeasts.has('boar') || hasInventory(inventory, '猪の牙') || hasInventory(inventory, '猪の硬皮')
+);
+const hasBearProgress = (completedBeasts: ReadonlySet<string>, inventory: Inventory) => (
+  completedBeasts.has('bear') || hasInventory(inventory, '熊の剛糸')
+);
+const hasGiantBeastProgress = (completedBeasts: ReadonlySet<string>, inventory: Inventory) => (
+  completedBeasts.has('giant_bear') ||
+  completedBeasts.has('mountain_lord') ||
+  hasInventory(inventory, '巨獣の鋼角') ||
+  hasInventory(inventory, '巨獣の強剛糸') ||
+  hasInventory(inventory, '神獣の絹糸')
+);
+const hasSturdySawProgress = (completed: ReadonlySet<string>, inventory: Inventory) => (
+  hasRecipeProgress(completed, inventory, '【レシピ】丈夫なのこぎり', '丈夫なのこぎり')
+);
+const hasSturdyPickaxeProgress = (completed: ReadonlySet<string>, inventory: Inventory) => (
+  hasRecipeProgress(completed, inventory, '【レシピ】丈夫なつるはし', '丈夫なつるはし')
+);
+const hasSturdyGatheringProgress = (completed: ReadonlySet<string>, inventory: Inventory) => (
+  hasSturdySawProgress(completed, inventory) && hasSturdyPickaxeProgress(completed, inventory)
+);
+
+const isRecipeUnlocked = (
+  recipeName: (typeof RECIPE_ORDER)[number],
+  difficulty: GameDifficulty,
+  day: number,
+  heroLevel: number,
+  repayments: number,
+  debt: number,
+  completed: ReadonlySet<string>,
+  inventory: Inventory,
+  defeatedBeasts: ReadonlySet<string>,
+  mountainLordAttackPending: boolean,
+) => {
+  if (DIFFICULTIES.indexOf(difficulty) < DIFFICULTIES.indexOf(RECIPE_MIN_DIFFICULTY[recipeName])) return false;
+  const boarProgress = hasBoarProgress(defeatedBeasts, inventory);
+  const bearProgress = hasBearProgress(defeatedBeasts, inventory);
+  const giantProgress = hasGiantBeastProgress(defeatedBeasts, inventory);
+  const boarMaterialRoute = boarProgress || heroLevel >= 2 || repayments >= 2;
+  const bearMaterialRoute = bearProgress || heroLevel >= 3 || repayments >= 3;
+  switch (recipeName) {
+    case '【レシピ】木剣':
+    case '【レシピ】毛皮の服':
+      return day >= 2 || boarProgress || bearProgress || giantProgress || repayments >= 2;
+    case '【レシピ】丈夫なつるはし':
+      return true;
+    case '【レシピ】丈夫なのこぎり':
+      return true;
+    case '【レシピ】丈夫な釣竿':
+      return hasRecipeProgress(completed, inventory, '【レシピ】のこぎり', 'のこぎり') &&
+        hasRecipeProgress(completed, inventory, '【レシピ】つるはし', 'つるはし') &&
+        hasSturdySawProgress(completed, inventory);
+    case '【レシピ】獣殺し':
+      return boarProgress;
+    case '【レシピ】剛牙の鎧':
+      return bearMaterialRoute && hasRecipeProgress(completed, inventory, '【レシピ】毛皮の服', '毛皮の服');
+    case '【レシピ】高級つるはし':
+    case '【レシピ】高級のこぎり':
+      return boarMaterialRoute && hasSturdyGatheringProgress(completed, inventory);
+    case '【レシピ】高級釣竿':
+      return bearMaterialRoute && hasRecipeProgress(completed, inventory, '【レシピ】丈夫な釣竿', '丈夫な釣竿');
+    case '【レシピ】天の裁き':
+      return giantProgress && hasRecipeProgress(completed, inventory, '【レシピ】獣殺し', '獣殺し');
+    case '【レシピ】神域の加護':
+      return (giantProgress || mountainLordAttackPending) && hasRecipeProgress(completed, inventory, '【レシピ】剛牙の鎧', '剛牙の鎧');
+    case '【レシピ】伝説のつるはし':
+      return (giantProgress || debt <= 0) && hasRecipeProgress(completed, inventory, '【レシピ】高級つるはし', '高級つるはし');
+    case '【レシピ】伝説ののこぎり':
+      return (giantProgress || debt <= 0) && hasRecipeProgress(completed, inventory, '【レシピ】高級のこぎり', '高級のこぎり');
+    case '【レシピ】伝説の釣り竿':
+      return (giantProgress || debt <= 0) && hasRecipeProgress(completed, inventory, '【レシピ】高級釣竿', '高級釣竿');
+    default:
+      return false;
+  }
+};
+
+const createHardStoryBeastIds = (day: number, heroLevel: number, random: () => number): readonly string[] => {
+  if (day <= 20 || heroLevel <= 2) return random() < 0.5 ? ['bear'] : ['boar', 'great_fang_beast'];
+  if (day <= 35 || heroLevel <= 3) return random() < 0.55 ? ['giant_bear'] : ['great_fang_beast', 'bear'];
+  if (random() < 0.15) return ['giant_bear', 'giant_bear', 'giant_bear'];
+  return random() < 0.55 ? ['giant_bear', 'giant_bear'] : ['giant_bear', 'great_fang_beast'];
+};
+
 const parseArgs = (): Options => {
   const values = new Map<string, string>();
   process.argv.slice(2).forEach((arg, index, args) => {
@@ -93,7 +191,7 @@ const parseArgs = (): Options => {
   if (![...REPAYMENT_POLICIES, 'all'].includes(repayment as RepaymentPolicy | 'all')) throw new Error(`不明な返済方針: ${repayment}`);
   return {
     runs: Math.max(1, Number(values.get('runs') ?? 10_000)),
-    days: Math.max(1, Number(values.get('days') ?? 120)),
+    days: Math.max(1, Number(values.get('days') ?? values.get('day') ?? 120)),
     difficulty: difficulty as Options['difficulty'],
     repayment: repayment as Options['repayment'],
     seed: Number(values.get('seed') ?? 20260705),
@@ -195,11 +293,13 @@ const simulate = (difficulty: GameDifficulty, repaymentPolicy: RepaymentPolicy, 
     let fishingRod: FishingRodName = '竹の釣竿';
     const caughtFishIds = new Set<string>();
     let scheduledAttackDay: number | null = null;
+    let scheduledMountainLordAttack = false;
     let gold = 5_000;
     let debt = INITIAL_DEBT[difficulty];
     let repayments = 0;
     let shopStock: Record<string, number> = {};
     let mountainLordDefeated = false;
+    const defeatedBeasts = new Set<string>();
 
     for (let day = 1; day <= options.days; day += 1) {
       const heroLevel = repayments >= 10 ? 5 : repayments >= 6 ? 4 : repayments >= 3 ? 3 : repayments >= 1 ? 2 : 1;
@@ -243,15 +343,21 @@ const simulate = (difficulty: GameDifficulty, repaymentPolicy: RepaymentPolicy, 
       }
 
       if (scheduledAttackDay === day) {
-        const mountainLord = difficulty === 'hard' && random() < MOUNTAIN_LORD_RATE;
+        const mountainLord = scheduledMountainLordAttack;
         const giantBear = !mountainLord && difficulty === 'normal' && heroLevel >= 4 && random() < 0.25;
-        const enemyCount = mountainLord || giantBear ? 1 : difficulty === 'easy' ? 1 : difficulty === 'normal' ? 1 + Math.floor(random() * 2) : 2 + Math.floor(random() * 2);
-        for (let enemy = 0; enemy < enemyCount; enemy += 1) {
-          const beast = mountainLord
-            ? BEAST_BATTLE_DATA.find(entry => entry.id === 'mountain_lord')!
-            : giantBear
-              ? BEAST_BATTLE_DATA.find(entry => entry.id === 'giant_bear')!
-              : availableBeasts[Math.floor(random() * availableBeasts.length)];
+        const enemyIds = mountainLord
+          ? ['mountain_lord']
+          : giantBear
+            ? ['giant_bear']
+            : difficulty === 'hard'
+              ? createHardStoryBeastIds(day, heroLevel, random)
+              : Array.from({ length: difficulty === 'easy' ? 1 : 1 + Math.floor(random() * 2) }, () => (
+                  availableBeasts[Math.floor(random() * availableBeasts.length)]?.id
+                ));
+        for (const enemyId of enemyIds) {
+          const beast = BEAST_BATTLE_DATA.find(entry => entry.id === enemyId);
+          if (!beast) continue;
+          defeatedBeasts.add(beast.id);
           const drops = BEAST_DROP_DATA.find(entry => entry.beastId === beast.id)?.drops ?? [];
           if (beast.id === 'mountain_lord' && !mountainLordDefeated) {
             add(inventory, '神獣の角');
@@ -263,12 +369,14 @@ const simulate = (difficulty: GameDifficulty, repaymentPolicy: RepaymentPolicy, 
           });
         }
         scheduledAttackDay = null;
+        scheduledMountainLordAttack = false;
       } else if (scheduledAttackDay === null && random() < ATTACK_RATE[difficulty]) {
+        scheduledMountainLordAttack = difficulty === 'hard' && random() < MOUNTAIN_LORD_RATE;
         scheduledAttackDay = day + (difficulty === 'easy' ? 1 + Math.floor(random() * 2) : 1);
       }
 
       for (const recipeName of recipeOrder) {
-        if (DIFFICULTIES.indexOf(difficulty) < DIFFICULTIES.indexOf(RECIPE_MIN_DIFFICULTY[recipeName])) continue;
+        if (!isRecipeUnlocked(recipeName, difficulty, day, heroLevel, repayments, debt, completed, inventory, defeatedBeasts, scheduledMountainLordAttack)) continue;
         if (completed.has(recipeName)) continue;
         const recipe = recipes[recipeName];
         if (!recipe) continue;
@@ -308,6 +416,8 @@ const simulate = (difficulty: GameDifficulty, repaymentPolicy: RepaymentPolicy, 
       for (const plan of SEED_PLANS) {
         if (ownedGirls.has(plan.girlId) || DIFFICULTIES.indexOf(difficulty) < DIFFICULTIES.indexOf(plan.minDifficulty)) continue;
         if ((plan.day ?? 1) > day || (plan.repayments ?? 0) > repayments || (plan.credit ?? 0) > farmCredit) continue;
+        if (plan.requiresSturdySaw && !hasSturdySawProgress(completed, inventory)) continue;
+        if (plan.requiresSturdyGathering && !hasSturdyGatheringProgress(completed, inventory)) continue;
         if (plan.girlId === 'momona' && plantedGirls.size < 3) continue;
         if (plan.items && !Object.entries(plan.items).every(([name, count]) => (inventory[name] ?? 0) >= count)) continue;
         const price = plan.price ?? 0;
@@ -321,11 +431,13 @@ const simulate = (difficulty: GameDifficulty, repaymentPolicy: RepaymentPolicy, 
 
       const reserve: Inventory = {};
       recipeOrder.forEach(recipeName => {
-        if (completed.has(recipeName) || DIFFICULTIES.indexOf(difficulty) < DIFFICULTIES.indexOf(RECIPE_MIN_DIFFICULTY[recipeName])) return;
+        if (completed.has(recipeName) || !isRecipeUnlocked(recipeName, difficulty, day, heroLevel, repayments, debt, completed, inventory, defeatedBeasts, scheduledMountainLordAttack)) return;
         Object.entries(recipes[recipeName]?.materials ?? {}).forEach(([name, count]) => { reserve[name] = (reserve[name] ?? 0) + count; });
       });
       SEED_PLANS.forEach(plan => {
         if (ownedGirls.has(plan.girlId) || DIFFICULTIES.indexOf(difficulty) < DIFFICULTIES.indexOf(plan.minDifficulty)) return;
+        if (plan.requiresSturdySaw && !hasSturdySawProgress(completed, inventory)) return;
+        if (plan.requiresSturdyGathering && !hasSturdyGatheringProgress(completed, inventory)) return;
         Object.entries(plan.items ?? {}).forEach(([name, count]) => { reserve[name] = (reserve[name] ?? 0) + count; });
       });
       Object.entries(inventory).forEach(([name, count]) => {

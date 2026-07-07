@@ -2421,8 +2421,8 @@ const RECIPE_DETAILS: Record<string, { title: string; materials: string[]; steps
   },
   '【レシピ】毛皮の服': {
     title: 'レシピ：毛皮の服',
-    materials: ['ウサギの靭帯（2）', 'しなやかな軟木（2）', '木材（3）', '柔らかな若枝（3）'],
-    steps: ['軟木を薄く割って胸当ての芯を作る。', '靭帯で縫い合わせ、動きやすい防具に仕立てる。'],
+    materials: ['ウサギの靭帯（2）', '木材（3）', '柔らかな若枝（5）'],
+    steps: ['木材と若枝を薄く割って胸当ての芯を作る。', '靭帯で縫い合わせ、動きやすい防具に仕立てる。'],
     note: '序盤の獣から受ける痛手を和らげる軽い防具。',
   },
   '【レシピ】丈夫なつるはし': {
@@ -2528,7 +2528,7 @@ const CRAFT_RECIPE_CONFIGS: Record<CraftRecipeId, CraftRecipeConfig> = {
   },
   '【レシピ】毛皮の服': {
     output: '毛皮の服',
-    materials: { 'ウサギの靭帯': 2, 'しなやかな軟木': 2, '木材': 3, '柔らかな若枝': 3 },
+    materials: { 'ウサギの靭帯': 2, '木材': 3, '柔らかな若枝': 5 },
     circleCountRange: [5, 7],
     circleDurationRangeMs: [1800, 2600],
     scorePerCircle: 16,
@@ -4310,6 +4310,7 @@ export default function App() {
   const [achievementStats, setAchievementStats] = useState<AchievementStats>(createInitialAchievementStats);
   const [fishingMasterRewardClaimed, setFishingMasterRewardClaimed] = useState(false);
   const [fishingMasterRewardPopupOpen, setFishingMasterRewardPopupOpen] = useState(false);
+  const [fishingMasterRewardPending, setFishingMasterRewardPending] = useState(false);
   const [endlessStats, setEndlessStats] = useState<EndlessStats>(createInitialEndlessStats);
   const [debtAmount, setDebtAmount] = useState(() => getInitialDebtAmount('hard'));
   const [shownDebtMilestoneIds, setShownDebtMilestoneIds] = useState<DebtMilestoneId[]>([]);
@@ -7004,13 +7005,13 @@ export default function App() {
       const unlockedSeedOfferIds = new Set(collectionProgress.unlockedEventIds.filter(eventId => eventId.startsWith('seed_offer_')));
       const unlockedSeedOfferNotes = [
         { id: 'grape', text: 'ヴィオラ（ブドウ）：5日目以降、くるみ商店に120,000Gで入荷。' },
-        { id: 'eggplant', text: 'ナズナ（なす）：伐採・採掘を学んだ後、しなやかな軟木×8・軟らかい銅鉱石×8と交換。' },
+        { id: 'eggplant', text: 'ナズナ（なす）：丈夫なのこぎりで軟木を扱えるようになった後、しなやかな軟木×8・軟らかい銅鉱石×8と交換。' },
         { id: 'turnip', text: 'かぶね（かぶ）：初回返済成功、または農場信用度5以上で、くるみから受け取れる。' },
         { id: 'cucumber', text: 'キュア（きゅうり）：初回返済成功後、くるみから受け取れる。' },
         { id: 'carrot', text: 'キャロ（にんじん）：初回返済成功後かつ9日目以降、くるみ商店に180,000Gで入荷。' },
-        { id: 'shiitake', text: 'シータ（しいたけ）：伐採・採掘を学んだ後、堅実な中木×10・良質な鉄鉱石×8と交換。' },
+        { id: 'shiitake', text: 'シータ（しいたけ）：丈夫な採取道具で中級素材を扱えるようになった後、堅実な中木×10・良質な鉄鉱石×8と交換。' },
         { id: 'daikon', text: 'シロ（だいこん）：返済成功3回かつ農場信用度15以上で、くるみから受け取れる。' },
-        { id: 'pumpkin', text: 'ぱん（かぼちゃ）：伐採・採掘を学んだ後、堅実な中木×12・錫鉱石×10と交換。' },
+        { id: 'pumpkin', text: 'ぱん（かぼちゃ）：丈夫な採取道具で中級素材を扱えるようになった後、堅実な中木×12・錫鉱石×10と交換。' },
       ].filter(note => unlockedSeedOfferIds.has(`seed_offer_${note.id}`));
       const notebookSections = [
 	        {
@@ -8132,6 +8133,9 @@ export default function App() {
     (inventoryCounts[outputName] ?? 0) > 0 ||
     collectionProgress.craftedItemIds.includes(recipeName)
   );
+  const hasSturdySawProgress = hasRecipeProgress('【レシピ】丈夫なのこぎり', '丈夫なのこぎり');
+  const hasSturdyPickaxeProgress = hasRecipeProgress('【レシピ】丈夫なつるはし', '丈夫なつるはし');
+  const hasSturdyGatheringProgress = hasSturdySawProgress && hasSturdyPickaxeProgress;
   const hasBasicBeastEquipmentRecipeProgress = (
     hasBeastPremonition ||
     collectionProgress.unlockedEventIds.includes(BEAST_PREMONITION_SEEN_EVENT_ID) ||
@@ -8158,9 +8162,9 @@ export default function App() {
       case '【レシピ】剛牙の鎧':
         return hasBearMaterialRoute && hasRecipeProgress('【レシピ】毛皮の服', '毛皮の服');
       case '【レシピ】高級つるはし':
-        return hasBoarMaterialRoute && hasRecipeProgress('【レシピ】丈夫なつるはし', '丈夫なつるはし');
+        return hasBoarMaterialRoute && hasSturdyGatheringProgress;
       case '【レシピ】高級のこぎり':
-        return hasBoarMaterialRoute && hasRecipeProgress('【レシピ】丈夫なのこぎり', '丈夫なのこぎり');
+        return hasBoarMaterialRoute && hasSturdyGatheringProgress;
       case '【レシピ】高級釣竿':
         return hasBearMaterialRoute && hasRecipeProgress('【レシピ】丈夫な釣竿', '丈夫な釣竿');
       case '【レシピ】天の裁き':
@@ -8174,7 +8178,7 @@ export default function App() {
       case '【レシピ】伝説の釣り竿':
         return (hasGiantBeastProgress || storyCleared || debtAmount <= 0) && hasRecipeProgress('【レシピ】高級釣竿', '高級釣竿');
       case '【レシピ】丈夫な釣竿':
-        return fishingTutorialCompleted && hasCraftedBasicGatheringTools;
+        return fishingTutorialCompleted && hasCraftedBasicGatheringTools && hasSturdySawProgress;
       default:
         return false;
     }
@@ -8224,7 +8228,7 @@ export default function App() {
     if (ownedGirlSeeds.includes(item.girlSeedId!)) return false;
     if (item.girlSeedId === 'grape') return Math.floor(turn / 4) + 1 >= 5;
     if (item.girlSeedId === 'eggplant') {
-      return loggingTutorialCompleted && miningTutorialCompleted;
+      return miningTutorialCompleted && hasSturdySawProgress;
     }
     return successfulRepaymentCount >= 1 || farmCredit >= 5;
   });
@@ -8293,10 +8297,10 @@ export default function App() {
     if (item.girlSeedId === 'cucumber') return successfulRepaymentCount >= 1;
     if (item.girlSeedId === 'carrot') return successfulRepaymentCount >= 1 && Math.floor(turn / 4) + 1 >= 9;
     if (item.girlSeedId === 'shiitake') {
-      return loggingTutorialCompleted && miningTutorialCompleted;
+      return hasSturdyGatheringProgress;
     }
     if (item.girlSeedId === 'daikon') return successfulRepaymentCount >= 3 && farmCredit >= 15;
-    return loggingTutorialCompleted && miningTutorialCompleted;
+    return hasSturdyGatheringProgress;
   });
   const hardGirlSeedShopCandidates: ShopItem[] = [
     {
@@ -8745,7 +8749,7 @@ export default function App() {
       ...previous,
       [FISHING_NUSHI_RING_NAME]: (previous[FISHING_NUSHI_RING_NAME] ?? 0) + 1,
     }));
-    setFishingMasterRewardPopupOpen(true);
+    setFishingMasterRewardPending(true);
     setSystemNotice(`称号「川神に選ばれし者」を達成し、${FISHING_NUSHI_RING_NAME}を獲得しました。`);
     setDialogMessage(`称号「川神に選ばれし者」達成！\n${FISHING_NUSHI_RING_NAME}を獲得しました。`);
   }, [achievementStats.totalFishCaught, bootMode, fishingMasterRewardClaimed, isLoading]);
@@ -8951,10 +8955,16 @@ export default function App() {
     window.localStorage.setItem(MAP_ZOOM_STORAGE_KEY, String(mapZoom));
   }, [mapZoom]);
 
-  const movementLocked = sleepPromptVisible || bathPromptVisible || mermaidOfferingPromptVisible || mioOfferingPromptVisible || mioArrivalNoticeVisible || mioSpecialEventPhase !== null || bathSequenceActive || craftPromptVisible || fishingPromptVisible || miningPromptVisible || loggingPromptVisible || fishingMiniGameOpen || miningMiniGameOpen || miningRhythmRecording || craftMiniGameOpen || fishingTutorialOpen || fishingTutorialEndingOpen || sawCraftTutorialIntroOpen || sawCraftTutorialShedDialogueOpen || gatheringTutorialOpen || miningTutorialOpen || kurumiShopOpen || kurumiIntroOpen || kurumiTentFinalEventOpen || farmGodEventStep !== null || farmGodBlessingNoticeOpen || seedPlantTutorialOpen || seedAfterPlantTutorialOpen || momonaSeedEventOpen || isSleepSequenceActive || beastAttackPending || repaymentEventPending || activeDebtMilestoneId !== null || marketForecastCycleIndex !== null || storyEndingVideoOpen || activeZukanImage !== null || activeZukanVideo !== null || activeTrustEvent !== null || farmGirlRevealSpotlightId !== null || battlePreviewOpen || farmSlotInteractionStage !== null || girlEquipmentMiniGame !== null || pendingGirlEquipmentInsert !== null || girlEquipmentNoticeGirlId !== null || trust20CompanionTutorialStep !== null || skillTreeTutorialStep !== null || farmCareCinematicAction !== null || pendingFarmCareConfirm !== null || farmCareUnlockNoticeAction !== null || farmHarvestResultNotice !== null || farmTrustEventNotice !== null || bulkHarvestOpen || bulkHarvestConfirmOpen || bulkHarvestUnlockNotice || bulkHarvestResults !== null || bulkShippingOpen || bulkShippingConfirmOpen || bulkShippingUnlockNotice || bulkShippingResults !== null || bulkFarmCareOpen || bulkFarmCareConfirmOpen || bulkFarmCareUnlockNotice || bulkFarmCareResults !== null || prologueOpen;
+  const movementLocked = showDialog || activeAutoEventSpot !== null || sleepPromptVisible || bathPromptVisible || mermaidOfferingPromptVisible || mioOfferingPromptVisible || mioArrivalNoticeVisible || mioSpecialEventPhase !== null || bathSequenceActive || craftPromptVisible || fishingPromptVisible || miningPromptVisible || loggingPromptVisible || craftConfirmRecipeName !== null || craftInsufficientRecipeName !== null || fishingMiniGameOpen || miningMiniGameOpen || miningRhythmRecording || craftMiniGameOpen || fishingTutorialOpen || fishingTutorialEndingOpen || sawCraftTutorialIntroOpen || sawCraftTutorialShedDialogueOpen || gatheringTutorialOpen || miningTutorialOpen || kurumiShopOpen || kurumiIntroOpen || kurumiPantsEventStepIndex !== null || kurumiTentFinalEventOpen || farmGodEventStep !== null || farmGodBlessingNoticeOpen || seedPlantTutorialOpen || seedAfterPlantTutorialOpen || momonaSeedEventOpen || isSleepSequenceActive || beastAttackPending || repaymentEventPending || activeDebtMilestoneId !== null || marketForecastCycleIndex !== null || storyEndingVideoOpen || activeZukanImage !== null || activeZukanVideo !== null || activeTrustEvent !== null || farmGirlRevealSpotlightId !== null || battlePreviewOpen || darkKingChallengePromptOpen || farmGodBattleCinematicOpen || companionRegenCinematicOpen || farmSlotInteractionStage !== null || girlEquipmentMiniGame !== null || pendingGirlEquipmentInsert !== null || girlEquipmentNoticeGirlId !== null || trust20CompanionTutorialStep !== null || pendingSkillUnlockId !== null || skillUnlockNotice !== null || skillUnlockSparkles || skillTreeTutorialStep !== null || farmCareCinematicAction !== null || pendingFarmCareConfirm !== null || farmCareUnlockNoticeAction !== null || farmHarvestResultNotice !== null || farmTrustEventNotice !== null || fishingMasterRewardPopupOpen || bulkHarvestOpen || bulkHarvestConfirmOpen || bulkHarvestUnlockNotice || bulkHarvestResults !== null || bulkShippingOpen || bulkShippingConfirmOpen || bulkShippingUnlockNotice || bulkShippingResults !== null || bulkFarmCareOpen || bulkFarmCareConfirmOpen || bulkFarmCareUnlockNotice || bulkFarmCareResults !== null || prologueOpen;
   useEffect(() => {
      movementLockedRef.current = movementLocked;
-  }, [sleepPromptVisible, bathPromptVisible, mermaidOfferingPromptVisible, mioOfferingPromptVisible, mioArrivalNoticeVisible, bathSequenceActive, craftPromptVisible, fishingPromptVisible, miningPromptVisible, loggingPromptVisible, fishingMiniGameOpen, miningMiniGameOpen, miningRhythmRecording, craftMiniGameOpen, fishingTutorialOpen, fishingTutorialEndingOpen, sawCraftTutorialIntroOpen, sawCraftTutorialShedDialogueOpen, gatheringTutorialOpen, miningTutorialOpen, kurumiShopOpen, kurumiIntroOpen, kurumiTentFinalEventOpen, farmGodEventStep, farmGodBlessingNoticeOpen, seedPlantTutorialOpen, seedAfterPlantTutorialOpen, momonaSeedEventOpen, isSleepSequenceActive, beastAttackPending, repaymentEventPending, activeDebtMilestoneId, marketForecastCycleIndex, storyEndingVideoOpen, activeZukanImage, activeZukanVideo, activeTrustEvent, farmGirlRevealSpotlightId, battlePreviewOpen, farmSlotInteractionStage, girlEquipmentMiniGame, pendingGirlEquipmentInsert, girlEquipmentNoticeGirlId, trust20CompanionTutorialStep, skillTreeTutorialStep, farmCareCinematicAction, pendingFarmCareConfirm, farmCareUnlockNoticeAction, farmHarvestResultNotice, farmTrustEventNotice, bulkHarvestOpen, bulkHarvestConfirmOpen, bulkHarvestUnlockNotice, bulkHarvestResults, bulkShippingOpen, bulkShippingConfirmOpen, bulkShippingUnlockNotice, bulkShippingResults, bulkFarmCareOpen, bulkFarmCareConfirmOpen, bulkFarmCareUnlockNotice, bulkFarmCareResults, prologueOpen]);
+  }, [activeAutoEventSpot, bathPromptVisible, bathSequenceActive, battlePreviewOpen, beastAttackPending, bulkFarmCareConfirmOpen, bulkFarmCareOpen, bulkFarmCareResults, bulkFarmCareUnlockNotice, bulkHarvestConfirmOpen, bulkHarvestOpen, bulkHarvestResults, bulkHarvestUnlockNotice, bulkShippingConfirmOpen, bulkShippingOpen, bulkShippingResults, bulkShippingUnlockNotice, companionRegenCinematicOpen, craftConfirmRecipeName, craftInsufficientRecipeName, craftMiniGameOpen, craftPromptVisible, darkKingChallengePromptOpen, farmCareCinematicAction, farmCareUnlockNoticeAction, farmGirlRevealSpotlightId, farmGodBattleCinematicOpen, farmGodBlessingNoticeOpen, farmGodEventStep, farmHarvestResultNotice, farmSlotInteractionStage, farmTrustEventNotice, fishingMasterRewardPopupOpen, fishingMiniGameOpen, fishingPromptVisible, fishingTutorialEndingOpen, fishingTutorialOpen, gatheringTutorialOpen, girlEquipmentMiniGame, girlEquipmentNoticeGirlId, isSleepSequenceActive, kurumiIntroOpen, kurumiPantsEventStepIndex, kurumiShopOpen, kurumiTentFinalEventOpen, marketForecastCycleIndex, mermaidOfferingPromptVisible, miningMiniGameOpen, miningPromptVisible, miningRhythmRecording, miningTutorialOpen, mioArrivalNoticeVisible, mioOfferingPromptVisible, mioSpecialEventPhase, momonaSeedEventOpen, pendingFarmCareConfirm, pendingGirlEquipmentInsert, pendingSkillUnlockId, prologueOpen, repaymentEventPending, sawCraftTutorialIntroOpen, sawCraftTutorialShedDialogueOpen, seedAfterPlantTutorialOpen, seedPlantTutorialOpen, showDialog, skillTreeTutorialStep, skillUnlockNotice, skillUnlockSparkles, sleepPromptVisible, storyEndingVideoOpen, trust20CompanionTutorialStep, activeDebtMilestoneId, activeTrustEvent, activeZukanImage, activeZukanVideo]);
+
+  useEffect(() => {
+    if (!fishingMasterRewardPending || movementLocked) return;
+    setFishingMasterRewardPending(false);
+    setFishingMasterRewardPopupOpen(true);
+  }, [fishingMasterRewardPending, movementLocked]);
 
   useEffect(() => {
     if (collectionProgress.unlockedEventIds.includes(FARM_GOD_EVENT_ID)) return;
@@ -9004,41 +9014,13 @@ export default function App() {
 
   useEffect(() => {
     if (!skillTreeTutorialPending || skillTreeTutorialStep !== null) return;
-    if (
-      showDialog ||
-      farmHarvestResultNotice ||
-      farmTrustEventNotice ||
-      farmCareUnlockNoticeAction ||
-      farmCareCinematicAction ||
-      farmGirlRevealSpotlightId ||
-      trust20CompanionTutorialStep !== null ||
-      pendingFarmCareConfirm ||
-      pendingGirlEquipmentInsert ||
-      girlEquipmentNoticeGirlId ||
-      girlEquipmentMiniGame ||
-      battlePreviewOpen ||
-      farmSlotInteractionStage !== null
-    ) {
-      return;
-    }
+    if (movementLocked) return;
     setSkillTreeTutorialPending(false);
     openSkillTreeTutorial();
   }, [
-    battlePreviewOpen,
-    farmCareCinematicAction,
-    farmCareUnlockNoticeAction,
-    farmGirlRevealSpotlightId,
-    farmHarvestResultNotice,
-    farmSlotInteractionStage,
-    farmTrustEventNotice,
-    girlEquipmentMiniGame,
-    girlEquipmentNoticeGirlId,
-    pendingFarmCareConfirm,
-    pendingGirlEquipmentInsert,
-    showDialog,
+    movementLocked,
     skillTreeTutorialPending,
     skillTreeTutorialStep,
-    trust20CompanionTutorialStep,
   ]);
 
   useEffect(() => {
@@ -12580,12 +12562,12 @@ export default function App() {
   const missedRepaymentPenalty = getMissedRepaymentPenalty(missedRepaymentCount);
   const formatInterestRate = (rate: number) => `${rate.toFixed(1)}%`;
   useEffect(() => {
-    if (gameMode !== 'story' || bootMode !== 'playing' || daysUntilRepayment !== 2) return;
+    if (gameMode !== 'story' || bootMode !== 'playing' || daysUntilRepayment !== 2 || movementLocked) return;
     const forecastCycleIndex = currentRepaymentCycleIndex + 1;
     if (shownMarketForecastCycleIndexes.includes(forecastCycleIndex)) return;
     setShownMarketForecastCycleIndexes(previous => [...previous, forecastCycleIndex]);
     setMarketForecastCycleIndex(forecastCycleIndex);
-  }, [bootMode, currentRepaymentCycleIndex, daysUntilRepayment, gameMode, shownMarketForecastCycleIndexes]);
+  }, [bootMode, currentRepaymentCycleIndex, daysUntilRepayment, gameMode, movementLocked, shownMarketForecastCycleIndexes]);
   const mermaidFishingUnlocked = collectionProgress.unlockedEventIds.includes(MERMAID_UNLOCK_EVENT_ID);
   const isMioFollowing = canUseDebugTools
     ? debugMioFollowing || collectionProgress.unlockedEventIds.includes(MIO_FOLLOW_EVENT_ID) &&
@@ -12605,6 +12587,7 @@ export default function App() {
       !ownedGirlSeeds.includes('peach') &&
       !momonaEventCompleted &&
       !momonaSeedEventOpen &&
+      !movementLocked &&
       !menuOpen &&
       !kurumiShopOpen &&
       !repaymentEventPending &&
@@ -12612,7 +12595,14 @@ export default function App() {
       !storyEndingVideoOpen
     );
     if (canStartMomonaEvent) setMomonaSeedEventOpen(true);
-  }, [beastAttackPending, bootMode, collectionProgress.collectedGirlIds.length, collectionProgress.unlockedEventIds, currentDay, currentMap, difficulty, gameMode, kurumiShopOpen, menuOpen, momonaSeedEventOpen, ownedGirlSeeds, repaymentEventPending, storyEndingVideoOpen, timeOfDay]);
+  }, [beastAttackPending, bootMode, collectionProgress.collectedGirlIds.length, collectionProgress.unlockedEventIds, currentDay, currentMap, difficulty, gameMode, kurumiShopOpen, menuOpen, momonaSeedEventOpen, movementLocked, ownedGirlSeeds, repaymentEventPending, storyEndingVideoOpen, timeOfDay]);
+  const acceptMomonaSeedEvent = () => {
+    playFixSound();
+    addOwnedGirlSeed('peach');
+    unlockCollectionEvent('momona_seed_unlock');
+    setMomonaSeedEventOpen(false);
+    setDialogMessage('ももの苗娘を手に入れた！\n農場メニュから植えられます。');
+  };
   useEffect(() => {
     if (!companionGirlId) {
       setCompanionSpeech(null);
@@ -12636,24 +12626,11 @@ export default function App() {
   }, [farmHarvestResultNotice, pendingCompanionSpeechMoment]);
   useEffect(() => {
     if (!trust20CompanionTutorialPending || trust20CompanionTutorialStep !== null) return;
-    const hasBlockingNotice = Boolean(
-      farmCareUnlockNoticeAction ||
-      farmHarvestResultNotice ||
-      farmTrustEventNotice ||
-      girlEquipmentNoticeGirlId ||
-      farmGirlRevealSpotlightId ||
-      pendingFarmCareConfirm
-    );
-    if (hasBlockingNotice) return;
+    if (movementLocked) return;
     setTrust20CompanionTutorialPending(false);
     setTrust20CompanionTutorialStep(0);
   }, [
-    farmCareUnlockNoticeAction,
-    farmGirlRevealSpotlightId,
-    farmHarvestResultNotice,
-    farmTrustEventNotice,
-    girlEquipmentNoticeGirlId,
-    pendingFarmCareConfirm,
+    movementLocked,
     trust20CompanionTutorialPending,
     trust20CompanionTutorialStep,
   ]);
@@ -12671,27 +12648,13 @@ export default function App() {
   }, [skillTreeTutorialStep]);
   useEffect(() => {
     if (!pendingFarmTrustEventNotice || farmTrustEventNotice) return;
-    if (
-      farmHarvestResultNotice ||
-      farmGirlRevealSpotlightId ||
-      farmCareUnlockNoticeAction ||
-      pendingFarmCareConfirm ||
-      skillTreeTutorialStep !== null ||
-      trust20CompanionTutorialStep !== null
-    ) {
-      return;
-    }
+    if (movementLocked) return;
     setFarmTrustEventNotice(pendingFarmTrustEventNotice);
     setPendingFarmTrustEventNotice(null);
   }, [
-    farmCareUnlockNoticeAction,
-    farmGirlRevealSpotlightId,
-    farmHarvestResultNotice,
     farmTrustEventNotice,
-    pendingFarmCareConfirm,
+    movementLocked,
     pendingFarmTrustEventNotice,
-    skillTreeTutorialStep,
-    trust20CompanionTutorialStep,
   ]);
   const addOwnedGirlSeed = (seedId: string) => {
     setOwnedGirlSeeds(prev => prev.includes(seedId) ? prev : [...prev, seedId]);
@@ -26308,7 +26271,18 @@ export default function App() {
         })()}
 
         {momonaSeedEventOpen && createPortal(
-          <div className="fixed inset-0 z-[10025] flex items-center justify-center bg-black/72 px-8 pointer-events-auto">
+          <div
+            className="fixed inset-0 z-[10025] flex items-center justify-center bg-black/72 px-8 pointer-events-auto"
+            role="dialog"
+            aria-modal="true"
+            aria-label="桃色の苗との出会い"
+            onKeyDown={(event) => {
+              if (event.key !== 'Enter' && event.key !== ' ') return;
+              event.preventDefault();
+              event.stopPropagation();
+              acceptMomonaSeedEvent();
+            }}
+          >
             <div className="grid w-[920px] max-w-full grid-cols-[360px_minmax(0,1fr)] overflow-hidden rounded-2xl border-4 border-[#f9a8d4] bg-[#24140f] text-[#fff7dc] shadow-[0_24px_80px_rgba(0,0,0,0.78)]">
               <div className="relative min-h-[480px] bg-[radial-gradient(circle_at_50%_35%,rgba(251,207,232,0.35),rgba(36,20,15,0.95))]">
                 <img src="/img/momona-card.png" alt="ももな" className="absolute inset-0 h-full w-full object-contain object-bottom p-5" />
@@ -26322,14 +26296,9 @@ export default function App() {
                 </div>
                 <button
                   type="button"
-                  onClick={() => {
-                    playFixSound();
-                    addOwnedGirlSeed('peach');
-                    unlockCollectionEvent('momona_seed_unlock');
-                    setMomonaSeedEventOpen(false);
-                    setDialogMessage('ももの苗娘を手に入れた！\n農場メニュから植えられます。');
-                  }}
-                  className="mt-7 rounded-xl border-2 border-[#fff7dc] bg-[#be185d] px-6 py-4 text-xl font-black text-white transition hover:bg-[#db2777]"
+                  autoFocus
+                  onClick={acceptMomonaSeedEvent}
+                  className="mt-7 rounded-xl border-2 border-[#fff7dc] bg-[#be185d] px-6 py-4 text-xl font-black text-white transition hover:bg-[#db2777] focus:outline-none focus:ring-4 focus:ring-white/70"
                 >
                   ももの苗娘を持ち帰る
                 </button>
@@ -28711,11 +28680,19 @@ export default function App() {
                 </div>
               </div>
             ) : (
-              <div className="relative w-full max-w-[1400px] overflow-hidden rounded-2xl border-2 border-[#f9a8d4] bg-black shadow-[0_0_44px_rgba(244,114,182,0.36)]">
+              <div
+                className="relative w-full max-w-[1400px] overflow-hidden rounded-2xl border-2 border-[#f9a8d4] bg-black shadow-[0_0_44px_rgba(244,114,182,0.36)]"
+                onKeyDown={(event) => {
+                  if (event.key !== 'Escape') return;
+                  event.preventDefault();
+                  event.stopPropagation();
+                  returnFromMioSpecialEvent();
+                }}
+              >
                 <img src="/img/mioend.png" alt="MIOのおんがえし案内" className="block h-auto w-full" />
                 <a href={MIO_GAME_URL} target="_blank" rel="noopener noreferrer" aria-label="MIOのおんがえし購入ページを開く" className="absolute bottom-[1.5%] left-[2.5%] h-[12.5%] w-[32%] rounded-[999px] focus:outline-none focus:ring-4 focus:ring-white/90" />
                 <a href={MIO_OFFICIAL_URL} target="_blank" rel="noopener noreferrer" aria-label="MIO公式WEBサイトを開く" className="absolute bottom-[1.5%] left-[35.5%] h-[12.5%] w-[30%] rounded-[999px] focus:outline-none focus:ring-4 focus:ring-white/90" />
-                <button type="button" onClick={returnFromMioSpecialEvent} aria-label="ゲームに戻る" className="absolute bottom-[1.5%] right-[2.5%] h-[12.5%] w-[31%] rounded-[999px] focus:outline-none focus:ring-4 focus:ring-white/90" />
+                <button type="button" autoFocus onClick={returnFromMioSpecialEvent} aria-label="ゲームに戻る" className="absolute bottom-[1.5%] right-[2.5%] h-[12.5%] w-[31%] rounded-[999px] focus:outline-none focus:ring-4 focus:ring-white/90" />
               </div>
             )}
           </div>,
@@ -28774,7 +28751,19 @@ export default function App() {
           );
         })(), document.body)}
         {activeTrustEvent && !getSpecialTrustEventScenes(activeTrustEvent.eventId) && createPortal(
-          <div className="fixed inset-0 z-[10001] flex items-center justify-center bg-black/88 px-8 py-6 pointer-events-auto">
+          <div
+            className="fixed inset-0 z-[10001] flex items-center justify-center bg-black/88 px-8 py-6 pointer-events-auto"
+            role="dialog"
+            aria-modal="true"
+            aria-label={`${activeTrustEvent.girlName} 信頼イベント`}
+            onKeyDown={(event) => {
+              if (event.key !== 'Enter' && event.key !== ' ' && event.key !== 'Escape') return;
+              event.preventDefault();
+              event.stopPropagation();
+              playFixSound();
+              setActiveTrustEvent(null);
+            }}
+          >
             <div className="relative h-full max-h-[880px] w-full max-w-[1280px] overflow-hidden rounded-2xl border-[4px] border-[#f9a8d4] bg-[#090504] text-[#fdf6e3] shadow-2xl">
               <div className="absolute left-6 top-5 z-20 rounded border border-[#f9a8d4]/70 bg-black/62 px-4 py-2">
                 <div className="text-xs font-black tracking-[0.28em] text-[#f9a8d4]">TRUST EVENT</div>
@@ -28782,8 +28771,9 @@ export default function App() {
               </div>
               <button
                 type="button"
+                autoFocus
                 onClick={() => { playFixSound(); setActiveTrustEvent(null); }}
-                className="absolute right-6 top-5 z-20 rounded-lg border-2 border-white/45 bg-black/55 px-4 py-2 text-sm font-black text-white hover:bg-white/15"
+                className="absolute right-6 top-5 z-20 rounded-lg border-2 border-white/45 bg-black/55 px-4 py-2 text-sm font-black text-white hover:bg-white/15 focus:outline-none focus:ring-4 focus:ring-white/80"
               >
                 閉じる
               </button>
@@ -29496,7 +29486,31 @@ export default function App() {
             </div>
           </div>, document.body)}
         {farmTrustEventNotice && createPortal(
-          <div className="fixed inset-0 z-[10003] flex items-center justify-center bg-black/45 px-6 pointer-events-auto" aria-live="polite">
+          <div
+            className="fixed inset-0 z-[10003] flex items-center justify-center bg-black/45 px-6 pointer-events-auto"
+            aria-live="polite"
+            role="dialog"
+            aria-modal="true"
+            aria-label="信頼イベント解放"
+            onKeyDown={(event) => {
+              if (event.key === 'Escape') {
+                event.preventDefault();
+                event.stopPropagation();
+                playFixSound();
+                setFarmTrustEventNotice(null);
+                return;
+              }
+              if (event.key !== 'ArrowUp' && event.key !== 'ArrowDown' && event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
+              event.preventDefault();
+              event.stopPropagation();
+              const buttons = Array.from(event.currentTarget.querySelectorAll('button:not(:disabled)')) as HTMLButtonElement[];
+              if (buttons.length === 0) return;
+              const currentIndex = buttons.indexOf(document.activeElement as HTMLButtonElement);
+              const nextIndex = currentIndex <= 0 ? 1 : 0;
+              playCursorSound();
+              buttons[Math.min(nextIndex, buttons.length - 1)]?.focus();
+            }}
+          >
             <div className="relative w-full max-w-md rounded-2xl border-4 border-[#f9a8d4] bg-[#24101c]/96 p-6 text-center text-[#fff7dc] shadow-[0_24px_72px_rgba(0,0,0,.78),0_0_30px_rgba(244,114,182,0.28)]">
               <div className="text-sm font-black tracking-[0.22em] text-[#f9a8d4]">信頼イベント解放</div>
               <div className="mt-3 text-3xl font-black text-[#fff1a8]">{farmTrustEventNotice.girlName}</div>
@@ -29506,11 +29520,12 @@ export default function App() {
               </div>
               <button
                 type="button"
+                autoFocus
                 onClick={() => {
                   playFixSound();
                   setFarmTrustEventNotice(null);
                 }}
-                className="mt-6 w-full rounded border border-[#f9a8d4] bg-[#831843] px-5 py-3 text-lg font-black text-white transition hover:bg-[#9d174d]"
+                className="mt-6 w-full rounded border border-[#f9a8d4] bg-[#831843] px-5 py-3 text-lg font-black text-white transition hover:bg-[#9d174d] focus:outline-none focus:ring-4 focus:ring-white/70"
               >
                 OK
               </button>
@@ -29521,7 +29536,7 @@ export default function App() {
                   setFarmTrustEventNotice(null);
                   openTrustEvent(eventId);
                 }}
-                className="mt-3 w-full rounded border border-[#67e8f9] bg-[#155e75] px-5 py-3 text-lg font-black text-[#ecfeff] transition hover:bg-[#0e7490]"
+                className="mt-3 w-full rounded border border-[#67e8f9] bg-[#155e75] px-5 py-3 text-lg font-black text-[#ecfeff] transition hover:bg-[#0e7490] focus:outline-none focus:ring-4 focus:ring-white/70"
               >
                 今すぐ見る
               </button>
