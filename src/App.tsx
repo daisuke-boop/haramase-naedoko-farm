@@ -976,6 +976,7 @@ type ActiveZukanImage = {
   src: string;
   title: string;
   subtitle: string;
+  spriteFrameCount?: number;
 };
 type GirlEquipmentState = Record<string, GirlEquipmentSlot[]>;
 type GirlEquipmentMiniGameState = {
@@ -3200,8 +3201,18 @@ const BEAST_PREMONITION_RATE_BY_DIFFICULTY: Readonly<Record<GameDifficulty, numb
   normal: 0.15,
   hard: 0.20,
 };
+const BEAST_ATTACK_GRACE_DAYS_BY_DIFFICULTY: Readonly<Record<GameDifficulty, number>> = {
+  easy: 3,
+  normal: 6,
+  hard: 16,
+};
 const BEAST_PREMONITION_SEEN_EVENT_ID = 'beast_premonition_seen';
 const MOUNTAIN_LORD_ATTACK_RATE = 0.20;
+const isBeastAttackUnlocked = (difficulty: GameDifficulty, currentDay: number, heroLevel: HeroLevel) => (
+  difficulty === 'easy'
+    ? currentDay > BEAST_ATTACK_GRACE_DAYS_BY_DIFFICULTY.easy || heroLevel >= 2
+    : currentDay > BEAST_ATTACK_GRACE_DAYS_BY_DIFFICULTY[difficulty] && heroLevel >= 2
+);
 const getScheduledBeastAttackDay = (difficulty: GameDifficulty, currentDay: number) => (
   difficulty === 'easy'
     ? currentDay + 1 + Math.floor(Math.random() * 2)
@@ -3260,38 +3271,54 @@ const createRandomBeastUnits = (difficulty: GameDifficulty, allowMountainLord = 
   }
   return [...beasts, ...Array.from({ length: Math.max(0, 3 - beasts.length) }, () => null)];
 };
-const createHardStoryBeastUnits = (currentDay: number, heroLevel: number): (BattleUnitState | null)[] => {
-  const findBeast = (beastId: BeastId) => BEAST_BATTLE_DATA.find(beast => beast.id === beastId);
-  const createUnits = (beastIds: BeastId[]) => {
-    const beasts = beastIds
-      .map(beastId => findBeast(beastId))
-      .filter((beast): beast is (typeof BEAST_BATTLE_DATA)[number] => Boolean(beast))
-      .map((beast, index) => createBattleUnitFromBeast(beast, index));
-    return [...beasts, ...Array.from({ length: Math.max(0, 3 - beasts.length) }, () => null)];
-  };
-
-  if (currentDay <= 20 || heroLevel <= 2) {
-    return Math.random() < 0.5
-      ? createUnits(['bear'])
-      : createUnits(['boar', 'great_fang_beast']);
+const createBeastUnits = (beastIds: BeastId[]): (BattleUnitState | null)[] => {
+  const beasts = beastIds
+    .map(beastId => BEAST_BATTLE_DATA.find(beast => beast.id === beastId))
+    .filter((beast): beast is (typeof BEAST_BATTLE_DATA)[number] => Boolean(beast))
+    .map((beast, index) => createBattleUnitFromBeast(beast, index));
+  return [...beasts, ...Array.from({ length: Math.max(0, 3 - beasts.length) }, () => null)];
+};
+const pickOne = <T,>(items: readonly T[]): T => items[Math.floor(Math.random() * items.length)];
+const createEasyStoryBeastUnits = (currentDay: number, heroLevel: number): (BattleUnitState | null)[] => {
+  if (heroLevel <= 1 && currentDay <= 8) return createBeastUnits([pickOne<BeastId>(['mole', 'rabbit'])]);
+  if (heroLevel <= 2 && currentDay <= 16) return createBeastUnits([pickOne<BeastId>(['mole', 'rabbit', 'monkey'])]);
+  return createBeastUnits([pickOne<BeastId>(['rabbit', 'monkey'])]);
+};
+const createNormalStoryBeastUnits = (currentDay: number, heroLevel: number): (BattleUnitState | null)[] => {
+  if (heroLevel <= 2 || currentDay <= 18) return createBeastUnits(['boar']);
+  if (heroLevel <= 3 && currentDay <= 30) {
+    return Math.random() < 0.6
+      ? createBeastUnits(['bear'])
+      : createBeastUnits(['boar', 'bear']);
   }
+  if (heroLevel >= 4 && Math.random() < 0.25) return createBeastUnits(['giant_bear']);
+  return Math.random() < 0.55
+    ? createBeastUnits(['bear', 'great_fang_beast'])
+    : createBeastUnits(['boar', 'bear']);
+};
+const createHardStoryBeastUnits = (currentDay: number, heroLevel: number): (BattleUnitState | null)[] => {
+  if (heroLevel <= 2 || currentDay <= 20) return createBeastUnits(['boar']);
 
   if (currentDay <= 35 || heroLevel <= 3) {
     return Math.random() < 0.55
-      ? createUnits(['giant_bear'])
-      : createUnits(['great_fang_beast', 'bear']);
+      ? createBeastUnits(['bear'])
+      : createBeastUnits(['boar', 'bear']);
   }
 
-  if (Math.random() < 0.15) return createUnits(['giant_bear', 'giant_bear', 'giant_bear']);
+  if (heroLevel <= 4 || currentDay <= 50) {
+    return Math.random() < 0.55
+      ? createBeastUnits(['giant_bear'])
+      : createBeastUnits(['great_fang_beast', 'bear']);
+  }
+
+  if (Math.random() < 0.15) return createBeastUnits(['giant_bear', 'giant_bear', 'giant_bear']);
   return Math.random() < 0.55
-    ? createUnits(['giant_bear', 'giant_bear'])
-    : createUnits(['giant_bear', 'great_fang_beast']);
+    ? createBeastUnits(['giant_bear', 'giant_bear'])
+    : createBeastUnits(['giant_bear', 'great_fang_beast']);
 };
 const createStoryBeastUnits = (difficulty: GameDifficulty, heroLevel: number, currentDay: number): (BattleUnitState | null)[] => {
-  if (difficulty === 'normal' && heroLevel >= 4 && Math.random() < 0.25) {
-    const giantBear = BEAST_BATTLE_DATA.find(beast => beast.id === 'giant_bear');
-    if (giantBear) return [createBattleUnitFromBeast(giantBear), null, null];
-  }
+  if (difficulty === 'easy') return createEasyStoryBeastUnits(currentDay, heroLevel);
+  if (difficulty === 'normal') return createNormalStoryBeastUnits(currentDay, heroLevel);
   if (difficulty === 'hard') return createHardStoryBeastUnits(currentDay, heroLevel);
   return createRandomBeastUnits(difficulty, false);
 };
@@ -4339,6 +4366,8 @@ export default function App() {
   const [scheduledBeastAttackDay, setScheduledBeastAttackDay] = useState<number | null>(null);
   const [mountainLordAttackPending, setMountainLordAttackPending] = useState(false);
   const [beastAttackPending, setBeastAttackPending] = useState(false);
+  const [beastAttackChoice, setBeastAttackChoice] = useState<'fight' | 'watch'>('fight');
+  const beastAttackFightButtonRef = useRef<HTMLButtonElement | null>(null);
   const [companionGirlId, setCompanionGirlId] = useState<string | null>(null);
   const [currentWeeklyInterestRate, setCurrentWeeklyInterestRate] = useState(() => createWeeklyInterestRate('hard', 0, 0));
   const [interestRateCycleIndex, setInterestRateCycleIndex] = useState(0);
@@ -6764,9 +6793,16 @@ export default function App() {
               <button
                 key={filter}
                 type="button"
-                onPointerDown={() => { setMenuFocusArea('content'); setMenuContentFocus('primary'); setZukanFilter(filter); setSelectedZukanIndex(0); }}
+                onPointerDown={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  setMenuFocusArea('content');
+                  setMenuContentFocus('primary');
+                  setZukanFilter(filter);
+                  setSelectedZukanIndex(0);
+                }}
                 onMouseEnter={() => { if (zukanFilter !== filter) playCursorSound(); }}
-                onClick={() => { playFixSound(); setMenuFocusArea('content'); setMenuContentFocus('primary'); setZukanFilter(filter); setSelectedZukanIndex(0); }}
+                onClick={(event) => { event.stopPropagation(); playFixSound(); setMenuFocusArea('content'); setMenuContentFocus('primary'); setZukanFilter(filter); setSelectedZukanIndex(0); }}
                 className={`px-3 py-2 rounded border font-bold cursor-pointer ${zukanFilter === filter ? 'bg-[#bc6c25] border-white text-white ring-4 ring-[#ffd166]/70 shadow-[0_0_18px_rgba(255,209,102,0.42)]' : 'bg-black/35 border-[#5a3010] text-[#dda15e] hover:bg-[#3a2418]'}`}
               >
                 {filter}
@@ -6797,7 +6833,7 @@ export default function App() {
                     openZukanVideo(entry);
                   }}
                   onMouseEnter={() => { if (selectedZukanIndex !== index) playCursorSound(); }}
-                  onClick={() => { setMenuFocusArea('content'); setMenuContentFocus('secondary'); setSelectedZukanIndex(index); openZukanVideo(entry); }}
+                  onClick={(event) => { event.stopPropagation(); setMenuFocusArea('content'); setMenuContentFocus('secondary'); setSelectedZukanIndex(index); openZukanVideo(entry); }}
                   className={`group relative overflow-hidden rounded-lg border text-left cursor-pointer transition-colors ${selectedZukanIndex === index ? 'bg-[#bc6c25]/45 border-white ring-4 ring-[#ffd166]/70 shadow-[0_0_18px_rgba(255,209,102,0.42)]' : 'bg-black/35 border-[#5a3010] hover:bg-[#3a2418]'}`}
                 >
                   <video
@@ -6846,9 +6882,16 @@ export default function App() {
                   key={fish.id}
                   type="button"
                   data-zukan-index={index}
-                  onPointerDown={() => { setMenuFocusArea('content'); setMenuContentFocus('secondary'); setSelectedZukanIndex(index); }}
+                  onPointerDown={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    setMenuFocusArea('content');
+                    setMenuContentFocus('secondary');
+                    setSelectedZukanIndex(index);
+                  }}
                   onMouseEnter={() => { if (selectedZukanIndex !== index) playCursorSound(); }}
-                  onClick={() => {
+                  onClick={(event) => {
+                    event.stopPropagation();
                     setMenuFocusArea('content');
                     setMenuContentFocus('secondary');
                     setSelectedZukanIndex(index);
@@ -6899,15 +6942,31 @@ export default function App() {
                   key={beast.id}
                   type="button"
                   data-zukan-index={index}
-                  onPointerDown={() => { setMenuFocusArea('content'); setMenuContentFocus('secondary'); setSelectedZukanIndex(index); }}
-                  onMouseEnter={() => { if (selectedZukanIndex !== index) playCursorSound(); }}
-                  onClick={() => {
+                  onPointerDown={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
                     setMenuFocusArea('content');
                     setMenuContentFocus('secondary');
                     setSelectedZukanIndex(index);
-                    if (!unlocked) setDialogMessage('まだ倒していない獣です。');
                   }}
-                  className={`relative overflow-hidden rounded-lg border p-2 text-left transition-colors ${selectedZukanIndex === index ? 'border-white bg-[#bc6c25]/45 ring-4 ring-[#ffd166]/70' : 'border-[#5a3010] bg-black/35 hover:bg-[#3a2418]'}`}
+                  onMouseEnter={() => { if (selectedZukanIndex !== index) playCursorSound(); }}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    setMenuFocusArea('content');
+                    setMenuContentFocus('secondary');
+                    setSelectedZukanIndex(index);
+                    if (unlocked) {
+                      openZukanImage({
+                        src: beast.imageSrc,
+                        title: beast.name,
+                        subtitle: `獣図鑑 No.${index + 1}`,
+                        spriteFrameCount: beast.isSpriteSheet ? BATTLE_BEAST_FRAME_COUNT : undefined,
+                      });
+                    } else {
+                      setDialogMessage('まだ倒していない獣です。');
+                    }
+                  }}
+                  className={`relative overflow-hidden rounded-lg border p-2 text-left cursor-pointer transition-colors ${selectedZukanIndex === index ? 'border-white bg-[#bc6c25]/45 ring-4 ring-[#ffd166]/70' : 'border-[#5a3010] bg-black/35 hover:bg-[#3a2418]'}`}
                 >
                   <div className="flex h-full flex-col gap-2">
                     <div className="flex items-center justify-between">
@@ -6918,12 +6977,14 @@ export default function App() {
                     </div>
                     <div className="relative min-h-0 flex-1 overflow-hidden rounded border border-[#5a3010]/80 bg-[#140c09]">
                       {unlocked ? beast.isSpriteSheet ? (
-                        <img
-                          src={beast.imageSrc}
-                          alt={`${beast.name} 待機状態`}
-                          className="absolute left-0 top-0 h-full max-w-none object-fill"
-                          style={{ width: `${BATTLE_BEAST_FRAME_COUNT * 100}%` }}
-                        />
+                        <div className="absolute inset-y-0 left-1/2 aspect-[16/45] -translate-x-1/2 overflow-hidden">
+                          <img
+                            src={beast.imageSrc}
+                            alt={`${beast.name} 待機状態`}
+                            className="absolute left-0 top-1/2 h-full max-w-none -translate-y-1/2 object-contain"
+                            style={{ width: `${BATTLE_BEAST_FRAME_COUNT * 100}%` }}
+                          />
+                        </div>
                       ) : (
                         <img src={beast.imageSrc} alt={`${beast.name} 最終形態`} className="h-full w-full object-contain p-2" />
                       ) : (
@@ -6947,7 +7008,8 @@ export default function App() {
                     setSelectedZukanIndex(index);
                   }}
                   onMouseEnter={() => { if (selectedZukanIndex !== index) playCursorSound(); }}
-                  onClick={() => {
+                  onClick={(event) => {
+                    event.stopPropagation();
                     setMenuFocusArea('content');
                     setMenuContentFocus('secondary');
                     setSelectedZukanIndex(index);
@@ -8116,6 +8178,7 @@ export default function App() {
   const [isFishingResultInputLocked, setIsFishingResultInputLocked] = useState(false);
   const [isFishingKeepPressed, setIsFishingKeepPressed] = useState(false);
   const [turn, setTurn] = useState(0);
+  const progressionDay = Math.floor(turn / 4) + 1;
   const [kurumiShopOpen, setKurumiShopOpen] = useState(false);
   const [selectedShopItemIndex, setSelectedShopItemIndex] = useState(0);
   const [selectedShopControl, setSelectedShopControl] = useState<'items' | 'action' | 'close'>('items');
@@ -8142,10 +8205,11 @@ export default function App() {
     hasBoarProgress ||
     hasBearProgress ||
     hasGiantBeastProgress ||
+    progressionDay >= Math.max(2, BEAST_ATTACK_GRACE_DAYS_BY_DIFFICULTY[difficulty] - 2) ||
     successfulRepaymentCount >= 2
   );
-  const hasBoarMaterialRoute = hasBoarProgress || heroLevel >= 2 || successfulRepaymentCount >= 2;
-  const hasBearMaterialRoute = hasBearProgress || heroLevel >= 3 || successfulRepaymentCount >= 3;
+  const hasBoarMaterialRoute = hasBoarProgress || heroLevel >= 2 || progressionDay >= Math.max(6, BEAST_ATTACK_GRACE_DAYS_BY_DIFFICULTY[difficulty] - 4) || successfulRepaymentCount >= 2;
+  const hasBearMaterialRoute = hasBearProgress || heroLevel >= 3 || progressionDay >= Math.max(12, BEAST_ATTACK_GRACE_DAYS_BY_DIFFICULTY[difficulty] + 4) || successfulRepaymentCount >= 3;
   const isProgressionRecipeUnlocked = (recipeName: string) => {
     const minimumDifficulty = CRAFT_RECIPE_MIN_DIFFICULTY[recipeName as CraftRecipeId] ?? 'easy';
     if (DIFFICULTY_ORDER[difficulty] < DIFFICULTY_ORDER[minimumDifficulty]) return false;
@@ -8158,7 +8222,7 @@ export default function App() {
       case '【レシピ】丈夫なのこぎり':
         return loggingTutorialCompleted;
       case '【レシピ】獣殺し':
-        return hasBoarProgress;
+        return hasBoarMaterialRoute;
       case '【レシピ】剛牙の鎧':
         return hasBearMaterialRoute && hasRecipeProgress('【レシピ】毛皮の服', '毛皮の服');
       case '【レシピ】高級つるはし':
@@ -8395,8 +8459,8 @@ export default function App() {
       (item.category !== '基本獣素材' || (
         item.name === 'モグラの爪' ||
         item.name === 'ウサギの靭帯' ||
-        ((item.name === '猪の牙' || item.name === '猪の硬皮') && (heroLevel >= 2 || hasBoarProgress)) ||
-        (item.name === '熊の剛糸' && (heroLevel >= 3 || hasBearProgress))
+        ((item.name === '猪の牙' || item.name === '猪の硬皮') && hasBoarMaterialRoute) ||
+        (item.name === '熊の剛糸' && hasBearMaterialRoute)
       )) &&
       (!isRecipeItemName(item.name) || (inventoryCounts[item.name] ?? 0) === 0)
     )),
@@ -8869,6 +8933,7 @@ export default function App() {
   const trustEventBgmRef = useRef<HTMLAudioElement | null>(null);
   const specialTrustVideoRef = useRef<HTMLVideoElement | null>(null);
   const autoEventBgmMutedRef = useRef(false);
+  const autoEventBgmPausedRef = useRef(false);
   const wasFishingBgmActiveRef = useRef(false);
   const wasLoggingBgmActiveRef = useRef(false);
   const walkSoundRef = useRef<HTMLAudioElement | null>(null);
@@ -8954,6 +9019,40 @@ export default function App() {
   useEffect(() => {
     window.localStorage.setItem(MAP_ZOOM_STORAGE_KEY, String(mapZoom));
   }, [mapZoom]);
+
+  const activeTrustEventScenes = getSpecialTrustEventScenes(activeTrustEvent?.eventId);
+  const activeTrustEventScene = activeTrustEventScenes?.[specialTrustSceneIndex] ?? activeTrustEventScenes?.[0] ?? null;
+  const activeMioSpecialEventScene = mioSpecialEventPhase === 'event'
+    ? MIO_SPECIAL_EVENT_SCENES[mioSpecialEventStep] ?? MIO_SPECIAL_EVENT_SCENES[0]
+    : null;
+  const foregroundVideoPlaybackActive = (
+    storyEndingVideoOpen ||
+    Boolean(activeAutoEventSpot?.videoSrc) ||
+    activeZukanVideo !== null ||
+    farmCareCinematicAction !== null ||
+    farmGodBattleCinematicOpen ||
+    companionRegenCinematicOpen ||
+    Boolean(girlEquipmentMiniGame?.result && girlEquipmentMiniGame.mode === 'real' && girlEquipmentMiniGame.result !== 'fail') ||
+    activeTrustEventScene?.mediaType === 'video' ||
+    activeMioSpecialEventScene?.mediaType === 'video'
+  );
+  const bgmBlockingVideoPlaybackActive = storyEndingVideoOpen;
+
+  useEffect(() => {
+    if (!bgmBlockingVideoPlaybackActive) return;
+    cancelBgmFade();
+    [
+      bgmRef.current,
+      trustEventBgmRef.current,
+      miningBgmRef.current,
+      miningRhythmAudioRef.current,
+      prologueBgmRef.current,
+    ].forEach(audio => {
+      if (!audio) return;
+      audio.pause();
+      audio.volume = 0;
+    });
+  }, [bgmBlockingVideoPlaybackActive]);
 
   const movementLocked = showDialog || activeAutoEventSpot !== null || sleepPromptVisible || bathPromptVisible || mermaidOfferingPromptVisible || mioOfferingPromptVisible || mioArrivalNoticeVisible || mioSpecialEventPhase !== null || bathSequenceActive || craftPromptVisible || fishingPromptVisible || miningPromptVisible || loggingPromptVisible || craftConfirmRecipeName !== null || craftInsufficientRecipeName !== null || fishingMiniGameOpen || miningMiniGameOpen || miningRhythmRecording || craftMiniGameOpen || fishingTutorialOpen || fishingTutorialEndingOpen || sawCraftTutorialIntroOpen || sawCraftTutorialShedDialogueOpen || gatheringTutorialOpen || miningTutorialOpen || kurumiShopOpen || kurumiIntroOpen || kurumiPantsEventStepIndex !== null || kurumiTentFinalEventOpen || farmGodEventStep !== null || farmGodBlessingNoticeOpen || seedPlantTutorialOpen || seedAfterPlantTutorialOpen || momonaSeedEventOpen || isSleepSequenceActive || beastAttackPending || repaymentEventPending || activeDebtMilestoneId !== null || marketForecastCycleIndex !== null || storyEndingVideoOpen || activeZukanImage !== null || activeZukanVideo !== null || activeTrustEvent !== null || farmGirlRevealSpotlightId !== null || battlePreviewOpen || darkKingChallengePromptOpen || farmGodBattleCinematicOpen || companionRegenCinematicOpen || farmSlotInteractionStage !== null || girlEquipmentMiniGame !== null || pendingGirlEquipmentInsert !== null || girlEquipmentNoticeGirlId !== null || trust20CompanionTutorialStep !== null || pendingSkillUnlockId !== null || skillUnlockNotice !== null || skillUnlockSparkles || skillTreeTutorialStep !== null || farmCareCinematicAction !== null || pendingFarmCareConfirm !== null || farmCareUnlockNoticeAction !== null || farmHarvestResultNotice !== null || farmTrustEventNotice !== null || fishingMasterRewardPopupOpen || bulkHarvestOpen || bulkHarvestConfirmOpen || bulkHarvestUnlockNotice || bulkHarvestResults !== null || bulkShippingOpen || bulkShippingConfirmOpen || bulkShippingUnlockNotice || bulkShippingResults !== null || bulkFarmCareOpen || bulkFarmCareConfirmOpen || bulkFarmCareUnlockNotice || bulkFarmCareResults !== null || prologueOpen;
   useEffect(() => {
@@ -11293,6 +11392,40 @@ export default function App() {
 	    }
 	  };
 
+  useEffect(() => {
+    if (!beastAttackPending) return;
+    setBeastAttackChoice('fight');
+    window.setTimeout(() => beastAttackFightButtonRef.current?.focus(), 0);
+  }, [beastAttackPending]);
+
+  useEffect(() => {
+    if (!beastAttackPending) return;
+    const handleBeastAttackKeyDown = (event: KeyboardEvent) => {
+      const key = event.key.toLowerCase();
+      const isPrevious = event.key === 'ArrowLeft' || event.key === 'ArrowUp' || key === 'a' || key === 'w';
+      const isNext = event.key === 'ArrowRight' || event.key === 'ArrowDown' || key === 'd' || key === 's';
+      const isDecision = event.key === 'Enter' || event.key === ' ';
+      if (!isPrevious && !isNext && !isDecision) return;
+
+      event.preventDefault();
+      event.stopPropagation();
+      if (isPrevious || isNext) {
+        playCursorSound();
+        setBeastAttackChoice(choice => choice === 'fight' ? 'watch' : 'fight');
+        return;
+      }
+
+      playFixSound();
+      if (beastAttackChoice === 'fight') {
+        handleBeastAttackFight();
+      } else {
+        handleBeastAttackWatch();
+      }
+    };
+    window.addEventListener('keydown', handleBeastAttackKeyDown, true);
+    return () => window.removeEventListener('keydown', handleBeastAttackKeyDown, true);
+  }, [beastAttackPending, beastAttackChoice, handleBeastAttackFight, handleBeastAttackWatch]);
+
   const getBattleSpritePose = (unitId: string): BattlePose => (
     battleMotion?.actorId === unitId ? battleMotion.pose : battleIntroPhase !== null ? 'idle' : 'defend'
   );
@@ -12196,7 +12329,7 @@ export default function App() {
   };
 
   useEffect(() => {
-    if (!activeTrustEvent || (activeTrustEvent.trust !== 50 && activeTrustEvent.trust !== 100)) return;
+    if (!activeTrustEvent || activeTrustEventScene?.mediaType === 'video' || (activeTrustEvent.trust !== 50 && activeTrustEvent.trust !== 100)) return;
     const src = TRUST_EVENT_BGM_SRCS[activeTrustEvent.trust];
     const audio = new Audio(src);
     audio.loop = true;
@@ -12214,7 +12347,7 @@ export default function App() {
         bgmRef.current.volume = getBgmEffectiveVolume(bgmSourceRef.current, bgmVolumeRef.current, audioGainsRef.current);
       }
     };
-  }, [activeTrustEvent?.eventId, activeTrustEvent?.trust]);
+  }, [activeTrustEvent?.eventId, activeTrustEvent?.trust, activeTrustEventScene?.mediaType]);
 
   useEffect(() => {
     if (!trustEventBgmRef.current || !activeTrustEvent) return;
@@ -13354,9 +13487,10 @@ export default function App() {
     if (
       !hasBeastPremonition &&
       scheduledBeastAttackDay === null &&
+      isBeastAttackUnlocked(difficulty, currentDay, heroLevel) &&
       Math.random() < BEAST_PREMONITION_RATE_BY_DIFFICULTY[difficulty]
     ) {
-      const isMountainLordAttack = difficulty === 'hard' && Math.random() < MOUNTAIN_LORD_ATTACK_RATE;
+      const isMountainLordAttack = difficulty === 'hard' && heroLevel >= 5 && currentDay >= 45 && Math.random() < MOUNTAIN_LORD_ATTACK_RATE;
       setHasBeastPremonition(true);
       setPremonitionDay(currentDay);
       setScheduledBeastAttackDay(getScheduledBeastAttackDay(difficulty, currentDay));
@@ -14051,6 +14185,384 @@ export default function App() {
 	    });
 	    setDialogMessage('デバッグ娘をOFFにしました。娘・畑・同行状態を初期化しました。');
 	  };
+  const applyHardEarlyCarePreset = () => {
+    if (!canUseDebugTools) return;
+    const targetDay = 16;
+    const starterSeeds = GIRL_SEED_ACQUISITION_DATA.filter(seed => INITIAL_OWNED_GIRL_SEEDS.includes(seed.seedId));
+    const starterGirlIds = starterSeeds.map(seed => seed.girlId);
+    const starterTrust = 35;
+    const starterTrustEventIds = GIRL_DATA
+      .filter(girl => starterGirlIds.includes(girl.id))
+      .flatMap(girl => girl.trustEvents.filter(event => event.trust <= starterTrust).map(event => event.eventId));
+
+    setDifficulty('hard');
+    setGameMode('story');
+    setTurn((targetDay - 1) * 4);
+    setCurrentAP(maxAPPerTimeSlot);
+    goldRef.current = 5000;
+    setGold(5000);
+    setDebtAmount(getInitialDebtAmount('hard'));
+    setRepaymentCycleDays(DEFAULT_REPAYMENT_CYCLE_DAYS);
+    setRepaymentEventPending(false);
+    setPendingSpecialRepayment(null);
+    setSuccessfulRepaymentCount(0);
+    setMissedRepaymentCount(0);
+    setFarmCredit(0);
+    setCurrentWeeklyInterestRate(createWeeklyInterestRate('hard', 0, 0));
+    setInterestRateCycleIndex(0);
+    setHeroLevel(1);
+    setHeroSP(0);
+    setUnlockedHeroSkills([]);
+    setHasBeastPremonition(false);
+    setPremonitionDay(null);
+    setScheduledBeastAttackDay(null);
+    setMountainLordAttackPending(false);
+    setBeastAttackPending(false);
+    setBeastAttackChoice('fight');
+    setCompanionGirlId(null);
+    setFarmCareUnlockStage(3);
+    setFarmCareFingerUnlockedDay(targetDay);
+    setFarmCareUnlockNoticeAction(null);
+    setPendingFarmCareUnlockNoticeAction(null);
+    setOwnedGirlSeeds(INITIAL_OWNED_GIRL_SEEDS);
+    setHasReceivedKurumiStarterSeeds(true);
+    setSeedPlantTutorialOpen(false);
+    setSeedAfterPlantTutorialOpen(false);
+    setSeedAfterPlantTutorialCompleted(true);
+    setFarmGirls(previous => previous.map(girl => {
+      const targetGirl = GIRL_DATA.find(entry => entry.id === girl.girlId);
+      if (!starterGirlIds.includes(girl.girlId) || !targetGirl) {
+        return {
+          ...girl,
+          state: 'none',
+          cardRevealed: false,
+          plantedDay: null,
+          growthProgress: 0,
+          quality: 0,
+          careDay: null,
+          caressCount: 0,
+          fingerCount: 0,
+          fertilizeCount: 0,
+          lastHarvestDay: null,
+          trust: targetGirl?.initialTrust ?? 0,
+          unlockedTrustEventIds: [],
+          condition: 'normal',
+          conditionDay: null,
+          conditionSource: null,
+          hybridAdapted: false,
+        };
+      }
+      return {
+        ...girl,
+        state: 'appeared',
+        cardRevealed: true,
+        plantedDay: 1,
+        growthProgress: 100,
+        quality: 60,
+        careDay: targetDay - 1,
+        caressCount: 1,
+        fingerCount: 1,
+        fertilizeCount: 1,
+        lastHarvestDay: targetDay - 1,
+        trust: starterTrust,
+        unlockedTrustEventIds: targetGirl.trustEvents.filter(event => event.trust <= starterTrust).map(event => event.eventId),
+        condition: 'normal',
+        conditionDay: null,
+        conditionSource: null,
+        hybridAdapted: false,
+      };
+    }));
+    setFarmFieldSlots(createInitialFarmFieldSlots('hard').map((slot, index) => {
+      const girlId = starterGirlIds[index] ?? null;
+      return girlId
+        ? { ...slot, girlId, state: 'appeared', plantedDay: 1 }
+        : { ...slot, girlId: null, state: 'none', plantedDay: null };
+    }));
+    setCollectionProgress(previous => ({
+      ...previous,
+      collectedGirlIds: Array.from(new Set([...previous.collectedGirlIds, ...starterGirlIds])),
+      unlockedEventIds: Array.from(new Set([
+        ...previous.unlockedEventIds,
+        ...starterTrustEventIds,
+      ])),
+    }));
+    setCurrentMap('farm');
+    currentMapRef.current = 'farm';
+    commitPlayerPosition({ ...NEW_GAME_START_POSITION });
+    setDir('down');
+    setPlantingSeedId(null);
+    setFarmSlotInteractionStage(null);
+    setActiveFarmSlotKey(null);
+    setShowDialog(false);
+    setDialogMessage('Hard序盤検証プリセット：Day16朝／お世話のみ想定／採取・釣り素材なしにしました。');
+  };
+  const applyHardFirstAttackPreset = () => {
+    applyHardEarlyCarePreset();
+    setTurn((18 - 1) * 4 + 3);
+    setHeroLevel(2);
+    setHeroSP(1);
+    setInventoryCounts(previous => ({
+      ...previous,
+      '木剣': Math.max(1, previous['木剣'] ?? 0),
+      '毛皮の服': Math.max(1, previous['毛皮の服'] ?? 0),
+      'いやし草もち': Math.max(2, previous['いやし草もち'] ?? 0),
+    }));
+    const nextEquipment = {
+      ...equippedItemsRef.current,
+      '主人公-slot1': '木剣',
+      '主人公-slot4': '毛皮の服',
+    };
+    equippedItemsRef.current = nextEquipment;
+    setEquippedItems(nextEquipment);
+    setHasBeastPremonition(true);
+    setPremonitionDay(17);
+    setScheduledBeastAttackDay(18);
+    setBeastAttackPending(true);
+    setMountainLordAttackPending(false);
+    setDialogMessage('Hard検証2：初回襲撃を発生させました。主人公Lv2、敵は序盤用の猪1体想定です。');
+  };
+  const applyHardMidGearPreset = () => {
+    applyHardEarlyCarePreset();
+    const craftedIds: CraftRecipeId[] = [
+      '【レシピ】木剣',
+      '【レシピ】毛皮の服',
+      '【レシピ】丈夫なつるはし',
+      '【レシピ】丈夫なのこぎり',
+    ];
+    setTurn((70 - 1) * 4);
+    setHeroLevel(3);
+    setHeroSP(3);
+    setSuccessfulRepaymentCount(2);
+    setFarmCredit(18);
+    setDebtAmount(7_000_000);
+    goldRef.current = 350_000;
+    setGold(350_000);
+    setCraftedRecipeIds(craftedIds);
+    setFishingTutorialCompleted(true);
+    setLoggingTutorialCompleted(true);
+    setMiningTutorialCompleted(true);
+    setGatheringTutorialCompleted(true);
+    setGatheringTutorialChoice('logging');
+    setInventoryCounts(previous => ({
+      ...previous,
+      '木剣': Math.max(1, previous['木剣'] ?? 0),
+      '毛皮の服': Math.max(1, previous['毛皮の服'] ?? 0),
+      '丈夫なつるはし': Math.max(1, previous['丈夫なつるはし'] ?? 0),
+      '丈夫なのこぎり': Math.max(1, previous['丈夫なのこぎり'] ?? 0),
+      '猪の牙': Math.max(6, previous['猪の牙'] ?? 0),
+      '猪の硬皮': Math.max(3, previous['猪の硬皮'] ?? 0),
+      '熊の剛糸': Math.max(2, previous['熊の剛糸'] ?? 0),
+      '良質な鉄鉱石': Math.max(8, previous['良質な鉄鉱石'] ?? 0),
+      '堅実な中木': Math.max(10, previous['堅実な中木'] ?? 0),
+      '錫鉱石': Math.max(6, previous['錫鉱石'] ?? 0),
+      'モグラの爪': Math.max(8, previous['モグラの爪'] ?? 0),
+      'ウサギの靭帯': Math.max(6, previous['ウサギの靭帯'] ?? 0),
+      '生命ミルク': Math.max(2, previous['生命ミルク'] ?? 0),
+    }));
+    const nextEquipment = {
+      ...equippedItemsRef.current,
+      '主人公-slot1': '木剣',
+      '主人公-slot2': '丈夫なのこぎり',
+      '主人公-slot3': '丈夫なつるはし',
+      '主人公-slot4': '毛皮の服',
+    };
+    equippedItemsRef.current = nextEquipment;
+    setEquippedItems(nextEquipment);
+    setCollectionProgress(previous => ({
+      ...previous,
+      defeatedBeastIds: Array.from(new Set([...previous.defeatedBeastIds, 'boar', 'bear'])),
+      craftedItemIds: Array.from(new Set([...previous.craftedItemIds, ...craftedIds])),
+    }));
+    setHasBeastPremonition(false);
+    setPremonitionDay(null);
+    setScheduledBeastAttackDay(null);
+    setBeastAttackPending(false);
+    setMountainLordAttackPending(false);
+    setDialogMessage('Hard検証3：中盤装備更新地点にしました。獣殺し、剛牙の鎧、高級採取装備の詰まりを確認してください。');
+  };
+  const applyHardMountainLordPreset = () => {
+    applyHardMidGearPreset();
+    const craftedIds: CraftRecipeId[] = [
+      '【レシピ】木剣',
+      '【レシピ】毛皮の服',
+      '【レシピ】丈夫なつるはし',
+      '【レシピ】丈夫なのこぎり',
+      '【レシピ】獣殺し',
+      '【レシピ】剛牙の鎧',
+      '【レシピ】高級つるはし',
+      '【レシピ】高級のこぎり',
+      '【レシピ】神域の加護',
+    ];
+    setTurn((130 - 1) * 4 + 3);
+    setHeroLevel(5);
+    setHeroSP(5);
+    setSuccessfulRepaymentCount(4);
+    setFarmCredit(45);
+    setDebtAmount(2_400_000);
+    goldRef.current = 900_000;
+    setGold(900_000);
+    setCraftedRecipeIds(craftedIds);
+    setInventoryCounts(previous => ({
+      ...previous,
+      '獣殺し': Math.max(1, previous['獣殺し'] ?? 0),
+      '剛牙の鎧': Math.max(1, previous['剛牙の鎧'] ?? 0),
+      '高級つるはし': Math.max(1, previous['高級つるはし'] ?? 0),
+      '高級のこぎり': Math.max(1, previous['高級のこぎり'] ?? 0),
+      '天の裁き': Math.max(1, previous['天の裁き'] ?? 0),
+      '神域の加護': Math.max(1, previous['神域の加護'] ?? 0),
+      '巨獣の鋼角': Math.max(5, previous['巨獣の鋼角'] ?? 0),
+      '巨獣の強剛糸': Math.max(4, previous['巨獣の強剛糸'] ?? 0),
+      '聖域の輝石': Math.max(2, previous['聖域の輝石'] ?? 0),
+      '聖域の結晶': Math.max(1, previous['聖域の結晶'] ?? 0),
+      '古代の神木': Math.max(2, previous['古代の神木'] ?? 0),
+      '鋼鉄石': Math.max(5, previous['鋼鉄石'] ?? 0),
+      '女神の蜜薬': Math.max(2, previous['女神の蜜薬'] ?? 0),
+      '生命の種火': Math.max(1, previous['生命の種火'] ?? 0),
+    }));
+    const nextEquipment = {
+      ...equippedItemsRef.current,
+      '主人公-slot1': '天の裁き',
+      '主人公-slot2': '高級のこぎり',
+      '主人公-slot3': '高級つるはし',
+      '主人公-slot4': '神域の加護',
+    };
+    equippedItemsRef.current = nextEquipment;
+    setEquippedItems(nextEquipment);
+    setCollectionProgress(previous => ({
+      ...previous,
+      defeatedBeastIds: Array.from(new Set([...previous.defeatedBeastIds, 'boar', 'bear', 'giant_bear', 'great_fang_beast'])),
+      craftedItemIds: Array.from(new Set([...previous.craftedItemIds, ...craftedIds])),
+    }));
+    setHasBeastPremonition(true);
+    setPremonitionDay(129);
+    setScheduledBeastAttackDay(130);
+    setMountainLordAttackPending(true);
+    setBeastAttackPending(true);
+    setDialogMessage('Hard検証4：山の主戦直前にしました。勝利後にサフラン解放と闇王エリア条件を確認してください。');
+  };
+  const applyHardMountainLordStandardPreset = () => {
+    applyHardMidGearPreset();
+    const craftedIds: CraftRecipeId[] = [
+      '【レシピ】木剣',
+      '【レシピ】毛皮の服',
+      '【レシピ】丈夫なつるはし',
+      '【レシピ】丈夫なのこぎり',
+      '【レシピ】獣殺し',
+      '【レシピ】剛牙の鎧',
+      '【レシピ】高級つるはし',
+      '【レシピ】高級のこぎり',
+    ];
+    setTurn((130 - 1) * 4 + 3);
+    setHeroLevel(5);
+    setHeroSP(3);
+    setSuccessfulRepaymentCount(6);
+    setFarmCredit(70);
+    setDebtAmount(2_400_000);
+    goldRef.current = 420_000;
+    setGold(420_000);
+    setCraftedRecipeIds(craftedIds);
+    setInventoryCounts(previous => ({
+      ...previous,
+      '獣殺し': Math.max(1, previous['獣殺し'] ?? 0),
+      '剛牙の鎧': Math.max(1, previous['剛牙の鎧'] ?? 0),
+      '高級つるはし': Math.max(1, previous['高級つるはし'] ?? 0),
+      '高級のこぎり': Math.max(1, previous['高級のこぎり'] ?? 0),
+      '巨獣の鋼角': Math.max(2, previous['巨獣の鋼角'] ?? 0),
+      '巨獣の強剛糸': Math.max(1, previous['巨獣の強剛糸'] ?? 0),
+      '金鉱石': Math.max(2, previous['金鉱石'] ?? 0),
+      '生命ミルク': Math.max(1, previous['生命ミルク'] ?? 0),
+      'いやし草もち': Math.max(2, previous['いやし草もち'] ?? 0),
+    }));
+    const nextEquipment = {
+      ...equippedItemsRef.current,
+      '主人公-slot1': '獣殺し',
+      '主人公-slot2': '高級のこぎり',
+      '主人公-slot3': '高級つるはし',
+      '主人公-slot4': '剛牙の鎧',
+    };
+    equippedItemsRef.current = nextEquipment;
+    setEquippedItems(nextEquipment);
+    setCollectionProgress(previous => ({
+      ...previous,
+      defeatedBeastIds: Array.from(new Set([...previous.defeatedBeastIds, 'boar', 'bear', 'giant_bear', 'great_fang_beast'])),
+      craftedItemIds: Array.from(new Set([...previous.craftedItemIds, ...craftedIds])),
+    }));
+    setHasBeastPremonition(true);
+    setPremonitionDay(129);
+    setScheduledBeastAttackDay(130);
+    setMountainLordAttackPending(true);
+    setBeastAttackPending(true);
+    setDialogMessage('Hard検証4標準：山の主に少し苦戦する想定です。Lv5、獣殺し、剛牙の鎧、回復少なめで確認してください。');
+  };
+  const applyHardPostClearPreset = () => {
+    applyHardMountainLordPreset();
+    const saffronSeed = GIRL_SEED_ACQUISITION_DATA.find(seed => seed.seedId === 'saffron');
+    setTurn((165 - 1) * 4);
+    setDebtAmount(0);
+    setRepaymentEventPending(false);
+    setPendingSpecialRepayment(null);
+    setStoryCleared(true);
+    setHasUnlockedEndlessNurseryMode(true);
+    setSuccessfulRepaymentCount(5);
+    setFarmCredit(60);
+    goldRef.current = 1_500_000;
+    setGold(1_500_000);
+    setOwnedGirlSeeds(previous => Array.from(new Set([...previous, 'saffron'])));
+    setCollectionProgress(previous => ({
+      ...previous,
+      defeatedBeastIds: Array.from(new Set([...previous.defeatedBeastIds, 'mountain_lord'])),
+      unlockedEventIds: Array.from(new Set([...previous.unlockedEventIds, MOUNTAIN_LORD_FIRST_REWARD_EVENT_ID])),
+    }));
+    setFarmGirls(previous => previous.map(girl => {
+      if (girl.girlId !== saffronSeed?.girlId) return girl;
+      return {
+        ...girl,
+        state: 'appeared',
+        cardRevealed: true,
+        plantedDay: 150,
+        growthProgress: 100,
+        quality: 70,
+        careDay: 164,
+        caressCount: 1,
+        fingerCount: 1,
+        fertilizeCount: 1,
+        lastHarvestDay: 164,
+        trust: 20,
+        condition: 'normal',
+        conditionDay: null,
+        conditionSource: null,
+      };
+    }));
+    setHasBeastPremonition(false);
+    setPremonitionDay(null);
+    setScheduledBeastAttackDay(null);
+    setMountainLordAttackPending(false);
+    setBeastAttackPending(false);
+    setDialogMessage('Hard検証5：完済後にしました。無限モード、伝説装備、闇王、農神イベントの導線を確認してください。');
+  };
+  const applyHardFinalRepaymentPreset = () => {
+    applyHardMountainLordPreset();
+    setTurn((165 - 1) * 4 + 3);
+    setDebtAmount(10_000);
+    setStoryCleared(false);
+    setHasUnlockedEndlessNurseryMode(false);
+    setSuccessfulRepaymentCount(9);
+    setFarmCredit(95);
+    setMissedRepaymentCount(0);
+    setCurrentWeeklyInterestRate(createWeeklyInterestRate('hard', 95, 0));
+    setInterestRateCycleIndex(getRepaymentCycleIndexForDay(165, 'hard', DEFAULT_REPAYMENT_CYCLE_DAYS));
+    goldRef.current = 1_500_000;
+    setGold(1_500_000);
+    setRepaymentEventPending(true);
+    setPendingSpecialRepayment(null);
+    setHasBeastPremonition(false);
+    setPremonitionDay(null);
+    setScheduledBeastAttackDay(null);
+    setMountainLordAttackPending(false);
+    setBeastAttackPending(false);
+    setStoryEndingVideoOpen(false);
+    setDialogMessage('Hard検証5B：借金残り1万円の最終返済です。全額返済から最後の表示を確認してください。');
+  };
   const isKurumiShopUnlocked = kurumiIntroCompletedDay !== null && currentDay > kurumiIntroCompletedDay;
   const activeFishingTileKeys = useMemo(() => (
     createActiveTileKeySet(
@@ -16791,6 +17303,15 @@ export default function App() {
         selectedShopTradeTypeRef.current = '売る';
         setSelectedShopItemIndex(firstSellItemIndex >= 0 ? firstSellItemIndex : 0);
         setSelectedShopControl('items');
+     } else {
+        selectedShopTradeTypeRef.current = '買う';
+        const nextBuyItemIndex = shopItemsForDisplay.findIndex(shopItem => (
+          shopItem.type === '買う' &&
+          shopItem.name !== item.name &&
+          shopItem.stock > 0
+        ));
+        setSelectedShopItemIndex(nextBuyItemIndex >= 0 ? nextBuyItemIndex : selectedShopItemIndex);
+        setSelectedShopControl('items');
      }
      if (
         !isReturningKurumiPants &&
@@ -16940,7 +17461,17 @@ export default function App() {
       return;
     }
     autoEventBgmMutedRef.current = true;
-    fadeBgmTo(0, 900);
+    autoEventBgmPausedRef.current = Boolean(spot.videoSrc);
+    if (spot.videoSrc) {
+      cancelBgmFade();
+      const bgmAudio = bgmRef.current;
+      if (bgmAudio) {
+        bgmAudio.pause();
+        bgmAudio.volume = 0;
+      }
+    } else {
+      fadeBgmTo(0, 900);
+    }
     const isPostDebtEvent = isPostDebtNoticeEvent(spot);
     const shouldShowPostDebtNotice = isPostDebtEvent && !hasSeenPostDebtNotice();
     const messages = isPostDebtEvent && !shouldShowPostDebtNotice
@@ -17078,7 +17609,12 @@ export default function App() {
     fadeOutEventAudio();
     if (autoEventBgmMutedRef.current) {
       autoEventBgmMutedRef.current = false;
+      const shouldResumePausedBgm = autoEventBgmPausedRef.current;
+      autoEventBgmPausedRef.current = false;
       const targetVolume = getBgmEffectiveVolume(bgmSourceRef.current, bgmVolume, audioGainsRef.current);
+      if (shouldResumePausedBgm) {
+        switchToCurrentBgm(0);
+      }
       fadeBgmTo(targetVolume, 900);
     }
     setActiveAutoEventSpot(null);
@@ -18572,6 +19108,12 @@ export default function App() {
       audio.pause();
       return;
     }
+    if (bgmBlockingVideoPlaybackActive) {
+      cancelBgmFade();
+      audio.pause();
+      audio.volume = 0;
+      return;
+    }
     if (battlePreviewOpen) return;
     if (fishingMiniGameOpen || wasFishingBgmActiveRef.current || loggingMiniGameOpen || wasLoggingBgmActiveRef.current || miningMiniGameOpen) return;
     if (activeAutoEventSpot) return;
@@ -18587,9 +19129,19 @@ export default function App() {
     const nextSource = bootMode === 'playing'
       ? isKurumiConversationOpen ? SHOP_BGM_SRC : mapBgmSources[currentMap] ?? DEFAULT_MAP_BGM_SOURCES[currentMap]
       : TITLE_BGM_SRC;
-    if (bgmSourceRef.current === nextSource) return;
-
     const shouldResume = bgmStartedRef.current;
+    if (bgmSourceRef.current === nextSource) {
+      audio.volume = getBgmEffectiveVolume(nextSource, bgmVolume, audioGainsRef.current);
+      if (shouldResume && audio.paused) {
+        audio.play().then(() => {
+          bgmStartedRef.current = true;
+        }).catch((err) => {
+          console.log("BGM resume after video blocked", err);
+        });
+      }
+      return;
+    }
+
     bgmSourceRef.current = nextSource;
     audio.pause();
     audio.src = nextSource;
@@ -18604,7 +19156,7 @@ export default function App() {
         console.log("BGM switch autoplay blocked", err);
       });
     }
-  }, [bootMode, currentMap, bgmVolume, audioGains, mapBgmSources, kurumiShopOpen, kurumiIntroOpen, fishingTutorialOpen, fishingTutorialEndingOpen, sawCraftTutorialIntroOpen, sawCraftTutorialShedDialogueOpen, gatheringTutorialOpen, fishingMiniGameOpen, loggingMiniGameOpen, miningMiniGameOpen, battlePreviewOpen, activeAutoEventSpot, prologueOpen]);
+  }, [bootMode, currentMap, bgmVolume, audioGains, mapBgmSources, kurumiShopOpen, kurumiIntroOpen, fishingTutorialOpen, fishingTutorialEndingOpen, sawCraftTutorialIntroOpen, sawCraftTutorialShedDialogueOpen, gatheringTutorialOpen, fishingMiniGameOpen, loggingMiniGameOpen, miningMiniGameOpen, battlePreviewOpen, activeAutoEventSpot, prologueOpen, bgmBlockingVideoPlaybackActive]);
 
   useEffect(() => {
     const audio = bgmRef.current;
@@ -18675,13 +19227,14 @@ export default function App() {
 
   // BGM音量変更時の反映
   useEffect(() => {
+    if (bgmBlockingVideoPlaybackActive) return;
     if (battlePreviewOpen) return;
     if (fishingMiniGameOpen || wasFishingBgmActiveRef.current || loggingMiniGameOpen || wasLoggingBgmActiveRef.current || miningMiniGameOpen) return;
     if (activeAutoEventSpot || activeTrustEvent) return;
     if (bgmRef.current && !bgmFadingRef.current) {
       bgmRef.current.volume = getBgmEffectiveVolume(bgmSourceRef.current, bgmVolume, audioGainsRef.current);
     }
-  }, [bgmVolume, audioGains, fishingMiniGameOpen, loggingMiniGameOpen, miningMiniGameOpen, battlePreviewOpen, activeAutoEventSpot, activeTrustEvent]);
+  }, [bgmVolume, audioGains, fishingMiniGameOpen, loggingMiniGameOpen, miningMiniGameOpen, battlePreviewOpen, activeAutoEventSpot, activeTrustEvent, bgmBlockingVideoPlaybackActive]);
 
   useEffect(() => {
     const miningAudio = miningBgmRef.current;
@@ -18729,8 +19282,8 @@ export default function App() {
     const cicadaAudio = cicadaSoundRef.current;
     if (!waterfallAudio || !riverAudio || !fireplaceAudio || !cicadaAudio) return;
 
-    const isDarkKingBattleOpen = battlePreviewOpen && ['darkKing', 'darkKingTest'].includes(battlePreviewState.encounterType);
-    if (isDarkKingBattleOpen) {
+    const shouldMuteMapAmbient = foregroundVideoPlaybackActive || (battlePreviewOpen && ['darkKing', 'darkKingTest'].includes(battlePreviewState.encounterType));
+    if (shouldMuteMapAmbient) {
       waterfallAudio.pause();
       riverAudio.pause();
       fireplaceAudio.pause();
@@ -18772,7 +19325,7 @@ export default function App() {
     } else {
       fireplaceAudio.pause();
     }
-  }, [currentMap, battlePreviewOpen, battlePreviewState.encounterType]);
+  }, [currentMap, battlePreviewOpen, battlePreviewState.encounterType, foregroundVideoPlaybackActive]);
 
   useEffect(() => {
     const updatePositionedAudio = () => {
@@ -18783,8 +19336,8 @@ export default function App() {
       if (!waterfallAudio || !riverAudio || !fireplaceAudio || !cicadaAudio) return;
 
       const livePosition = playerPositionStore.getSnapshot();
-      const isDarkKingBattleOpen = battlePreviewOpen && ['darkKing', 'darkKingTest'].includes(battlePreviewState.encounterType);
-      if (isDarkKingBattleOpen) {
+      const shouldMuteMapAmbient = foregroundVideoPlaybackActive || (battlePreviewOpen && ['darkKing', 'darkKingTest'].includes(battlePreviewState.encounterType));
+      if (shouldMuteMapAmbient) {
         waterfallAudio.volume = 0;
         riverAudio.volume = 0;
         fireplaceAudio.volume = 0;
@@ -18834,7 +19387,7 @@ export default function App() {
 
     updatePositionedAudio();
     return playerPositionStore.subscribe(updatePositionedAudio);
-  }, [currentMap, seVolume, audioGains, zones, timeOfDay, battlePreviewOpen, battlePreviewState.encounterType, playerPositionStore]);
+  }, [currentMap, seVolume, audioGains, zones, timeOfDay, battlePreviewOpen, battlePreviewState.encounterType, foregroundVideoPlaybackActive, playerPositionStore]);
 
   // 歩行音 (soil.mp3) の初期化
   useEffect(() => {
@@ -20615,7 +21168,16 @@ export default function App() {
               const unlocked = beast?.id === 'dark_king'
                 ? collectionProgress.unlockedEventIds.includes(DARK_KING_DEFEATED_EVENT_ID)
                 : Boolean(beast && collectionProgress.defeatedBeastIds.includes(beast.id));
-              if (!unlocked) setDialogMessage('まだ倒していない獣です。');
+              if (unlocked && beast) {
+                openZukanImage({
+                  src: beast.imageSrc,
+                  title: beast.name,
+                  subtitle: `獣図鑑 No.${selectedZukanIndexRef.current + 1}`,
+                  spriteFrameCount: beast.isSpriteSheet ? BATTLE_BEAST_FRAME_COUNT : undefined,
+                });
+              } else {
+                setDialogMessage('まだ倒していない獣です。');
+              }
             } else {
               const cards = getZukanGirlAndKurumiCards().filter(entry => (
                 zukanFilterRef.current === '信頼イベント' ? entry.kind === 'event' : entry.kind !== 'event'
@@ -21083,6 +21645,20 @@ export default function App() {
       }
 
       if (movementLockedRef.current) {
+        previousMovementFrameTime = frameTime;
+        updateRenderedWalking(false);
+        animationFrameId = requestAnimationFrame(gameLoop);
+        return;
+      }
+
+      const currentSafePos = getSafeSpawnPosition(currentX, currentY);
+      if (currentSafePos.x !== currentX || currentSafePos.y !== currentY) {
+        currentX = currentSafePos.x;
+        currentY = currentSafePos.y;
+        keys.current = {};
+        clickTargetRef.current = null;
+        setClickTargetMarker(null);
+        commitPlayerPosition(currentSafePos);
         previousMovementFrameTime = frameTime;
         updateRenderedWalking(false);
         animationFrameId = requestAnimationFrame(gameLoop);
@@ -22902,7 +23478,9 @@ export default function App() {
                     ? 'farm-warning-hud border-[#ffd166]/90 bg-[#4a310b]/88 text-[#fff1a8]'
                     : 'border-[#ffdd99]/45 bg-[#3a2508]/70 text-[#ffdd99]'
               }`}>
-                借金 ¥{debtAmount.toLocaleString()} / 信用 {farmCredit} / 返済まであと{daysUntilRepayment}日 / 予定 ¥{nextScheduledRepayment.toLocaleString()}
+                {debtAmount <= 0
+                  ? `借金なし / 完済済み / 信用 ${farmCredit}`
+                  : `借金 ¥${debtAmount.toLocaleString()} / 信用 ${farmCredit} / 返済まであと${daysUntilRepayment}日 / 予定 ¥${nextScheduledRepayment.toLocaleString()}`}
                 <span className="ml-2 text-[#b9f6ca]">
                   市場 {hudMarketTrend.boomCategory}＋10％
                   {hudMarketTrend.slumpCategory ? `｜${hudMarketTrend.slumpCategory}−5％` : ''}
@@ -24445,9 +25023,11 @@ export default function App() {
                   </div>
                   <div className="absolute bottom-[18px] left-6 right-6 z-[8] grid grid-cols-[minmax(430px,1.45fr)_minmax(360px,1fr)_250px] grid-rows-[76px_96px] gap-3">
                     <div className="overflow-hidden rounded-xl border-2 border-[#dda15e]/55 bg-[#0d1117]/90 px-3 py-2">
-                      <div className="mb-1 text-base font-black leading-tight">
-                        <span>{aliveBeasts.length > 1 ? `敵 ${aliveBeasts.length}体` : mainBeast?.name ?? '獣'}</span>
-                      </div>
+                      {aliveBeasts.length > 1 && (
+                        <div className="mb-1 text-base font-black leading-tight">
+                          <span>敵 {aliveBeasts.length}体</span>
+                        </div>
+                      )}
                       {aliveBeasts.length > 0 && (
                         <div className={aliveBeasts.length > 2 ? 'grid grid-cols-3 gap-2 text-xs font-black tabular-nums' : aliveBeasts.length > 1 ? 'grid grid-cols-2 gap-2 text-sm font-black tabular-nums' : 'grid gap-1.5 text-sm font-black tabular-nums'}>
                           {aliveBeasts.slice(0, 3).map((beast, index) => (
@@ -24923,17 +25503,20 @@ export default function App() {
                  <div className="mt-6 flex justify-center gap-4">
                     <button
                        type="button"
+                       ref={beastAttackFightButtonRef}
                        onClick={handleBeastAttackFight}
-                       onMouseEnter={playCursorSound}
-                       className="h-[56px] w-[150px] rounded-lg border-2 border-[#ffd166] bg-[#7a2718] text-lg font-black text-[#fff7dc] shadow-[0_4px_0_rgba(0,0,0,0.45)] hover:bg-[#9b3320]"
+                       onFocus={() => setBeastAttackChoice('fight')}
+                       onMouseEnter={() => { setBeastAttackChoice('fight'); playCursorSound(); }}
+                       className={`h-[56px] w-[150px] rounded-lg border-2 bg-[#7a2718] text-lg font-black text-[#fff7dc] shadow-[0_4px_0_rgba(0,0,0,0.45)] transition hover:bg-[#9b3320] focus:outline-none ${beastAttackChoice === 'fight' ? 'border-white ring-4 ring-[#ffd166]/75' : 'border-[#ffd166]'}`}
                     >
                        迎え撃つ
                     </button>
                     <button
                        type="button"
                        onClick={handleBeastAttackWatch}
-                       onMouseEnter={playCursorSound}
-                       className="h-[56px] w-[150px] rounded-lg border-2 border-[#a3b18a] bg-[#4a5823] text-lg font-black text-[#fff7dc] shadow-[0_4px_0_rgba(0,0,0,0.45)] hover:bg-[#60732d]"
+                       onFocus={() => setBeastAttackChoice('watch')}
+                       onMouseEnter={() => { setBeastAttackChoice('watch'); playCursorSound(); }}
+                       className={`h-[56px] w-[150px] rounded-lg border-2 bg-[#4a5823] text-lg font-black text-[#fff7dc] shadow-[0_4px_0_rgba(0,0,0,0.45)] transition hover:bg-[#60732d] focus:outline-none ${beastAttackChoice === 'watch' ? 'border-white ring-4 ring-[#ffd166]/75' : 'border-[#a3b18a]'}`}
                     >
                        様子を見る
                     </button>
@@ -26285,7 +26868,7 @@ export default function App() {
           >
             <div className="grid w-[920px] max-w-full grid-cols-[360px_minmax(0,1fr)] overflow-hidden rounded-2xl border-4 border-[#f9a8d4] bg-[#24140f] text-[#fff7dc] shadow-[0_24px_80px_rgba(0,0,0,0.78)]">
               <div className="relative min-h-[480px] bg-[radial-gradient(circle_at_50%_35%,rgba(251,207,232,0.35),rgba(36,20,15,0.95))]">
-                <img src="/img/momona-card.png" alt="ももな" className="absolute inset-0 h-full w-full object-contain object-bottom p-5" />
+                <img src="/img/nae.png" alt="ももの苗娘" className="absolute inset-0 h-full w-full object-contain object-bottom p-5" />
               </div>
               <div className="flex flex-col justify-center p-8">
                 <div className="text-sm font-black tracking-[0.2em] text-[#f9a8d4]">牧場の朝</div>
@@ -26312,10 +26895,13 @@ export default function App() {
           <div className="fixed inset-0 z-[10040] flex items-center justify-center bg-black px-6 py-6 pointer-events-auto">
             <video
               src={difficulty === 'easy' ? EASY_STORY_ENDING_VIDEO_SRC : STORY_ENDING_VIDEO_SRC}
-              className="max-h-full max-w-full object-contain"
+              className="pointer-events-none max-h-full max-w-full object-contain"
               autoPlay
-              controls
               playsInline
+              controls={false}
+              controlsList="nodownload nofullscreen noplaybackrate"
+              disablePictureInPicture
+              tabIndex={-1}
               onEnded={finishStoryEndingVideo}
             />
             <button
@@ -26363,9 +26949,12 @@ export default function App() {
                     {activeAutoEventSpot.videoSrc ? (
                        <video
                           src={resolveEventMediaSrc(activeAutoEventSpot.videoSrc, 'video')}
-                          className="block max-w-full max-h-[780px] object-contain"
+                          className="farm-auto-event-video block max-w-full max-h-[780px] object-contain"
                           autoPlay
-                          controls
+                          playsInline
+                          controls={false}
+                          disablePictureInPicture
+                          controlsList="nodownload nofullscreen noplaybackrate"
                        />
                     ) : activeAutoEventSpot.imageSrc ? (
                        <div className="relative">
@@ -26940,7 +27529,7 @@ export default function App() {
            kurumiRewardImageSrc={activeKurumiTradeReward?.imageSrc}
            kurumiRewardMessage={activeKurumiTradeReward?.message}
            shopNoticeMessage={shopNoticeMessage}
-           marketSummary={`${hudMarketTrend.boomCategory} 特需＋10％${hudMarketTrend.slumpCategory ? `｜${hudMarketTrend.slumpCategory} 不調−5％` : ''}｜あと${daysUntilRepayment}日`}
+           marketSummary={`${hudMarketTrend.boomCategory} 特需＋10％${hudMarketTrend.slumpCategory ? `｜${hudMarketTrend.slumpCategory} 不調−5％` : ''}｜${debtAmount <= 0 ? '返済なし' : `あと${daysUntilRepayment}日`}`}
            kurumiMarketComment={`今は${hudMarketTrend.boomCategory}が売り時だよっ♪`}
            menuTinyLabelStyle={menuTinyLabelStyle}
            handleShopBackdropPointerDown={handleShopBackdropPointerDown}
@@ -27832,9 +28421,38 @@ export default function App() {
 	           debugItemsEnabled={debugItemsEnabled}
 	           onEnableDebugItems={enableDebugItems}
 	           onDisableDebugItems={disableDebugItems}
+	           onApplyHardEarlyCarePreset={applyHardEarlyCarePreset}
+	           onApplyHardFirstAttackPreset={applyHardFirstAttackPreset}
+	           onApplyHardMidGearPreset={applyHardMidGearPreset}
+	           onApplyHardMountainLordStandardPreset={applyHardMountainLordStandardPreset}
+	           onApplyHardMountainLordPreset={applyHardMountainLordPreset}
+	           onApplyHardFinalRepaymentPreset={applyHardFinalRepaymentPreset}
+	           onApplyHardPostClearPreset={applyHardPostClearPreset}
 	           debugGirlsEnabled={debugGirlsEnabled}
 	           onEnableDebugGirls={enableDebugGirls}
 	           onDisableDebugGirls={disableDebugGirls}
+	           onUnlockFishZukan={() => {
+	             if (!canUseDebugTools) return;
+	             const allFishIds = FISH_ZUKAN_ENTRIES.map(fish => fish.id);
+	             setCaughtFishIds(allFishIds);
+	             setCollectionProgress(previous => ({
+	               ...previous,
+	               caughtFishIds: Array.from(new Set([...previous.caughtFishIds, ...allFishIds])),
+	             }));
+	             setDialogMessage('魚図鑑をデバッグ全開放しました。');
+	           }}
+	           onUnlockBeastZukan={() => {
+	             if (!canUseDebugTools) return;
+	             const allBeastIds = BEAST_ZUKAN_ENTRIES
+	               .filter(beast => beast.id !== 'dark_king')
+	               .map(beast => beast.id);
+	             setCollectionProgress(previous => ({
+	               ...previous,
+	               defeatedBeastIds: Array.from(new Set([...previous.defeatedBeastIds, ...allBeastIds])),
+	               unlockedEventIds: Array.from(new Set([...previous.unlockedEventIds, DARK_KING_DEFEATED_EVENT_ID])),
+	             }));
+	             setDialogMessage('獣図鑑をデバッグ全開放しました。');
+	           }}
 	           debugMioFollowing={debugMioFollowing}
 	           onToggleDebugMioFollowing={() => {
 	             if (!debugMioFollowing) {
@@ -28297,11 +28915,22 @@ export default function App() {
                 </button>
               </div>
               <div className="flex min-h-0 flex-1 items-center justify-center rounded-lg bg-black/55 p-3">
-                <img
-                  src={activeZukanImage.src}
-                  alt={activeZukanImage.title}
-                  className="max-h-[76vh] max-w-full object-contain"
-                />
+                {activeZukanImage.spriteFrameCount ? (
+                  <div className="relative h-[min(76vh,620px)] aspect-[16/45] overflow-hidden">
+                    <img
+                      src={activeZukanImage.src}
+                      alt={activeZukanImage.title}
+                      className="absolute left-0 top-1/2 h-full max-w-none -translate-y-1/2 object-contain"
+                      style={{ width: `${activeZukanImage.spriteFrameCount * 100}%` }}
+                    />
+                  </div>
+                ) : (
+                  <img
+                    src={activeZukanImage.src}
+                    alt={activeZukanImage.title}
+                    className="max-h-[76vh] max-w-full object-contain"
+                  />
+                )}
               </div>
             </div>
           </div>,
@@ -29426,7 +30055,17 @@ export default function App() {
           );
         })(), document.body)}
         {farmCareUnlockNoticeAction && createPortal(
-          <div className="fixed inset-0 z-[10005] flex items-center justify-center bg-black/55 px-6" aria-live="polite">
+          <div
+            className="fixed inset-0 z-[10005] flex items-center justify-center bg-black/55 px-6"
+            aria-live="polite"
+            onKeyDown={(event) => {
+              if (event.key !== 'Enter' && event.key !== ' ' && event.key !== 'Escape') return;
+              event.preventDefault();
+              event.stopPropagation();
+              playFixSound();
+              setFarmCareUnlockNoticeAction(null);
+            }}
+          >
             <div className="relative w-full max-w-lg rounded border-2 border-[#ffd166] bg-[#24140f] p-7 text-center text-[#fff7dc] shadow-[0_24px_72px_rgba(0,0,0,.78)]">
               <div className="text-sm font-black tracking-[0.2em] text-[#ffd166]">新しいお世話が解放されました</div>
               <div className="mt-4 text-3xl font-black text-[#fff1a8]">{FARM_CARE_UNLOCK_ACTION_LABELS[farmCareUnlockNoticeAction]}</div>
@@ -29437,18 +30076,29 @@ export default function App() {
               </div>
               <button
                 type="button"
+                autoFocus
                 onClick={() => {
                   playFixSound();
                   setFarmCareUnlockNoticeAction(null);
                 }}
-                className="mt-6 w-full rounded border border-[#ffd166] bg-[#6b3b18] px-5 py-3 text-lg font-black text-[#fff7dc] transition hover:bg-[#8b4d22]"
+                className="mt-6 w-full rounded border border-[#ffd166] bg-[#6b3b18] px-5 py-3 text-lg font-black text-[#fff7dc] transition hover:bg-[#8b4d22] focus:outline-none focus:ring-4 focus:ring-[#ffd166]/75"
               >
                 OK
               </button>
             </div>
           </div>, document.body)}
         {farmHarvestResultNotice && createPortal(
-          <div className="fixed inset-0 z-[10004] flex items-center justify-center bg-black/50 px-6 pointer-events-auto" aria-live="polite">
+          <div
+            className="fixed inset-0 z-[10004] flex items-center justify-center bg-black/50 px-6 pointer-events-auto"
+            aria-live="polite"
+            onKeyDown={(event) => {
+              if (event.key !== 'Enter' && event.key !== ' ' && event.key !== 'Escape') return;
+              event.preventDefault();
+              event.stopPropagation();
+              playFixSound();
+              setFarmHarvestResultNotice(null);
+            }}
+          >
             <div className="relative w-full max-w-lg rounded border-2 border-[#ffd166] bg-[#24140f] p-7 text-center text-[#fff7dc] shadow-[0_24px_72px_rgba(0,0,0,.78)]">
               <div className="text-sm font-black tracking-[0.2em] text-[#ffd166]">収穫しました！</div>
               <div className="mt-3 text-3xl font-black text-[#fff1a8]">{farmHarvestResultNotice.girlName}</div>
@@ -29475,11 +30125,12 @@ export default function App() {
               </div>
               <button
                 type="button"
+                autoFocus
                 onClick={() => {
                   playFixSound();
                   setFarmHarvestResultNotice(null);
                 }}
-                className="mt-6 w-full rounded border border-[#ffd166] bg-[#6b3b18] px-5 py-3 text-lg font-black text-[#fff7dc] transition hover:bg-[#8b4d22]"
+                className="mt-6 w-full rounded border border-[#ffd166] bg-[#6b3b18] px-5 py-3 text-lg font-black text-[#fff7dc] transition hover:bg-[#8b4d22] focus:outline-none focus:ring-4 focus:ring-[#ffd166]/75"
               >
                 OK
               </button>
@@ -29543,7 +30194,27 @@ export default function App() {
             </div>
           </div>, document.body)}
         {mioOfferingPromptVisible && createPortal(
-          <div className="fixed inset-0 z-[10006] flex items-center justify-center bg-black/62 px-6 pointer-events-auto">
+          <div
+            className="fixed inset-0 z-[10006] flex items-center justify-center bg-black/62 px-6 pointer-events-auto"
+            onKeyDown={(event) => {
+              const key = event.key.toLowerCase();
+              const isMove = event.key === 'ArrowLeft' || event.key === 'ArrowRight' || event.key === 'ArrowUp' || event.key === 'ArrowDown' || key === 'a' || key === 'd' || key === 'w' || key === 's';
+              const isDecision = event.key === 'Enter' || event.key === ' ';
+              if (!isMove && !isDecision && event.key !== 'Escape') return;
+              event.preventDefault();
+              event.stopPropagation();
+              if (event.key === 'Escape') {
+                cancelMioOfferingPrompt();
+              } else if (isMove) {
+                playCursorSound();
+                setConfirmPromptChoice(choice => choice === 'yes' ? 'no' : 'yes');
+              } else if (confirmPromptChoice === 'yes') {
+                confirmMioOffering();
+              } else {
+                cancelMioOfferingPrompt();
+              }
+            }}
+          >
             <div className="w-[560px] max-w-[92vw] rounded-xl border-4 border-[#ffd166] bg-[#24140f]/96 p-6 text-center text-[#fdf6e3] shadow-[0_24px_70px_rgba(0,0,0,0.75),0_0_32px_rgba(255,209,102,0.24)]">
               <div className="text-sm font-black tracking-[0.24em] text-[#ffd166]">滝裏の地蔵</div>
               <div className="mt-3 text-2xl font-black text-[#fff1a8]">サケを供えますか？</div>
@@ -29551,13 +30222,23 @@ export default function App() {
                 地蔵の前に立つと、どこからか小さな鳴き声が聞こえた気がした。サケを3匹供えれば、匂いに誘われて何かが現れるかもしれない。サケを3匹消費します。
               </div>
               <div className="mt-5 grid grid-cols-2 gap-3">
-                <button type="button" onMouseEnter={() => setConfirmPromptChoice('yes')} onClick={() => { setConfirmPromptChoice('yes'); confirmMioOffering(); }} className={`h-[52px] rounded-lg border-2 bg-[#6b4b16] text-lg font-black text-[#fff7dc] transition-colors hover:bg-[#85621e] ${confirmPromptChoice === 'yes' ? 'border-white ring-4 ring-[#ffd166]/70' : 'border-[#ffd166]'}`}>はい</button>
-                <button type="button" onMouseEnter={() => setConfirmPromptChoice('no')} onClick={() => { setConfirmPromptChoice('no'); cancelMioOfferingPrompt(); }} className={`h-[52px] rounded-lg border-2 bg-black/35 text-lg font-black text-[#fdf6e3] transition-colors hover:bg-[#3a2418] ${confirmPromptChoice === 'no' ? 'border-white ring-4 ring-[#ffd166]/70' : 'border-[#c8a87a]'}`}>いいえ</button>
+                <button type="button" autoFocus onFocus={() => setConfirmPromptChoice('yes')} onMouseEnter={() => setConfirmPromptChoice('yes')} onClick={() => { setConfirmPromptChoice('yes'); confirmMioOffering(); }} className={`h-[52px] rounded-lg border-2 bg-[#6b4b16] text-lg font-black text-[#fff7dc] transition-colors hover:bg-[#85621e] focus:outline-none ${confirmPromptChoice === 'yes' ? 'border-white ring-4 ring-[#ffd166]/70' : 'border-[#ffd166]'}`}>はい</button>
+                <button type="button" onFocus={() => setConfirmPromptChoice('no')} onMouseEnter={() => setConfirmPromptChoice('no')} onClick={() => { setConfirmPromptChoice('no'); cancelMioOfferingPrompt(); }} className={`h-[52px] rounded-lg border-2 bg-black/35 text-lg font-black text-[#fdf6e3] transition-colors hover:bg-[#3a2418] focus:outline-none ${confirmPromptChoice === 'no' ? 'border-white ring-4 ring-[#ffd166]/70' : 'border-[#c8a87a]'}`}>いいえ</button>
               </div>
             </div>
           </div>, document.body)}
         {mioArrivalNoticeVisible && createPortal(
-          <div className="fixed inset-0 z-[10007] flex items-center justify-center overflow-hidden bg-black/70 px-6 pointer-events-auto" aria-live="polite">
+          <div
+            className="fixed inset-0 z-[10007] flex items-center justify-center overflow-hidden bg-black/70 px-6 pointer-events-auto"
+            aria-live="polite"
+            onKeyDown={(event) => {
+              if (event.key !== 'Enter' && event.key !== ' ' && event.key !== 'Escape') return;
+              event.preventDefault();
+              event.stopPropagation();
+              playFixSound();
+              setMioArrivalNoticeVisible(false);
+            }}
+          >
             <div className="farm-equipment-success-sparkles pointer-events-none absolute inset-0 z-[1] overflow-hidden" aria-hidden="true">
               {Array.from({ length: 32 }, (_, index) => <span key={index} style={{ '--sparkle-index': index } as React.CSSProperties} />)}
             </div>
@@ -29567,11 +30248,31 @@ export default function App() {
               </div>
               <div className="mt-6 text-3xl font-black text-[#fff1a8]">白くて小さな子猫が現れた！</div>
               <div className="mt-3 font-bold leading-relaxed text-[#fdf6e3]">首輪には「MIO」と書かれている。<br />どうやらユウの後をついてくるようだ。</div>
-              <button type="button" onClick={() => { playFixSound(); setMioArrivalNoticeVisible(false); }} className="mt-7 w-full rounded-lg border-2 border-[#ffd166] bg-[#6b4b16] px-5 py-3 text-lg font-black hover:bg-[#85621e]">一緒に行こう</button>
+              <button type="button" autoFocus onClick={() => { playFixSound(); setMioArrivalNoticeVisible(false); }} className="mt-7 w-full rounded-lg border-2 border-[#ffd166] bg-[#6b4b16] px-5 py-3 text-lg font-black hover:bg-[#85621e] focus:outline-none focus:ring-4 focus:ring-[#ffd166]/75">一緒に行こう</button>
             </div>
           </div>, document.body)}
         {mermaidOfferingPromptVisible && createPortal(
-          <div className="fixed inset-0 z-[10006] flex items-center justify-center bg-black/62 px-6 pointer-events-auto">
+          <div
+            className="fixed inset-0 z-[10006] flex items-center justify-center bg-black/62 px-6 pointer-events-auto"
+            onKeyDown={(event) => {
+              const key = event.key.toLowerCase();
+              const isMove = event.key === 'ArrowLeft' || event.key === 'ArrowRight' || event.key === 'ArrowUp' || event.key === 'ArrowDown' || key === 'a' || key === 'd' || key === 'w' || key === 's';
+              const isDecision = event.key === 'Enter' || event.key === ' ';
+              if (!isMove && !isDecision && event.key !== 'Escape') return;
+              event.preventDefault();
+              event.stopPropagation();
+              if (event.key === 'Escape') {
+                cancelMermaidOfferingPrompt();
+              } else if (isMove) {
+                playCursorSound();
+                setConfirmPromptChoice(choice => choice === 'yes' ? 'no' : 'yes');
+              } else if (confirmPromptChoice === 'yes') {
+                confirmMermaidOffering();
+              } else {
+                cancelMermaidOfferingPrompt();
+              }
+            }}
+          >
             <div className="w-[560px] max-w-[92vw] rounded-xl border-4 border-[#67e8f9] bg-[#0f172a]/96 p-6 text-center text-[#fdf6e3] shadow-[0_24px_70px_rgba(0,0,0,0.75),0_0_32px_rgba(103,232,249,0.24)]">
               <div className="text-sm font-black tracking-[0.24em] text-[#67e8f9]">滝裏の地蔵</div>
               <div className="mt-3 text-2xl font-black text-[#fff1a8]">人魚の鱗を供えますか？</div>
@@ -29581,17 +30282,20 @@ export default function App() {
               <div className="mt-5 grid grid-cols-2 gap-3">
                 <button
                   type="button"
+                  autoFocus
+                  onFocus={() => setConfirmPromptChoice('yes')}
                   onMouseEnter={() => setConfirmPromptChoice('yes')}
                   onClick={() => { setConfirmPromptChoice('yes'); confirmMermaidOffering(); }}
-                  className={`h-[52px] rounded-lg border-2 bg-[#164e63] text-lg font-black text-[#ecfeff] transition-colors hover:bg-[#155e75] ${confirmPromptChoice === 'yes' ? 'border-white ring-4 ring-[#67e8f9]/70' : 'border-[#67e8f9]'}`}
+                  className={`h-[52px] rounded-lg border-2 bg-[#164e63] text-lg font-black text-[#ecfeff] transition-colors hover:bg-[#155e75] focus:outline-none ${confirmPromptChoice === 'yes' ? 'border-white ring-4 ring-[#67e8f9]/70' : 'border-[#67e8f9]'}`}
                 >
                   はい
                 </button>
                 <button
                   type="button"
+                  onFocus={() => setConfirmPromptChoice('no')}
                   onMouseEnter={() => setConfirmPromptChoice('no')}
                   onClick={() => { setConfirmPromptChoice('no'); cancelMermaidOfferingPrompt(); }}
-                  className={`h-[52px] rounded-lg border-2 bg-black/35 text-lg font-black text-[#fdf6e3] transition-colors hover:bg-[#3a2418] ${confirmPromptChoice === 'no' ? 'border-white ring-4 ring-[#ffd166]/70' : 'border-[#c8a87a]'}`}
+                  className={`h-[52px] rounded-lg border-2 bg-black/35 text-lg font-black text-[#fdf6e3] transition-colors hover:bg-[#3a2418] focus:outline-none ${confirmPromptChoice === 'no' ? 'border-white ring-4 ring-[#ffd166]/70' : 'border-[#c8a87a]'}`}
                 >
                   いいえ
                 </button>
@@ -29602,6 +30306,15 @@ export default function App() {
            <div
               className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/62 px-8 py-6 pointer-events-auto"
               onClick={() => { playFixSound(); setMenuFocusArea('content'); setMenuContentFocus('secondary'); setFarmGirlDetailOpen(false); }}
+              onKeyDown={(event) => {
+                if (event.key !== 'Escape' && event.key !== 'Enter' && event.key !== ' ') return;
+                event.preventDefault();
+                event.stopPropagation();
+                playFixSound();
+                setMenuFocusArea('content');
+                setMenuContentFocus('secondary');
+                setFarmGirlDetailOpen(false);
+              }}
            >
               <div
                  className="farm-girl-detail-modal relative grid h-full max-h-[740px] w-full max-w-[980px] grid-cols-[minmax(0,1fr)_260px] overflow-hidden rounded border border-[#f1c27d]/80 bg-[#160d12] shadow-[0_26px_70px_rgba(0,0,0,0.72)]"
@@ -29609,8 +30322,9 @@ export default function App() {
               >
                  <button
                     type="button"
+                    autoFocus
                     onClick={() => { playFixSound(); setMenuFocusArea('content'); setMenuContentFocus('secondary'); setFarmGirlDetailOpen(false); }}
-                    className="absolute right-3 top-3 z-20 flex h-10 w-10 items-center justify-center rounded border border-white/35 bg-black/65 text-xl font-bold text-[#fff7dc] hover:bg-[#4a241b]"
+                    className="absolute right-3 top-3 z-20 flex h-10 w-10 items-center justify-center rounded border border-white/35 bg-black/65 text-xl font-bold text-[#fff7dc] hover:bg-[#4a241b] focus:outline-none focus:ring-4 focus:ring-[#ffd166]/75"
                     aria-label="詳細を閉じる"
                  >
                     ×
@@ -29657,13 +30371,23 @@ export default function App() {
            <div
               className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/62 px-8 py-6 pointer-events-auto"
               onClick={() => { playFixSound(); setMenuFocusArea('content'); setMenuContentFocus('secondary'); setRecipeDetailOpen(false); }}
+              onKeyDown={(event) => {
+                if (event.key !== 'Escape' && event.key !== 'Enter' && event.key !== ' ') return;
+                event.preventDefault();
+                event.stopPropagation();
+                playFixSound();
+                setMenuFocusArea('content');
+                setMenuContentFocus('secondary');
+                setRecipeDetailOpen(false);
+              }}
            >
               <div className="recipe-detail-modal relative h-[min(86vh,820px)] w-[min(72vw,690px)]" onClick={(event) => event.stopPropagation()}>
                  <img src="/img/recipe.jpg" alt={selectedRecipeDetail.title} className="absolute inset-0 h-full w-full object-contain drop-shadow-[0_28px_70px_rgba(0,0,0,0.72)]" />
                  <button
                     type="button"
+                    autoFocus
                     onClick={() => { playFixSound(); setRecipeDetailOpen(false); }}
-                    className="absolute right-[10%] top-[7%] z-20 flex h-10 w-10 items-center justify-center rounded border border-[#5b3518]/70 bg-[#2b160b]/80 text-xl font-black text-[#fff1b8] hover:bg-[#5a2c13]"
+                    className="absolute right-[10%] top-[7%] z-20 flex h-10 w-10 items-center justify-center rounded border border-[#5b3518]/70 bg-[#2b160b]/80 text-xl font-black text-[#fff1b8] hover:bg-[#5a2c13] focus:outline-none focus:ring-4 focus:ring-[#ffd166]/75"
                     aria-label="レシピを閉じる"
                  >
                     ×
@@ -29781,7 +30505,34 @@ export default function App() {
             </div>
           </div>, document.body)}
         {(pendingSkillUnlockId || skillUnlockNotice || skillUnlockSparkles) && createPortal(
-          <div className="fixed inset-0 z-[10020] flex items-center justify-center bg-black/65 px-6">
+          <div
+            className="fixed inset-0 z-[10020] flex items-center justify-center bg-black/65 px-6"
+            onKeyDown={(event) => {
+              const key = event.key.toLowerCase();
+              const isMove = event.key === 'ArrowLeft' || event.key === 'ArrowRight' || event.key === 'ArrowUp' || event.key === 'ArrowDown' || key === 'a' || key === 'd' || key === 'w' || key === 's';
+              const isDecision = event.key === 'Enter' || event.key === ' ';
+              if (!isMove && !isDecision && event.key !== 'Escape') return;
+              event.preventDefault();
+              event.stopPropagation();
+              if (pendingSkillUnlockId) {
+                if (event.key === 'Escape') {
+                  setPendingSkillUnlockId(null);
+                } else if (isMove) {
+                  playCursorSound();
+                  setSkillUnlockChoice(choice => choice === 'yes' ? 'no' : 'yes');
+                } else if (skillUnlockChoice === 'yes') {
+                  confirmHeroSkillUnlock(pendingSkillUnlockId, 'yes');
+                } else {
+                  setPendingSkillUnlockId(null);
+                }
+                return;
+              }
+              if (skillUnlockNotice) {
+                playFixSound();
+                setSkillUnlockNotice(null);
+              }
+            }}
+          >
             {skillUnlockSparkles && <div className="pointer-events-none absolute inset-0 animate-pulse bg-[radial-gradient(circle_at_20%_25%,rgba(255,255,255,.95)_0_2px,transparent_3px),radial-gradient(circle_at_75%_22%,rgba(255,209,102,.95)_0_3px,transparent_5px),radial-gradient(circle_at_40%_75%,rgba(255,173,222,.9)_0_3px,transparent_5px)]" />}
             <div className="relative w-full max-w-md border-2 border-[#ffd166] bg-[#24140f] p-6 text-[#fff7dc] shadow-[0_20px_70px_rgba(0,0,0,.75)]">
               {pendingSkillUnlockId ? (() => {
@@ -29790,9 +30541,9 @@ export default function App() {
                 return <>
                   <div className="text-center text-2xl font-black text-[#ffd166]">スキルを習得しますか？</div>
                   <div className="mt-4 rounded border border-[#76502c] bg-black/30 p-4"><div className="text-xl font-black">{skill.name}</div><div className="mt-2 text-sm text-[#d7b98a]">SP {skill.costSP} を消費します</div></div>
-                  <div className="mt-5 grid grid-cols-2 gap-3"><button type="button" onMouseEnter={() => setSkillUnlockChoice('yes')} onClick={() => { setSkillUnlockChoice('yes'); confirmHeroSkillUnlock(skill.id, 'yes'); }} className={`border px-4 py-3 font-black transition ${skillUnlockChoice === 'yes' ? 'border-white bg-[#14532d] ring-4 ring-[#ffd166]/80 shadow-[0_0_22px_rgba(255,209,102,0.55)]' : 'border-[#86efac] bg-[#14532d]/65'}`}>はい</button><button type="button" onMouseEnter={() => setSkillUnlockChoice('no')} onClick={() => { setSkillUnlockChoice('no'); setPendingSkillUnlockId(null); }} className={`border px-4 py-3 font-black transition ${skillUnlockChoice === 'no' ? 'border-white bg-[#6b3b18] ring-4 ring-[#ffd166]/80 shadow-[0_0_22px_rgba(255,209,102,0.55)]' : 'border-[#c8a87a] bg-black/30'}`}>いいえ</button></div>
+                  <div className="mt-5 grid grid-cols-2 gap-3"><button type="button" autoFocus onFocus={() => setSkillUnlockChoice('yes')} onMouseEnter={() => setSkillUnlockChoice('yes')} onClick={() => { setSkillUnlockChoice('yes'); confirmHeroSkillUnlock(skill.id, 'yes'); }} className={`border px-4 py-3 font-black transition focus:outline-none ${skillUnlockChoice === 'yes' ? 'border-white bg-[#14532d] ring-4 ring-[#ffd166]/80 shadow-[0_0_22px_rgba(255,209,102,0.55)]' : 'border-[#86efac] bg-[#14532d]/65'}`}>はい</button><button type="button" onFocus={() => setSkillUnlockChoice('no')} onMouseEnter={() => setSkillUnlockChoice('no')} onClick={() => { setSkillUnlockChoice('no'); setPendingSkillUnlockId(null); }} className={`border px-4 py-3 font-black transition focus:outline-none ${skillUnlockChoice === 'no' ? 'border-white bg-[#6b3b18] ring-4 ring-[#ffd166]/80 shadow-[0_0_22px_rgba(255,209,102,0.55)]' : 'border-[#c8a87a] bg-black/30'}`}>いいえ</button></div>
                 </>;
-              })() : skillUnlockNotice ? <><div className="text-center text-xl font-black text-[#ffcf8a]">スキルを習得できません</div><div className="mt-4 whitespace-pre-line rounded border border-[#76502c] bg-black/30 p-4 text-center font-bold">{skillUnlockNotice}</div><button type="button" onClick={() => setSkillUnlockNotice(null)} className="mt-5 w-full border border-[#ffd166] bg-[#6b3b18] px-4 py-3 font-black">閉じる</button></> : <div className="py-12 text-center text-3xl font-black text-[#fff1a8]">スキル習得！</div>}
+              })() : skillUnlockNotice ? <><div className="text-center text-xl font-black text-[#ffcf8a]">スキルを習得できません</div><div className="mt-4 whitespace-pre-line rounded border border-[#76502c] bg-black/30 p-4 text-center font-bold">{skillUnlockNotice}</div><button type="button" autoFocus onClick={() => setSkillUnlockNotice(null)} className="mt-5 w-full border border-[#ffd166] bg-[#6b3b18] px-4 py-3 font-black focus:outline-none focus:ring-4 focus:ring-[#ffd166]/75">閉じる</button></> : <div className="py-12 text-center text-3xl font-black text-[#fff1a8]">スキル習得！</div>}
             </div>
           </div>, document.body)}
       </div>

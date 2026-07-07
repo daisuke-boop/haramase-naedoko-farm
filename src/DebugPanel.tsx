@@ -52,9 +52,18 @@ type DebugPanelProps = {
   debugItemsEnabled: boolean;
   onEnableDebugItems: () => void;
   onDisableDebugItems: () => void;
+  onApplyHardEarlyCarePreset: () => void;
+  onApplyHardFirstAttackPreset: () => void;
+  onApplyHardMidGearPreset: () => void;
+  onApplyHardMountainLordStandardPreset: () => void;
+  onApplyHardMountainLordPreset: () => void;
+  onApplyHardFinalRepaymentPreset: () => void;
+  onApplyHardPostClearPreset: () => void;
   debugGirlsEnabled: boolean;
   onEnableDebugGirls: () => void;
   onDisableDebugGirls: () => void;
+  onUnlockFishZukan: () => void;
+  onUnlockBeastZukan: () => void;
   debugMioFollowing: boolean;
   onToggleDebugMioFollowing: () => void;
   mermaidScaleCount: number;
@@ -151,9 +160,18 @@ const DebugPanel = ({
   debugItemsEnabled,
   onEnableDebugItems,
   onDisableDebugItems,
+  onApplyHardEarlyCarePreset,
+  onApplyHardFirstAttackPreset,
+  onApplyHardMidGearPreset,
+  onApplyHardMountainLordStandardPreset,
+  onApplyHardMountainLordPreset,
+  onApplyHardFinalRepaymentPreset,
+  onApplyHardPostClearPreset,
   debugGirlsEnabled,
   onEnableDebugGirls,
   onDisableDebugGirls,
+  onUnlockFishZukan,
+  onUnlockBeastZukan,
   debugMioFollowing,
   onToggleDebugMioFollowing,
   mermaidScaleCount,
@@ -333,8 +351,80 @@ const DebugPanel = ({
               >
                 娘OFF
               </button>
+              <button
+                type="button"
+                onClick={onUnlockFishZukan}
+                className="rounded border border-cyan-200/80 bg-cyan-800/75 py-1 text-[10px] font-black text-white hover:bg-cyan-700"
+              >
+                魚図鑑OPEN
+              </button>
+              <button
+                type="button"
+                onClick={onUnlockBeastZukan}
+                className="rounded border border-lime-200/80 bg-lime-800/75 py-1 text-[10px] font-black text-white hover:bg-lime-700"
+              >
+                獣図鑑OPEN
+              </button>
             </div>
             <div className="text-[9px] leading-tight text-red-100/80">OFFはデバッグ用状態だけを戻します。通常アイテムは残します。</div>
+          </div>
+          <div className="rounded border border-amber-300/75 bg-amber-950/35 p-2">
+            <div className="mb-1 flex items-center justify-between font-black text-amber-100">
+              <span>検証プリセット</span>
+              <span className="text-[10px]">Hard</span>
+            </div>
+            <div className="grid grid-cols-1 gap-1">
+              <button
+                type="button"
+                onClick={onApplyHardEarlyCarePreset}
+                className="rounded border border-amber-200 bg-amber-700 px-2 py-1.5 text-[10px] font-black text-white hover:bg-amber-600 focus:outline-none focus:ring-2 focus:ring-white/80"
+              >
+                1 Day16朝 お世話
+              </button>
+              <button
+                type="button"
+                onClick={onApplyHardFirstAttackPreset}
+                className="rounded border border-amber-200 bg-amber-800 px-2 py-1.5 text-[10px] font-black text-white hover:bg-amber-600 focus:outline-none focus:ring-2 focus:ring-white/80"
+              >
+                2 初回襲撃
+              </button>
+              <button
+                type="button"
+                onClick={onApplyHardMidGearPreset}
+                className="rounded border border-amber-200 bg-amber-800 px-2 py-1.5 text-[10px] font-black text-white hover:bg-amber-600 focus:outline-none focus:ring-2 focus:ring-white/80"
+              >
+                3 中盤装備
+              </button>
+              <button
+                type="button"
+                onClick={onApplyHardMountainLordStandardPreset}
+                className="rounded border border-amber-200 bg-amber-900 px-2 py-1.5 text-[10px] font-black text-white hover:bg-amber-700 focus:outline-none focus:ring-2 focus:ring-white/80"
+              >
+                4 山主標準
+              </button>
+              <button
+                type="button"
+                onClick={onApplyHardMountainLordPreset}
+                className="rounded border border-amber-200 bg-amber-950 px-2 py-1.5 text-[10px] font-black text-white hover:bg-amber-800 focus:outline-none focus:ring-2 focus:ring-white/80"
+              >
+                4B 山主完成
+              </button>
+              <button
+                type="button"
+                onClick={onApplyHardPostClearPreset}
+                className="rounded border border-amber-200 bg-stone-800 px-2 py-1.5 text-[10px] font-black text-white hover:bg-stone-700 focus:outline-none focus:ring-2 focus:ring-white/80"
+              >
+                5 完済後
+              </button>
+              <button
+                type="button"
+                onClick={onApplyHardFinalRepaymentPreset}
+                className="rounded border border-amber-200 bg-stone-900 px-2 py-1.5 text-[10px] font-black text-white hover:bg-stone-700 focus:outline-none focus:ring-2 focus:ring-white/80"
+              >
+                5B 最終返済
+              </button>
+            </div>
+            <div className="mt-1 text-[9px] leading-tight text-amber-100/80">Hardの5地点を状態ジャンプで確認します。</div>
           </div>
           <div className="grid grid-cols-2 gap-1.5">
             <button 

@@ -411,6 +411,19 @@ canvas {
   object-fit: cover;
 }
 
+.farm-auto-event-video::-webkit-media-controls,
+.farm-auto-event-video::-webkit-media-controls-panel,
+.farm-auto-event-video::-webkit-media-controls-enclosure,
+.farm-auto-event-video::-webkit-media-controls-timeline,
+.farm-auto-event-video::-webkit-media-controls-current-time-display,
+.farm-auto-event-video::-webkit-media-controls-time-remaining-display,
+.farm-auto-event-video::-webkit-media-controls-play-button,
+.farm-auto-event-video::-webkit-media-controls-mute-button,
+.farm-auto-event-video::-webkit-media-controls-volume-slider,
+.farm-auto-event-video::-webkit-media-controls-fullscreen-button {
+  display: none !important;
+}
+
 .farm-girl-reveal-aurora {
   position: absolute;
   width: min(760px, 82vw);
