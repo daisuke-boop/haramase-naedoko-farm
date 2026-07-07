@@ -1,11 +1,11 @@
 {
   "saveSchemaVersion": 2,
-  "turn": 50,
-  "gold": 421461,
+  "turn": 135,
+  "gold": 816029,
   "goldTransactionHistory": [
     {
-      "id": "new-game-1783341139987",
-      "timestamp": "2026-07-06T12:32:19.987Z",
+      "id": "new-game-1783345181149",
+      "timestamp": "2026-07-06T13:39:41.149Z",
       "day": 1,
       "timeOfDay": "morning",
       "reason": "ゲーム開始時の所持金",
@@ -14,8 +14,8 @@
       "after": 5000
     },
     {
-      "id": "2026-07-06T12:34:18.908Z-27xvbz",
-      "timestamp": "2026-07-06T12:34:18.908Z",
+      "id": "2026-07-06T13:44:20.574Z-842vqi",
+      "timestamp": "2026-07-06T13:44:20.574Z",
       "day": 2,
       "timeOfDay": "morning",
       "reason": "くるみ商店・買う：【レシピ】のこぎり",
@@ -24,8 +24,8 @@
       "after": 4500
     },
     {
-      "id": "2026-07-06T12:34:40.508Z-el6wk9",
-      "timestamp": "2026-07-06T12:34:40.508Z",
+      "id": "2026-07-06T13:44:39.249Z-vvu5u7",
+      "timestamp": "2026-07-06T13:44:39.249Z",
       "day": 2,
       "timeOfDay": "morning",
       "reason": "くるみ商店・買う：【レシピ】つるはし",
@@ -34,154 +34,844 @@
       "after": 4000
     },
     {
-      "id": "2026-07-06T12:43:21.705Z-yhvj8f",
-      "timestamp": "2026-07-06T12:43:21.705Z",
+      "id": "2026-07-06T13:45:52.914Z-ruv2eg",
+      "timestamp": "2026-07-06T13:45:52.914Z",
       "day": 2,
       "timeOfDay": "morning",
-      "reason": "くるみ商店・一括売却：2種類",
-      "amount": 390,
+      "reason": "くるみ商店・買う：モグラの爪",
+      "amount": -400,
       "before": 4000,
-      "after": 4390
+      "after": 3600
     },
     {
-      "id": "2026-07-06T12:47:00.137Z-dfb1dy",
-      "timestamp": "2026-07-06T12:47:00.137Z",
-      "day": 4,
-      "timeOfDay": "day",
-      "reason": "農場・一括出荷：3種類",
-      "amount": 52100,
-      "before": 4390,
-      "after": 56490
+      "id": "2026-07-06T13:45:54.311Z-40ixek",
+      "timestamp": "2026-07-06T13:45:54.311Z",
+      "day": 2,
+      "timeOfDay": "morning",
+      "reason": "くるみ商店・買う：モグラの爪",
+      "amount": -400,
+      "before": 3600,
+      "after": 3200
     },
     {
-      "id": "2026-07-06T12:53:43.300Z-1p8jpw",
-      "timestamp": "2026-07-06T12:53:43.300Z",
-      "day": 7,
-      "timeOfDay": "day",
+      "id": "2026-07-06T13:45:55.929Z-nuv00x",
+      "timestamp": "2026-07-06T13:45:55.929Z",
+      "day": 2,
+      "timeOfDay": "morning",
+      "reason": "くるみ商店・買う：ウサギの靭帯",
+      "amount": -700,
+      "before": 3200,
+      "after": 2500
+    },
+    {
+      "id": "2026-07-06T13:45:56.380Z-vcijji",
+      "timestamp": "2026-07-06T13:45:56.380Z",
+      "day": 2,
+      "timeOfDay": "morning",
+      "reason": "くるみ商店・買う：ウサギの靭帯",
+      "amount": -700,
+      "before": 2500,
+      "after": 1800
+    },
+    {
+      "id": "2026-07-06T13:46:01.272Z-e3jrsn",
+      "timestamp": "2026-07-06T13:46:01.272Z",
+      "day": 2,
+      "timeOfDay": "morning",
       "reason": "くるみ商店・買う：【レシピ】丈夫なつるはし",
       "amount": -1500,
-      "before": 56490,
-      "after": 54990
+      "before": 1800,
+      "after": 300
     },
     {
-      "id": "2026-07-06T12:53:47.321Z-nb2l5h",
-      "timestamp": "2026-07-06T12:53:47.321Z",
-      "day": 7,
+      "id": "2026-07-06T13:49:13.075Z-un5bts",
+      "timestamp": "2026-07-06T13:49:13.075Z",
+      "day": 4,
+      "timeOfDay": "morning",
+      "reason": "農場・一括出荷：3種類",
+      "amount": 43100,
+      "before": 300,
+      "after": 43400
+    },
+    {
+      "id": "2026-07-06T13:49:32.927Z-lrr380",
+      "timestamp": "2026-07-06T13:49:32.927Z",
+      "day": 4,
       "timeOfDay": "day",
       "reason": "くるみ商店・買う：【レシピ】丈夫なのこぎり",
       "amount": -1500,
-      "before": 54990,
-      "after": 53490
+      "before": 43400,
+      "after": 41900
     },
     {
-      "id": "2026-07-06T13:02:21.795Z-bpgp0w",
-      "timestamp": "2026-07-06T13:02:21.795Z",
-      "day": 8,
+      "id": "2026-07-06T13:49:49.294Z-p4u6vn",
+      "timestamp": "2026-07-06T13:49:49.294Z",
+      "day": 4,
+      "timeOfDay": "day",
+      "reason": "農場・一括出荷：1種類",
+      "amount": 9900,
+      "before": 41900,
+      "after": 51800
+    },
+    {
+      "id": "2026-07-06T13:50:29.247Z-wy29nz",
+      "timestamp": "2026-07-06T13:50:29.247Z",
+      "day": 5,
       "timeOfDay": "day",
       "reason": "農場・一括出荷：3種類",
-      "amount": 92818,
-      "before": 53490,
-      "after": 146308
+      "amount": 38400,
+      "before": 51800,
+      "after": 90200
     },
     {
-      "id": "2026-07-06T13:02:31.213Z-ncuzq7",
-      "timestamp": "2026-07-06T13:02:31.213Z",
+      "id": "2026-07-06T13:53:07.092Z-b5bo6p",
+      "timestamp": "2026-07-06T13:53:07.092Z",
+      "day": 6,
+      "timeOfDay": "day",
+      "reason": "農場・一括出荷：1種類",
+      "amount": 3600,
+      "before": 90200,
+      "after": 93800
+    },
+    {
+      "id": "2026-07-06T13:54:15.438Z-g34toc",
+      "timestamp": "2026-07-06T13:54:15.438Z",
+      "day": 7,
+      "timeOfDay": "day",
+      "reason": "農場・一括出荷：2種類",
+      "amount": 22314,
+      "before": 93800,
+      "after": 116114
+    },
+    {
+      "id": "2026-07-06T13:55:17.654Z-scir6z",
+      "timestamp": "2026-07-06T13:55:17.654Z",
+      "day": 8,
+      "timeOfDay": "day",
+      "reason": "農場・一括出荷：2種類",
+      "amount": 22314,
+      "before": 116114,
+      "after": 138428
+    },
+    {
+      "id": "2026-07-06T13:55:29.462Z-kkxfce",
+      "timestamp": "2026-07-06T13:55:29.462Z",
       "day": 8,
       "timeOfDay": "day",
       "reason": "くるみ商店・買う：ブドウの苗娘",
       "amount": -120000,
-      "before": 146308,
-      "after": 26308
+      "before": 138428,
+      "after": 18428
     },
     {
-      "id": "2026-07-06T13:03:45.154Z-htja2j",
-      "timestamp": "2026-07-06T13:03:45.154Z",
-      "day": 9,
-      "timeOfDay": "morning",
-      "reason": "くるみ商店・一括売却：1種類",
-      "amount": 41,
-      "before": 26308,
-      "after": 26349
-    },
-    {
-      "id": "2026-07-06T13:04:22.354Z-x2fe9n",
-      "timestamp": "2026-07-06T13:04:22.354Z",
+      "id": "2026-07-06T13:56:19.495Z-cpb84k",
+      "timestamp": "2026-07-06T13:56:19.495Z",
       "day": 9,
       "timeOfDay": "evening",
       "reason": "農場・一括出荷：2種類",
       "amount": 26252,
-      "before": 26349,
-      "after": 52601
+      "before": 18428,
+      "after": 44680
     },
     {
-      "id": "2026-07-06T13:07:28.207Z-mqgz30",
-      "timestamp": "2026-07-06T13:07:28.207Z",
+      "id": "2026-07-06T13:58:04.550Z-eg8rfn",
+      "timestamp": "2026-07-06T13:58:04.550Z",
       "day": 11,
       "timeOfDay": "evening",
       "reason": "農場・一括出荷：4種類",
-      "amount": 219876,
-      "before": 52601,
-      "after": 272477
+      "amount": 135188,
+      "before": 44680,
+      "after": 179868
     },
     {
-      "id": "2026-07-06T13:08:15.402Z-j82dqu",
-      "timestamp": "2026-07-06T13:08:15.402Z",
+      "id": "2026-07-06T13:59:11.376Z-c7la5p",
+      "timestamp": "2026-07-06T13:59:11.376Z",
       "day": 12,
       "timeOfDay": "evening",
-      "reason": "農場・一括出荷：2種類",
-      "amount": 34498,
-      "before": 272477,
-      "after": 306975
+      "reason": "農場・一括出荷：3種類",
+      "amount": 94498,
+      "before": 179868,
+      "after": 274366
     },
     {
-      "id": "2026-07-06T13:08:44.097Z-v8b8tn",
-      "timestamp": "2026-07-06T13:08:44.097Z",
-      "day": 12,
-      "timeOfDay": "evening",
-      "reason": "くるみ商店・買う：モグラの爪",
-      "amount": -400,
-      "before": 306975,
-      "after": 306575
-    },
-    {
-      "id": "2026-07-06T13:08:45.757Z-x1p4qp",
-      "timestamp": "2026-07-06T13:08:45.757Z",
-      "day": 12,
-      "timeOfDay": "evening",
-      "reason": "くるみ商店・買う：モグラの爪",
-      "amount": -400,
-      "before": 306575,
-      "after": 306175
-    },
-    {
-      "id": "2026-07-06T13:08:47.213Z-btazur",
-      "timestamp": "2026-07-06T13:08:47.213Z",
-      "day": 12,
-      "timeOfDay": "evening",
-      "reason": "くるみ商店・買う：ウサギの靭帯",
-      "amount": -700,
-      "before": 306175,
-      "after": 305475
-    },
-    {
-      "id": "2026-07-06T13:08:48.432Z-9oxurk",
-      "timestamp": "2026-07-06T13:08:48.432Z",
-      "day": 12,
-      "timeOfDay": "evening",
-      "reason": "くるみ商店・買う：ウサギの靭帯",
-      "amount": -700,
-      "before": 305475,
-      "after": 304775
-    },
-    {
-      "id": "2026-07-06T13:11:42.862Z-oz7aft",
-      "timestamp": "2026-07-06T13:11:42.862Z",
+      "id": "2026-07-06T14:00:12.924Z-xnx2mv",
+      "timestamp": "2026-07-06T14:00:12.924Z",
       "day": 13,
       "timeOfDay": "evening",
+      "reason": "農場・一括出荷：3種類",
+      "amount": 54186,
+      "before": 274366,
+      "after": 328552
+    },
+    {
+      "id": "2026-07-06T14:01:17.686Z-xayba4",
+      "timestamp": "2026-07-06T14:01:17.686Z",
+      "day": 14,
+      "timeOfDay": "evening",
       "reason": "農場・一括出荷：4種類",
-      "amount": 116686,
-      "before": 304775,
-      "after": 421461
+      "amount": 117623,
+      "before": 328552,
+      "after": 446175
+    },
+    {
+      "id": "2026-07-06T14:02:54.919Z-dirlb4",
+      "timestamp": "2026-07-06T14:02:54.919Z",
+      "day": 15,
+      "timeOfDay": "evening",
+      "reason": "農場・一括出荷：3種類",
+      "amount": 100002,
+      "before": 446175,
+      "after": 546177
+    },
+    {
+      "id": "2026-07-06T14:04:01.097Z-tg8zpv",
+      "timestamp": "2026-07-06T14:04:01.097Z",
+      "day": 16,
+      "timeOfDay": "evening",
+      "reason": "農場・一括出荷：3種類",
+      "amount": 62815,
+      "before": 546177,
+      "after": 608992
+    },
+    {
+      "id": "2026-07-06T14:05:25.061Z-8sf6yb",
+      "timestamp": "2026-07-06T14:05:25.061Z",
+      "day": 17,
+      "timeOfDay": "evening",
+      "reason": "農場・一括出荷：3種類",
+      "amount": 63753,
+      "before": 608992,
+      "after": 672745
+    },
+    {
+      "id": "2026-07-06T14:06:17.960Z-3zj0v3",
+      "timestamp": "2026-07-06T14:06:17.960Z",
+      "day": 18,
+      "timeOfDay": "evening",
+      "reason": "農場・一括出荷：3種類",
+      "amount": 104690,
+      "before": 672745,
+      "after": 777435
+    },
+    {
+      "id": "2026-07-06T14:08:38.897Z-lmera0",
+      "timestamp": "2026-07-06T14:08:38.897Z",
+      "day": 20,
+      "timeOfDay": "evening",
+      "reason": "農場・一括出荷：4種類",
+      "amount": 129379,
+      "before": 777435,
+      "after": 906814
+    },
+    {
+      "id": "2026-07-06T14:08:46.209Z-aokqtz",
+      "timestamp": "2026-07-06T14:08:46.209Z",
+      "day": 20,
+      "timeOfDay": "evening",
+      "reason": "農場・一括出荷：3種類",
+      "amount": 63753,
+      "before": 906814,
+      "after": 970567
+    },
+    {
+      "id": "2026-07-06T14:10:51.850Z-qgb3e8",
+      "timestamp": "2026-07-06T14:10:51.850Z",
+      "day": 21,
+      "timeOfDay": "evening",
+      "reason": "農場・一括出荷：3種類",
+      "amount": 107816,
+      "before": 970567,
+      "after": 1078383
+    },
+    {
+      "id": "2026-07-06T14:17:07.186Z-hky0hu",
+      "timestamp": "2026-07-06T14:17:07.186Z",
+      "day": 22,
+      "timeOfDay": "evening",
+      "reason": "農場・一括出荷：1種類",
+      "amount": 23438,
+      "before": 1078383,
+      "after": 1101821
+    },
+    {
+      "id": "2026-07-06T14:17:16.883Z-cbwkmy",
+      "timestamp": "2026-07-06T14:17:16.883Z",
+      "day": 22,
+      "timeOfDay": "evening",
+      "reason": "農場・一括出荷：2種類",
+      "amount": 42190,
+      "before": 1101821,
+      "after": 1144011
+    },
+    {
+      "id": "2026-07-06T14:19:03.558Z-58563v",
+      "timestamp": "2026-07-06T14:19:03.558Z",
+      "day": 23,
+      "timeOfDay": "evening",
+      "reason": "農場・一括出荷：1種類",
+      "amount": 65626,
+      "before": 1144011,
+      "after": 1209637
+    },
+    {
+      "id": "2026-07-06T14:19:10.684Z-y07x6w",
+      "timestamp": "2026-07-06T14:19:10.684Z",
+      "day": 23,
+      "timeOfDay": "evening",
+      "reason": "農場・一括出荷：3種類",
+      "amount": 89066,
+      "before": 1209637,
+      "after": 1298703
+    },
+    {
+      "id": "2026-07-06T14:19:25.303Z-wcpyuc",
+      "timestamp": "2026-07-06T14:19:25.303Z",
+      "day": 23,
+      "timeOfDay": "evening",
+      "reason": "くるみ商店・買う：ウサギの靭帯",
+      "amount": -700,
+      "before": 1298703,
+      "after": 1298003
+    },
+    {
+      "id": "2026-07-06T14:19:26.379Z-eafijd",
+      "timestamp": "2026-07-06T14:19:26.379Z",
+      "day": 23,
+      "timeOfDay": "evening",
+      "reason": "くるみ商店・買う：ウサギの靭帯",
+      "amount": -700,
+      "before": 1298003,
+      "after": 1297303
+    },
+    {
+      "id": "2026-07-06T14:19:34.100Z-ly6753",
+      "timestamp": "2026-07-06T14:19:34.100Z",
+      "day": 23,
+      "timeOfDay": "evening",
+      "reason": "くるみ商店・買う：モグラの爪",
+      "amount": -400,
+      "before": 1297303,
+      "after": 1296903
+    },
+    {
+      "id": "2026-07-06T14:19:34.982Z-duq55v",
+      "timestamp": "2026-07-06T14:19:34.982Z",
+      "day": 23,
+      "timeOfDay": "evening",
+      "reason": "くるみ商店・買う：モグラの爪",
+      "amount": -400,
+      "before": 1296903,
+      "after": 1296503
+    },
+    {
+      "id": "2026-07-06T14:28:37.774Z-iukot4",
+      "timestamp": "2026-07-06T14:28:37.774Z",
+      "day": 24,
+      "timeOfDay": "evening",
+      "reason": "くるみ商店・買う：モグラの爪",
+      "amount": -400,
+      "before": 1296503,
+      "after": 1296103
+    },
+    {
+      "id": "2026-07-06T14:28:38.390Z-au3tu0",
+      "timestamp": "2026-07-06T14:28:38.390Z",
+      "day": 24,
+      "timeOfDay": "evening",
+      "reason": "くるみ商店・買う：モグラの爪",
+      "amount": -400,
+      "before": 1296103,
+      "after": 1295703
+    },
+    {
+      "id": "2026-07-06T14:28:41.554Z-1xgs0l",
+      "timestamp": "2026-07-06T14:28:41.554Z",
+      "day": 24,
+      "timeOfDay": "evening",
+      "reason": "くるみ商店・買う：ウサギの靭帯",
+      "amount": -700,
+      "before": 1295703,
+      "after": 1295003
+    },
+    {
+      "id": "2026-07-06T14:28:42.123Z-ajbbac",
+      "timestamp": "2026-07-06T14:28:42.123Z",
+      "day": 24,
+      "timeOfDay": "evening",
+      "reason": "くるみ商店・買う：ウサギの靭帯",
+      "amount": -700,
+      "before": 1295003,
+      "after": 1294303
+    },
+    {
+      "id": "2026-07-06T14:31:14.623Z-new7d7",
+      "timestamp": "2026-07-06T14:31:14.623Z",
+      "day": 24,
+      "timeOfDay": "night",
+      "reason": "借金・追加返済",
+      "amount": -700000,
+      "before": 1294303,
+      "after": 594303
+    },
+    {
+      "id": "2026-07-06T14:31:59.106Z-u2drwc",
+      "timestamp": "2026-07-06T14:31:59.106Z",
+      "day": 25,
+      "timeOfDay": "morning",
+      "reason": "農場・一括出荷：4種類",
+      "amount": 149928,
+      "before": 594303,
+      "after": 744231
+    },
+    {
+      "id": "2026-07-06T14:32:17.823Z-ycbs22",
+      "timestamp": "2026-07-06T14:32:17.823Z",
+      "day": 25,
+      "timeOfDay": "evening",
+      "reason": "くるみ商店・買う：猪の牙",
+      "amount": -2500,
+      "before": 744231,
+      "after": 741731
+    },
+    {
+      "id": "2026-07-06T14:32:21.293Z-q9o0m1",
+      "timestamp": "2026-07-06T14:32:21.293Z",
+      "day": 25,
+      "timeOfDay": "evening",
+      "reason": "くるみ商店・買う：猪の硬皮",
+      "amount": -4000,
+      "before": 741731,
+      "after": 737731
+    },
+    {
+      "id": "2026-07-06T14:32:24.850Z-6m1wp7",
+      "timestamp": "2026-07-06T14:32:24.850Z",
+      "day": 25,
+      "timeOfDay": "evening",
+      "reason": "くるみ商店・買う：【レシピ】高級つるはし",
+      "amount": -5000,
+      "before": 737731,
+      "after": 732731
+    },
+    {
+      "id": "2026-07-06T14:32:26.189Z-fgoh07",
+      "timestamp": "2026-07-06T14:32:26.189Z",
+      "day": 25,
+      "timeOfDay": "evening",
+      "reason": "くるみ商店・買う：【レシピ】高級のこぎり",
+      "amount": -5000,
+      "before": 732731,
+      "after": 727731
+    },
+    {
+      "id": "2026-07-06T14:32:30.853Z-6s23r9",
+      "timestamp": "2026-07-06T14:32:30.853Z",
+      "day": 25,
+      "timeOfDay": "evening",
+      "reason": "くるみ商店・買う：【レシピ】獣殺し",
+      "amount": -4500,
+      "before": 727731,
+      "after": 723231
+    },
+    {
+      "id": "2026-07-06T14:32:37.508Z-w7fkm3",
+      "timestamp": "2026-07-06T14:32:37.508Z",
+      "day": 25,
+      "timeOfDay": "evening",
+      "reason": "くるみ商店・買う：右畑の開墾",
+      "amount": -500000,
+      "before": 723231,
+      "after": 223231
+    },
+    {
+      "id": "2026-07-06T14:32:51.702Z-6559pn",
+      "timestamp": "2026-07-06T14:32:51.702Z",
+      "day": 25,
+      "timeOfDay": "evening",
+      "reason": "くるみ商店・買う：【レシピ】高級釣竿",
+      "amount": -6000,
+      "before": 223231,
+      "after": 217231
+    },
+    {
+      "id": "2026-07-06T14:33:13.305Z-uhhtqx",
+      "timestamp": "2026-07-06T14:33:13.305Z",
+      "day": 25,
+      "timeOfDay": "evening",
+      "reason": "農場・一括出荷：2種類",
+      "amount": 40084,
+      "before": 217231,
+      "after": 257315
+    },
+    {
+      "id": "2026-07-06T14:35:30.796Z-4xyobl",
+      "timestamp": "2026-07-06T14:35:30.796Z",
+      "day": 26,
+      "timeOfDay": "morning",
+      "reason": "農場・一括出荷：1種類",
+      "amount": 97968,
+      "before": 257315,
+      "after": 355283
+    },
+    {
+      "id": "2026-07-06T14:35:59.412Z-zpqro6",
+      "timestamp": "2026-07-06T14:35:59.412Z",
+      "day": 26,
+      "timeOfDay": "night",
+      "reason": "農場・一括出荷：3種類",
+      "amount": 84616,
+      "before": 355283,
+      "after": 439899
+    },
+    {
+      "id": "2026-07-06T14:36:41.861Z-gumxkr",
+      "timestamp": "2026-07-06T14:36:41.861Z",
+      "day": 26,
+      "timeOfDay": "night",
+      "reason": "農場・一括出荷：1種類",
+      "amount": 16720,
+      "before": 439899,
+      "after": 456619
+    },
+    {
+      "id": "2026-07-06T14:37:09.824Z-1wae8f",
+      "timestamp": "2026-07-06T14:37:09.824Z",
+      "day": 27,
+      "timeOfDay": "morning",
+      "reason": "くるみ商店・買う：モグラの爪",
+      "amount": -400,
+      "before": 456619,
+      "after": 456219
+    },
+    {
+      "id": "2026-07-06T14:37:10.378Z-o8iqze",
+      "timestamp": "2026-07-06T14:37:10.378Z",
+      "day": 27,
+      "timeOfDay": "morning",
+      "reason": "くるみ商店・買う：モグラの爪",
+      "amount": -400,
+      "before": 456219,
+      "after": 455819
+    },
+    {
+      "id": "2026-07-06T14:37:13.363Z-pktgdf",
+      "timestamp": "2026-07-06T14:37:13.363Z",
+      "day": 27,
+      "timeOfDay": "morning",
+      "reason": "くるみ商店・買う：ウサギの靭帯",
+      "amount": -700,
+      "before": 455819,
+      "after": 455119
+    },
+    {
+      "id": "2026-07-06T14:37:13.754Z-67v0sk",
+      "timestamp": "2026-07-06T14:37:13.754Z",
+      "day": 27,
+      "timeOfDay": "morning",
+      "reason": "くるみ商店・買う：ウサギの靭帯",
+      "amount": -700,
+      "before": 455119,
+      "after": 454419
+    },
+    {
+      "id": "2026-07-06T14:37:17.326Z-0mbnfg",
+      "timestamp": "2026-07-06T14:37:17.326Z",
+      "day": 27,
+      "timeOfDay": "morning",
+      "reason": "くるみ商店・買う：猪の牙",
+      "amount": -2500,
+      "before": 454419,
+      "after": 451919
+    },
+    {
+      "id": "2026-07-06T14:37:20.702Z-jgetfo",
+      "timestamp": "2026-07-06T14:37:20.702Z",
+      "day": 27,
+      "timeOfDay": "morning",
+      "reason": "くるみ商店・買う：猪の硬皮",
+      "amount": -4000,
+      "before": 451919,
+      "after": 447919
+    },
+    {
+      "id": "2026-07-06T14:37:25.777Z-hh2u9t",
+      "timestamp": "2026-07-06T14:37:25.777Z",
+      "day": 27,
+      "timeOfDay": "morning",
+      "reason": "くるみ商店・買う：にんじんの苗娘",
+      "amount": -180000,
+      "before": 447919,
+      "after": 267919
+    },
+    {
+      "id": "2026-07-06T14:38:02.878Z-ktiyk4",
+      "timestamp": "2026-07-06T14:38:02.878Z",
+      "day": 27,
+      "timeOfDay": "night",
+      "reason": "農場・一括出荷：4種類",
+      "amount": 154772,
+      "before": 267919,
+      "after": 422691
+    },
+    {
+      "id": "2026-07-06T14:39:09.487Z-u7sez7",
+      "timestamp": "2026-07-06T14:39:09.487Z",
+      "day": 28,
+      "timeOfDay": "day",
+      "reason": "農場・一括出荷：5種類",
+      "amount": 154634,
+      "before": 422691,
+      "after": 577325
+    },
+    {
+      "id": "2026-07-06T15:02:03.276Z-l9uuwq",
+      "timestamp": "2026-07-06T15:02:03.276Z",
+      "day": 29,
+      "timeOfDay": "morning",
+      "reason": "農場・一括出荷：1種類",
+      "amount": 97968,
+      "before": 577325,
+      "after": 675293
+    },
+    {
+      "id": "2026-07-06T15:02:45.498Z-7lduo2",
+      "timestamp": "2026-07-06T15:02:45.498Z",
+      "day": 29,
+      "timeOfDay": "night",
+      "reason": "農場・一括出荷：6種類",
+      "amount": 146795,
+      "before": 675293,
+      "after": 822088
+    },
+    {
+      "id": "2026-07-06T15:03:56.730Z-dnvhmx",
+      "timestamp": "2026-07-06T15:03:56.730Z",
+      "day": 30,
+      "timeOfDay": "night",
+      "reason": "農場・一括出荷：6種類",
+      "amount": 206203,
+      "before": 822088,
+      "after": 1028291
+    },
+    {
+      "id": "2026-07-06T15:04:16.765Z-o6pap3",
+      "timestamp": "2026-07-06T15:04:16.765Z",
+      "day": 31,
+      "timeOfDay": "morning",
+      "reason": "くるみ商店・買う：モグラの爪",
+      "amount": -400,
+      "before": 1028291,
+      "after": 1027891
+    },
+    {
+      "id": "2026-07-06T15:04:17.246Z-evfcbu",
+      "timestamp": "2026-07-06T15:04:17.246Z",
+      "day": 31,
+      "timeOfDay": "morning",
+      "reason": "くるみ商店・買う：モグラの爪",
+      "amount": -400,
+      "before": 1027891,
+      "after": 1027491
+    },
+    {
+      "id": "2026-07-06T15:04:19.855Z-1jrqfe",
+      "timestamp": "2026-07-06T15:04:19.855Z",
+      "day": 31,
+      "timeOfDay": "morning",
+      "reason": "くるみ商店・買う：ウサギの靭帯",
+      "amount": -700,
+      "before": 1027491,
+      "after": 1026791
+    },
+    {
+      "id": "2026-07-06T15:04:20.424Z-yynrea",
+      "timestamp": "2026-07-06T15:04:20.424Z",
+      "day": 31,
+      "timeOfDay": "morning",
+      "reason": "くるみ商店・買う：ウサギの靭帯",
+      "amount": -700,
+      "before": 1026791,
+      "after": 1026091
+    },
+    {
+      "id": "2026-07-06T15:04:21.638Z-6l0i8r",
+      "timestamp": "2026-07-06T15:04:21.638Z",
+      "day": 31,
+      "timeOfDay": "morning",
+      "reason": "くるみ商店・買う：猪の牙",
+      "amount": -2500,
+      "before": 1026091,
+      "after": 1023591
+    },
+    {
+      "id": "2026-07-06T15:04:22.379Z-br908w",
+      "timestamp": "2026-07-06T15:04:22.379Z",
+      "day": 31,
+      "timeOfDay": "morning",
+      "reason": "くるみ商店・買う：猪の硬皮",
+      "amount": -4000,
+      "before": 1023591,
+      "after": 1019591
+    },
+    {
+      "id": "2026-07-06T15:06:18.461Z-g6hjgl",
+      "timestamp": "2026-07-06T15:06:18.461Z",
+      "day": 32,
+      "timeOfDay": "morning",
+      "reason": "くるみ商店・買う：モグラの爪",
+      "amount": -400,
+      "before": 1019591,
+      "after": 1019191
+    },
+    {
+      "id": "2026-07-06T15:06:19.268Z-zhgdl0",
+      "timestamp": "2026-07-06T15:06:19.268Z",
+      "day": 32,
+      "timeOfDay": "morning",
+      "reason": "くるみ商店・買う：モグラの爪",
+      "amount": -400,
+      "before": 1019191,
+      "after": 1018791
+    },
+    {
+      "id": "2026-07-06T15:06:19.853Z-ks1zof",
+      "timestamp": "2026-07-06T15:06:19.853Z",
+      "day": 32,
+      "timeOfDay": "morning",
+      "reason": "くるみ商店・買う：ウサギの靭帯",
+      "amount": -700,
+      "before": 1018791,
+      "after": 1018091
+    },
+    {
+      "id": "2026-07-06T15:06:20.430Z-ctkx7x",
+      "timestamp": "2026-07-06T15:06:20.430Z",
+      "day": 32,
+      "timeOfDay": "morning",
+      "reason": "くるみ商店・買う：ウサギの靭帯",
+      "amount": -700,
+      "before": 1018091,
+      "after": 1017391
+    },
+    {
+      "id": "2026-07-06T15:06:21.522Z-8ew742",
+      "timestamp": "2026-07-06T15:06:21.522Z",
+      "day": 32,
+      "timeOfDay": "morning",
+      "reason": "くるみ商店・買う：猪の牙",
+      "amount": -2500,
+      "before": 1017391,
+      "after": 1014891
+    },
+    {
+      "id": "2026-07-06T15:06:22.213Z-ftha76",
+      "timestamp": "2026-07-06T15:06:22.213Z",
+      "day": 32,
+      "timeOfDay": "morning",
+      "reason": "くるみ商店・買う：猪の硬皮",
+      "amount": -4000,
+      "before": 1014891,
+      "after": 1010891
+    },
+    {
+      "id": "2026-07-06T15:13:35.728Z-mvlolf",
+      "timestamp": "2026-07-06T15:13:35.728Z",
+      "day": 32,
+      "timeOfDay": "day",
+      "reason": "農場・一括出荷：7種類",
+      "amount": 420043,
+      "before": 1010891,
+      "after": 1430934
+    },
+    {
+      "id": "2026-07-06T15:14:47.168Z-oaobt9",
+      "timestamp": "2026-07-06T15:14:47.168Z",
+      "day": 32,
+      "timeOfDay": "night",
+      "reason": "借金・追加返済",
+      "amount": -923200,
+      "before": 1430934,
+      "after": 507734
+    },
+    {
+      "id": "2026-07-06T15:17:17.287Z-w0vbps",
+      "timestamp": "2026-07-06T15:17:17.287Z",
+      "day": 34,
+      "timeOfDay": "morning",
+      "reason": "くるみ商店・買う：モグラの爪",
+      "amount": -400,
+      "before": 507734,
+      "after": 507334
+    },
+    {
+      "id": "2026-07-06T15:17:17.690Z-sfyhi9",
+      "timestamp": "2026-07-06T15:17:17.690Z",
+      "day": 34,
+      "timeOfDay": "morning",
+      "reason": "くるみ商店・買う：モグラの爪",
+      "amount": -400,
+      "before": 507334,
+      "after": 506934
+    },
+    {
+      "id": "2026-07-06T15:17:18.336Z-e6o5p2",
+      "timestamp": "2026-07-06T15:17:18.336Z",
+      "day": 34,
+      "timeOfDay": "morning",
+      "reason": "くるみ商店・買う：ウサギの靭帯",
+      "amount": -700,
+      "before": 506934,
+      "after": 506234
+    },
+    {
+      "id": "2026-07-06T15:17:18.893Z-2f59s1",
+      "timestamp": "2026-07-06T15:17:18.893Z",
+      "day": 34,
+      "timeOfDay": "morning",
+      "reason": "くるみ商店・買う：ウサギの靭帯",
+      "amount": -700,
+      "before": 506234,
+      "after": 505534
+    },
+    {
+      "id": "2026-07-06T15:17:19.686Z-uti8qv",
+      "timestamp": "2026-07-06T15:17:19.686Z",
+      "day": 34,
+      "timeOfDay": "morning",
+      "reason": "くるみ商店・買う：猪の牙",
+      "amount": -2500,
+      "before": 505534,
+      "after": 503034
+    },
+    {
+      "id": "2026-07-06T15:17:20.136Z-y1ixsp",
+      "timestamp": "2026-07-06T15:17:20.136Z",
+      "day": 34,
+      "timeOfDay": "morning",
+      "reason": "くるみ商店・買う：猪の硬皮",
+      "amount": -4000,
+      "before": 503034,
+      "after": 499034
+    },
+    {
+      "id": "2026-07-06T15:17:21.472Z-3g5z2s",
+      "timestamp": "2026-07-06T15:17:21.472Z",
+      "day": 34,
+      "timeOfDay": "morning",
+      "reason": "くるみ商店・買う：【レシピ】剛牙の鎧",
+      "amount": -5500,
+      "before": 499034,
+      "after": 493534
+    },
+    {
+      "id": "2026-07-06T15:18:42.269Z-e5lri8",
+      "timestamp": "2026-07-06T15:18:42.269Z",
+      "day": 34,
+      "timeOfDay": "night",
+      "reason": "農場・一括出荷：7種類",
+      "amount": 322495,
+      "before": 493534,
+      "after": 816029
     }
   ],
   "gameMode": "story",
@@ -189,42 +879,62 @@
   "collectionProgress": {
     "collectedGirlIds": [],
     "caughtFishIds": [
-      "eda",
-      "gomu"
+      "eda"
     ],
     "craftedItemIds": [],
     "unlockedEventIds": [
       "seed_offer_eggplant",
-      "seed_offer_shiitake",
-      "seed_offer_pumpkin",
       "video_care_caress",
       "video_care_finger",
+      "seed_offer_shiitake",
       "video_care_fertilize",
       "bulk_farm_care_unlocked",
       "bulk_shipping_unlocked",
       "bulk_harvest_unlocked",
+      "seed_offer_pumpkin",
       "girl_equipment_unlocked_chibiichi",
       "girl_equipment_unlocked_ruby",
+      "seed_offer_grape",
       "girl_equipment_tutorial_completed",
       "girl_equipment_unlocked_mel",
-      "seed_offer_grape",
       "chibiichi_trust_50",
       "ruby_trust_50",
+      "mel_trust_50",
+      "trust100_sp_reward_chibiichi",
+      "chibiichi_trust_100",
+      "trust100_sp_reward_ruby",
+      "ruby_trust_100",
+      "girl_equipment_unlocked_viola",
+      "skill_tree_tutorial_seen",
+      "trust100_sp_reward_mel",
+      "mel_trust_100",
+      "viola_trust_50",
       "kurumi_pantsu_gate_notice_seen",
-      "mel_trust_50"
+      "video_kurumi_sleep_2",
+      "seed_offer_turnip",
+      "seed_offer_carrot",
+      "ntr_kabune_giant_bear__1",
+      "girl_equipment_unlocked_cure",
+      "girl_equipment_unlocked_kabune",
+      "girl_equipment_unlocked_caro",
+      "ntr_kabune_mountain_lord"
     ],
     "viewedEventIds": [
       "chibiichi_trust_50",
       "mel_trust_50",
-      "ruby_trust_50"
+      "ruby_trust_50",
+      "chibiichi_trust_100",
+      "ruby_trust_100",
+      "mel_trust_100",
+      "viola_trust_50"
     ],
     "defeatedBeastIds": []
   },
   "achievementStats": {
-    "totalFishCaught": 3,
-    "totalCraftSuccesses": 2,
+    "totalFishCaught": 1,
+    "totalCraftSuccesses": 3,
     "totalNushiCaught": 0,
-    "totalRareOresMined": 0,
+    "totalRareOresMined": 2,
     "totalRareLumbersCut": 0
   },
   "fishingMasterRewardClaimed": false,
@@ -239,30 +949,39 @@
     "totalTrustEventsUnlocked": 0,
     "totalMoneyEarned": 0
   },
-  "debt": 3000000,
-  "debtAmount": 3000000,
+  "debt": 8600000,
+  "debtAmount": 8600000,
   "shownDebtMilestoneIds": [],
-  "shownMarketForecastCycleIndexes": [],
-  "marketCycleIndex": 0,
-  "marketBoomCategory": "魚",
-  "marketSlumpCategory": null,
+  "shownMarketForecastCycleIndexes": [
+    1,
+    2
+  ],
+  "marketCycleIndex": 2,
+  "marketBoomCategory": "獣素材",
+  "marketSlumpCategory": "魚",
   "repaymentCycleDays": 8,
   "storyCleared": false,
-  "farmCredit": 0,
-  "successfulRepaymentCount": 0,
+  "farmCredit": 16,
+  "successfulRepaymentCount": 2,
   "missedRepaymentCount": 0,
-  "heroLevel": 1,
+  "heroLevel": 2,
   "heroSP": 0,
   "debugGirlAffinities": {},
-  "unlockedHeroSkills": [],
+  "unlockedHeroSkills": [
+    "farm_seedling_care",
+    "farm_quality_eye",
+    "gather_fishing_rare_up",
+    "gather_mining_rare_up",
+    "farm_caress"
+  ],
   "hasBeastPremonition": false,
   "premonitionDay": null,
   "scheduledBeastAttackDay": null,
   "mountainLordAttackPending": false,
   "beastAttackPending": false,
   "companionGirlId": null,
-  "currentWeeklyInterestRate": 2,
-  "interestRateCycleIndex": 0,
+  "currentWeeklyInterestRate": 1.6,
+  "interestRateCycleIndex": 2,
   "farmGirls": [
     {
       "girlId": "chibiichi",
@@ -271,14 +990,15 @@
       "plantedDay": 1,
       "growthProgress": 2,
       "quality": 100,
-      "careDay": 13,
-      "caressCount": 1,
+      "careDay": 34,
+      "caressCount": 2,
       "fingerCount": 1,
       "fertilizeCount": 1,
-      "lastHarvestDay": 13,
-      "trust": 88,
+      "lastHarvestDay": 34,
+      "trust": 100,
       "unlockedTrustEventIds": [
-        "chibiichi_trust_50"
+        "chibiichi_trust_50",
+        "chibiichi_trust_100"
       ],
       "condition": "normal",
       "conditionDay": null,
@@ -292,14 +1012,15 @@
       "plantedDay": 1,
       "growthProgress": 3,
       "quality": 100,
-      "careDay": 13,
-      "caressCount": 1,
+      "careDay": 34,
+      "caressCount": 2,
       "fingerCount": 1,
       "fertilizeCount": 1,
-      "lastHarvestDay": 12,
-      "trust": 56,
+      "lastHarvestDay": 33,
+      "trust": 100,
       "unlockedTrustEventIds": [
-        "mel_trust_50"
+        "mel_trust_50",
+        "mel_trust_100"
       ],
       "condition": "normal",
       "conditionDay": null,
@@ -313,14 +1034,15 @@
       "plantedDay": 1,
       "growthProgress": 2,
       "quality": 100,
-      "careDay": 13,
-      "caressCount": 1,
+      "careDay": 34,
+      "caressCount": 2,
       "fingerCount": 1,
       "fertilizeCount": 1,
-      "lastHarvestDay": 13,
-      "trust": 88,
+      "lastHarvestDay": 34,
+      "trust": 100,
       "unlockedTrustEventIds": [
-        "ruby_trust_50"
+        "ruby_trust_50",
+        "ruby_trust_100"
       ],
       "condition": "normal",
       "conditionDay": null,
@@ -334,13 +1056,15 @@
       "plantedDay": 8,
       "growthProgress": 4,
       "quality": 100,
-      "careDay": 13,
+      "careDay": 34,
       "caressCount": 1,
       "fingerCount": 1,
       "fertilizeCount": 1,
-      "lastHarvestDay": 12,
-      "trust": 18,
-      "unlockedTrustEventIds": [],
+      "lastHarvestDay": 32,
+      "trust": 96,
+      "unlockedTrustEventIds": [
+        "viola_trust_50"
+      ],
       "condition": "normal",
       "conditionDay": null,
       "conditionSource": null,
@@ -367,17 +1091,17 @@
     },
     {
       "girlId": "kabune",
-      "state": "none",
-      "cardRevealed": false,
-      "plantedDay": null,
-      "growthProgress": 0,
-      "quality": 0,
-      "careDay": null,
-      "caressCount": 0,
+      "state": "appeared",
+      "cardRevealed": true,
+      "plantedDay": 25,
+      "growthProgress": 2,
+      "quality": 100,
+      "careDay": 34,
+      "caressCount": 1,
       "fingerCount": 0,
-      "fertilizeCount": 0,
-      "lastHarvestDay": null,
-      "trust": 0,
+      "fertilizeCount": 1,
+      "lastHarvestDay": 34,
+      "trust": 29,
       "unlockedTrustEventIds": [],
       "condition": "normal",
       "conditionDay": null,
@@ -386,17 +1110,17 @@
     },
     {
       "girlId": "caro",
-      "state": "none",
-      "cardRevealed": false,
-      "plantedDay": null,
-      "growthProgress": 0,
-      "quality": 0,
-      "careDay": null,
+      "state": "appeared",
+      "cardRevealed": true,
+      "plantedDay": 27,
+      "growthProgress": 3,
+      "quality": 63,
+      "careDay": 34,
       "caressCount": 0,
       "fingerCount": 0,
-      "fertilizeCount": 0,
-      "lastHarvestDay": null,
-      "trust": 0,
+      "fertilizeCount": 1,
+      "lastHarvestDay": 34,
+      "trust": 35,
       "unlockedTrustEventIds": [],
       "condition": "normal",
       "conditionDay": null,
@@ -424,17 +1148,17 @@
     },
     {
       "girlId": "cure",
-      "state": "none",
-      "cardRevealed": false,
-      "plantedDay": null,
-      "growthProgress": 0,
-      "quality": 0,
-      "careDay": null,
+      "state": "appeared",
+      "cardRevealed": true,
+      "plantedDay": 25,
+      "growthProgress": 3,
+      "quality": 71,
+      "careDay": 34,
       "caressCount": 0,
       "fingerCount": 0,
-      "fertilizeCount": 0,
-      "lastHarvestDay": null,
-      "trust": 0,
+      "fertilizeCount": 1,
+      "lastHarvestDay": 34,
+      "trust": 40,
       "unlockedTrustEventIds": [],
       "condition": "normal",
       "conditionDay": null,
@@ -562,16 +1286,19 @@
     "ichigo",
     "melon",
     "tomato",
-    "grape"
+    "grape",
+    "turnip",
+    "cucumber",
+    "carrot"
   ],
   "hasReceivedKurumiStarterSeeds": true,
   "hasKurumiNotebook": true,
   "hasSeenTrust20CompanionTutorial": true,
-  "kurumiTradeTotal": 668861,
+  "kurumiTradeTotal": 4190029,
   "shownKurumiTradeRewardThresholds": [
-    50000,
     5000,
-    200000
+    200000,
+    50000
   ],
   "kurumiPantsReturned": false,
   "kurumiTentFinalAvailableDay": null,
@@ -583,30 +1310,30 @@
     {
       "fieldId": "left",
       "slotIndex": 1,
-      "girlId": null,
-      "state": "none",
-      "plantedDay": null
+      "girlId": "kabune",
+      "state": "appeared",
+      "plantedDay": 25
     },
     {
       "fieldId": "left",
       "slotIndex": 2,
-      "girlId": "chibiichi",
-      "state": "appeared",
-      "plantedDay": 1
-    },
-    {
-      "fieldId": "left",
-      "slotIndex": 3,
       "girlId": "mel",
       "state": "appeared",
       "plantedDay": 1
     },
     {
       "fieldId": "left",
+      "slotIndex": 3,
+      "girlId": "chibiichi",
+      "state": "appeared",
+      "plantedDay": 1
+    },
+    {
+      "fieldId": "left",
       "slotIndex": 4,
-      "girlId": null,
-      "state": "none",
-      "plantedDay": null
+      "girlId": "cure",
+      "state": "appeared",
+      "plantedDay": 25
     },
     {
       "fieldId": "left",
@@ -621,12 +1348,40 @@
       "girlId": "ruby",
       "state": "appeared",
       "plantedDay": 1
+    },
+    {
+      "fieldId": "right",
+      "slotIndex": 1,
+      "girlId": "caro",
+      "state": "appeared",
+      "plantedDay": 27
+    },
+    {
+      "fieldId": "right",
+      "slotIndex": 2,
+      "girlId": null,
+      "state": "none",
+      "plantedDay": null
+    },
+    {
+      "fieldId": "right",
+      "slotIndex": 3,
+      "girlId": null,
+      "state": "none",
+      "plantedDay": null
+    },
+    {
+      "fieldId": "right",
+      "slotIndex": 4,
+      "girlId": null,
+      "state": "none",
+      "plantedDay": null
     }
   ],
-  "currentAP": 3,
+  "currentAP": 0,
   "maxAPPerTimeSlot": 5,
-  "difficulty": "normal",
-  "currentMap": "house",
+  "difficulty": "hard",
+  "currentMap": "farm",
   "zones": [
     {
       "id": "1781485855659",
@@ -682,6 +1437,17 @@
       "map": "farm",
       "spriteW": 34.06967213114763,
       "spriteH": 33.44262295081967
+    },
+    {
+      "id": "1781518614931",
+      "x": 795.8483606557377,
+      "y": 586.6352459016393,
+      "w": 34.35655737704917,
+      "h": 30.959016393442653,
+      "type": "iwana",
+      "map": "waterfall",
+      "spriteW": 34.35655737704917,
+      "spriteH": 30.959016393442653
     },
     {
       "id": "1781518623466",
@@ -45551,38 +46317,51 @@
   },
   "inventoryCounts": {
     "農神の指輪": 1,
-    "天の裁き（デバッグ用）": 1,
-    "神域の加護（デバッグ用）": 1,
     "いやし草もち（デバッグ用）": 1,
     "生命ミルク（デバッグ用）": 1,
     "女神の蜜薬（デバッグ用）": 1,
     "めざめの鈴（デバッグ用）": 1,
     "生命の種火（デバッグ用）": 1,
     "天命の雫（デバッグ用）": 1,
-    "枝": 2,
+    "天の裁き（デバッグ用）": 1,
+    "神域の加護（デバッグ用）": 1,
+    "枝": 1,
     "竹の釣竿": 1,
     "【レシピ】のこぎり": 1,
-    "モグラの爪": 2,
-    "ウサギの靭帯": 2,
-    "軟らかい銅鉱石": 2,
-    "柔らかな若枝": 3,
+    "モグラの爪": 10,
+    "ウサギの靭帯": 12,
+    "軟らかい銅鉱石": 3,
+    "柔らかな若枝": 1,
     "のこぎり": 1,
     "【レシピ】つるはし": 1,
     "泥混じりの鉄鉱石": 1,
     "つるはし": 1,
-    "ルビーのトマト": 0,
-    "ちびいちのいちご": 0,
-    "使用済みコンドーム": 1,
-    "メルのメロン": 0,
-    "木材": 1,
     "【レシピ】丈夫なつるはし": 1,
+    "ちびいちのいちご": 0,
+    "ルビーのトマト": 0,
+    "メルのメロン": 0,
     "【レシピ】丈夫なのこぎり": 1,
-    "ヴィオラのブドウ": 0
+    "ヴィオラのブドウ": 0,
+    "木材": 2,
+    "脆い鉛鉱石": 5,
+    "軽石炭": 2,
+    "丈夫なつるはし": 1,
+    "銀鉱石": 2,
+    "猪の牙": 5,
+    "猪の硬皮": 5,
+    "【レシピ】高級つるはし": 1,
+    "【レシピ】高級のこぎり": 1,
+    "【レシピ】獣殺し": 1,
+    "【レシピ】高級釣竿": 1,
+    "かぶねのかぶ": 0,
+    "キュアのきゅうり": 0,
+    "キャロのにんじん": 0,
+    "【レシピ】剛牙の鎧": 1
   },
   "equippedItems": {
     "主人公-slot1": "竹の釣竿",
     "主人公-slot2": "のこぎり",
-    "主人公-slot3": "つるはし",
+    "主人公-slot3": "丈夫なつるはし",
     "主人公-slot4": "神域の加護（デバッグ用）",
     "ちびいち-slot1": "",
     "ちびいち-slot2": ""
@@ -45597,7 +46376,7 @@
           "attack": 2,
           "hp": 4
         },
-        "equipQuality": "perfect"
+        "equipQuality": "normal"
       },
       {
         "girlId": "chibiichi",
@@ -45629,7 +46408,7 @@
           "defense": 2,
           "hp": 4
         },
-        "equipQuality": "normal"
+        "equipQuality": "perfect"
       }
     ],
     "ruby": [
@@ -45658,16 +46437,22 @@
       {
         "girlId": "viola",
         "slotIndex": 1,
-        "equippedItemId": null,
-        "bonusStats": {},
-        "equipQuality": "none"
+        "equippedItemId": "ヴィオラのブドウ",
+        "bonusStats": {
+          "attack": 2,
+          "hp": 4
+        },
+        "equipQuality": "perfect"
       },
       {
         "girlId": "viola",
         "slotIndex": 2,
-        "equippedItemId": null,
-        "bonusStats": {},
-        "equipQuality": "none"
+        "equippedItemId": "ヴィオラのブドウ",
+        "bonusStats": {
+          "defense": 2,
+          "hp": 4
+        },
+        "equipQuality": "good"
       }
     ],
     "nazuna": [
@@ -45848,30 +46633,53 @@
     ]
   },
   "caughtFishIds": [
-    "eda",
-    "gomu"
+    "eda"
   ],
   "nushiCaughtFishIds": [],
   "fishBestSizes": {
-    "eda": 13.4,
-    "gomu": 12.1
+    "eda": 11.7
   },
   "fishInventorySizes": {
-    "枝": [],
-    "使用済みコンドーム": []
+    "枝": [
+      11.7
+    ]
   },
   "lumberInventorySizes": {
     "柔らかな若枝": [
-      28.9,
-      41,
-      15
+      24.6,
+      36.2,
+      14,
+      42.2,
+      39.3,
+      11.7
     ]
   },
   "oreInventoryWeights": {
-    "泥混じりの鉄鉱石": [],
     "軟らかい銅鉱石": [
-      904,
-      1045
+      1306,
+      1092,
+      1614
+    ],
+    "泥混じりの鉄鉱石": [
+      1276,
+      1718,
+      2065,
+      1435
+    ],
+    "脆い鉛鉱石": [
+      792,
+      959,
+      901,
+      1676,
+      2336
+    ],
+    "軽石炭": [
+      1028,
+      470
+    ],
+    "銀鉱石": [
+      2347,
+      3005
     ]
   },
   "depletedMiningPointIds": {},
@@ -45884,7 +46692,8 @@
   "miningTutorialCompleted": true,
   "craftedRecipeIds": [
     "【レシピ】つるはし",
-    "【レシピ】のこぎり"
+    "【レシピ】のこぎり",
+    "【レシピ】丈夫なつるはし"
   ],
   "gatheringTutorialCompleted": true,
   "gatheringTutorialChoice": "mining",

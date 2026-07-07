@@ -9,6 +9,12 @@ import AnimationLayer from './AnimationLayer';
 import DebugPanel from './DebugPanel';
 import MapEditorPanel from './MapEditorPanel';
 import {
+  createPlayerPositionStore,
+  usePlayerPosition,
+  type PlayerPosition,
+  type PlayerPositionStore,
+} from './playerPositionStore';
+import {
   AUDIO_FILE_ENTRIES,
   BATH_CHANGE_SOUND_SRC,
   BATH_SPLASH_SOUND_SRC,
@@ -3191,9 +3197,10 @@ const SKILL_TREE_TUTORIAL_STEPS: (DebugDialogueStep & { id: SkillTreeTutorialSte
 ];
 const BEAST_PREMONITION_RATE_BY_DIFFICULTY: Readonly<Record<GameDifficulty, number>> = {
   easy: 0.18,
-  normal: 0.20,
-  hard: 0.25,
+  normal: 0.15,
+  hard: 0.20,
 };
+const BEAST_PREMONITION_SEEN_EVENT_ID = 'beast_premonition_seen';
 const MOUNTAIN_LORD_ATTACK_RATE = 0.20;
 const getScheduledBeastAttackDay = (difficulty: GameDifficulty, currentDay: number) => (
   difficulty === 'easy'
@@ -3253,11 +3260,39 @@ const createRandomBeastUnits = (difficulty: GameDifficulty, allowMountainLord = 
   }
   return [...beasts, ...Array.from({ length: Math.max(0, 3 - beasts.length) }, () => null)];
 };
-const createStoryBeastUnits = (difficulty: GameDifficulty, heroLevel: number): (BattleUnitState | null)[] => {
+const createHardStoryBeastUnits = (currentDay: number, heroLevel: number): (BattleUnitState | null)[] => {
+  const findBeast = (beastId: BeastId) => BEAST_BATTLE_DATA.find(beast => beast.id === beastId);
+  const createUnits = (beastIds: BeastId[]) => {
+    const beasts = beastIds
+      .map(beastId => findBeast(beastId))
+      .filter((beast): beast is (typeof BEAST_BATTLE_DATA)[number] => Boolean(beast))
+      .map((beast, index) => createBattleUnitFromBeast(beast, index));
+    return [...beasts, ...Array.from({ length: Math.max(0, 3 - beasts.length) }, () => null)];
+  };
+
+  if (currentDay <= 20 || heroLevel <= 2) {
+    return Math.random() < 0.5
+      ? createUnits(['bear'])
+      : createUnits(['boar', 'great_fang_beast']);
+  }
+
+  if (currentDay <= 35 || heroLevel <= 3) {
+    return Math.random() < 0.55
+      ? createUnits(['giant_bear'])
+      : createUnits(['great_fang_beast', 'bear']);
+  }
+
+  if (Math.random() < 0.15) return createUnits(['giant_bear', 'giant_bear', 'giant_bear']);
+  return Math.random() < 0.55
+    ? createUnits(['giant_bear', 'giant_bear'])
+    : createUnits(['giant_bear', 'great_fang_beast']);
+};
+const createStoryBeastUnits = (difficulty: GameDifficulty, heroLevel: number, currentDay: number): (BattleUnitState | null)[] => {
   if (difficulty === 'normal' && heroLevel >= 4 && Math.random() < 0.25) {
     const giantBear = BEAST_BATTLE_DATA.find(beast => beast.id === 'giant_bear');
     if (giantBear) return [createBattleUnitFromBeast(giantBear), null, null];
   }
+  if (difficulty === 'hard') return createHardStoryBeastUnits(currentDay, heroLevel);
   return createRandomBeastUnits(difficulty, false);
 };
 const createMountainLordUnit = (): (BattleUnitState | null)[] => {
@@ -3743,8 +3778,54 @@ const loadFishingFanConfigs = (): Record<string, FishingFanConfig> => {
   }
 };
 
+type LivePositionedMapProps = React.HTMLAttributes<HTMLDivElement> & {
+  positionStore: PlayerPositionStore;
+  effectiveMapZoom: MapZoom;
+};
+
+const LivePositionedMap = ({ positionStore, effectiveMapZoom, style, ...props }: LivePositionedMapProps) => {
+  const livePosition = usePlayerPosition(positionStore);
+  const cameraOffsetX = effectiveMapZoom === 1
+    ? 0
+    : clampNumber(GAME_WIDTH / 2 - livePosition.x * effectiveMapZoom, GAME_WIDTH - GAME_WIDTH * effectiveMapZoom, 0);
+  const cameraOffsetY = effectiveMapZoom === 1
+    ? 0
+    : clampNumber(GAME_HEIGHT / 2 - livePosition.y * effectiveMapZoom, GAME_HEIGHT - GAME_HEIGHT * effectiveMapZoom, 0);
+
+  return (
+    <div
+      {...props}
+      style={{
+        ...style,
+        transform: `matrix(${effectiveMapZoom}, 0, 0, ${effectiveMapZoom}, ${cameraOffsetX}, ${cameraOffsetY})`,
+        transition: 'none',
+      }}
+    />
+  );
+};
+
+type LivePlayerCharacterProps = Omit<React.ComponentProps<typeof Character>, 'x' | 'y' | 'isHidden'> & {
+  positionStore: PlayerPositionStore;
+  isHiddenAt: (position: PlayerPosition) => boolean;
+};
+
+const LivePlayerCharacter = ({ positionStore, isHiddenAt, ...props }: LivePlayerCharacterProps) => {
+  const livePosition = usePlayerPosition(positionStore);
+  return (
+    <Character
+      {...props}
+      x={livePosition.x}
+      y={livePosition.y}
+      isHidden={isHiddenAt(livePosition)}
+    />
+  );
+};
+
 export default function App() {
-  const [pos, setPos] = useState({ x: 960, y: 540 }); // 起動（リセット）時は常にマップ中央からスタート
+  const initialPlayerPosition = useRef<PlayerPosition>({ x: 960, y: 540 });
+  const [pos, setCommittedPos] = useState<PlayerPosition>(initialPlayerPosition.current); // 位置依存UI用。毎フレームの描画は専用ストアに分離する。
+  const playerPositionStoreRef = useRef(createPlayerPositionStore(initialPlayerPosition.current));
+  const playerPositionStore = playerPositionStoreRef.current;
   const [dir, setDir] = useState<'up' | 'down' | 'left' | 'right'>('down');
   // 同行娘は主人公の少し前の足跡をたどる。旋回時も横へワープせず、後ろを自然に追従する。
   const [companionFollow, setCompanionFollow] = useState({ x: 960, y: 540, direction: 'down' as const, isWalking: false });
@@ -3759,7 +3840,15 @@ export default function App() {
   const [scale, setScale] = useState(1);
   const keys = useRef<{ [key: string]: boolean }>({});
   const posRef = useRef(pos);
-  useEffect(() => { posRef.current = pos; }, [pos]);
+  const commitPlayerPosition = useCallback((nextPosition: PlayerPosition) => {
+    posRef.current = nextPosition;
+    playerPositionStore.set(nextPosition);
+    setCommittedPos(nextPosition);
+  }, [playerPositionStore]);
+  const publishLivePlayerPosition = useCallback((nextPosition: PlayerPosition) => {
+    posRef.current = nextPosition;
+    playerPositionStore.set(nextPosition);
+  }, [playerPositionStore]);
   const [topSplashVisible, setTopSplashVisible] = useState(true);
   const [circleIntroVisible, setCircleIntroVisible] = useState(false);
   const [bootMode, setBootMode] = useState<'title' | 'loadingSave' | 'playing'>('title');
@@ -4331,9 +4420,10 @@ export default function App() {
     }
     setSkillTreeTutorialStep(step => step === null ? 0 : step + 1);
   };
-  const grantHeroSPReward = (amount: number) => {
+  const grantHeroSPReward = (amount: number, triggersLevelUpTutorial = false) => {
     setHeroSP(currentSP => grantHeroSP(currentSP, amount));
     if (
+      triggersLevelUpTutorial &&
       amount > 0 &&
       heroSP <= 0 &&
       !collectionProgress.unlockedEventIds.includes(SKILL_TREE_TUTORIAL_SEEN_EVENT_ID)
@@ -5982,6 +6072,7 @@ export default function App() {
         finger: isFarmCareActionUnlocked('finger'),
         fertilize: isFarmCareActionUnlocked('fertilize'),
       };
+      const selectedSeedlingCareBlockedByAP = currentAP <= 0;
       const selectedGirlEquipmentAvailable = Boolean(
         selectedGirlData &&
         selectedFarmGirlState?.cardRevealed &&
@@ -6007,6 +6098,10 @@ export default function App() {
       const selectedFarmPrimaryAction = selectedFarmPrimaryActions[
         Math.max(0, Math.min(selectedFarmPrimaryActions.length - 1, selectedFarmCareActionIndex))
       ];
+      const canNurseSelectedFarmGirl = hasHeroSkill('special_life_understanding') || currentAP > 0;
+      const selectedFarmGirlNurseCostLabel = hasHeroSkill('special_life_understanding')
+        ? 'AP 0'
+        : currentAP > 0 ? 'AP 1' : 'AP不足';
       const getSelectedFarmPrimaryActionIndex = (action: FarmMenuPrimaryAction) => (
         Math.max(0, selectedFarmPrimaryActions.indexOf(action))
       );
@@ -6235,9 +6330,9 @@ export default function App() {
                           setSelectedFarmCareActionIndex(getSelectedFarmPrimaryActionIndex('nurse'));
                           careForFarmGirl(selectedFarmGirlState.girlId);
                         }}
-                        className={`rounded border px-4 py-2 text-sm font-black text-[#fff5fd] transition hover:bg-[#7d388f] ${selectedFarmPrimaryAction === 'nurse' ? 'border-white bg-[#7d388f] ring-4 ring-[#ffd166]/75' : 'border-[#d8a8ff]/80 bg-[#5b276a]/80'}`}
+                        className={`rounded border px-4 py-2 text-sm font-black text-[#fff5fd] transition hover:bg-[#7d388f] ${!canNurseSelectedFarmGirl ? 'opacity-60' : ''} ${selectedFarmPrimaryAction === 'nurse' ? 'border-white bg-[#7d388f] ring-4 ring-[#ffd166]/75' : 'border-[#d8a8ff]/80 bg-[#5b276a]/80'}`}
                       >
-                        看病する（{hasHeroSkill('special_life_understanding') ? 'AP 0' : 'AP 1'}）
+                        看病する（{selectedFarmGirlNurseCostLabel}）
                       </button>
                       {hasHeroSkill('special_hybrid_cultivation') && (
                         <button
@@ -6281,13 +6376,19 @@ export default function App() {
 	                        data-farm-primary-action-index={getSelectedFarmPrimaryActionIndex('caress')}
 	                        data-farm-primary-selected={selectedFarmPrimaryAction === 'caress'}
 	                        onMouseEnter={() => { if (selectedFarmPrimaryAction !== 'caress') playCursorSound(); setMenuFocusArea('content'); setMenuContentFocus('primary'); setSelectedFarmCareActionIndex(getSelectedFarmPrimaryActionIndex('caress')); }}
-	                        aria-disabled={selectedSeedlingCareCounts.caress >= selectedSeedlingCareLimits.caress || currentAP <= 0}
+	                        aria-disabled={selectedSeedlingCareCounts.caress >= selectedSeedlingCareLimits.caress || selectedSeedlingCareBlockedByAP}
 	                        onClick={(event) => { if (event.detail === 0) handleSeedlingCareButtonPress('caress'); }}
-	                        className={`relative z-10 min-h-[74px] rounded border px-2 py-2 text-center text-sm font-black text-[#fff1f7] transition hover:bg-[#8d4170] pointer-events-auto ${(selectedSeedlingCareCounts.caress >= selectedSeedlingCareLimits.caress || currentAP <= 0) ? 'opacity-55' : ''} ${selectedFarmPrimaryAction === 'caress' ? 'border-white bg-[#8d4170] ring-2 ring-[#ffd166]/70' : 'border-[#e5a6c8]/80 bg-[#6d3157]/80'}`}
+	                        className={`relative z-10 min-h-[74px] rounded border px-2 py-2 text-center text-sm font-black text-[#fff1f7] transition hover:bg-[#8d4170] pointer-events-auto ${(selectedSeedlingCareCounts.caress >= selectedSeedlingCareLimits.caress || selectedSeedlingCareBlockedByAP) ? 'opacity-55' : ''} ${selectedFarmPrimaryAction === 'caress' ? 'border-white bg-[#8d4170] ring-2 ring-[#ffd166]/70' : 'border-[#e5a6c8]/80 bg-[#6d3157]/80'}`}
 	                      >
                         <span className="block">愛撫</span>
-                        <span className="mt-1 block whitespace-nowrap">+3〜6</span>
-                        <span className="block">品質</span>
+                        {selectedSeedlingCareBlockedByAP ? (
+                          <span className="mt-1 block text-[11px] leading-tight">AP不足</span>
+                        ) : (
+                          <>
+                            <span className="mt-1 block whitespace-nowrap">+3〜6</span>
+                            <span className="block">品質</span>
+                          </>
+                        )}
                       </button>
 	                      <button
 	                        type="button"
@@ -6295,12 +6396,14 @@ export default function App() {
 	                        data-farm-primary-action-index={getSelectedFarmPrimaryActionIndex('finger')}
 	                        data-farm-primary-selected={selectedFarmPrimaryAction === 'finger'}
 	                        onMouseEnter={() => { if (selectedFarmPrimaryAction !== 'finger') playCursorSound(); setMenuFocusArea('content'); setMenuContentFocus('primary'); setSelectedFarmCareActionIndex(getSelectedFarmPrimaryActionIndex('finger')); }}
-	                        aria-disabled={!selectedSeedlingCareUnlocked.finger || selectedSeedlingCareCounts.finger >= selectedSeedlingCareLimits.finger || currentAP <= 0}
+	                        aria-disabled={!selectedSeedlingCareUnlocked.finger || selectedSeedlingCareCounts.finger >= selectedSeedlingCareLimits.finger || selectedSeedlingCareBlockedByAP}
 	                        onClick={(event) => { if (event.detail === 0) handleSeedlingCareButtonPress('finger'); }}
-	                        className={`relative z-10 min-h-[74px] rounded border px-2 py-2 text-center text-sm font-black text-[#f6efff] transition hover:bg-[#62458b] pointer-events-auto ${(!selectedSeedlingCareUnlocked.finger || selectedSeedlingCareCounts.finger >= selectedSeedlingCareLimits.finger || currentAP <= 0) ? 'opacity-55' : ''} ${selectedFarmPrimaryAction === 'finger' ? 'border-white bg-[#62458b] ring-2 ring-[#ffd166]/70' : 'border-[#c7a6e5]/80 bg-[#4c356e]/80'}`}
+	                        className={`relative z-10 min-h-[74px] rounded border px-2 py-2 text-center text-sm font-black text-[#f6efff] transition hover:bg-[#62458b] pointer-events-auto ${(!selectedSeedlingCareUnlocked.finger || selectedSeedlingCareCounts.finger >= selectedSeedlingCareLimits.finger || selectedSeedlingCareBlockedByAP) ? 'opacity-55' : ''} ${selectedFarmPrimaryAction === 'finger' ? 'border-white bg-[#62458b] ring-2 ring-[#ffd166]/70' : 'border-[#c7a6e5]/80 bg-[#4c356e]/80'}`}
 	                      >
                         <span className="block">指入れ</span>
-                        {selectedSeedlingCareUnlocked.finger ? (
+                        {selectedSeedlingCareBlockedByAP ? (
+                          <span className="mt-1 block text-[11px] leading-tight">AP不足</span>
+                        ) : selectedSeedlingCareUnlocked.finger ? (
                           <>
                             <span className="mt-1 block whitespace-nowrap">+6〜10</span>
                             <span className="block">品質</span>
@@ -6315,12 +6418,14 @@ export default function App() {
 	                        data-farm-primary-action-index={getSelectedFarmPrimaryActionIndex('fertilize')}
 	                        data-farm-primary-selected={selectedFarmPrimaryAction === 'fertilize'}
 	                        onMouseEnter={() => { if (selectedFarmPrimaryAction !== 'fertilize') playCursorSound(); setMenuFocusArea('content'); setMenuContentFocus('primary'); setSelectedFarmCareActionIndex(getSelectedFarmPrimaryActionIndex('fertilize')); }}
-	                        aria-disabled={!selectedSeedlingCareUnlocked.fertilize || selectedSeedlingCareCounts.fertilize >= selectedSeedlingCareLimits.fertilize || currentAP <= 0}
+	                        aria-disabled={!selectedSeedlingCareUnlocked.fertilize || selectedSeedlingCareCounts.fertilize >= selectedSeedlingCareLimits.fertilize || selectedSeedlingCareBlockedByAP}
 	                        onClick={(event) => { if (event.detail === 0) handleSeedlingCareButtonPress('fertilize'); }}
-	                        className={`relative z-10 min-h-[74px] rounded border px-2 py-2 text-center text-sm font-black text-[#f1ffe4] transition hover:bg-[#517f34] pointer-events-auto ${(!selectedSeedlingCareUnlocked.fertilize || selectedSeedlingCareCounts.fertilize >= selectedSeedlingCareLimits.fertilize || currentAP <= 0) ? 'opacity-55' : ''} ${selectedFarmPrimaryAction === 'fertilize' ? 'border-white bg-[#517f34] ring-2 ring-[#ffd166]/70' : 'border-[#a3d977]/80 bg-[#3f6528]/80'}`}
+	                        className={`relative z-10 min-h-[74px] rounded border px-2 py-2 text-center text-sm font-black text-[#f1ffe4] transition hover:bg-[#517f34] pointer-events-auto ${(!selectedSeedlingCareUnlocked.fertilize || selectedSeedlingCareCounts.fertilize >= selectedSeedlingCareLimits.fertilize || selectedSeedlingCareBlockedByAP) ? 'opacity-55' : ''} ${selectedFarmPrimaryAction === 'fertilize' ? 'border-white bg-[#517f34] ring-2 ring-[#ffd166]/70' : 'border-[#a3d977]/80 bg-[#3f6528]/80'}`}
 	                      >
                         <span className="block">肥料注入</span>
-                        {selectedSeedlingCareUnlocked.fertilize ? (
+                        {selectedSeedlingCareBlockedByAP ? (
+                          <span className="mt-1 block text-[11px] leading-tight">AP不足</span>
+                        ) : selectedSeedlingCareUnlocked.fertilize ? (
                           <>
                             <span className="mt-1 block whitespace-nowrap">成長</span>
                             <span className="block">+1日</span>
@@ -8022,18 +8127,28 @@ export default function App() {
     (inventoryCounts['のこぎり'] ?? 0) > 0 &&
     (inventoryCounts['つるはし'] ?? 0) > 0
   );
-  const hasSturdyRodCraftingMaterials = (
-    (inventoryCounts['竹の釣竿'] ?? 0) > 0 &&
-    (inventoryCounts['しなやかな軟木'] ?? 0) > 0 &&
-    (inventoryCounts['軽石炭'] ?? 0) > 0
+  const hasRecipeProgress = (recipeName: CraftRecipeId, outputName: string) => (
+    (inventoryCounts[recipeName] ?? 0) > 0 ||
+    (inventoryCounts[outputName] ?? 0) > 0 ||
+    collectionProgress.craftedItemIds.includes(recipeName)
   );
+  const hasBasicBeastEquipmentRecipeProgress = (
+    hasBeastPremonition ||
+    collectionProgress.unlockedEventIds.includes(BEAST_PREMONITION_SEEN_EVENT_ID) ||
+    hasBoarProgress ||
+    hasBearProgress ||
+    hasGiantBeastProgress ||
+    successfulRepaymentCount >= 2
+  );
+  const hasBoarMaterialRoute = hasBoarProgress || heroLevel >= 2 || successfulRepaymentCount >= 2;
+  const hasBearMaterialRoute = hasBearProgress || heroLevel >= 3 || successfulRepaymentCount >= 3;
   const isProgressionRecipeUnlocked = (recipeName: string) => {
     const minimumDifficulty = CRAFT_RECIPE_MIN_DIFFICULTY[recipeName as CraftRecipeId] ?? 'easy';
     if (DIFFICULTY_ORDER[difficulty] < DIFFICULTY_ORDER[minimumDifficulty]) return false;
     switch (recipeName) {
       case '【レシピ】木剣':
       case '【レシピ】毛皮の服':
-        return hasBeastPremonition;
+        return hasBasicBeastEquipmentRecipeProgress;
       case '【レシピ】丈夫なつるはし':
         return miningTutorialCompleted;
       case '【レシピ】丈夫なのこぎり':
@@ -8041,21 +8156,25 @@ export default function App() {
       case '【レシピ】獣殺し':
         return hasBoarProgress;
       case '【レシピ】剛牙の鎧':
-        return hasBearProgress || successfulRepaymentCount >= 2;
+        return hasBearMaterialRoute && hasRecipeProgress('【レシピ】毛皮の服', '毛皮の服');
       case '【レシピ】高級つるはし':
+        return hasBoarMaterialRoute && hasRecipeProgress('【レシピ】丈夫なつるはし', '丈夫なつるはし');
       case '【レシピ】高級のこぎり':
+        return hasBoarMaterialRoute && hasRecipeProgress('【レシピ】丈夫なのこぎり', '丈夫なのこぎり');
       case '【レシピ】高級釣竿':
-        return hasBoarProgress || successfulRepaymentCount >= 2;
+        return hasBearMaterialRoute && hasRecipeProgress('【レシピ】丈夫な釣竿', '丈夫な釣竿');
       case '【レシピ】天の裁き':
-        return hasGiantBeastProgress;
+        return hasGiantBeastProgress && hasRecipeProgress('【レシピ】獣殺し', '獣殺し');
       case '【レシピ】神域の加護':
-        return hasGiantBeastProgress || mountainLordAttackPending;
+        return (hasGiantBeastProgress || mountainLordAttackPending) && hasRecipeProgress('【レシピ】剛牙の鎧', '剛牙の鎧');
       case '【レシピ】伝説のつるはし':
+        return (hasGiantBeastProgress || storyCleared || debtAmount <= 0) && hasRecipeProgress('【レシピ】高級つるはし', '高級つるはし');
       case '【レシピ】伝説ののこぎり':
+        return (hasGiantBeastProgress || storyCleared || debtAmount <= 0) && hasRecipeProgress('【レシピ】高級のこぎり', '高級のこぎり');
       case '【レシピ】伝説の釣り竿':
-        return hasGiantBeastProgress || storyCleared || debtAmount <= 0;
+        return (hasGiantBeastProgress || storyCleared || debtAmount <= 0) && hasRecipeProgress('【レシピ】高級釣竿', '高級釣竿');
       case '【レシピ】丈夫な釣竿':
-        return fishingTutorialCompleted && hasCraftedBasicGatheringTools && hasSturdyRodCraftingMaterials;
+        return fishingTutorialCompleted && hasCraftedBasicGatheringTools;
       default:
         return false;
     }
@@ -9818,6 +9937,18 @@ export default function App() {
 	          );
 	          const loadedFarmGirls = normalizeFarmGirls(data.farmGirls);
 	          setFarmGirls(loadedFarmGirls);
+	          const collectedGirlIdsFromFarmGirls = loadedFarmGirls
+	            .filter(girl => girl.cardRevealed)
+	            .map(girl => girl.girlId);
+	          if (collectedGirlIdsFromFarmGirls.length > 0) {
+	            setCollectionProgress(previous => ({
+	              ...previous,
+	              collectedGirlIds: Array.from(new Set([
+	                ...previous.collectedGirlIds,
+	                ...collectedGirlIdsFromFarmGirls,
+	              ])),
+	            }));
+	          }
 	          const loadedHarvestedGirlCount = loadedFarmGirls.filter(girl => girl.lastHarvestDay !== null).length;
 	          const inferredFarmCareUnlockStage = loadedHarvestedGirlCount >= 2
 	            ? 3
@@ -10273,8 +10404,7 @@ export default function App() {
           setGirlEquipment(createInitialGirlEquipmentState());
           setCurrentMap('farm');
           currentMapRef.current = 'farm';
-          setPos({ ...NEW_GAME_START_POSITION });
-          posRef.current = { ...NEW_GAME_START_POSITION };
+          commitPlayerPosition({ ...NEW_GAME_START_POSITION });
           setDir('down');
           setDialogMessage(DEFAULT_SYSTEM_MESSAGE);
           setShowDialog(false);
@@ -11158,7 +11288,7 @@ export default function App() {
 	  };
 
 	  const handleBeastAttackFight = () => {
-	    const beasts = mountainLordAttackPending ? createMountainLordUnit() : createStoryBeastUnits(difficulty, heroLevel);
+	    const beasts = mountainLordAttackPending ? createMountainLordUnit() : createStoryBeastUnits(difficulty, heroLevel, currentDay);
 	    setBeastAttackPending(false);
 	    setHasBeastPremonition(false);
 	    setScheduledBeastAttackDay(null);
@@ -11168,7 +11298,7 @@ export default function App() {
 	  };
 
 	  const handleBeastAttackWatch = () => {
-	    const beasts = mountainLordAttackPending ? createMountainLordUnit() : createStoryBeastUnits(difficulty, heroLevel);
+	    const beasts = mountainLordAttackPending ? createMountainLordUnit() : createStoryBeastUnits(difficulty, heroLevel, currentDay);
 	    const farmDamageLogs = applyBeastAttackDamage(beasts, 'watch');
 	    setBeastAttackPending(false);
 	    setHasBeastPremonition(false);
@@ -12710,6 +12840,14 @@ export default function App() {
       }));
     }
     const isFirstHarvestReveal = !farmGirl?.cardRevealed;
+    if (isFirstHarvestReveal) {
+      setCollectionProgress(previous => ({
+        ...previous,
+        collectedGirlIds: previous.collectedGirlIds.includes(girlId)
+          ? previous.collectedGirlIds
+          : [...previous.collectedGirlIds, girlId],
+      }));
+    }
     const newlyUnlockedCareAction: FarmCareAction | null = farmCareUnlockStage === 1
       ? 'finger'
       : farmCareUnlockStage === 2 && farmCareFingerUnlockedDay !== currentDay
@@ -13141,7 +13279,7 @@ export default function App() {
     const nextHeroLevel = Math.min(MAX_HERO_LEVEL, heroLevel + 1) as HeroLevel;
     const spReward = HERO_LEVEL_SP_REWARD_BY_MODE[getSpProgressionMode()][nextHeroLevel] ?? SP_GAIN_PER_LEVEL;
     setHeroLevel(nextHeroLevel);
-    grantHeroSPReward(spReward);
+    grantHeroSPReward(spReward, true);
     setDialogMessage(`主人公の経験が増した！\n★が1つ輝いた！\nSP +${spReward}`);
   }, [bootMode, collectionProgress.unlockedEventIds, difficulty, farmCredit, gameMode, heroLevel, successfulRepaymentCount]);
   const recordMioSleep = () => {
@@ -13251,7 +13389,6 @@ export default function App() {
     recordMioSleep();
 
     if (
-      timeOfDay === 'night' &&
       !hasBeastPremonition &&
       scheduledBeastAttackDay === null &&
       Math.random() < BEAST_PREMONITION_RATE_BY_DIFFICULTY[difficulty]
@@ -13261,6 +13398,7 @@ export default function App() {
       setPremonitionDay(currentDay);
       setScheduledBeastAttackDay(getScheduledBeastAttackDay(difficulty, currentDay));
       setMountainLordAttackPending(isMountainLordAttack);
+      unlockCollectionEvent(BEAST_PREMONITION_SEEN_EVENT_ID);
       setDialogMessage(isMountainLordAttack ? '畑の向こうから、重い足音が響いてくる……' : 'なんだか嫌な予感がする……');
     }
   };
@@ -14386,8 +14524,7 @@ export default function App() {
     setKurumiShopOpen(false);
     setCurrentMap('shed');
     currentMapRef.current = 'shed';
-    setPos(shedStartPos);
-    posRef.current = shedStartPos;
+    commitPlayerPosition(shedStartPos);
     setDir('left');
     sawCraftTutorialIntroVoiceKeyRef.current = null;
     setDialogMessage('クラフト小屋でくるみが待っています。');
@@ -17252,9 +17389,12 @@ export default function App() {
             x: Math.round(start.x + (end.x - start.x) * t),
             y: Math.round(start.y + (end.y - start.y) * t),
           };
-          posRef.current = nextPosition;
-          setPos(nextPosition);
-          if (step === steps) setIsWalking(false);
+          if (step === steps) {
+            commitPlayerPosition(nextPosition);
+            setIsWalking(false);
+          } else {
+            publishLivePlayerPosition(nextPosition);
+          }
         }, delayMs + Math.round((durationMs * step) / steps));
       }
     };
@@ -17289,8 +17429,7 @@ export default function App() {
         setIsWalking(false);
         setDir(direction);
         setBathForcedDisplayDirection(direction);
-        posRef.current = position;
-        setPos(position);
+        commitPlayerPosition(position);
       }, delayMs);
     };
 
@@ -18673,60 +18812,66 @@ export default function App() {
   }, [currentMap, battlePreviewOpen, battlePreviewState.encounterType]);
 
   useEffect(() => {
-    const waterfallAudio = waterfallSoundRef.current;
-    const riverAudio = riverSoundRef.current;
-    const fireplaceAudio = fireplaceSoundRef.current;
-    const cicadaAudio = cicadaSoundRef.current;
-    if (!waterfallAudio || !riverAudio || !fireplaceAudio || !cicadaAudio) return;
+    const updatePositionedAudio = () => {
+      const waterfallAudio = waterfallSoundRef.current;
+      const riverAudio = riverSoundRef.current;
+      const fireplaceAudio = fireplaceSoundRef.current;
+      const cicadaAudio = cicadaSoundRef.current;
+      if (!waterfallAudio || !riverAudio || !fireplaceAudio || !cicadaAudio) return;
 
-    const isDarkKingBattleOpen = battlePreviewOpen && ['darkKing', 'darkKingTest'].includes(battlePreviewState.encounterType);
-    if (isDarkKingBattleOpen) {
-      waterfallAudio.volume = 0;
-      riverAudio.volume = 0;
-      fireplaceAudio.volume = 0;
-      cicadaAudio.volume = 0;
-      return;
-    }
+      const livePosition = playerPositionStore.getSnapshot();
+      const isDarkKingBattleOpen = battlePreviewOpen && ['darkKing', 'darkKingTest'].includes(battlePreviewState.encounterType);
+      if (isDarkKingBattleOpen) {
+        waterfallAudio.volume = 0;
+        riverAudio.volume = 0;
+        fireplaceAudio.volume = 0;
+        cicadaAudio.volume = 0;
+        return;
+      }
 
-    cicadaAudio.volume = currentMap === 'waterfall'
-      ? getEffectiveVolume(CICADA_SOUND_SRC, seVolume, audioGainsRef.current)
-      : 0;
+      cicadaAudio.volume = currentMap === 'waterfall'
+        ? getEffectiveVolume(CICADA_SOUND_SRC, seVolume, audioGainsRef.current)
+        : 0;
 
-    riverAudio.volume = Math.min(1, getEffectiveVolume(RIVER_SOUND_SRC, seVolume, audioGainsRef.current) * getRiverVolume(currentMap, pos));
+      riverAudio.volume = Math.min(1, getEffectiveVolume(RIVER_SOUND_SRC, seVolume, audioGainsRef.current) * getRiverVolume(currentMap, livePosition));
 
-    if (currentMap === 'house') {
-      const dx = pos.x - HOUSE_FIREPLACE_POINT.x;
-      const dy = pos.y - HOUSE_FIREPLACE_POINT.y;
+      if (currentMap === 'house') {
+        const dx = livePosition.x - HOUSE_FIREPLACE_POINT.x;
+        const dy = livePosition.y - HOUSE_FIREPLACE_POINT.y;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        const proximityGain = 1 - Math.min(distance / FIREPLACE_HEAR_DISTANCE, 1);
+        fireplaceAudio.volume = Math.min(1, getEffectiveVolume(FIREPLACE_SOUND_SRC, seVolume, audioGainsRef.current) * proximityGain);
+      } else {
+        fireplaceAudio.volume = 0;
+      }
+
+      const waterfallSoundZone = zones.find(zone => (
+        zone.map === currentMap &&
+        zone.type === 'waterfall' &&
+        isAnimZoneVisibleAtTime(zone, timeOfDay)
+      ));
+      const waterfallSoundPoint = waterfallSoundZone
+        ? {
+            x: waterfallSoundZone.x + waterfallSoundZone.w / 2,
+            y: waterfallSoundZone.y + waterfallSoundZone.h / 2,
+          }
+        : getWaterfallSoundPoint(currentMap);
+      if (!waterfallSoundPoint) {
+        waterfallAudio.volume = 0;
+        return;
+      }
+
+      const dx = livePosition.x - waterfallSoundPoint.x;
+      const dy = livePosition.y - waterfallSoundPoint.y;
       const distance = Math.sqrt(dx * dx + dy * dy);
-      const proximityGain = 1 - Math.min(distance / FIREPLACE_HEAR_DISTANCE, 1);
-      fireplaceAudio.volume = Math.min(1, getEffectiveVolume(FIREPLACE_SOUND_SRC, seVolume, audioGainsRef.current) * proximityGain);
-    } else {
-      fireplaceAudio.volume = 0;
-    }
+      const closeness = 1 - Math.min(distance / WATERFALL_HEAR_DISTANCE, 1);
+      const proximityGain = WATERFALL_MIN_GAIN + (1 - WATERFALL_MIN_GAIN) * closeness;
+      waterfallAudio.volume = Math.min(1, getEffectiveVolume(WATERFALL_SOUND_SRC, seVolume, audioGainsRef.current) * proximityGain);
+    };
 
-    const waterfallSoundZone = zones.find(zone => (
-      zone.map === currentMap &&
-      zone.type === 'waterfall' &&
-      isAnimZoneVisibleAtTime(zone, timeOfDay)
-    ));
-    const waterfallSoundPoint = waterfallSoundZone
-      ? {
-          x: waterfallSoundZone.x + waterfallSoundZone.w / 2,
-          y: waterfallSoundZone.y + waterfallSoundZone.h / 2,
-        }
-      : getWaterfallSoundPoint(currentMap);
-    if (!waterfallSoundPoint) {
-      waterfallAudio.volume = 0;
-      return;
-    }
-
-    const dx = pos.x - waterfallSoundPoint.x;
-    const dy = pos.y - waterfallSoundPoint.y;
-    const distance = Math.sqrt(dx * dx + dy * dy);
-    const closeness = 1 - Math.min(distance / WATERFALL_HEAR_DISTANCE, 1);
-    const proximityGain = WATERFALL_MIN_GAIN + (1 - WATERFALL_MIN_GAIN) * closeness;
-    waterfallAudio.volume = Math.min(1, getEffectiveVolume(WATERFALL_SOUND_SRC, seVolume, audioGainsRef.current) * proximityGain);
-  }, [currentMap, pos.x, pos.y, seVolume, audioGains, zones, timeOfDay, battlePreviewOpen, battlePreviewState.encounterType]);
+    updatePositionedAudio();
+    return playerPositionStore.subscribe(updatePositionedAudio);
+  }, [currentMap, seVolume, audioGains, zones, timeOfDay, battlePreviewOpen, battlePreviewState.encounterType, playerPositionStore]);
 
   // 歩行音 (soil.mp3) の初期化
   useEffect(() => {
@@ -18751,27 +18896,33 @@ export default function App() {
 
   // 足元マスに応じて歩行音を切り替える
   useEffect(() => {
-    const audio = walkSoundRef.current;
-    if (!audio) return;
+    const updateFootstepSound = () => {
+      const audio = walkSoundRef.current;
+      if (!audio) return;
 
-    const tileKey = getFootstepTileKey(pos.x, pos.y, currentMap);
-    const nextSound = footstepTiles[tileKey] ?? 'soil';
-    if (walkSoundTypeRef.current === nextSound) return;
+      const livePosition = playerPositionStore.getSnapshot();
+      const tileKey = getFootstepTileKey(livePosition.x, livePosition.y, currentMap);
+      const nextSound = footstepTiles[tileKey] ?? 'soil';
+      if (walkSoundTypeRef.current === nextSound) return;
 
-    const wasPlaying = !audio.paused;
-    walkSoundTypeRef.current = nextSound;
-    audio.pause();
-    audio.src = FOOTSTEP_SOUNDS[nextSound].src;
-    audio.loop = true;
-    audio.playbackRate = FOOTSTEP_SOUNDS[nextSound].playbackRate;
-    audio.volume = getEffectiveVolume(FOOTSTEP_SOUNDS[nextSound].src, seVolumeRef.current, audioGainsRef.current);
-    audio.currentTime = 0;
-    if (wasPlaying && isWalking && setupMode === 'none') {
-      audio.play().catch((err) => {
-        console.log("Walk sound switch blocked", err);
-      });
-    }
-  }, [pos.x, pos.y, currentMap, footstepTiles, isWalking, setupMode]);
+      const wasPlaying = !audio.paused;
+      walkSoundTypeRef.current = nextSound;
+      audio.pause();
+      audio.src = FOOTSTEP_SOUNDS[nextSound].src;
+      audio.loop = true;
+      audio.playbackRate = FOOTSTEP_SOUNDS[nextSound].playbackRate;
+      audio.volume = getEffectiveVolume(FOOTSTEP_SOUNDS[nextSound].src, seVolumeRef.current, audioGainsRef.current);
+      audio.currentTime = 0;
+      if (wasPlaying && isWalking && setupMode === 'none') {
+        audio.play().catch((err) => {
+          console.log("Walk sound switch blocked", err);
+        });
+      }
+    };
+
+    updateFootstepSound();
+    return playerPositionStore.subscribe(updateFootstepSound);
+  }, [currentMap, footstepTiles, isWalking, setupMode, playerPositionStore]);
 
   // 歩行状態に応じた再生・停止
   useEffect(() => {
@@ -20635,8 +20786,7 @@ export default function App() {
 
     // 衝突を回避した場合、posステートも安全な位置に更新
     if (safePos.x !== loopStartPos.x || safePos.y !== loopStartPos.y) {
-       posRef.current = safePos;
-       setPos(safePos);
+       commitPlayerPosition(safePos);
     }
 
     // Door SFX
@@ -20917,9 +21067,8 @@ export default function App() {
         currentMapRef.current = door.targetMap;
         currentX = nextPosition.x;
         currentY = nextPosition.y;
-        posRef.current = nextPosition;
         setCurrentMap(door.targetMap);
-        setPos(nextPosition);
+        commitPlayerPosition(nextPosition);
         setDir(currentDir);
         completeOpeningMapTransition();
         setMapTransitionPhase('fadeIn');
@@ -20944,8 +21093,12 @@ export default function App() {
     };
     const updateRenderedWalking = (nextIsWalking: boolean) => {
       if (renderedWalkingRef.current === nextIsWalking) return;
+      const wasWalking = renderedWalkingRef.current;
       renderedWalkingRef.current = nextIsWalking;
       setIsWalking(nextIsWalking);
+      if (wasWalking && !nextIsWalking) {
+        commitPlayerPosition(posRef.current);
+      }
     };
 
     let previousMovementFrameTime: number | null = null;
@@ -21284,8 +21437,7 @@ export default function App() {
 
       if (posRef.current.x !== currentX || posRef.current.y !== currentY) {
         const nextPosition = { x: currentX, y: currentY };
-        posRef.current = nextPosition;
-        setPos(nextPosition);
+        publishLivePlayerPosition(nextPosition);
       }
       updateRenderedDirection(currentDir);
       updateRenderedWalking(moved);
@@ -21827,7 +21979,7 @@ export default function App() {
      
      setIsDraggingPlayer(true);
      playerDragStart.current = { x: clickX, y: clickY };
-     playerDragStartPos.current = { x: pos.x, y: pos.y };
+     playerDragStartPos.current = { ...posRef.current };
   };
 
   // 扉のドラッグ開始
@@ -21966,7 +22118,7 @@ export default function App() {
         const newX = Math.max(30, Math.min(playerDragStartPos.current.x + dx, GAME_WIDTH - 30));
         const newY = Math.max(50, Math.min(playerDragStartPos.current.y + dy, GAME_HEIGHT - 10));
         
-        setPos({ x: newX, y: newY });
+        commitPlayerPosition({ x: newX, y: newY });
      };
 
      const handlePointerUp = () => {
@@ -22207,8 +22359,9 @@ export default function App() {
 
      const kurumiCenterX = zone.x + zone.w / 2;
      const kurumiCenterY = zone.y + zone.h / 2;
-     const dx = pos.x - kurumiCenterX;
-     const dy = pos.y - kurumiCenterY;
+     const playerPos = posRef.current;
+     const dx = playerPos.x - kurumiCenterX;
+     const dy = playerPos.y - kurumiCenterY;
      if (Math.sqrt(dx * dx + dy * dy) > KURUMI_INTERACT_DISTANCE) {
         const approachPoint = {
            x: kurumiCenterX,
@@ -22245,12 +22398,6 @@ export default function App() {
   const selectedRecipeDetail = selectedRecipeName ? RECIPE_DETAILS[selectedRecipeName] : undefined;
   const cameraTemporarilyDisabled = setupMode !== 'none' || menuOpen || showDialog || movementLocked;
   const effectiveMapZoom: MapZoom = bootMode === 'playing' && !cameraTemporarilyDisabled ? mapZoom : 1;
-  const cameraOffsetX = effectiveMapZoom === 1
-    ? 0
-    : clampNumber(GAME_WIDTH / 2 - pos.x * effectiveMapZoom, GAME_WIDTH - GAME_WIDTH * effectiveMapZoom, 0);
-  const cameraOffsetY = effectiveMapZoom === 1
-    ? 0
-    : clampNumber(GAME_HEIGHT / 2 - pos.y * effectiveMapZoom, GAME_HEIGHT - GAME_HEIGHT * effectiveMapZoom, 0);
 
   return (
     <div className="min-h-screen bg-[#111] flex items-center justify-center p-4 py-8 overflow-hidden select-none" style={{ fontFamily: '"DotGothic16", sans-serif' }}>
@@ -22932,7 +23079,9 @@ export default function App() {
         )}
 
         {/* Map */}
-        <div 
+        <LivePositionedMap
+          positionStore={playerPositionStore}
+          effectiveMapZoom={effectiveMapZoom}
           className={`relative flex-grow cursor-crosshair ${setupMode === 'none' ? 'cursor-pointer' : 'cursor-crosshair'}`} 
           onPointerDown={handleMapPointerDown} onPointerMove={handleMapPointerMove} onPointerUp={handleMapPointerUp}
           onContextMenu={(e) => {
@@ -22950,9 +23099,7 @@ export default function App() {
             width: GAME_WIDTH, 
             height: GAME_HEIGHT, 
             touchAction: 'none',
-            transform: `matrix(${effectiveMapZoom}, 0, 0, ${effectiveMapZoom}, ${cameraOffsetX}, ${cameraOffsetY})`,
             transformOrigin: 'top left',
-            transition: effectiveMapZoom === 1 ? 'transform 160ms ease-out' : 'transform 80ms linear',
             backgroundImage: `url(${getMapBackgroundUrl(currentMap, timeOfDay)})`, 
             backgroundSize: getMapBackgroundSize(currentMap),
             backgroundPosition: 'center',
@@ -23218,7 +23365,8 @@ export default function App() {
                   event.stopPropagation();
                   const centerX = forbiddenLandZone.x + forbiddenLandZone.w / 2;
                   const centerY = forbiddenLandZone.y + forbiddenLandZone.h / 2;
-                  if (!canUseDebugTools && Math.hypot(pos.x - centerX, pos.y - centerY) > 180) {
+                  const playerPos = posRef.current;
+                  if (!canUseDebugTools && Math.hypot(playerPos.x - centerX, playerPos.y - centerY) > 180) {
                     setDialogMessage('洞窟の奥のほうから何か異様な空気を感じる...。');
                     return;
                   }
@@ -23492,7 +23640,7 @@ export default function App() {
                  onPointerDown={(e) => e.stopPropagation()}
                  onClick={(e) => {
                     e.stopPropagation();
-                    if (!isNearFishingTutorialKurumi(pos)) {
+                    if (!isNearFishingTutorialKurumi(posRef.current)) {
                        clickTargetRef.current = FISHING_TUTORIAL_KURUMI_APPROACH_POINT;
                        setClickTargetMarker(FISHING_TUTORIAL_KURUMI_APPROACH_POINT);
                        setDialogMessage('くるみの近くまで移動します。');
@@ -23532,7 +23680,7 @@ export default function App() {
                  onPointerDown={(e) => e.stopPropagation()}
                  onClick={(e) => {
                     e.stopPropagation();
-                    if (!isNearSawCraftTutorialKurumi(pos)) {
+                    if (!isNearSawCraftTutorialKurumi(posRef.current)) {
                        clickTargetRef.current = {
                           x: CRAFT_TUTORIAL_KURUMI_ZONE.x - 70,
                           y: CRAFT_TUTORIAL_KURUMI_ZONE.y + CRAFT_TUTORIAL_KURUMI_ZONE.h,
@@ -23987,13 +24135,12 @@ export default function App() {
 
           {/* Player */}
           {setupMode !== 'animation' && (
-             <Character
-                x={pos.x}
-                y={pos.y}
+             <LivePlayerCharacter
+                positionStore={playerPositionStore}
                 direction={bathForcedDisplayDirection ?? getBathDisplayDirection(dir)}
                 isWalking={isWalking}
                 customSprites={customSprites}
-                isHidden={isPlayerInHideArea(pos.x, pos.y, currentMap)}
+                isHiddenAt={livePosition => isPlayerInHideArea(livePosition.x, livePosition.y, currentMap)}
                 isBathMasked={isPlayerInBathTubMask}
                 playerWalkSprites={playerWalkSprites}
                 overrideWalkSprites={isPlayerInBath ? furoWalkSprites : undefined}
@@ -24800,7 +24947,7 @@ export default function App() {
             </div>
           )}
 
-        </div>
+        </LivePositionedMap>
 
         {beastAttackPending && (
            <div className="absolute inset-0 z-[120] flex items-center justify-center bg-black/65">

@@ -108,9 +108,8 @@ export const GIRL_SEED_ACQUISITION_DATA: readonly GirlSeedAcquisitionData[] = [
     acquisitionType: 'materialExchange',
     unlockDifficulty: 'normal',
     requiredItems: [
-      { itemName: '堅実な中木', amount: 6 },
-      { itemName: '良質な鉄鉱石', amount: 4 },
-      { itemName: '猿の牙', amount: 5 },
+      { itemName: '堅実な中木', amount: 10 },
+      { itemName: '良質な鉄鉱石', amount: 8 },
     ],
     isRepeatable: false,
   },
@@ -149,9 +148,8 @@ export const GIRL_SEED_ACQUISITION_DATA: readonly GirlSeedAcquisitionData[] = [
     acquisitionType: 'materialExchange',
     unlockDifficulty: 'normal',
     requiredItems: [
-      { itemName: '猪の牙', amount: 8 },
-      { itemName: '猪の硬皮', amount: 4 },
-      { itemName: '錫鉱石', amount: 6 },
+      { itemName: '堅実な中木', amount: 12 },
+      { itemName: '錫鉱石', amount: 10 },
     ],
     isRepeatable: false,
   },
